@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Wayfarer</title>
+    <link href="{{STYLES_URI}}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>SQL Wayfarer</h1>
+        
+        <div class="connection-section">
+            <h2>Connection</h2>
+            <label for="connectionString">Connection String:</label>
+            <input type="text" id="connectionString" 
+                   placeholder="Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;" 
+                   value="Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;">
+            <button id="connectBtn">Connect</button>
+            <div id="connectionStatus"></div>
+        </div>
+
+        <div class="explorer-section">
+            <div class="selector-panel">
+                <div class="section-header">Databases</div>
+                <select id="databaseSelect" disabled>
+                    <option value="">Select a database...</option>
+                </select>
+                
+                <div class="section-header">Objects</div>
+                <div id="objectList"></div>
+            </div>
+
+            <div class="details-panel">
+                <div class="section-header">Details</div>
+                <div id="detailsContent">
+                    <p>Select a table to view its structure, indexes, and constraints.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{SCRIPT_URI}}"></script>
+</body>
+</html>
