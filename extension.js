@@ -56,6 +56,9 @@ class SqlWayfarerPanel {
                     case 'getTableDetails':
                         this._getTableDetails(message.database, message.table);
                         return;
+                    case 'getObjectDetails':
+                        this._getObjectDetails(message.database, message.objectName, message.objectType);
+                        return;
                 }
             },
             null,
@@ -224,18 +227,207 @@ class SqlWayfarerPanel {
                 WHERE OBJECT_NAME(fk.parent_object_id) = '${tableName}'
             `);
 
+            // Get dependencies for table
+            const dependenciesResult = await this._getDependencies(database, tableName);
+
             this._panel.webview.postMessage({
                 command: 'tableDetailsLoaded',
                 tableName: tableName,
                 columns: columnsResult.recordset,
                 indexes: indexesResult.recordset,
-                foreignKeys: fkResult.recordset
+                foreignKeys: fkResult.recordset,
+                dependencies: dependenciesResult
             });
         } catch (error) {
             this._panel.webview.postMessage({
                 command: 'error',
                 message: `Failed to get table details: ${error.message}`
             });
+        }
+    }
+
+    async _getObjectDetails(database, objectName, objectType) {
+        try {
+            if (!this._connection) {
+                throw new Error('No active connection');
+            }
+
+            // Get dependencies for any object type
+            const dependenciesResult = await this._getDependencies(database, objectName);
+
+            // Get object definition for views, procedures, functions
+            let definition = null;
+            if (objectType !== 'Table') {
+                const definitionResult = await this._connection.request().query(`
+                    USE [${database}];
+                    SELECT OBJECT_DEFINITION(OBJECT_ID('${objectName}')) as definition
+                `);
+                definition = definitionResult.recordset[0]?.definition;
+            }
+
+            this._panel.webview.postMessage({
+                command: 'objectDetailsLoaded',
+                objectName: objectName,
+                objectType: objectType,
+                dependencies: dependenciesResult,
+                definition: definition
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'error',
+                message: `Failed to get object details: ${error.message}`
+            });
+        }
+    }
+
+    async _getDependencies(database, objectName) {
+        try {
+            // Method 1: sys.sql_expression_dependencies (corrected for SQL Server 2022)
+            const dependsOnResult = await this._connection.request().query(`
+                USE [${database}];
+                SELECT DISTINCT
+                    OBJECT_NAME(sed.referenced_id) as referenced_object,
+                    CASE 
+                        WHEN o.type = 'U' THEN 'Table'
+                        WHEN o.type = 'V' THEN 'View'
+                        WHEN o.type = 'P' THEN 'Procedure'
+                        WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                        ELSE o.type_desc
+                    END as referenced_object_type,
+                    'Expression' as dependency_type
+                FROM sys.sql_expression_dependencies sed
+                JOIN sys.objects o ON sed.referenced_id = o.object_id
+                WHERE OBJECT_NAME(sed.referencing_id) = '${objectName}'
+                AND sed.referenced_id > 0
+                AND OBJECT_NAME(sed.referenced_id) IS NOT NULL
+                
+                UNION ALL
+                
+                -- Method 2: Foreign Key dependencies for tables
+                SELECT DISTINCT
+                    OBJECT_NAME(fk.referenced_object_id) as referenced_object,
+                    'Table' as referenced_object_type,
+                    'Foreign Key' as dependency_type
+                FROM sys.foreign_keys fk
+                WHERE OBJECT_NAME(fk.parent_object_id) = '${objectName}'
+                
+                ORDER BY referenced_object
+            `);
+
+            const referencedByResult = await this._connection.request().query(`
+                USE [${database}];
+                SELECT DISTINCT
+                    OBJECT_NAME(sed.referencing_id) as referencing_object,
+                    CASE 
+                        WHEN o.type = 'U' THEN 'Table'
+                        WHEN o.type = 'V' THEN 'View'
+                        WHEN o.type = 'P' THEN 'Procedure'
+                        WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                        ELSE o.type_desc
+                    END as referencing_object_type,
+                    'Expression' as dependency_type
+                FROM sys.sql_expression_dependencies sed
+                JOIN sys.objects o ON sed.referencing_id = o.object_id
+                WHERE OBJECT_NAME(sed.referenced_id) = '${objectName}'
+                AND OBJECT_NAME(sed.referencing_id) IS NOT NULL
+                
+                UNION ALL
+                
+                -- Tables referenced by foreign keys
+                SELECT DISTINCT
+                    OBJECT_NAME(fk.parent_object_id) as referencing_object,
+                    'Table' as referencing_object_type,
+                    'Foreign Key' as dependency_type
+                FROM sys.foreign_keys fk
+                WHERE OBJECT_NAME(fk.referenced_object_id) = '${objectName}'
+                
+                ORDER BY referencing_object
+            `);
+
+            // Method 3: Alternative approach using sys.dm_sql_referenced_entities
+            let alternativeDependsOn = [];
+            
+            try {
+                const altDependsResult = await this._connection.request().query(`
+                    USE [${database}];
+                    SELECT DISTINCT
+                        referenced_entity_name as referenced_object,
+                        CASE 
+                            WHEN referenced_class_desc = 'OBJECT_OR_COLUMN' THEN 
+                                CASE 
+                                    WHEN o.type = 'U' THEN 'Table'
+                                    WHEN o.type = 'V' THEN 'View'
+                                    WHEN o.type = 'P' THEN 'Procedure'
+                                    WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                                    ELSE 'Object'
+                                END
+                            ELSE referenced_class_desc
+                        END as referenced_object_type,
+                        'Reference' as dependency_type
+                    FROM sys.dm_sql_referenced_entities('dbo.${objectName}', 'OBJECT') r
+                    LEFT JOIN sys.objects o ON o.name = r.referenced_entity_name
+                    WHERE referenced_entity_name IS NOT NULL
+                    AND referenced_schema_name IS NOT NULL
+                `);
+                alternativeDependsOn = altDependsResult.recordset;
+            } catch (e) {
+                // sys.dm_sql_referenced_entities might not be available or object might not exist
+                console.log('Alternative dependency method not available:', e.message);
+            }
+
+            // Method 4: Additional approach for comprehensive dependency tracking
+            let additionalDependencies = [];
+            try {
+                const additionalResult = await this._connection.request().query(`
+                    USE [${database}];
+                    -- Get dependencies from sys.sql_modules for procedures, functions, views
+                    SELECT DISTINCT
+                        d.referenced_entity_name as referenced_object,
+                        CASE 
+                            WHEN o.type = 'U' THEN 'Table'
+                            WHEN o.type = 'V' THEN 'View'
+                            WHEN o.type = 'P' THEN 'Procedure'
+                            WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                            ELSE 'Object'
+                        END as referenced_object_type,
+                        'Module Reference' as dependency_type
+                    FROM sys.objects parent
+                    CROSS APPLY sys.dm_sql_referenced_entities(SCHEMA_NAME(parent.schema_id) + '.' + parent.name, 'OBJECT') d
+                    LEFT JOIN sys.objects o ON o.name = d.referenced_entity_name
+                    WHERE parent.name = '${objectName}'
+                    AND d.referenced_entity_name IS NOT NULL
+                    AND parent.type IN ('P', 'V', 'FN', 'IF', 'TF')
+                `);
+                additionalDependencies = additionalResult.recordset;
+            } catch (e) {
+                console.log('Additional dependency method not available:', e.message);
+            }
+
+            // Combine results and remove duplicates
+            const allDependsOn = [...dependsOnResult.recordset, ...alternativeDependsOn, ...additionalDependencies];
+            const allReferencedBy = [...referencedByResult.recordset];
+
+            // Remove duplicates based on object name
+            const uniqueDependsOn = allDependsOn.filter((item, index, self) => 
+                item.referenced_object && 
+                index === self.findIndex(t => t.referenced_object === item.referenced_object)
+            );
+            
+            const uniqueReferencedBy = allReferencedBy.filter((item, index, self) => 
+                item.referencing_object &&
+                index === self.findIndex(t => t.referencing_object === item.referencing_object)
+            );
+
+            return {
+                dependsOn: uniqueDependsOn,
+                referencedBy: uniqueReferencedBy
+            };
+        } catch (error) {
+            console.error('Error getting dependencies:', error);
+            return {
+                dependsOn: [],
+                referencedBy: []
+            };
         }
     }
 

@@ -67,7 +67,17 @@ function handleMessage(event) {
                 message.tableName, 
                 message.columns, 
                 message.indexes, 
-                message.foreignKeys
+                message.foreignKeys,
+                message.dependencies
+            );
+            break;
+            
+        case 'objectDetailsLoaded':
+            displayObjectDetails(
+                message.objectName,
+                message.objectType,
+                message.dependencies,
+                message.definition
             );
             break;
             
@@ -139,17 +149,38 @@ function handleObjectClick(element, obj) {
             table: obj.name
         });
     } else {
-        detailsContent.innerHTML = '<p>Detailed view available for tables only.</p>';
+        // Load details for other object types
+        vscode.postMessage({
+            command: 'getObjectDetails',
+            database: databaseSelect.value,
+            objectName: obj.name,
+            objectType: obj.object_type
+        });
     }
 }
 
-function displayTableDetails(tableName, columns, indexes, foreignKeys) {
+function displayTableDetails(tableName, columns, indexes, foreignKeys, dependencies) {
     const html = [
         `<div class="section-header">Table: ${tableName}</div>`,
         buildColumnsTable(columns),
         buildIndexesTable(indexes),
-        buildForeignKeysTable(foreignKeys)
+        buildForeignKeysTable(foreignKeys),
+        buildDependenciesSection(dependencies)
     ].join('');
+    
+    detailsContent.innerHTML = html;
+}
+
+function displayObjectDetails(objectName, objectType, dependencies, definition) {
+    let html = `<div class="section-header">${objectType}: ${objectName}</div>`;
+    
+    // Add definition for non-table objects
+    if (definition) {
+        html += buildDefinitionSection(definition);
+    }
+    
+    // Add dependencies
+    html += buildDependenciesSection(dependencies);
     
     detailsContent.innerHTML = html;
 }
@@ -217,6 +248,62 @@ function buildForeignKeysTable(foreignKeys) {
     }
     
     return html;
+}
+
+function buildDefinitionSection(definition) {
+    let html = '<h3>Definition</h3>';
+    html += '<div class="definition-container">';
+    html += `<pre><code>${escapeHtml(definition || 'No definition available')}</code></pre>`;
+    html += '</div>';
+    return html;
+}
+
+function buildDependenciesSection(dependencies) {
+    if (!dependencies) {
+        return '<h3>Dependencies</h3><p>No dependency information available.</p>';
+    }
+    
+    let html = '<h3>Dependencies</h3>';
+    
+    // Objects this object depends on
+    html += '<h4>Dependencies (objects this depends on):</h4>';
+    if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
+        html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th></tr>';
+        dependencies.dependsOn.forEach(dep => {
+            html += `<tr>
+                <td>${dep.referenced_object}</td>
+                <td>${dep.referenced_object_type}</td>
+                <td>${dep.dependency_type || 'Unknown'}</td>
+            </tr>`;
+        });
+        html += '</table>';
+    } else {
+        html += '<p>No dependencies found.</p>';
+    }
+    
+    // Objects that depend on this object
+    html += '<h4>Referenced by (objects that depend on this):</h4>';
+    if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
+        html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th></tr>';
+        dependencies.referencedBy.forEach(ref => {
+            html += `<tr>
+                <td>${ref.referencing_object}</td>
+                <td>${ref.referencing_object_type}</td>
+                <td>${ref.dependency_type || 'Unknown'}</td>
+            </tr>`;
+        });
+        html += '</table>';
+    } else {
+        html += '<p>No objects reference this object.</p>';
+    }
+    
+    return html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Initialize the webview
