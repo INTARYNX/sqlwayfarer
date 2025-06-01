@@ -124,6 +124,9 @@ class SqlWayfarerPanel {
             case 'loadConnections':
                 await this._handleLoadConnections();
                 break;
+            case 'loadConnectionForDisplay':
+                await this._handleLoadConnectionForDisplay(message.connectionName);
+                break;
             case 'testConnection':
                 await this._handleTestConnection(message.connectionConfig);
                 break;
@@ -183,6 +186,27 @@ class SqlWayfarerPanel {
                 command: 'connectionStatus',
                 success: false,
                 message: `Connection failed: ${error.message}`
+            });
+        }
+    }
+
+    /**
+     * Handle load connection for display request
+     * @param {string} connectionName
+     * @private
+     */
+    async _handleLoadConnectionForDisplay(connectionName) {
+        try {
+            const connection = await this._connectionManager.getConnectionForDisplay(connectionName);
+            
+            this._panel.webview.postMessage({
+                command: 'connectionLoadedForDisplay',
+                connection: connection
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'error',
+                message: `Failed to load connection: ${error.message}`
             });
         }
     }

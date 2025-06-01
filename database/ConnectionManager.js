@@ -5,6 +5,7 @@ const sql = require('mssql');
 /**
  * Manages SQL Server database connections
  * Handles connection string building, testing, and active connection management
+ * Security-focused: never exposes sensitive connection data
  */
 class ConnectionManager {
     constructor(connectionStorage) {
@@ -20,42 +21,68 @@ class ConnectionManager {
     async buildConnectionString(connectionConfig) {
         let connectionString = '';
         
-        if (connectionConfig.useConnectionString) {
-            connectionString = connectionConfig.connectionString;
+        // Get password from secure storage if it's a saved connection
+        let password = connectionConfig.password;
+        if (connectionConfig.isLoadedConnection && connectionConfig.name && !password) {
+            password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
+            if (!password) {
+                throw new Error('Password not found in secure storage');
+            }
+        } else if (connectionConfig.name && !password) {
+            password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
+        }
+        
+        // Build connection string from individual fields
+        connectionString = `Server=${connectionConfig.server}`;
+        
+        if (connectionConfig.port) {
+            connectionString += `,${connectionConfig.port}`;
+        }
+        
+        if (connectionConfig.database) {
+            connectionString += `;Database=${connectionConfig.database}`;
+        }
+        
+        if (connectionConfig.username && password) {
+            connectionString += `;User Id=${connectionConfig.username};Password=${password}`;
         } else {
-            // Get password from secure storage if it's a saved connection
-            let password = connectionConfig.password;
-            if (connectionConfig.name && !password) {
-                password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
-            }
-            
-            // Build connection string from individual fields
-            connectionString = `Server=${connectionConfig.server}`;
-            
-            if (connectionConfig.port) {
-                connectionString += `,${connectionConfig.port}`;
-            }
-            
-            if (connectionConfig.database) {
-                connectionString += `;Database=${connectionConfig.database}`;
-            }
-            
-            if (connectionConfig.username && password) {
-                connectionString += `;User Id=${connectionConfig.username};Password=${password}`;
-            } else {
-                connectionString += ';Integrated Security=true';
-            }
-            
-            if (connectionConfig.encrypt !== undefined) {
-                connectionString += `;Encrypt=${connectionConfig.encrypt}`;
-            }
-            
-            if (connectionConfig.trustServerCertificate !== undefined) {
-                connectionString += `;TrustServerCertificate=${connectionConfig.trustServerCertificate}`;
-            }
+            connectionString += ';Integrated Security=true';
+        }
+        
+        if (connectionConfig.encrypt !== undefined) {
+            connectionString += `;Encrypt=${connectionConfig.encrypt}`;
+        }
+        
+        if (connectionConfig.trustServerCertificate !== undefined) {
+            connectionString += `;TrustServerCertificate=${connectionConfig.trustServerCertificate}`;
         }
         
         return connectionString;
+    }
+
+    /**
+     * Get connection configuration for display (without sensitive data)
+     * @param {string} connectionName - Name of the saved connection
+     * @returns {Promise<Object|null>} Connection config without password
+     */
+    async getConnectionForDisplay(connectionName) {
+        try {
+            const connection = await this._connectionStorage.getConnection(connectionName);
+            if (!connection) {
+                return null;
+            }
+
+            // Return connection without sensitive data
+            const displayConnection = { ...connection };
+            
+            // Don't include the password
+            delete displayConnection.password;
+            
+            return displayConnection;
+        } catch (error) {
+            console.error('Error getting connection for display:', error);
+            return null;
+        }
     }
 
     /**

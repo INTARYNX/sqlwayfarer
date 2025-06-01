@@ -32,18 +32,6 @@
                         <button id="deleteConnectionBtn">Delete</button>
                     </div>
                     
-                    <!-- Connection Method Toggle -->
-                    <div class="connection-method">
-                        <label>
-                            <input type="radio" name="connectionMethod" value="fields" checked> 
-                            Connection Fields
-                        </label>
-                        <label>
-                            <input type="radio" name="connectionMethod" value="string"> 
-                            Connection String
-                        </label>
-                    </div>
-                    
                     <!-- Connection Fields -->
                     <div id="connectionFields" class="connection-inputs">
                         <div class="input-group">
@@ -68,7 +56,7 @@
                         
                         <div class="input-group">
                             <label for="passwordInput">Password:</label>
-                            <input type="password" id="passwordInput" placeholder="Password" value="Password1">
+                            <input type="password" id="passwordInput" placeholder="Password" value="Password1" autocomplete="new-password">
                         </div>
                         
                         <div class="checkbox-group">
@@ -86,13 +74,6 @@
                         </div>
                     </div>
                     
-                    <!-- Connection String -->
-                    <div id="connectionStringDiv" class="connection-inputs" style="display: none;">
-                        <label for="connectionString">Connection String:</label>
-                        <textarea id="connectionString" rows="3" 
-                                  placeholder="Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;">Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;</textarea>
-                    </div>
-                    
                     <!-- Save Connection -->
                     <div class="save-connection">
                         <label for="connectionNameInput">Connection Name (to save):</label>
@@ -107,6 +88,7 @@
                     </div>
                     
                     <div id="connectionStatus"></div>
+                    
                 </div>
             </div>
             

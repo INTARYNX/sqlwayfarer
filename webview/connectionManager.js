@@ -13,9 +13,6 @@ class ConnectionManager {
             savedConnectionSelect: document.getElementById('savedConnectionSelect'),
             loadConnectionBtn: document.getElementById('loadConnectionBtn'),
             deleteConnectionBtn: document.getElementById('deleteConnectionBtn'),
-            connectionMethodRadios: document.querySelectorAll('input[name="connectionMethod"]'),
-            connectionFields: document.getElementById('connectionFields'),
-            connectionStringDiv: document.getElementById('connectionStringDiv'),
             serverInput: document.getElementById('serverInput'),
             portInput: document.getElementById('portInput'),
             databaseInput: document.getElementById('databaseInput'),
@@ -23,7 +20,6 @@ class ConnectionManager {
             passwordInput: document.getElementById('passwordInput'),
             encryptCheckbox: document.getElementById('encryptCheckbox'),
             trustCertCheckbox: document.getElementById('trustCertCheckbox'),
-            connectionString: document.getElementById('connectionString'),
             connectionNameInput: document.getElementById('connectionNameInput'),
             saveConnectionBtn: document.getElementById('saveConnectionBtn'),
             testConnectionBtn: document.getElementById('testConnectionBtn'),
@@ -35,9 +31,6 @@ class ConnectionManager {
     initEventListeners() {
         this.elements.loadConnectionBtn.addEventListener('click', () => this.handleLoadConnection());
         this.elements.deleteConnectionBtn.addEventListener('click', () => this.handleDeleteConnection());
-        this.elements.connectionMethodRadios.forEach(radio => {
-            radio.addEventListener('change', () => this.handleConnectionMethodChange());
-        });
         this.elements.saveConnectionBtn.addEventListener('click', () => this.handleSaveConnection());
         this.elements.testConnectionBtn.addEventListener('click', () => this.handleTestConnection());
         this.elements.connectBtn.addEventListener('click', () => this.handleConnect());
@@ -66,26 +59,25 @@ class ConnectionManager {
         const connection = appState.savedConnections.find(conn => conn.name === selectedConnectionName);
         if (!connection) return;
         
-        this.loadConnectionToForm(connection);
+        // Load connection details (without password) for form population
+        vscode.postMessage({
+            command: 'loadConnectionForDisplay',
+            connectionName: selectedConnectionName
+        });
     }
 
     loadConnectionToForm(connection) {
-        if (connection.useConnectionString) {
-            document.querySelector('input[value="string"]').checked = true;
-            this.elements.connectionString.value = connection.connectionString || '';
-        } else {
-            document.querySelector('input[value="fields"]').checked = true;
-            this.elements.serverInput.value = connection.server || '';
-            this.elements.portInput.value = connection.port || '';
-            this.elements.databaseInput.value = connection.database || '';
-            this.elements.usernameInput.value = connection.username || '';
-            this.elements.passwordInput.value = ''; // Pour la sécurité
-            this.elements.encryptCheckbox.checked = connection.encrypt || false;
-            this.elements.trustCertCheckbox.checked = connection.trustServerCertificate !== false;
-        }
+        this.elements.serverInput.value = connection.server || '';
+        this.elements.portInput.value = connection.port || '';
+        this.elements.databaseInput.value = connection.database || '';
+        this.elements.usernameInput.value = connection.username || '';
+        // Don't populate password field for security
+        this.elements.passwordInput.value = '';
+        this.elements.passwordInput.placeholder = 'Password will be loaded from secure storage';
+        this.elements.encryptCheckbox.checked = connection.encrypt || false;
+        this.elements.trustCertCheckbox.checked = connection.trustServerCertificate !== false;
         
         this.elements.connectionNameInput.value = connection.name;
-        this.handleConnectionMethodChange();
     }
 
     handleDeleteConnection() {
@@ -122,6 +114,13 @@ class ConnectionManager {
     handleTestConnection() {
         const connectionConfig = this.buildConnectionConfig();
         
+        // For saved connections, we need to merge with secure data
+        const selectedConnectionName = this.elements.savedConnectionSelect.value;
+        if (selectedConnectionName && this.isLoadedConnection(connectionConfig)) {
+            connectionConfig.name = selectedConnectionName;
+            connectionConfig.isLoadedConnection = true;
+        }
+        
         this.setButtonState(this.elements.testConnectionBtn, true, 'Testing...');
         
         vscode.postMessage({
@@ -132,6 +131,14 @@ class ConnectionManager {
 
     handleConnect() {
         const connectionConfig = this.buildConnectionConfig();
+        
+        // For saved connections, we need to merge with secure data
+        const selectedConnectionName = this.elements.savedConnectionSelect.value;
+        if (selectedConnectionName && this.isLoadedConnection(connectionConfig)) {
+            connectionConfig.name = selectedConnectionName;
+            connectionConfig.isLoadedConnection = true;
+        }
+        
         appState.connectionConfig = connectionConfig;
         
         this.setButtonState(this.elements.connectBtn, true, 'Connecting...');
@@ -143,25 +150,25 @@ class ConnectionManager {
     }
 
     buildConnectionConfig() {
-        const useConnectionString = document.querySelector('input[value="string"]').checked;
-        
         const config = {
-            useConnectionString: useConnectionString
+            useConnectionString: false,
+            server: this.elements.serverInput.value.trim(),
+            port: this.elements.portInput.value.trim(),
+            database: this.elements.databaseInput.value.trim(),
+            username: this.elements.usernameInput.value.trim(),
+            password: this.elements.passwordInput.value,
+            encrypt: this.elements.encryptCheckbox.checked,
+            trustServerCertificate: this.elements.trustCertCheckbox.checked
         };
         
-        if (useConnectionString) {
-            config.connectionString = this.elements.connectionString.value.trim();
-        } else {
-            config.server = this.elements.serverInput.value.trim();
-            config.port = this.elements.portInput.value.trim();
-            config.database = this.elements.databaseInput.value.trim();
-            config.username = this.elements.usernameInput.value.trim();
-            config.password = this.elements.passwordInput.value;
-            config.encrypt = this.elements.encryptCheckbox.checked;
-            config.trustServerCertificate = this.elements.trustCertCheckbox.checked;
-        }
-        
         return config;
+    }
+
+    /**
+     * Check if this is a loaded connection (missing sensitive data that needs to be retrieved)
+     */
+    isLoadedConnection(config) {
+        return !config.password || config.password === '';
     }
 
     setButtonState(button, disabled, text) {
@@ -189,6 +196,10 @@ class ConnectionManager {
 
     onConnectionSaved(message) {
         this.showStatus(message.message, message.success ? 'success' : 'error');
+        if (message.success) {
+            // Reload saved connections to reflect the new/updated connection
+            this.loadSavedConnections();
+        }
     }
 
     onConnectionDeleted(message) {
@@ -197,6 +208,10 @@ class ConnectionManager {
         if (message.success) {
             this.elements.savedConnectionSelect.value = '';
             this.elements.connectionNameInput.value = '';
+            // Clear form
+            this.clearForm();
+            // Reload saved connections
+            this.loadSavedConnections();
         }
     }
 
@@ -215,4 +230,28 @@ class ConnectionManager {
             document.querySelector('[data-tab="explorer"]').disabled = false;
         }
     }
+
+    // Handle connection loaded for display (without sensitive data)
+    onConnectionLoadedForDisplay(connection) {
+        this.loadConnectionToForm(connection);
+    }
+
+    /**
+     * Clear the form fields
+     */
+    clearForm() {
+        this.elements.serverInput.value = '';
+        this.elements.portInput.value = '';
+        this.elements.databaseInput.value = '';
+        this.elements.usernameInput.value = '';
+        this.elements.passwordInput.value = '';
+        this.elements.encryptCheckbox.checked = false;
+        this.elements.trustCertCheckbox.checked = true;
+        this.elements.connectionNameInput.value = '';
+        
+        // Reset placeholders
+        this.elements.passwordInput.placeholder = 'Password';
+    }
+
+    // Remove the handleConnectionMethodChange method as it's no longer needed
 }
