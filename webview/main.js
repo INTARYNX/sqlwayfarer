@@ -285,6 +285,10 @@ class MessageHandler {
             case 'savedConnectionsLoaded':
                 this.connectionManager.onSavedConnectionsLoaded(message.connections);
                 break;
+                 
+            case 'connectionLoadedForDisplay':
+                this.connectionManager.onConnectionLoadedForDisplay(message.connection);
+                break;
                 
             case 'connectionSaved':
                 this.connectionManager.onConnectionSaved(message);
