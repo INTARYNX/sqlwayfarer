@@ -19,7 +19,7 @@ function activate(context) {
     // SQL Wayfarer command
     const sqlWayfarerDisposable = vscode.commands.registerCommand('sqlwayfarer.sqlwayfarer', function () {
         console.log('sqlwayfarer.sqlwayfarer command executed');
-        SqlWayfarerPanel.createOrShow(context.extensionUri);
+        SqlWayfarerPanel.createOrShow(context.extensionUri, context);
     });
 
     context.subscriptions.push(helloWorldDisposable);
@@ -30,13 +30,17 @@ function activate(context) {
 class SqlWayfarerPanel {
     /**
      * @param {vscode.Uri} extensionUri
+     * @param {vscode.ExtensionContext} context
      */
-    constructor(panel, extensionUri) {
+    constructor(panel, extensionUri, context) {
         this._panel = panel;
         this._extensionUri = extensionUri;
+        this._context = context;
         this._disposables = [];
         this._connection = null;
+        this._savedConnections = new Map();
 
+        this._loadSavedConnections();
         this._update();
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -45,7 +49,19 @@ class SqlWayfarerPanel {
             message => {
                 switch (message.command) {
                     case 'connect':
-                        this._connect(message.connectionString);
+                        this._connect(message.connectionConfig);
+                        return;
+                    case 'saveConnection':
+                        this._saveConnection(message.connectionConfig);
+                        return;
+                    case 'deleteConnection':
+                        this._deleteConnection(message.connectionName);
+                        return;
+                    case 'loadConnections':
+                        this._sendSavedConnections();
+                        return;
+                    case 'testConnection':
+                        this._testConnection(message.connectionConfig);
                         return;
                     case 'getDatabases':
                         this._getDatabases();
@@ -66,7 +82,7 @@ class SqlWayfarerPanel {
         );
     }
 
-    static createOrShow(extensionUri) {
+    static createOrShow(extensionUri, context) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -86,15 +102,171 @@ class SqlWayfarerPanel {
             }
         );
 
-        SqlWayfarerPanel.currentPanel = new SqlWayfarerPanel(panel, extensionUri);
+        SqlWayfarerPanel.currentPanel = new SqlWayfarerPanel(panel, extensionUri, context);
     }
 
-    async _connect(connectionString) {
+    async _loadSavedConnections() {
+        try {
+            // Load connections from VS Code secrets storage
+            const savedConnectionsJson = await this._context.secrets.get('sqlwayfarer.connections');
+            if (savedConnectionsJson) {
+                const connections = JSON.parse(savedConnectionsJson);
+                this._savedConnections = new Map(Object.entries(connections));
+            }
+        } catch (error) {
+            console.error('Error loading saved connections:', error);
+        }
+    }
+
+    async _saveConnection(connectionConfig) {
+        try {
+            // Store password securely in VS Code secrets
+            const connectionName = connectionConfig.name;
+            const password = connectionConfig.password;
+            
+            // Save password in secrets storage
+            await this._context.secrets.store(`sqlwayfarer.password.${connectionName}`, password);
+            
+            // Save connection config without password
+            const connectionConfigWithoutPassword = {
+                ...connectionConfig,
+                password: undefined // Remove password from stored config
+            };
+            
+            this._savedConnections.set(connectionName, connectionConfigWithoutPassword);
+            
+            // Save connections map to secrets storage
+            const connectionsObj = Object.fromEntries(this._savedConnections);
+            await this._context.secrets.store('sqlwayfarer.connections', JSON.stringify(connectionsObj));
+            
+            this._panel.webview.postMessage({
+                command: 'connectionSaved',
+                success: true,
+                message: `Connection '${connectionName}' saved successfully!`
+            });
+            
+            // Send updated connections list
+            this._sendSavedConnections();
+            
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'connectionSaved',
+                success: false,
+                message: `Failed to save connection: ${error.message}`
+            });
+        }
+    }
+
+    async _deleteConnection(connectionName) {
+        try {
+            // Delete password from secrets storage
+            await this._context.secrets.delete(`sqlwayfarer.password.${connectionName}`);
+            
+            // Remove from connections map
+            this._savedConnections.delete(connectionName);
+            
+            // Update stored connections
+            const connectionsObj = Object.fromEntries(this._savedConnections);
+            await this._context.secrets.store('sqlwayfarer.connections', JSON.stringify(connectionsObj));
+            
+            this._panel.webview.postMessage({
+                command: 'connectionDeleted',
+                success: true,
+                message: `Connection '${connectionName}' deleted successfully!`
+            });
+            
+            // Send updated connections list
+            this._sendSavedConnections();
+            
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'connectionDeleted',
+                success: false,
+                message: `Failed to delete connection: ${error.message}`
+            });
+        }
+    }
+
+    async _sendSavedConnections() {
+        const connections = Array.from(this._savedConnections.entries()).map(([name, config]) => ({
+            name,
+            ...config
+        }));
+        
+        this._panel.webview.postMessage({
+            command: 'savedConnectionsLoaded',
+            connections: connections
+        });
+    }
+
+    async _buildConnectionString(connectionConfig) {
+        let connectionString = '';
+        
+        if (connectionConfig.useConnectionString) {
+            connectionString = connectionConfig.connectionString;
+        } else {
+            // Get password from secure storage if it's a saved connection
+            let password = connectionConfig.password;
+            if (connectionConfig.name && !password) {
+                password = await this._context.secrets.get(`sqlwayfarer.password.${connectionConfig.name}`);
+            }
+            
+            // Build connection string from individual fields
+            connectionString = `Server=${connectionConfig.server}`;
+            
+            if (connectionConfig.port) {
+                connectionString += `,${connectionConfig.port}`;
+            }
+            
+            if (connectionConfig.database) {
+                connectionString += `;Database=${connectionConfig.database}`;
+            }
+            
+            if (connectionConfig.username && password) {
+                connectionString += `;User Id=${connectionConfig.username};Password=${password}`;
+            } else {
+                connectionString += ';Integrated Security=true';
+            }
+            
+            if (connectionConfig.encrypt !== undefined) {
+                connectionString += `;Encrypt=${connectionConfig.encrypt}`;
+            }
+            
+            if (connectionConfig.trustServerCertificate !== undefined) {
+                connectionString += `;TrustServerCertificate=${connectionConfig.trustServerCertificate}`;
+            }
+        }
+        
+        return connectionString;
+    }
+
+    async _testConnection(connectionConfig) {
+        try {
+            const connectionString = await this._buildConnectionString(connectionConfig);
+            const testConnection = await sql.connect(connectionString);
+            await testConnection.close();
+            
+            this._panel.webview.postMessage({
+                command: 'testConnectionResult',
+                success: true,
+                message: 'Connection test successful!'
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'testConnectionResult',
+                success: false,
+                message: `Connection test failed: ${error.message}`
+            });
+        }
+    }
+
+    async _connect(connectionConfig) {
         try {
             if (this._connection) {
                 await this._connection.close();
             }
             
+            const connectionString = await this._buildConnectionString(connectionConfig);
             this._connection = await sql.connect(connectionString);
             
             this._panel.webview.postMessage({
@@ -371,40 +543,11 @@ class SqlWayfarerPanel {
                 `);
                 alternativeDependsOn = altDependsResult.recordset;
             } catch (e) {
-                // sys.dm_sql_referenced_entities might not be available or object might not exist
                 console.log('Alternative dependency method not available:', e.message);
             }
 
-            // Method 4: Additional approach for comprehensive dependency tracking
-            let additionalDependencies = [];
-            try {
-                const additionalResult = await this._connection.request().query(`
-                    USE [${database}];
-                    -- Get dependencies from sys.sql_modules for procedures, functions, views
-                    SELECT DISTINCT
-                        d.referenced_entity_name as referenced_object,
-                        CASE 
-                            WHEN o.type = 'U' THEN 'Table'
-                            WHEN o.type = 'V' THEN 'View'
-                            WHEN o.type = 'P' THEN 'Procedure'
-                            WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
-                            ELSE 'Object'
-                        END as referenced_object_type,
-                        'Module Reference' as dependency_type
-                    FROM sys.objects parent
-                    CROSS APPLY sys.dm_sql_referenced_entities(SCHEMA_NAME(parent.schema_id) + '.' + parent.name, 'OBJECT') d
-                    LEFT JOIN sys.objects o ON o.name = d.referenced_entity_name
-                    WHERE parent.name = '${objectName}'
-                    AND d.referenced_entity_name IS NOT NULL
-                    AND parent.type IN ('P', 'V', 'FN', 'IF', 'TF')
-                `);
-                additionalDependencies = additionalResult.recordset;
-            } catch (e) {
-                console.log('Additional dependency method not available:', e.message);
-            }
-
             // Combine results and remove duplicates
-            const allDependsOn = [...dependsOnResult.recordset, ...alternativeDependsOn, ...additionalDependencies];
+            const allDependsOn = [...dependsOnResult.recordset, ...alternativeDependsOn];
             const allReferencedBy = [...referencedByResult.recordset];
 
             // Remove duplicates based on object name

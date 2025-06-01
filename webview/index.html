@@ -10,31 +10,127 @@
     <div class="container">
         <h1>SQL Wayfarer</h1>
         
-        <div class="connection-section">
-            <h2>Connection</h2>
-            <label for="connectionString">Connection String:</label>
-            <input type="text" id="connectionString" 
-                   placeholder="Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;" 
-                   value="Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;">
-            <button id="connectBtn">Connect</button>
-            <div id="connectionStatus"></div>
-        </div>
-
-        <div class="explorer-section">
-            <div class="selector-panel">
-                <div class="section-header">Databases</div>
-                <select id="databaseSelect" disabled>
-                    <option value="">Select a database...</option>
-                </select>
-                
-                <div class="section-header">Objects</div>
-                <div id="objectList"></div>
+        <!-- Tab Navigation -->
+        <div class="tab-container">
+            <div class="tab-nav">
+                <button class="tab-button active" data-tab="configuration">Configuration</button>
+                <button class="tab-button" data-tab="explorer">Explorer</button>
             </div>
+            
+            <!-- Configuration Tab -->
+            <div id="configurationTab" class="tab-content active">
+                <div class="connection-section">
+                    <h2>Connection</h2>
+                    
+                    <!-- Saved Connections -->
+                    <div class="saved-connections">
+                        <label for="savedConnectionSelect">Saved Connections:</label>
+                        <select id="savedConnectionSelect">
+                            <option value="">Select a saved connection...</option>
+                        </select>
+                        <button id="loadConnectionBtn">Load</button>
+                        <button id="deleteConnectionBtn">Delete</button>
+                    </div>
+                    
+                    <!-- Connection Method Toggle -->
+                    <div class="connection-method">
+                        <label>
+                            <input type="radio" name="connectionMethod" value="fields" checked> 
+                            Connection Fields
+                        </label>
+                        <label>
+                            <input type="radio" name="connectionMethod" value="string"> 
+                            Connection String
+                        </label>
+                    </div>
+                    
+                    <!-- Connection Fields -->
+                    <div id="connectionFields" class="connection-inputs">
+                        <div class="input-group">
+                            <label for="serverInput">Server:</label>
+                            <input type="text" id="serverInput" placeholder="localhost" value="localhost">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="portInput">Port (optional):</label>
+                            <input type="number" id="portInput" placeholder="1433">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="databaseInput">Database (optional):</label>
+                            <input type="text" id="databaseInput" placeholder="master" value="master">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="usernameInput">Username:</label>
+                            <input type="text" id="usernameInput" placeholder="sa" value="sa">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="passwordInput">Password:</label>
+                            <input type="password" id="passwordInput" placeholder="Password" value="Password1">
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="encryptCheckbox"> 
+                                Encrypt Connection
+                            </label>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="trustCertCheckbox" checked> 
+                                Trust Server Certificate
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Connection String -->
+                    <div id="connectionStringDiv" class="connection-inputs" style="display: none;">
+                        <label for="connectionString">Connection String:</label>
+                        <textarea id="connectionString" rows="3" 
+                                  placeholder="Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;">Server=localhost;Database=master;User Id=sa;Password=Password1;TrustServerCertificate=True;</textarea>
+                    </div>
+                    
+                    <!-- Save Connection -->
+                    <div class="save-connection">
+                        <label for="connectionNameInput">Connection Name (to save):</label>
+                        <input type="text" id="connectionNameInput" placeholder="My SQL Server">
+                        <button id="saveConnectionBtn">Save Connection</button>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="connection-actions">
+                        <button id="testConnectionBtn">Test Connection</button>
+                        <button id="connectBtn">Connect</button>
+                    </div>
+                    
+                    <div id="connectionStatus"></div>
+                </div>
+            </div>
+            
+            <!-- Explorer Tab -->
+            <div id="explorerTab" class="tab-content">
+                <div class="explorer-section">
+                    <div class="selector-panel">
+                        <div class="section-header">Databases</div>
+                        <select id="databaseSelect" disabled>
+                            <option value="">Select a database...</option>
+                        </select>
+                        
+                        <div class="section-header">Objects</div>
+                        <div id="objectList">
+                            <p class="placeholder-text">Connect to a database first to view objects.</p>
+                        </div>
+                    </div>
 
-            <div class="details-panel">
-                <div class="section-header">Details</div>
-                <div id="detailsContent">
-                    <p>Select a table to view its structure, indexes, and constraints.</p>
+                    <div class="details-panel">
+                        <div class="section-header">Details</div>
+                        <div id="detailsContent">
+                            <p>Select a table to view its structure, indexes, and constraints.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -10,6 +10,51 @@ body {
     margin: 0 auto;
 }
 
+/* Tab Styles */
+.tab-container {
+    margin-top: 20px;
+}
+
+.tab-nav {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-input-border);
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 12px 20px;
+    cursor: pointer;
+    color: var(--vscode-foreground);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin: 0;
+    width: auto;
+}
+
+.tab-button:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: var(--vscode-foreground);
+}
+
+.tab-button.active {
+    color: var(--vscode-button-foreground);
+    border-bottom-color: var(--vscode-button-background);
+    background: var(--vscode-list-activeSelectionBackground);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Connection Section */
 .connection-section {
     background: var(--vscode-editor-background);
     border: 1px solid var(--vscode-input-border);
@@ -18,6 +63,54 @@ body {
     margin-bottom: 20px;
 }
 
+.saved-connections {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.connection-method {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.connection-method label {
+    display: inline-block;
+    margin-right: 20px;
+    margin-bottom: 5px;
+    font-weight: normal;
+}
+
+.connection-inputs {
+    margin-bottom: 20px;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+.checkbox-group {
+    margin-bottom: 10px;
+}
+
+.checkbox-group label {
+    font-weight: normal;
+}
+
+.save-connection {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.connection-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+/* Explorer Section */
 .explorer-section {
     display: flex;
     gap: 20px;
@@ -40,7 +133,8 @@ body {
     padding: 15px;
 }
 
-input, select, button {
+/* Form Elements */
+input, select, button, textarea {
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
     border: 1px solid var(--vscode-input-border);
@@ -69,6 +163,12 @@ button:disabled {
     cursor: not-allowed;
 }
 
+textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* Status Messages */
 .status {
     padding: 8px;
     border-radius: 4px;
@@ -85,6 +185,7 @@ button:disabled {
     color: var(--vscode-terminal-background);
 }
 
+/* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -102,6 +203,7 @@ th {
     font-weight: bold;
 }
 
+/* Section Headers */
 .section-header {
     font-size: 16px;
     font-weight: bold;
@@ -109,12 +211,14 @@ th {
     color: var(--vscode-foreground);
 }
 
+/* Labels */
 label {
     display: block;
     margin-bottom: 5px;
     font-weight: bold;
 }
 
+/* Object List */
 #objectList {
     max-height: 300px;
     overflow-y: auto;
@@ -139,4 +243,54 @@ label {
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
     margin-left: 10px;
+}
+
+/* Placeholder Text */
+.placeholder-text {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Definition Container */
+.definition-container {
+    background: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.definition-container pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.definition-container code {
+    background: transparent;
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .explorer-section {
+        flex-direction: column;
+    }
+    
+    .connection-actions {
+        flex-direction: column;
+    }
+    
+    .tab-nav {
+        flex-wrap: wrap;
+    }
+    
+    .tab-button {
+        flex: 1;
+        min-width: 120px;
+    }
 }
