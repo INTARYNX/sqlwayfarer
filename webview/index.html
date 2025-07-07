@@ -22,21 +22,32 @@
                 <div class="connection-section">
                     <h2>Connection</h2>
                     
-                    <!-- Saved Connections -->
-                    <div class="saved-connections">
-                        <label for="savedConnectionSelect">Saved Connections:</label>
-                        <select id="savedConnectionSelect">
-                            <option value="">Select a saved connection...</option>
-                        </select>
-                        <button id="loadConnectionBtn">Load</button>
-                        <button id="deleteConnectionBtn">Delete</button>
+                    <!-- Main Connection Interface -->
+                    <div class="connection-main">
+                        <div class="input-group">
+                            <label for="connectionSelect">Connection:</label>
+                            <select id="connectionSelect">
+                                <option value="">Loading connections...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="connection-actions">
+                            <button id="connectBtn">Connect</button>
+                            <button id="editBtn" style="display: none;">Edit</button>
+                            <button id="deleteBtn" style="display: none;">Delete</button>
+                        </div>
                     </div>
                     
-                    <!-- Connection Fields -->
-                    <div id="connectionFields" class="connection-inputs">
+                    <!-- Connection Settings (Initially Hidden) -->
+                    <div id="connectionSettings" class="connection-inputs" style="display: none;">
+                        <div class="section-header">
+                            <span id="settingsTitle">New Connection</span>
+                            <button id="closeSettingsBtn" type="button" style="float: right; width: auto;">Close</button>
+                        </div>
+                        
                         <div class="input-group">
                             <label for="serverInput">Server:</label>
-                            <input type="text" id="serverInput" placeholder="localhost" value="localhost">
+                            <input type="text" id="serverInput" placeholder="localhost">
                         </div>
                         
                         <div class="input-group">
@@ -46,17 +57,17 @@
                         
                         <div class="input-group">
                             <label for="databaseInput">Database (optional):</label>
-                            <input type="text" id="databaseInput" placeholder="master" value="master">
+                            <input type="text" id="databaseInput" placeholder="master">
                         </div>
                         
                         <div class="input-group">
                             <label for="usernameInput">Username:</label>
-                            <input type="text" id="usernameInput" placeholder="sa" value="sa">
+                            <input type="text" id="usernameInput" placeholder="sa">
                         </div>
                         
                         <div class="input-group">
                             <label for="passwordInput">Password:</label>
-                            <input type="password" id="passwordInput" placeholder="Password" value="Password1" autocomplete="new-password">
+                            <input type="password" id="passwordInput" placeholder="Password" autocomplete="new-password">
                         </div>
                         
                         <div class="checkbox-group">
@@ -72,23 +83,20 @@
                                 Trust Server Certificate
                             </label>
                         </div>
-                    </div>
-                    
-                    <!-- Save Connection -->
-                    <div class="save-connection">
-                        <label for="connectionNameInput">Connection Name (to save):</label>
-                        <input type="text" id="connectionNameInput" placeholder="My SQL Server">
-                        <button id="saveConnectionBtn">Save Connection</button>
-                    </div>
-                    
-                    <!-- Action Buttons -->
-                    <div class="connection-actions">
-                        <button id="testConnectionBtn">Test Connection</button>
-                        <button id="connectBtn">Connect</button>
+                        
+                        <div class="input-group">
+                            <label for="connectionNameInput">Connection Name:</label>
+                            <input type="text" id="connectionNameInput" placeholder="My SQL Server">
+                        </div>
+                        
+                        <div class="connection-actions">
+                            <button id="saveConnectionBtn">Save Connection</button>
+                            <button id="testConnectionBtn">Test Connection</button>
+                            <button id="cancelSettingsBtn" type="button">Cancel</button>
+                        </div>
                     </div>
                     
                     <div id="connectionStatus"></div>
-                    
                 </div>
             </div>
             
@@ -112,12 +120,28 @@
                         <div id="detailsContent">
                             <p>Select a table to view its structure, indexes, and constraints.</p>
                         </div>
+                        
+                        <!-- Dependency Visualization Container -->
+                        <div id="dependencyVisualization" class="dependency-viz-container" style="display: none;">
+                            <div class="section-header">
+                                <span>Dependency Graph</span>
+                                <button id="closeDependencyViz" class="close-viz-btn">Close</button>
+                            </div>
+                            <div class="viz-controls">
+                                <button id="showDependenciesBtn" class="viz-btn">Dependencies</button>
+                                <button id="showReferencesBtn" class="viz-btn">References</button>
+                                <button id="showBothBtn" class="viz-btn active">Both</button>
+                            </div>
+                            <div id="dependencyGraph" class="dependency-graph"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>

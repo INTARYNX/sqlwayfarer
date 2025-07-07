@@ -6,13 +6,20 @@ class ConnectionManager {
         this.initDOMElements();
         this.initEventListeners();
         this.loadSavedConnections();
+        this.settingsMode = 'new'; // 'new' or 'edit'
+        this.currentEditingConnection = null;
     }
 
     initDOMElements() {
         this.elements = {
-            savedConnectionSelect: document.getElementById('savedConnectionSelect'),
-            loadConnectionBtn: document.getElementById('loadConnectionBtn'),
-            deleteConnectionBtn: document.getElementById('deleteConnectionBtn'),
+            connectionSelect: document.getElementById('connectionSelect'),
+            connectBtn: document.getElementById('connectBtn'),
+            editBtn: document.getElementById('editBtn'),
+            deleteBtn: document.getElementById('deleteBtn'),
+            connectionSettings: document.getElementById('connectionSettings'),
+            settingsTitle: document.getElementById('settingsTitle'),
+            closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+            cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
             serverInput: document.getElementById('serverInput'),
             portInput: document.getElementById('portInput'),
             databaseInput: document.getElementById('databaseInput'),
@@ -23,74 +30,122 @@ class ConnectionManager {
             connectionNameInput: document.getElementById('connectionNameInput'),
             saveConnectionBtn: document.getElementById('saveConnectionBtn'),
             testConnectionBtn: document.getElementById('testConnectionBtn'),
-            connectBtn: document.getElementById('connectBtn'),
             connectionStatus: document.getElementById('connectionStatus')
         };
     }
 
     initEventListeners() {
-        this.elements.loadConnectionBtn.addEventListener('click', () => this.handleLoadConnection());
-        this.elements.deleteConnectionBtn.addEventListener('click', () => this.handleDeleteConnection());
+        this.elements.connectionSelect.addEventListener('change', () => this.handleConnectionSelectChange());
+        this.elements.connectBtn.addEventListener('click', () => this.handleConnect());
+        this.elements.editBtn.addEventListener('click', () => this.handleEdit());
+        this.elements.deleteBtn.addEventListener('click', () => this.handleDelete());
+        this.elements.closeSettingsBtn.addEventListener('click', () => this.hideSettings());
+        this.elements.cancelSettingsBtn.addEventListener('click', () => this.hideSettings());
         this.elements.saveConnectionBtn.addEventListener('click', () => this.handleSaveConnection());
         this.elements.testConnectionBtn.addEventListener('click', () => this.handleTestConnection());
-        this.elements.connectBtn.addEventListener('click', () => this.handleConnect());
     }
 
     loadSavedConnections() {
         vscode.postMessage({ command: 'loadConnections' });
     }
 
-    handleConnectionMethodChange() {
-        const selectedMethod = document.querySelector('input[name="connectionMethod"]:checked').value;
+    handleConnectionSelectChange() {
+        const selectedValue = this.elements.connectionSelect.value;
         
-        if (selectedMethod === 'fields') {
-            this.elements.connectionFields.style.display = 'block';
-            this.elements.connectionStringDiv.style.display = 'none';
+        if (selectedValue === 'new') {
+            this.showNewConnectionSettings();
+        } else if (selectedValue && selectedValue !== '') {
+            // Existing connection selected
+            this.elements.editBtn.style.display = 'inline-block';
+            this.elements.deleteBtn.style.display = 'inline-block';
+            this.hideSettings();
         } else {
-            this.elements.connectionFields.style.display = 'none';
-            this.elements.connectionStringDiv.style.display = 'block';
+            // No selection
+            this.elements.editBtn.style.display = 'none';
+            this.elements.deleteBtn.style.display = 'none';
+            this.hideSettings();
         }
     }
 
-    handleLoadConnection() {
-        const selectedConnectionName = this.elements.savedConnectionSelect.value;
-        if (!selectedConnectionName) return;
+    showNewConnectionSettings() {
+        this.settingsMode = 'new';
+        this.currentEditingConnection = null;
+        this.elements.settingsTitle.textContent = 'New Connection';
+        this.clearForm();
+        this.showSettings();
+        this.elements.editBtn.style.display = 'none';
+        this.elements.deleteBtn.style.display = 'none';
+    }
+
+    showEditConnectionSettings(connectionName) {
+        this.settingsMode = 'edit';
+        this.currentEditingConnection = connectionName;
+        this.elements.settingsTitle.textContent = `Edit Connection: ${connectionName}`;
         
-        const connection = appState.savedConnections.find(conn => conn.name === selectedConnectionName);
-        if (!connection) return;
-        
-        // Load connection details (without password) for form population
+        // Load connection details
         vscode.postMessage({
             command: 'loadConnectionForDisplay',
-            connectionName: selectedConnectionName
+            connectionName: connectionName
+        });
+        
+        this.showSettings();
+    }
+
+    showSettings() {
+        this.elements.connectionSettings.style.display = 'block';
+    }
+
+    hideSettings() {
+        this.elements.connectionSettings.style.display = 'none';
+        this.currentEditingConnection = null;
+    }
+
+    handleConnect() {
+        const selectedValue = this.elements.connectionSelect.value;
+        
+        if (selectedValue === 'new') {
+            // Connect with current form data
+            const connectionConfig = this.buildConnectionConfig();
+            this.connectWithConfig(connectionConfig);
+        } else if (selectedValue && selectedValue !== '') {
+            // Connect with saved connection - use the connection name directly
+            this.setButtonState(this.elements.connectBtn, true, 'Connecting...');
+            
+            // Send connect command with connection name
+            vscode.postMessage({
+                command: 'connectWithSaved',
+                connectionName: selectedValue
+            });
+        } else {
+            this.showStatus('Please select a connection or create a new one.', 'error');
+        }
+    }
+
+    connectWithConfig(connectionConfig) {
+        appState.connectionConfig = connectionConfig;
+        this.setButtonState(this.elements.connectBtn, true, 'Connecting...');
+        
+        vscode.postMessage({
+            command: 'connect',
+            connectionConfig: connectionConfig
         });
     }
 
-    loadConnectionToForm(connection) {
-        this.elements.serverInput.value = connection.server || '';
-        this.elements.portInput.value = connection.port || '';
-        this.elements.databaseInput.value = connection.database || '';
-        this.elements.usernameInput.value = connection.username || '';
-        // Don't populate password field for security
-        this.elements.passwordInput.value = '';
-        this.elements.passwordInput.placeholder = 'Password will be loaded from secure storage';
-        this.elements.encryptCheckbox.checked = connection.encrypt || false;
-        this.elements.trustCertCheckbox.checked = connection.trustServerCertificate !== false;
+    handleEdit() {
+        const selectedValue = this.elements.connectionSelect.value;
+        if (!selectedValue || selectedValue === 'new') return;
         
-        this.elements.connectionNameInput.value = connection.name;
+        this.showEditConnectionSettings(selectedValue);
     }
 
-    handleDeleteConnection() {
-        const selectedConnectionName = this.elements.savedConnectionSelect.value;
-        if (!selectedConnectionName) {
-            this.showStatus('Please select a connection to delete.', 'error');
-            return;
-        }
+    handleDelete() {
+        const selectedValue = this.elements.connectionSelect.value;
+        if (!selectedValue || selectedValue === 'new') return;
         
-        if (confirm(`Are you sure you want to delete the connection "${selectedConnectionName}"?`)) {
+        if (confirm(`Are you sure you want to delete the connection "${selectedValue}"?`)) {
             vscode.postMessage({
                 command: 'deleteConnection',
-                connectionName: selectedConnectionName
+                connectionName: selectedValue
             });
         }
     }
@@ -112,39 +167,22 @@ class ConnectionManager {
     }
 
     handleTestConnection() {
-        const connectionConfig = this.buildConnectionConfig();
+        let connectionConfig;
         
-        // For saved connections, we need to merge with secure data
-        const selectedConnectionName = this.elements.savedConnectionSelect.value;
-        if (selectedConnectionName && this.isLoadedConnection(connectionConfig)) {
-            connectionConfig.name = selectedConnectionName;
-            connectionConfig.isLoadedConnection = true;
+        if (this.settingsMode === 'edit' && this.currentEditingConnection) {
+            // Testing edited connection - merge form data with saved connection
+            connectionConfig = this.buildConnectionConfig();
+            connectionConfig.name = this.currentEditingConnection;
+            connectionConfig.isLoadedConnection = !connectionConfig.password; // If no password entered, load from storage
+        } else {
+            // Testing new connection
+            connectionConfig = this.buildConnectionConfig();
         }
         
         this.setButtonState(this.elements.testConnectionBtn, true, 'Testing...');
         
         vscode.postMessage({
             command: 'testConnection',
-            connectionConfig: connectionConfig
-        });
-    }
-
-    handleConnect() {
-        const connectionConfig = this.buildConnectionConfig();
-        
-        // For saved connections, we need to merge with secure data
-        const selectedConnectionName = this.elements.savedConnectionSelect.value;
-        if (selectedConnectionName && this.isLoadedConnection(connectionConfig)) {
-            connectionConfig.name = selectedConnectionName;
-            connectionConfig.isLoadedConnection = true;
-        }
-        
-        appState.connectionConfig = connectionConfig;
-        
-        this.setButtonState(this.elements.connectBtn, true, 'Connecting...');
-        
-        vscode.postMessage({
-            command: 'connect',
             connectionConfig: connectionConfig
         });
     }
@@ -164,11 +202,18 @@ class ConnectionManager {
         return config;
     }
 
-    /**
-     * Check if this is a loaded connection (missing sensitive data that needs to be retrieved)
-     */
-    isLoadedConnection(config) {
-        return !config.password || config.password === '';
+    loadConnectionToForm(connection) {
+        this.elements.serverInput.value = connection.server || '';
+        this.elements.portInput.value = connection.port || '';
+        this.elements.databaseInput.value = connection.database || '';
+        this.elements.usernameInput.value = connection.username || '';
+        // Don't populate password field for security
+        this.elements.passwordInput.value = '';
+        this.elements.passwordInput.placeholder = 'Leave empty to use saved password';
+        this.elements.encryptCheckbox.checked = connection.encrypt || false;
+        this.elements.trustCertCheckbox.checked = connection.trustServerCertificate !== false;
+        
+        this.elements.connectionNameInput.value = connection.name;
     }
 
     setButtonState(button, disabled, text) {
@@ -181,23 +226,46 @@ class ConnectionManager {
         this.elements.connectionStatus.textContent = message;
     }
 
+    clearForm() {
+        this.elements.serverInput.value = '';
+        this.elements.portInput.value = '';
+        this.elements.databaseInput.value = '';
+        this.elements.usernameInput.value = '';
+        this.elements.passwordInput.value = '';
+        this.elements.encryptCheckbox.checked = false;
+        this.elements.trustCertCheckbox.checked = true;
+        this.elements.connectionNameInput.value = '';
+        
+        // Reset placeholders
+        this.elements.passwordInput.placeholder = 'Password';
+    }
+
     // Gestionnaires de messages
     onSavedConnectionsLoaded(connections) {
         appState.savedConnections = connections;
         
-        this.elements.savedConnectionSelect.innerHTML = '<option value="">Select a saved connection...</option>';
+        this.elements.connectionSelect.innerHTML = '<option value="">Select a connection...</option>';
+        
+        // Add "New Connection" option
+        const newOption = document.createElement('option');
+        newOption.value = 'new';
+        newOption.textContent = '+ New Connection';
+        this.elements.connectionSelect.appendChild(newOption);
+        
+        // Add saved connections
         connections.forEach(conn => {
             const option = document.createElement('option');
             option.value = conn.name;
             option.textContent = conn.name;
-            this.elements.savedConnectionSelect.appendChild(option);
+            this.elements.connectionSelect.appendChild(option);
         });
     }
 
     onConnectionSaved(message) {
         this.showStatus(message.message, message.success ? 'success' : 'error');
         if (message.success) {
-            // Reload saved connections to reflect the new/updated connection
+            // Hide settings and reload connections
+            this.hideSettings();
             this.loadSavedConnections();
         }
     }
@@ -206,11 +274,10 @@ class ConnectionManager {
         this.showStatus(message.message, message.success ? 'success' : 'error');
         
         if (message.success) {
-            this.elements.savedConnectionSelect.value = '';
-            this.elements.connectionNameInput.value = '';
-            // Clear form
-            this.clearForm();
-            // Reload saved connections
+            this.elements.connectionSelect.value = '';
+            this.elements.editBtn.style.display = 'none';
+            this.elements.deleteBtn.style.display = 'none';
+            this.hideSettings();
             this.loadSavedConnections();
         }
     }
@@ -228,6 +295,8 @@ class ConnectionManager {
             appState.isConnected = true;
             // Permettre l'accès à l'onglet Explorer
             document.querySelector('[data-tab="explorer"]').disabled = false;
+            // Hide settings on successful connection
+            this.hideSettings();
         }
     }
 
@@ -235,23 +304,4 @@ class ConnectionManager {
     onConnectionLoadedForDisplay(connection) {
         this.loadConnectionToForm(connection);
     }
-
-    /**
-     * Clear the form fields
-     */
-    clearForm() {
-        this.elements.serverInput.value = '';
-        this.elements.portInput.value = '';
-        this.elements.databaseInput.value = '';
-        this.elements.usernameInput.value = '';
-        this.elements.passwordInput.value = '';
-        this.elements.encryptCheckbox.checked = false;
-        this.elements.trustCertCheckbox.checked = true;
-        this.elements.connectionNameInput.value = '';
-        
-        // Reset placeholders
-        this.elements.passwordInput.placeholder = 'Password';
-    }
-
-    // Remove the handleConnectionMethodChange method as it's no longer needed
 }

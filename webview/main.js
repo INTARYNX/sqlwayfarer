@@ -11,16 +11,201 @@ class AppState {
         this.selectedObject = null;
         this.savedConnections = [];
         this.connectionConfig = null;
+        this.currentDependencies = null;
+        this.pendingVisualization = null; // Pour gérer les demandes de visualisation en attente
     }
 }
 
 const appState = new AppState();
+
+// Gestionnaire de visualisation des dépendances
+class DependencyVisualizer {
+    constructor() {
+        this.viz = null;
+        this.currentMode = 'both'; // 'dependencies', 'references', 'both'
+        this.currentObjectName = null;
+        this.dependencies = null;
+        this.initViz();
+        this.initEventListeners();
+    }
+
+    async initViz() {
+        try {
+            this.viz = new Viz();
+        } catch (error) {
+            console.error('Failed to initialize Viz.js:', error);
+        }
+    }
+
+    initEventListeners() {
+        document.getElementById('closeDependencyViz').addEventListener('click', () => {
+            this.hideDependencyVisualization();
+        });
+
+        document.getElementById('showDependenciesBtn').addEventListener('click', () => {
+            this.setMode('dependencies');
+        });
+
+        document.getElementById('showReferencesBtn').addEventListener('click', () => {
+            this.setMode('references');
+        });
+
+        document.getElementById('showBothBtn').addEventListener('click', () => {
+            this.setMode('both');
+        });
+    }
+
+    setMode(mode) {
+        this.currentMode = mode;
+        
+        // Update button states
+        document.querySelectorAll('.viz-btn').forEach(btn => btn.classList.remove('active'));
+        
+        let targetBtn;
+        switch(mode) {
+            case 'dependencies':
+                targetBtn = document.getElementById('showDependenciesBtn');
+                break;
+            case 'references':
+                targetBtn = document.getElementById('showReferencesBtn');
+                break;
+            case 'both':
+                targetBtn = document.getElementById('showBothBtn');
+                break;
+        }
+        if (targetBtn) {
+            targetBtn.classList.add('active');
+        }
+        
+        // Regenerate graph
+        if (this.dependencies && this.currentObjectName) {
+            this.generateGraph(this.currentObjectName, this.dependencies);
+        }
+    }
+
+    showDependencyVisualization(objectName, dependencies) {
+        this.currentObjectName = objectName;
+        this.dependencies = dependencies;
+        
+        document.getElementById('dependencyVisualization').style.display = 'block';
+        this.generateGraph(objectName, dependencies);
+    }
+
+    hideDependencyVisualization() {
+        document.getElementById('dependencyVisualization').style.display = 'none';
+        this.currentObjectName = null;
+        this.dependencies = null;
+        appState.pendingVisualization = null;
+    }
+
+    async generateGraph(objectName, dependencies) {
+        if (!this.viz) {
+            document.getElementById('dependencyGraph').innerHTML = 
+                '<p style="color: var(--vscode-errorForeground);">Visualization engine not available</p>';
+            return;
+        }
+
+        const dotSource = this.generateDotSource(objectName, dependencies);
+        
+        try {
+            const svg = await this.viz.renderSVGElement(dotSource);
+            const graphContainer = document.getElementById('dependencyGraph');
+            graphContainer.innerHTML = '';
+            graphContainer.appendChild(svg);
+        } catch (error) {
+            console.error('Error rendering graph:', error);
+            document.getElementById('dependencyGraph').innerHTML = 
+                '<p style="color: var(--vscode-errorForeground);">Error rendering dependency graph</p>';
+        }
+    }
+
+    generateDotSource(objectName, dependencies) {
+        let dot = 'digraph Dependencies {\n';
+        dot += '  rankdir=LR;\n';
+        dot += '  node [shape=box, style=filled, fontname="Arial", fontsize=10];\n';
+        dot += '  edge [fontname="Arial", fontsize=8];\n\n';
+
+        // Central node (current object) - using VS Code accent color
+        dot += `  "${objectName}" [fillcolor="#007ACC", fontcolor="white", fontweight=bold];\n\n`;
+
+        const addedNodes = new Set([objectName]);
+        const addedEdges = new Set();
+
+        // Add dependencies (objects this object depends on)
+        if ((this.currentMode === 'dependencies' || this.currentMode === 'both') && 
+            dependencies.dependsOn && dependencies.dependsOn.length > 0) {
+            
+            dependencies.dependsOn.forEach(dep => {
+                const depName = dep.referenced_object;
+                if (!addedNodes.has(depName)) {
+                    const color = this.getNodeColor(dep.referenced_object_type);
+                    dot += `  "${depName}" [fillcolor="${color}", fontcolor="white", label="${depName}\\n(${dep.referenced_object_type})"];\n`;
+                    addedNodes.add(depName);
+                }
+                
+                const edgeKey = `${objectName}->${depName}`;
+                if (!addedEdges.has(edgeKey)) {
+                    const label = dep.dependency_type || 'depends on';
+                    dot += `  "${objectName}" -> "${depName}" [label="${label}", color="#0066CC", fontcolor="#0066CC"];\n`;
+                    addedEdges.add(edgeKey);
+                }
+            });
+        }
+
+        // Add references (objects that depend on this object)
+        if ((this.currentMode === 'references' || this.currentMode === 'both') && 
+            dependencies.referencedBy && dependencies.referencedBy.length > 0) {
+            
+            dependencies.referencedBy.forEach(ref => {
+                const refName = ref.referencing_object;
+                if (!addedNodes.has(refName)) {
+                    const color = this.getNodeColor(ref.referencing_object_type);
+                    dot += `  "${refName}" [fillcolor="${color}", fontcolor="white", label="${refName}\\n(${ref.referencing_object_type})"];\n`;
+                    addedNodes.add(refName);
+                }
+                
+                const edgeKey = `${refName}->${objectName}`;
+                if (!addedEdges.has(edgeKey)) {
+                    const label = ref.dependency_type || 'references';
+                    dot += `  "${refName}" -> "${objectName}" [label="${label}", color="#CC6600", fontcolor="#CC6600"];\n`;
+                    addedEdges.add(edgeKey);
+                }
+            });
+        }
+
+        // If no dependencies found, show a message
+        if (addedNodes.size === 1) {
+            dot += '  "No dependencies\\nfound" [fillcolor="#666666", fontcolor="white"];\n';
+            dot += `  "${objectName}" -> "No dependencies\\nfound" [style=dashed, color="#888888"];\n`;
+        }
+
+        dot += '}';
+        return dot;
+    }
+
+    getNodeColor(objectType) {
+        // Using darker colors that work better with white text and VS Code theme
+        switch (objectType) {
+            case 'Table':
+                return '#0E639C'; // Dark blue
+            case 'View':
+                return '#CC6900'; // Dark orange
+            case 'Procedure':
+                return '#7B1FA2'; // Dark purple
+            case 'Function':
+                return '#5D4037'; // Dark brown
+            default:
+                return '#455A64'; // Dark blue grey
+        }
+    }
+}
 
 // Gestionnaire d'exploration
 class ExplorerManager {
     constructor() {
         this.initDOMElements();
         this.initEventListeners();
+        this.dependencyVisualizer = new DependencyVisualizer();
     }
 
     initDOMElements() {
@@ -63,7 +248,7 @@ class ExplorerManager {
         element.classList.add('selected');
         appState.selectedObject = obj;
         
-        // Charger les détails selon le type d'objet
+        // Charger les détails selon le type d'objet (SANS ouvrir automatiquement le graphique)
         if (obj.object_type === 'Table') {
             vscode.postMessage({
                 command: 'getTableDetails',
@@ -76,6 +261,26 @@ class ExplorerManager {
                 database: appState.currentDatabase,
                 objectName: obj.name,
                 objectType: obj.object_type
+            });
+        }
+    }
+
+    handleShowDependencies(objectName, event) {
+        event.stopPropagation();
+        
+        // Marquer qu'on veut afficher la visualisation pour cet objet
+        appState.pendingVisualization = objectName;
+        
+        // Si l'objet est déjà sélectionné et qu'on a ses dépendances, afficher directement
+        if (appState.selectedObject && appState.selectedObject.name === objectName && appState.currentDependencies) {
+            this.dependencyVisualizer.showDependencyVisualization(objectName, appState.currentDependencies);
+        } else {
+            // Sinon, charger les détails d'abord
+            vscode.postMessage({
+                command: 'getObjectDetails',
+                database: appState.currentDatabase,
+                objectName: objectName,
+                objectType: 'Object' // Type générique pour le chargement des dépendances
             });
         }
     }
@@ -108,7 +313,17 @@ class ExplorerManager {
         objects.forEach(obj => {
             const div = document.createElement('div');
             div.className = 'object-item';
-            div.innerHTML = `${obj.name}<span class="object-type">(${obj.object_type})</span>`;
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.innerHTML = `${obj.name}<span class="object-type">(${obj.object_type})</span>`;
+            
+            const vizBtn = document.createElement('button');
+            vizBtn.className = 'viz-object-btn';
+            vizBtn.textContent = 'Graph';
+            vizBtn.onclick = (e) => this.handleShowDependencies(obj.name, e);
+            
+            div.appendChild(nameSpan);
+            div.appendChild(vizBtn);
             div.dataset.name = obj.name;
             div.dataset.type = obj.object_type;
             
@@ -119,6 +334,8 @@ class ExplorerManager {
     }
 
     onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
+        appState.currentDependencies = dependencies;
+        
         const html = [
             `<div class="section-header">Table: ${tableName}</div>`,
             this.buildColumnsTable(columns),
@@ -128,9 +345,14 @@ class ExplorerManager {
         ].join('');
         
         this.elements.detailsContent.innerHTML = html;
+        
+        // Vérifier si on doit afficher la visualisation
+        this.checkPendingVisualization(tableName, dependencies);
     }
 
     onObjectDetailsLoaded(objectName, objectType, dependencies, definition) {
+        appState.currentDependencies = dependencies;
+        
         let html = `<div class="section-header">${objectType}: ${objectName}</div>`;
         
         if (definition) {
@@ -140,6 +362,19 @@ class ExplorerManager {
         html += this.buildDependenciesSection(dependencies);
         
         this.elements.detailsContent.innerHTML = html;
+        
+        // Vérifier si on doit afficher la visualisation
+        this.checkPendingVisualization(objectName, dependencies);
+    }
+
+    checkPendingVisualization(objectName, dependencies) {
+        // Si on a une visualisation en attente pour cet objet, l'afficher maintenant
+        if (appState.pendingVisualization === objectName) {
+            appState.pendingVisualization = null;
+            setTimeout(() => {
+                this.dependencyVisualizer.showDependencyVisualization(objectName, dependencies);
+            }, 100);
+        }
     }
 
     // Méthodes de construction HTML
@@ -227,6 +462,14 @@ class ExplorerManager {
         
         let html = '<h3>Dependencies</h3>';
         
+        // Add visualization button seulement si on a un objet sélectionné
+        if (appState.selectedObject) {
+            html += `<div style="margin-bottom: 15px;">
+                <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${appState.selectedObject.name}', appState.currentDependencies)" 
+                        class="viz-btn">Show Dependency Graph</button>
+            </div>`;
+        }
+        
         // Objets dont dépend cet objet
         html += '<h4>Dependencies (objects this depends on):</h4>';
         if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
@@ -285,9 +528,15 @@ class MessageHandler {
             case 'savedConnectionsLoaded':
                 this.connectionManager.onSavedConnectionsLoaded(message.connections);
                 break;
-                 
+                
             case 'connectionLoadedForDisplay':
                 this.connectionManager.onConnectionLoadedForDisplay(message.connection);
+                break;
+                
+            case 'connectionLoadedForConnect':
+                if (this.connectionManager.onConnectionLoadedForConnect) {
+                    this.connectionManager.onConnectionLoadedForConnect(message.connection);
+                }
                 break;
                 
             case 'connectionSaved':
@@ -366,6 +615,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const connectionManager = new ConnectionManager();
     const explorerManager = new ExplorerManager();
     const messageHandler = new MessageHandler(connectionManager, explorerManager, tabManager);
+    
+    // Rendre explorerManager disponible globalement pour les boutons inline
+    window.explorerManager = explorerManager;
     
     // Configurer le gestionnaire de messages
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));

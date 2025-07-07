@@ -63,3 +63,15 @@ You can author your README using Visual Studio Code.  Here are some useful edito
 * [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
 
 **Enjoy!**
+
+
+
+Suggestions d'amélioration futures (si jamais) :
+
+Navigation dans le graphique (clic sur un nœud pour explorer)
+Export du graphique en PNG/SVG
+Filtrage par type de dépendance
+Vue "arbre" alternative pour les grandes hiérarchies
+
+Mais honnêtement, pour un "schema ultra basic", c'est parfait ! Le système fait exactement ce qu'il faut : visualiser rapidement les dépendances d'un objet de base de données sans complications. L'intégration est propre et l'UX est fluide.
+Tu as une base solide pour ton extension SQL Wayfarer ! 
