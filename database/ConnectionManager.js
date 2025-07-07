@@ -138,6 +138,43 @@ class ConnectionManager {
     }
 
     /**
+     * Connect using a saved connection by name
+     * @param {string} connectionName - Name of the saved connection
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async connectWithSaved(connectionName) {
+        try {
+            // Get the saved connection configuration
+            const savedConnection = this._connectionStorage.getConnection(connectionName);
+            if (!savedConnection) {
+                throw new Error(`Connection '${connectionName}' not found`);
+            }
+
+            // Get the password from secure storage
+            const password = await this._connectionStorage.getConnectionPassword(connectionName);
+            if (!password) {
+                throw new Error(`Password not found for connection '${connectionName}'`);
+            }
+
+            // Build complete connection config
+            const connectionConfig = {
+                ...savedConnection,
+                password: password,
+                isLoadedConnection: true
+            };
+
+            // Use the existing connect method
+            return await this.connect(connectionConfig);
+            
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to connect with saved connection: ${error.message}`
+            };
+        }
+    }
+
+    /**
      * Disconnect from current database
      * @returns {Promise<{success: boolean, message: string}>}
      */

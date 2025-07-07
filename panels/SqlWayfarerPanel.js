@@ -127,6 +127,9 @@ class SqlWayfarerPanel {
             case 'loadConnectionForDisplay':
                 await this._handleLoadConnectionForDisplay(message.connectionName);
                 break;
+            case 'connectWithSaved':
+                await this._handleConnectWithSaved(message.connectionName);
+                break;    
             case 'testConnection':
                 await this._handleTestConnection(message.connectionConfig);
                 break;
@@ -210,6 +213,28 @@ class SqlWayfarerPanel {
             });
         }
     }
+
+    /**
+     * Handle connect with saved connection
+     * @param {string} connectionName
+     * @private
+     */
+    async _handleConnectWithSaved(connectionName) {
+        try {
+            const result = await this._connectionManager.connectWithSaved(connectionName);
+            this._panel.webview.postMessage({
+                command: 'connectionStatus',
+                success: result.success,
+                message: result.message
+            });
+
+            if (result.success) {
+                await this._handleGetDatabases();
+            }
+        } catch (error) {
+            this._sendError(`Failed to connect with saved connection: ${error.message}`);
+        }
+    }    
 
     /**
      * Handle save connection request
