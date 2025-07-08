@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQL Wayfarer</title>
     <link href="{{STYLES_URI}}" rel="stylesheet">
+    <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -152,9 +153,28 @@
                     </div>
 
                     <div class="details-panel">
-                        <div class="section-header">Details</div>
-                        <div id="detailsContent">
-                            <p>Select a table to view its structure, indexes, and constraints.</p>
+                        <!-- Details Panel Navigation -->
+                        <div class="details-nav">
+                            <button class="details-tab-button active" data-details-tab="structure">Structure</button>
+                            <button class="details-tab-button" data-details-tab="comments">Comments</button>
+                        </div>
+
+                        <!-- Structure Tab (existing details) -->
+                        <div id="structureDetailsTab" class="details-tab-content active">
+                            <div class="section-header">Details</div>
+                            <div id="detailsContent">
+                                <p>Select a table to view its structure, indexes, and constraints.</p>
+                            </div>
+                        </div>
+
+                        <!-- Comments Tab (new) -->
+                        <div id="commentsDetailsTab" class="details-tab-content">
+                            <div id="commentsContainer">
+                                <div class="comments-placeholder">
+                                    <h3>Comments & Documentation</h3>
+                                    <p class="placeholder-text">Select a table, view, procedure, or function to view and edit its comments.</p>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Dependency Visualization Container -->
@@ -237,7 +257,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
-    <script src="{{TABLE_USAGE_MANAGER_URI}}"></script> 
+    <script src="{{TABLE_USAGE_MANAGER_URI}}"></script>
+    <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>

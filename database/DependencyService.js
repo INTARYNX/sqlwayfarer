@@ -1,14 +1,472 @@
 'use strict';
 
 /**
- * Handles database object dependency analysis and table usage tracking
- * Provides services to find object dependencies and table relationships
+ * Handles database object dependency analysis, table usage tracking, and extended properties
+ * Provides services to find object dependencies, table relationships, and MS_Description comments
  */
 class DependencyService {
     constructor(connectionManager) {
         this._connectionManager = connectionManager;
     }
 
+    // ... [Previous methods remain the same - getDependencies, getTableUsageAnalysis, etc.] ...
+
+    /**
+     * Get extended properties (MS_Description comments) for a table and its columns
+     * @param {string} database - Database name
+     * @param {string} tableName - Table name
+     * @returns {Promise<Object>} Extended properties for table and columns
+     */
+    async getTableExtendedProperties(database, tableName) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            const result = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                
+                -- Get table description
+                SELECT 
+                    'TABLE' as property_type,
+                    '${tableName}' as object_name,
+                    NULL as column_name,
+                    CAST(ep.value AS NVARCHAR(MAX)) as description,
+                    ep.name as property_name
+                FROM sys.extended_properties ep
+                JOIN sys.objects o ON ep.major_id = o.object_id
+                WHERE o.name = '${tableName}'
+                AND o.type = 'U'
+                AND ep.minor_id = 0  -- Table level properties
+                AND ep.name = 'MS_Description'
+                
+                UNION ALL
+                
+                -- Get column descriptions
+                SELECT 
+                    'COLUMN' as property_type,
+                    '${tableName}' as object_name,
+                    c.name as column_name,
+                    CAST(ep.value AS NVARCHAR(MAX)) as description,
+                    ep.name as property_name
+                FROM sys.extended_properties ep
+                JOIN sys.objects o ON ep.major_id = o.object_id
+                JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
+                WHERE o.name = '${tableName}'
+                AND o.type = 'U'
+                AND ep.name = 'MS_Description'
+                
+                ORDER BY property_type DESC, column_name
+            `);
+
+            // Organize results
+            const properties = {
+                tableName: tableName,
+                tableDescription: null,
+                columnDescriptions: [],
+                hasDescriptions: false
+            };
+
+            result.recordset.forEach(row => {
+                if (row.property_type === 'TABLE') {
+                    properties.tableDescription = row.description;
+                    properties.hasDescriptions = true;
+                } else if (row.property_type === 'COLUMN') {
+                    properties.columnDescriptions.push({
+                        columnName: row.column_name,
+                        description: row.description
+                    });
+                    properties.hasDescriptions = true;
+                }
+            });
+
+            // Get all columns to show which ones don't have descriptions
+            const columnsResult = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                SELECT 
+                    c.name as column_name,
+                    c.column_id,
+                    t.name as data_type,
+                    c.max_length,
+                    c.is_nullable
+                FROM sys.columns c
+                JOIN sys.types t ON c.user_type_id = t.user_type_id
+                JOIN sys.objects o ON c.object_id = o.object_id
+                WHERE o.name = '${tableName}'
+                AND o.type = 'U'
+                ORDER BY c.column_id
+            `);
+
+            properties.allColumns = columnsResult.recordset.map(col => {
+                const existingDesc = properties.columnDescriptions.find(cd => cd.columnName === col.column_name);
+                return {
+                    columnName: col.column_name,
+                    columnId: col.column_id,
+                    dataType: col.data_type,
+                    maxLength: col.max_length,
+                    isNullable: col.is_nullable,
+                    description: existingDesc ? existingDesc.description : null,
+                    hasDescription: !!existingDesc
+                };
+            });
+
+            return properties;
+        } catch (error) {
+            console.error('Error getting table extended properties:', error);
+            return {
+                tableName: tableName,
+                tableDescription: null,
+                columnDescriptions: [],
+                allColumns: [],
+                hasDescriptions: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Get extended properties for any database object (view, procedure, function)
+     * @param {string} database - Database name
+     * @param {string} objectName - Object name
+     * @param {string} objectType - Object type
+     * @returns {Promise<Object>} Extended properties for the object
+     */
+    async getObjectExtendedProperties(database, objectName, objectType) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            const result = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                
+                SELECT 
+                    '${objectType}' as object_type,
+                    '${objectName}' as object_name,
+                    CAST(ep.value AS NVARCHAR(MAX)) as description,
+                    ep.name as property_name
+                FROM sys.extended_properties ep
+                JOIN sys.objects o ON ep.major_id = o.object_id
+                WHERE o.name = '${objectName}'
+                AND ep.minor_id = 0  -- Object level properties
+                AND ep.name = 'MS_Description'
+            `);
+
+            return {
+                objectName: objectName,
+                objectType: objectType,
+                description: result.recordset.length > 0 ? result.recordset[0].description : null,
+                hasDescription: result.recordset.length > 0
+            };
+        } catch (error) {
+            console.error('Error getting object extended properties:', error);
+            return {
+                objectName: objectName,
+                objectType: objectType,
+                description: null,
+                hasDescription: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Update or add extended property (MS_Description) for a table
+     * @param {string} database - Database name
+     * @param {string} tableName - Table name
+     * @param {string} description - Description text
+     * @returns {Promise<Object>} Operation result
+     */
+    async updateTableDescription(database, tableName, description) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            // Check if property already exists
+            const existingResult = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                SELECT COUNT(*) as count
+                FROM sys.extended_properties ep
+                JOIN sys.objects o ON ep.major_id = o.object_id
+                WHERE o.name = '${tableName}'
+                AND o.type = 'U'
+                AND ep.minor_id = 0
+                AND ep.name = 'MS_Description'
+            `);
+
+            const exists = existingResult.recordset[0].count > 0;
+            
+            if (exists) {
+                // Update existing property
+                await this._connectionManager.executeQuery(`
+                    USE [${database}];
+                    EXEC sys.sp_updateextendedproperty 
+                        @name = N'MS_Description',
+                        @value = N'${description.replace(/'/g, "''")}',
+                        @level0type = N'SCHEMA',
+                        @level0name = N'dbo',
+                        @level1type = N'TABLE',
+                        @level1name = N'${tableName}'
+                `);
+            } else {
+                // Add new property
+                await this._connectionManager.executeQuery(`
+                    USE [${database}];
+                    EXEC sys.sp_addextendedproperty 
+                        @name = N'MS_Description',
+                        @value = N'${description.replace(/'/g, "''")}',
+                        @level0type = N'SCHEMA',
+                        @level0name = N'dbo',
+                        @level1type = N'TABLE',
+                        @level1name = N'${tableName}'
+                `);
+            }
+
+            return {
+                success: true,
+                message: `Table description ${exists ? 'updated' : 'added'} successfully`
+            };
+        } catch (error) {
+            console.error('Error updating table description:', error);
+            return {
+                success: false,
+                message: `Failed to update table description: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Update or add extended property (MS_Description) for a column
+     * @param {string} database - Database name
+     * @param {string} tableName - Table name
+     * @param {string} columnName - Column name
+     * @param {string} description - Description text
+     * @returns {Promise<Object>} Operation result
+     */
+    async updateColumnDescription(database, tableName, columnName, description) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            // Check if property already exists
+            const existingResult = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                SELECT COUNT(*) as count
+                FROM sys.extended_properties ep
+                JOIN sys.objects o ON ep.major_id = o.object_id
+                JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
+                WHERE o.name = '${tableName}'
+                AND c.name = '${columnName}'
+                AND o.type = 'U'
+                AND ep.name = 'MS_Description'
+            `);
+
+            const exists = existingResult.recordset[0].count > 0;
+            
+            if (exists) {
+                // Update existing property
+                await this._connectionManager.executeQuery(`
+                    USE [${database}];
+                    EXEC sys.sp_updateextendedproperty 
+                        @name = N'MS_Description',
+                        @value = N'${description.replace(/'/g, "''")}',
+                        @level0type = N'SCHEMA',
+                        @level0name = N'dbo',
+                        @level1type = N'TABLE',
+                        @level1name = N'${tableName}',
+                        @level2type = N'COLUMN',
+                        @level2name = N'${columnName}'
+                `);
+            } else {
+                // Add new property
+                await this._connectionManager.executeQuery(`
+                    USE [${database}];
+                    EXEC sys.sp_addextendedproperty 
+                        @name = N'MS_Description',
+                        @value = N'${description.replace(/'/g, "''")}',
+                        @level0type = N'SCHEMA',
+                        @level0name = N'dbo',
+                        @level1type = N'TABLE',
+                        @level1name = N'${tableName}',
+                        @level2type = N'COLUMN',
+                        @level2name = N'${columnName}'
+                `);
+            }
+
+            return {
+                success: true,
+                message: `Column description ${exists ? 'updated' : 'added'} successfully`
+            };
+        } catch (error) {
+            console.error('Error updating column description:', error);
+            return {
+                success: false,
+                message: `Failed to update column description: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Update or add extended property (MS_Description) for any database object
+     * @param {string} database - Database name
+     * @param {string} objectName - Object name
+     * @param {string} description - Description text
+     * @returns {Promise<Object>} Operation result
+     */
+    async updateObjectDescription(database, objectName, description) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            // Get object type first
+            const objectResult = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                SELECT 
+                    CASE 
+                        WHEN type = 'V' THEN 'VIEW'
+                        WHEN type = 'P' THEN 'PROCEDURE'
+                        WHEN type IN ('FN', 'IF', 'TF') THEN 'FUNCTION'
+                        WHEN type = 'TR' THEN 'TRIGGER'
+                        ELSE 'UNKNOWN'
+                    END as object_type
+                FROM sys.objects 
+                WHERE name = '${objectName}'
+            `);
+
+            if (objectResult.recordset.length === 0) {
+                throw new Error(`Object '${objectName}' not found`);
+            }
+
+            const objectType = objectResult.recordset[0].object_type;
+            
+            // Check if property already exists
+            const existingResult = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                SELECT COUNT(*) as count
+                FROM sys.extended_properties ep
+                JOIN sys.objects o ON ep.major_id = o.object_id
+                WHERE o.name = '${objectName}'
+                AND ep.minor_id = 0
+                AND ep.name = 'MS_Description'
+            `);
+
+            const exists = existingResult.recordset[0].count > 0;
+            
+            if (exists) {
+                // Update existing property
+                await this._connectionManager.executeQuery(`
+                    USE [${database}];
+                    EXEC sys.sp_updateextendedproperty 
+                        @name = N'MS_Description',
+                        @value = N'${description.replace(/'/g, "''")}',
+                        @level0type = N'SCHEMA',
+                        @level0name = N'dbo',
+                        @level1type = N'${objectType}',
+                        @level1name = N'${objectName}'
+                `);
+            } else {
+                // Add new property
+                await this._connectionManager.executeQuery(`
+                    USE [${database}];
+                    EXEC sys.sp_addextendedproperty 
+                        @name = N'MS_Description',
+                        @value = N'${description.replace(/'/g, "''")}',
+                        @level0type = N'SCHEMA',
+                        @level0name = N'dbo',
+                        @level1type = N'${objectType}',
+                        @level1name = N'${objectName}'
+                `);
+            }
+
+            return {
+                success: true,
+                message: `${objectType} description ${exists ? 'updated' : 'added'} successfully`
+            };
+        } catch (error) {
+            console.error('Error updating object description:', error);
+            return {
+                success: false,
+                message: `Failed to update object description: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Delete extended property (MS_Description) for a table
+     * @param {string} database - Database name
+     * @param {string} tableName - Table name
+     * @returns {Promise<Object>} Operation result
+     */
+    async deleteTableDescription(database, tableName) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            await this._connectionManager.executeQuery(`
+                USE [${database}];
+                EXEC sys.sp_dropextendedproperty 
+                    @name = N'MS_Description',
+                    @level0type = N'SCHEMA',
+                    @level0name = N'dbo',
+                    @level1type = N'TABLE',
+                    @level1name = N'${tableName}'
+            `);
+
+            return {
+                success: true,
+                message: 'Table description deleted successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to delete table description: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Delete extended property (MS_Description) for a column
+     * @param {string} database - Database name
+     * @param {string} tableName - Table name
+     * @param {string} columnName - Column name
+     * @returns {Promise<Object>} Operation result
+     */
+    async deleteColumnDescription(database, tableName, columnName) {
+        if (!this._connectionManager.isConnected()) {
+            throw new Error('No active connection');
+        }
+
+        try {
+            await this._connectionManager.executeQuery(`
+                USE [${database}];
+                EXEC sys.sp_dropextendedproperty 
+                    @name = N'MS_Description',
+                    @level0type = N'SCHEMA',
+                    @level0name = N'dbo',
+                    @level1type = N'TABLE',
+                    @level1name = N'${tableName}',
+                    @level2type = N'COLUMN',
+                    @level2name = N'${columnName}'
+            `);
+
+            return {
+                success: true,
+                message: 'Column description deleted successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to delete column description: ${error.message}`
+            };
+        }
+    }
+
+    // ... [All previous methods remain the same] ...
+    
     /**
      * Get comprehensive dependencies for a database object
      * @param {string} database - Database name
@@ -252,6 +710,8 @@ class DependencyService {
         }
     }
 
+    // ... [Continue with all the other existing methods] ...
+
     /**
      * Get detailed trigger analysis
      * @param {string} database - Database name
@@ -385,6 +845,8 @@ class DependencyService {
             };
         }
     }
+
+    // ... [All other existing methods remain the same] ...
 
     /**
      * Get objects that this object depends on

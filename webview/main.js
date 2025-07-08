@@ -6,6 +6,7 @@ const vscode = acquireVsCodeApi();
 class AppState {
     constructor() {
         this.activeTab = 'configuration';
+        this.activeDetailsTab = 'structure';
         this.isConnected = false;
         this.currentDatabase = null;
         this.selectedObject = null;
@@ -13,8 +14,8 @@ class AppState {
         this.connectionConfig = null;
         this.currentDependencies = null;
         this.pendingVisualization = null;
-        this.allObjects = []; // Store all objects for filtering
-        this.filteredObjects = []; // Store filtered objects
+        this.allObjects = [];
+        this.filteredObjects = [];
         this.filters = {
             search: '',
             types: {
@@ -29,11 +30,51 @@ class AppState {
 
 const appState = new AppState();
 
+// Details Tab Manager
+class DetailsTabManager {
+    constructor() {
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        const detailsTabButtons = document.querySelectorAll('.details-tab-button');
+        detailsTabButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.detailsTab;
+                this.switchDetailsTab(tabName);
+            });
+        });
+    }
+
+    switchDetailsTab(tabName) {
+        appState.activeDetailsTab = tabName;
+
+        // Update button states
+        document.querySelectorAll('.details-tab-button').forEach(button => {
+            button.classList.toggle('active', button.dataset.detailsTab === tabName);
+        });
+
+        // Update tab content
+        document.querySelectorAll('.details-tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === `${tabName}DetailsTab`);
+        });
+
+        // Load content for the active tab if needed
+        if (tabName === 'comments' && appState.selectedObject && appState.currentDatabase) {
+            window.commentsManager.loadCommentsForObject(
+                appState.currentDatabase,
+                appState.selectedObject.name,
+                appState.selectedObject.object_type
+            );
+        }
+    }
+}
+
 // Gestionnaire de visualisation des dépendances
 class DependencyVisualizer {
     constructor() {
         this.viz = null;
-        this.currentMode = 'both'; // 'dependencies', 'references', 'both'
+        this.currentMode = 'both';
         this.currentObjectName = null;
         this.dependencies = null;
         this.initViz();
@@ -69,7 +110,6 @@ class DependencyVisualizer {
     setMode(mode) {
         this.currentMode = mode;
         
-        // Update button states
         document.querySelectorAll('.viz-btn').forEach(btn => btn.classList.remove('active'));
         
         let targetBtn;
@@ -88,7 +128,6 @@ class DependencyVisualizer {
             targetBtn.classList.add('active');
         }
         
-        // Regenerate graph
         if (this.dependencies && this.currentObjectName) {
             this.generateGraph(this.currentObjectName, this.dependencies);
         }
@@ -136,13 +175,11 @@ class DependencyVisualizer {
         dot += '  node [shape=box, style=filled, fontname="Arial", fontsize=10];\n';
         dot += '  edge [fontname="Arial", fontsize=8];\n\n';
 
-        // Central node (current object) - using VS Code accent color
         dot += `  "${objectName}" [fillcolor="#007ACC", fontcolor="white", fontweight=bold];\n\n`;
 
         const addedNodes = new Set([objectName]);
         const addedEdges = new Set();
 
-        // Add dependencies (objects this object depends on)
         if ((this.currentMode === 'dependencies' || this.currentMode === 'both') && 
             dependencies.dependsOn && dependencies.dependsOn.length > 0) {
             
@@ -163,7 +200,6 @@ class DependencyVisualizer {
             });
         }
 
-        // Add references (objects that depend on this object)
         if ((this.currentMode === 'references' || this.currentMode === 'both') && 
             dependencies.referencedBy && dependencies.referencedBy.length > 0) {
             
@@ -184,7 +220,6 @@ class DependencyVisualizer {
             });
         }
 
-        // If no dependencies found, show a message
         if (addedNodes.size === 1) {
             dot += '  "No dependencies\\nfound" [fillcolor="#666666", fontcolor="white"];\n';
             dot += `  "${objectName}" -> "No dependencies\\nfound" [style=dashed, color="#888888"];\n`;
@@ -195,18 +230,17 @@ class DependencyVisualizer {
     }
 
     getNodeColor(objectType) {
-        // Using darker colors that work better with white text and VS Code theme
         switch (objectType) {
             case 'Table':
-                return '#0E639C'; // Dark blue
+                return '#0E639C';
             case 'View':
-                return '#CC6900'; // Dark orange
+                return '#CC6900';
             case 'Procedure':
-                return '#7B1FA2'; // Dark purple
+                return '#7B1FA2';
             case 'Function':
-                return '#5D4037'; // Dark brown
+                return '#5D4037';
             default:
-                return '#455A64'; // Dark blue grey
+                return '#455A64';
         }
     }
 }
@@ -218,21 +252,18 @@ class FilterManager {
     }
 
     initEventListeners() {
-        // Search input
         const searchInput = document.getElementById('objectSearch');
         searchInput.addEventListener('input', (e) => {
             appState.filters.search = e.target.value.toLowerCase();
             this.applyFilters();
         });
 
-        // Clear search button
         document.getElementById('clearSearchBtn').addEventListener('click', () => {
             searchInput.value = '';
             appState.filters.search = '';
             this.applyFilters();
         });
 
-        // Type filter checkboxes
         document.getElementById('filterTable').addEventListener('change', (e) => {
             appState.filters.types.Table = e.target.checked;
             this.applyFilters();
@@ -253,7 +284,6 @@ class FilterManager {
             this.applyFilters();
         });
 
-        // Filter action buttons
         document.getElementById('selectAllTypesBtn').addEventListener('click', () => {
             this.setAllFilters(true);
         });
@@ -279,13 +309,9 @@ class FilterManager {
         const typeFilters = appState.filters.types;
 
         appState.filteredObjects = appState.allObjects.filter(obj => {
-            // Apply search filter
             const matchesSearch = !searchTerm || 
                 obj.name.toLowerCase().includes(searchTerm);
-
-            // Apply type filter
             const matchesType = typeFilters[obj.object_type] === true;
-
             return matchesSearch && matchesType;
         });
 
@@ -296,12 +322,10 @@ class FilterManager {
         const objectList = document.getElementById('objectList');
         const objectItems = objectList.querySelectorAll('.object-item');
 
-        // Hide all items first
         objectItems.forEach(item => {
             item.classList.add('hidden');
         });
 
-        // Show filtered items
         appState.filteredObjects.forEach(obj => {
             const item = objectList.querySelector(`[data-name="${obj.name}"]`);
             if (item) {
@@ -309,7 +333,6 @@ class FilterManager {
             }
         });
 
-        // Update count
         this.updateObjectCount();
     }
 
@@ -383,9 +406,11 @@ class ExplorerManager {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">Loading objects...</p>';
             this.elements.detailsContent.innerHTML = '<p>Loading...</p>';
             
-            // Reset filters and disable them while loading
             this.filterManager.resetFilters();
             this.filterManager.disableFilters();
+            
+            // Reset comments when database changes
+            window.commentsManager.onDatabaseChanged();
             
             vscode.postMessage({
                 command: 'getObjects',
@@ -398,21 +423,20 @@ class ExplorerManager {
             appState.filteredObjects = [];
             this.filterManager.disableFilters();
             this.filterManager.updateObjectCount();
+            window.commentsManager.onDatabaseChanged();
         }
     }
 
     handleObjectClick(element, obj) {
-        // Supprimer la sélection précédente
         const prevSelected = this.elements.objectList.querySelector('.selected');
         if (prevSelected) {
             prevSelected.classList.remove('selected');
         }
         
-        // Ajouter la sélection à l'élément actuel
         element.classList.add('selected');
         appState.selectedObject = obj;
         
-        // Charger les détails selon le type d'objet (SANS ouvrir automatiquement le graphique)
+        // Load details for structure tab
         if (obj.object_type === 'Table') {
             vscode.postMessage({
                 command: 'getTableDetails',
@@ -427,29 +451,34 @@ class ExplorerManager {
                 objectType: obj.object_type
             });
         }
+
+        // Load comments if comments tab is active
+        if (appState.activeDetailsTab === 'comments') {
+            window.commentsManager.loadCommentsForObject(
+                appState.currentDatabase,
+                obj.name,
+                obj.object_type
+            );
+        }
     }
 
     handleShowDependencies(objectName, event) {
         event.stopPropagation();
         
-        // Marquer qu'on veut afficher la visualisation pour cet objet
         appState.pendingVisualization = objectName;
         
-        // Si l'objet est déjà sélectionné et qu'on a ses dépendances, afficher directement
         if (appState.selectedObject && appState.selectedObject.name === objectName && appState.currentDependencies) {
             this.dependencyVisualizer.showDependencyVisualization(objectName, appState.currentDependencies);
         } else {
-            // Sinon, charger les détails d'abord
             vscode.postMessage({
                 command: 'getObjectDetails',
                 database: appState.currentDatabase,
                 objectName: objectName,
-                objectType: 'Object' // Type générique pour le chargement des dépendances
+                objectType: 'Object'
             });
         }
     }
 
-    // Gestionnaires de messages
     onDatabasesLoaded(databases) {
         this.elements.databaseSelect.disabled = false;
         this.elements.databaseSelect.innerHTML = '<option value="">Select a database...</option>';
@@ -513,8 +542,6 @@ class ExplorerManager {
         ].join('');
         
         this.elements.detailsContent.innerHTML = html;
-        
-        // Vérifier si on doit afficher la visualisation
         this.checkPendingVisualization(tableName, dependencies);
     }
 
@@ -530,13 +557,10 @@ class ExplorerManager {
         html += this.buildDependenciesSection(dependencies);
         
         this.elements.detailsContent.innerHTML = html;
-        
-        // Vérifier si on doit afficher la visualisation
         this.checkPendingVisualization(objectName, dependencies);
     }
 
     checkPendingVisualization(objectName, dependencies) {
-        // Si on a une visualisation en attente pour cet objet, l'afficher maintenant
         if (appState.pendingVisualization === objectName) {
             appState.pendingVisualization = null;
             setTimeout(() => {
@@ -545,7 +569,6 @@ class ExplorerManager {
         }
     }
 
-    // Méthodes de construction HTML
     buildColumnsTable(columns) {
         if (!columns || columns.length === 0) {
             return '<h3>Columns</h3><p>No columns found.</p>';
@@ -630,7 +653,6 @@ class ExplorerManager {
         
         let html = '<h3>Dependencies</h3>';
         
-        // Add visualization button seulement si on a un objet sélectionné
         if (appState.selectedObject) {
             html += `<div style="margin-bottom: 15px;">
                 <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${appState.selectedObject.name}', appState.currentDependencies)" 
@@ -638,7 +660,6 @@ class ExplorerManager {
             </div>`;
         }
         
-        // Objets dont dépend cet objet
         html += '<h4>Dependencies (objects this depends on):</h4>';
         if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
             html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th></tr>';
@@ -654,7 +675,6 @@ class ExplorerManager {
             html += '<p>No dependencies found.</p>';
         }
         
-        // Objets qui dépendent de cet objet
         html += '<h4>Referenced by (objects that depend on this):</h4>';
         if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
             html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th></tr>';
@@ -683,11 +703,13 @@ class ExplorerManager {
 
 // Gestionnaire principal de messages
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, tableUsageManager) {
+    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, detailsTabManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
         this.tableUsageManager = tableUsageManager;
+        this.commentsManager = commentsManager;
+        this.detailsTabManager = detailsTabManager;
     }
 
     handleMessage(event) {
@@ -700,12 +722,6 @@ class MessageHandler {
                 
             case 'connectionLoadedForDisplay':
                 this.connectionManager.onConnectionLoadedForDisplay(message.connection);
-                break;
-                
-            case 'connectionLoadedForConnect':
-                if (this.connectionManager.onConnectionLoadedForConnect) {
-                    this.connectionManager.onConnectionLoadedForConnect(message.connection);
-                }
                 break;
                 
             case 'connectionSaved':
@@ -723,7 +739,6 @@ class MessageHandler {
             case 'connectionStatus':
                 this.connectionManager.onConnectionStatus(message);
                 if (message.success) {
-                    // Basculer automatiquement vers l'onglet Explorer après connexion réussie
                     setTimeout(() => {
                         this.tabManager.switchTab('explorer');
                     }, 1000);
@@ -732,13 +747,11 @@ class MessageHandler {
                 
             case 'databasesLoaded':
                 this.explorerManager.onDatabasesLoaded(message.databases);
-                // Notify table usage manager about database change
                 this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
                 break;
                 
             case 'objectsLoaded':
                 this.explorerManager.onObjectsLoaded(message.objects);
-                // Notify table usage manager about objects
                 this.tableUsageManager.onObjectsLoaded(message.objects);
                 break;
                 
@@ -778,6 +791,23 @@ class MessageHandler {
                 this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
                 break;
                 
+            // Comments Messages
+            case 'tableExtendedPropertiesResult':
+                this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
+                break;
+                
+            case 'objectExtendedPropertiesResult':
+                this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
+                break;
+                
+            case 'updateDescriptionResult':
+                this.commentsManager.onUpdateDescriptionResult(message);
+                break;
+                
+            case 'deleteDescriptionResult':
+                this.commentsManager.onDeleteDescriptionResult(message);
+                break;
+                
             case 'error':
                 this.handleError(message.message);
                 break;
@@ -786,13 +816,11 @@ class MessageHandler {
 
     handleError(message) {
         console.error('SQL Wayfarer Error:', message);
-        // Afficher l'erreur dans l'onglet actuel
         if (appState.activeTab === 'configuration') {
             this.connectionManager.showStatus(message, 'error');
         } else if (appState.activeTab === 'tableUsage') {
             this.tableUsageManager.showStatus(message, 'error');
         } else {
-            // Afficher dans la console pour l'onglet Explorer
             this.tabManager.showStatus(message, 'error');
         }
     }
@@ -802,20 +830,28 @@ class MessageHandler {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('SQL Wayfarer webview loaded');
     
-    // Initialiser les gestionnaires
     const tabManager = new TabManager();
     const connectionManager = new ConnectionManager();
     const explorerManager = new ExplorerManager();
     const tableUsageManager = new TableUsageManager();
-    const messageHandler = new MessageHandler(connectionManager, explorerManager, tabManager, tableUsageManager);
+    const commentsManager = new CommentsManager();
+    const detailsTabManager = new DetailsTabManager();
+    const messageHandler = new MessageHandler(
+        connectionManager, 
+        explorerManager, 
+        tabManager, 
+        tableUsageManager, 
+        commentsManager,
+        detailsTabManager
+    );
     
-    // Rendre les managers disponibles globalement pour les boutons inline
+    // Rendre les managers disponibles globalement
     window.explorerManager = explorerManager;
     window.tableUsageManager = tableUsageManager;
+    window.commentsManager = commentsManager;
+    window.detailsTabManager = detailsTabManager;
     
-    // Configurer le gestionnaire de messages
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
     
-    // Charger les connexions sauvegardées au démarrage
     connectionManager.loadSavedConnections();
 });
