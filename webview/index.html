@@ -15,6 +15,7 @@
             <div class="tab-nav">
                 <button class="tab-button active" data-tab="configuration">Configuration</button>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
+                <button class="tab-button" data-tab="tableUsage">Table Usage</button>
             </div>
             
             <!-- Configuration Tab -->
@@ -172,6 +173,63 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Table Usage Tab -->
+            <div id="tableUsageTab" class="tab-content">
+                <div class="table-usage-section">
+                    <div class="usage-control-panel">
+                        <div class="section-header">Table Usage Analysis</div>
+                        
+                        <div class="usage-mode-selector">
+                            <div class="input-group">
+                                <label>Analysis Mode:</label>
+                                <select id="usageModeSelect" disabled>
+                                    <option value="">Select analysis type...</option>
+                                    <option value="object-to-tables">Object → Tables (What tables does an object use?)</option>
+                                    <option value="table-to-objects">Table → Objects (What objects use a table?)</option>
+                                    <option value="triggers">Trigger Overview</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Object to Tables Mode -->
+                        <div id="objectToTablesMode" class="usage-mode" style="display: none;">
+                            <div class="input-group">
+                                <label for="usageObjectSelect">Select Object:</label>
+                                <select id="usageObjectSelect" disabled>
+                                    <option value="">Loading objects...</option>
+                                </select>
+                            </div>
+                            <button id="analyzeObjectBtn" class="analyze-btn" disabled>Analyze Object Usage</button>
+                        </div>
+
+                        <!-- Table to Objects Mode -->
+                        <div id="tableToObjectsMode" class="usage-mode" style="display: none;">
+                            <div class="input-group">
+                                <label for="usageTableSelect">Select Table:</label>
+                                <select id="usageTableSelect" disabled>
+                                    <option value="">Loading tables...</option>
+                                </select>
+                            </div>
+                            <button id="analyzeTableBtn" class="analyze-btn" disabled>Analyze Table Usage</button>
+                        </div>
+
+                        <!-- Triggers Mode -->
+                        <div id="triggersMode" class="usage-mode" style="display: none;">
+                            <button id="analyzeTriggerBtn" class="analyze-btn" disabled>Analyze All Triggers</button>
+                        </div>
+
+                        <div id="usageStatus" class="status-container"></div>
+                    </div>
+
+                    <div class="usage-results-panel">
+                        <div class="section-header">Analysis Results</div>
+                        <div id="usageResults">
+                            <p class="placeholder-text">Select an analysis mode and click Analyze to see results.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -179,6 +237,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
+    <script src="{{TABLE_USAGE_MANAGER_URI}}"></script> 
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>
