@@ -160,6 +160,19 @@ class SqlWayfarerPanel {
             case 'getImpactAnalysis':
                 await this._handleGetImpactAnalysis(message.database, message.objectName);
                 break;
+            // Table Usage Analysis Commands
+            case 'getTableUsageAnalysis':
+                await this._handleGetTableUsageAnalysis(message.database, message.objectName);
+                break;
+            case 'getTableUsageByObjects':
+                await this._handleGetTableUsageByObjects(message.database, message.tableName);
+                break;
+            case 'getTriggerAnalysis':
+                await this._handleGetTriggerAnalysis(message.database);
+                break;
+            case 'getAllTablesForUsage':
+                await this._handleGetAllTablesForUsage(message.database);
+                break;
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }
@@ -529,6 +542,86 @@ class SqlWayfarerPanel {
     }
 
     /**
+     * Handle get table usage analysis request
+     * @param {string} database
+     * @param {string} objectName
+     * @private
+     */
+    async _handleGetTableUsageAnalysis(database, objectName) {
+        try {
+            const analysis = await this._dependencyService.getTableUsageAnalysis(database, objectName);
+            
+            this._panel.webview.postMessage({
+                command: 'tableUsageAnalysisResult',
+                objectName: objectName,
+                analysis: analysis
+            });
+        } catch (error) {
+            this._sendError(`Failed to get table usage analysis: ${error.message}`);
+        }
+    }
+
+    /**
+     * Handle get table usage by objects request
+     * @param {string} database
+     * @param {string} tableName
+     * @private
+     */
+    async _handleGetTableUsageByObjects(database, tableName) {
+        try {
+            const usage = await this._dependencyService.getTableUsageByObjects(database, tableName);
+            
+            this._panel.webview.postMessage({
+                command: 'tableUsageByObjectsResult',
+                tableName: tableName,
+                usage: usage
+            });
+        } catch (error) {
+            this._sendError(`Failed to get table usage by objects: ${error.message}`);
+        }
+    }
+
+    /**
+     * Handle get trigger analysis request
+     * @param {string} database
+     * @private
+     */
+    async _handleGetTriggerAnalysis(database) {
+        try {
+            const triggers = await this._dependencyService.getTriggerAnalysis(database);
+            
+            this._panel.webview.postMessage({
+                command: 'triggerAnalysisResult',
+                database: database,
+                triggers: triggers
+            });
+        } catch (error) {
+            this._sendError(`Failed to get trigger analysis: ${error.message}`);
+        }
+    }
+
+    /**
+     * Handle get all tables for usage analysis
+     * @param {string} database
+     * @private
+     */
+    async _handleGetAllTablesForUsage(database) {
+        try {
+            // Reuse existing getObjects but filter for tables only
+            const allObjects = await this._databaseService.getObjects(database);
+            const tables = allObjects.filter(obj => obj.object_type === 'Table');
+            
+            this._panel.webview.postMessage({
+                command: 'allTablesForUsageResult',
+                database: database,
+                tables: tables
+            });
+        } catch (error) {
+            this._sendError(`Failed to get tables for usage analysis: ${error.message}`);
+        }
+    }
+
+    /**
      * Send error message to webview
      * @param {string} message
      * @private
@@ -560,13 +653,17 @@ class SqlWayfarerPanel {
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'styles.css')
         );
         
-        // Get URIs for the 3 separate JavaScript files
+        // Get URIs for the JavaScript files
         const tabManagerUri = this._panel.webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'tabManager.js')
         );
         
         const connectionManagerUri = this._panel.webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'connectionManager.js')
+        );
+        
+        const tableUsageManagerUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js')
         );
         
         const mainScriptUri = this._panel.webview.asWebviewUri(
@@ -581,6 +678,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{STYLES_URI}}', stylesUri.toString());
         html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
         html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
+        html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
         html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
         
         return html;

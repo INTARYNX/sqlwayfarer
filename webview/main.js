@@ -683,10 +683,11 @@ class ExplorerManager {
 
 // Gestionnaire principal de messages
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager) {
+    constructor(connectionManager, explorerManager, tabManager, tableUsageManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
+        this.tableUsageManager = tableUsageManager;
     }
 
     handleMessage(event) {
@@ -731,10 +732,14 @@ class MessageHandler {
                 
             case 'databasesLoaded':
                 this.explorerManager.onDatabasesLoaded(message.databases);
+                // Notify table usage manager about database change
+                this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
                 break;
                 
             case 'objectsLoaded':
                 this.explorerManager.onObjectsLoaded(message.objects);
+                // Notify table usage manager about objects
+                this.tableUsageManager.onObjectsLoaded(message.objects);
                 break;
                 
             case 'tableDetailsLoaded':
@@ -756,6 +761,23 @@ class MessageHandler {
                 );
                 break;
                 
+            // Table Usage Messages
+            case 'allTablesForUsageResult':
+                this.tableUsageManager.onAllTablesLoaded(message.tables);
+                break;
+                
+            case 'tableUsageAnalysisResult':
+                this.tableUsageManager.onTableUsageAnalysisResult(message.objectName, message.analysis);
+                break;
+                
+            case 'tableUsageByObjectsResult':
+                this.tableUsageManager.onTableUsageByObjectsResult(message.tableName, message.usage);
+                break;
+                
+            case 'triggerAnalysisResult':
+                this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
+                break;
+                
             case 'error':
                 this.handleError(message.message);
                 break;
@@ -767,6 +789,8 @@ class MessageHandler {
         // Afficher l'erreur dans l'onglet actuel
         if (appState.activeTab === 'configuration') {
             this.connectionManager.showStatus(message, 'error');
+        } else if (appState.activeTab === 'tableUsage') {
+            this.tableUsageManager.showStatus(message, 'error');
         } else {
             // Afficher dans la console pour l'onglet Explorer
             this.tabManager.showStatus(message, 'error');
@@ -782,10 +806,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const tabManager = new TabManager();
     const connectionManager = new ConnectionManager();
     const explorerManager = new ExplorerManager();
-    const messageHandler = new MessageHandler(connectionManager, explorerManager, tabManager);
+    const tableUsageManager = new TableUsageManager();
+    const messageHandler = new MessageHandler(connectionManager, explorerManager, tabManager, tableUsageManager);
     
-    // Rendre explorerManager disponible globalement pour les boutons inline
+    // Rendre les managers disponibles globalement pour les boutons inline
     window.explorerManager = explorerManager;
+    window.tableUsageManager = tableUsageManager;
     
     // Configurer le gestionnaire de messages
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
