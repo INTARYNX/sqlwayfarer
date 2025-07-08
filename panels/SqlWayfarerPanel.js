@@ -173,10 +173,34 @@ class SqlWayfarerPanel {
             case 'getAllTablesForUsage':
                 await this._handleGetAllTablesForUsage(message.database);
                 break;
+            // Extended Properties (Comments) Commands
+            case 'getTableExtendedProperties':
+                await this._handleGetTableExtendedProperties(message.database, message.tableName);
+                break;
+            case 'getObjectExtendedProperties':
+                await this._handleGetObjectExtendedProperties(message.database, message.objectName, message.objectType);
+                break;
+            case 'updateTableDescription':
+                await this._handleUpdateTableDescription(message.database, message.tableName, message.description);
+                break;
+            case 'updateColumnDescription':
+                await this._handleUpdateColumnDescription(message.database, message.tableName, message.columnName, message.description);
+                break;
+            case 'updateObjectDescription':
+                await this._handleUpdateObjectDescription(message.database, message.objectName, message.description);
+                break;
+            case 'deleteTableDescription':
+                await this._handleDeleteTableDescription(message.database, message.tableName);
+                break;
+            case 'deleteColumnDescription':
+                await this._handleDeleteColumnDescription(message.database, message.tableName, message.columnName);
+                break;
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }
     }
+
+    // ... [Previous connection and table handling methods remain the same] ...
 
     /**
      * Handle connection request
@@ -621,6 +645,199 @@ class SqlWayfarerPanel {
         }
     }
 
+    // Extended Properties (Comments) Handlers
+
+    /**
+     * Handle get table extended properties request
+     * @param {string} database
+     * @param {string} tableName
+     * @private
+     */
+    async _handleGetTableExtendedProperties(database, tableName) {
+        try {
+            const properties = await this._dependencyService.getTableExtendedProperties(database, tableName);
+            
+            this._panel.webview.postMessage({
+                command: 'tableExtendedPropertiesResult',
+                tableName: tableName,
+                properties: properties
+            });
+        } catch (error) {
+            this._sendError(`Failed to get table extended properties: ${error.message}`);
+        }
+    }
+
+    /**
+     * Handle get object extended properties request
+     * @param {string} database
+     * @param {string} objectName
+     * @param {string} objectType
+     * @private
+     */
+    async _handleGetObjectExtendedProperties(database, objectName, objectType) {
+        try {
+            const properties = await this._dependencyService.getObjectExtendedProperties(database, objectName, objectType);
+            
+            this._panel.webview.postMessage({
+                command: 'objectExtendedPropertiesResult',
+                objectName: objectName,
+                objectType: objectType,
+                properties: properties
+            });
+        } catch (error) {
+            this._sendError(`Failed to get object extended properties: ${error.message}`);
+        }
+    }
+
+    /**
+     * Handle update table description request
+     * @param {string} database
+     * @param {string} tableName
+     * @param {string} description
+     * @private
+     */
+    async _handleUpdateTableDescription(database, tableName, description) {
+        try {
+            const result = await this._dependencyService.updateTableDescription(database, tableName, description);
+            
+            this._panel.webview.postMessage({
+                command: 'updateDescriptionResult',
+                success: result.success,
+                message: result.message,
+                type: 'table',
+                tableName: tableName
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'updateDescriptionResult',
+                success: false,
+                message: `Failed to update table description: ${error.message}`,
+                type: 'table',
+                tableName: tableName
+            });
+        }
+    }
+
+    /**
+     * Handle update column description request
+     * @param {string} database
+     * @param {string} tableName
+     * @param {string} columnName
+     * @param {string} description
+     * @private
+     */
+    async _handleUpdateColumnDescription(database, tableName, columnName, description) {
+        try {
+            const result = await this._dependencyService.updateColumnDescription(database, tableName, columnName, description);
+            
+            this._panel.webview.postMessage({
+                command: 'updateDescriptionResult',
+                success: result.success,
+                message: result.message,
+                type: 'column',
+                tableName: tableName,
+                columnName: columnName
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'updateDescriptionResult',
+                success: false,
+                message: `Failed to update column description: ${error.message}`,
+                type: 'column',
+                tableName: tableName,
+                columnName: columnName
+            });
+        }
+    }
+
+    /**
+     * Handle update object description request
+     * @param {string} database
+     * @param {string} objectName
+     * @param {string} description
+     * @private
+     */
+    async _handleUpdateObjectDescription(database, objectName, description) {
+        try {
+            const result = await this._dependencyService.updateObjectDescription(database, objectName, description);
+            
+            this._panel.webview.postMessage({
+                command: 'updateDescriptionResult',
+                success: result.success,
+                message: result.message,
+                type: 'object',
+                objectName: objectName
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'updateDescriptionResult',
+                success: false,
+                message: `Failed to update object description: ${error.message}`,
+                type: 'object',
+                objectName: objectName
+            });
+        }
+    }
+
+    /**
+     * Handle delete table description request
+     * @param {string} database
+     * @param {string} tableName
+     * @private
+     */
+    async _handleDeleteTableDescription(database, tableName) {
+        try {
+            const result = await this._dependencyService.deleteTableDescription(database, tableName);
+            
+            this._panel.webview.postMessage({
+                command: 'deleteDescriptionResult',
+                success: result.success,
+                message: result.message,
+                type: 'table',
+                tableName: tableName
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'deleteDescriptionResult',
+                success: false,
+                message: `Failed to delete table description: ${error.message}`,
+                type: 'table',
+                tableName: tableName
+            });
+        }
+    }
+
+    /**
+     * Handle delete column description request
+     * @param {string} database
+     * @param {string} tableName
+     * @param {string} columnName
+     * @private
+     */
+    async _handleDeleteColumnDescription(database, tableName, columnName) {
+        try {
+            const result = await this._dependencyService.deleteColumnDescription(database, tableName, columnName);
+            
+            this._panel.webview.postMessage({
+                command: 'deleteDescriptionResult',
+                success: result.success,
+                message: result.message,
+                type: 'column',
+                tableName: tableName,
+                columnName: columnName
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'deleteDescriptionResult',
+                success: false,
+                message: `Failed to delete column description: ${error.message}`,
+                type: 'column',
+                tableName: tableName,
+                columnName: columnName
+            });
+        }
+    }
+
     /**
      * Send error message to webview
      * @param {string} message
@@ -666,6 +883,10 @@ class SqlWayfarerPanel {
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js')
         );
         
+        const commentsManagerUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js')
+        );
+        
         const mainScriptUri = this._panel.webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js')
         );
@@ -679,6 +900,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
         html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
         html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
+        html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
         html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
         
         return html;
