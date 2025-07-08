@@ -109,7 +109,42 @@
                             <option value="">Select a database...</option>
                         </select>
                         
-                        <div class="section-header">Objects</div>
+                        <div class="section-header">Filter & Search</div>
+                        <div class="filter-section">
+                            <div class="search-container">
+                                <input type="text" id="objectSearch" placeholder="Search objects..." disabled>
+                                <button id="clearSearchBtn" class="clear-search-btn" disabled>×</button>
+                            </div>
+                            
+                            <div class="filter-types">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterTable" checked disabled>
+                                    Tables
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterView" checked disabled>
+                                    Views
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterProcedure" checked disabled>
+                                    Procedures
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterFunction" checked disabled>
+                                    Functions
+                                </label>
+                            </div>
+                            
+                            <div class="filter-actions">
+                                <button id="selectAllTypesBtn" class="filter-btn" disabled>All</button>
+                                <button id="clearAllTypesBtn" class="filter-btn" disabled>None</button>
+                            </div>
+                        </div>
+                        
+                        <div class="section-header">
+                            Objects
+                            <span id="objectCount" class="object-count"></span>
+                        </div>
                         <div id="objectList">
                             <p class="placeholder-text">Connect to a database first to view objects.</p>
                         </div>
