@@ -9,7 +9,16 @@
 </head>
 <body>
     <div class="container">
-        <h1>SQL Wayfarer</h1>
+        <!-- Header with title and database selector -->
+        <div class="header-section">
+            <h1>SQL Wayfarer</h1>
+            <div class="database-selector-inline">
+                <label for="databaseSelect">Database:</label>
+                <select id="databaseSelect" disabled>
+                    <option value="">Select a database...</option>
+                </select>
+            </div>
+        </div>
         
         <!-- Tab Navigation -->
         <div class="tab-container">
@@ -106,11 +115,6 @@
             <div id="explorerTab" class="tab-content">
                 <div class="explorer-section">
                     <div class="selector-panel">
-                        <div class="section-header">Databases</div>
-                        <select id="databaseSelect" disabled>
-                            <option value="">Select a database...</option>
-                        </select>
-                        
                         <div class="section-header">Filter & Search</div>
                         <div class="filter-section">
                             <div class="search-container">

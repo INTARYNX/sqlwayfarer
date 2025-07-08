@@ -404,7 +404,7 @@ class ExplorerManager {
         
         if (database) {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">Loading objects...</p>';
-            this.elements.detailsContent.innerHTML = '<p>Loading...</p>';
+            this.elements.detailsContent.innerHTML = '<p>Select an object to view its details.</p>';
             
             this.filterManager.resetFilters();
             this.filterManager.disableFilters();
