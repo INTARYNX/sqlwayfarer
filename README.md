@@ -1,77 +1,77 @@
-# sqlwayfarer README
+# SQL Wayfarer
 
-This is the README for your extension "sqlwayfarer". After writing up a brief description, we recommend including the following sections.
+A comprehensive SQL Server database explorer and analysis tool for Visual Studio Code. Navigate your database schema, analyze object dependencies, track table usage, and manage documentation - all within your favorite editor.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+### 🔐 Secure Connection Management
+- Save and manage multiple SQL Server connections
+- Passwords stored securely using VS Code's built-in secrets API
+- Support for SQL Server authentication and Windows authentication
+- Connection testing before saving
 
-For example if there is an image subfolder under your extension project workspace:
+### 🗂️ Database Object Explorer
+- Browse tables, views, stored procedures, and functions
+- Real-time search and filtering by object type
+- Detailed structure view with columns, indexes, and foreign keys
+- Quick access to object definitions and metadata
 
-\!\[feature X\]\(images/feature-x.png\)
+### 🕸️ Dependency Analysis & Visualization
+- Interactive dependency graphs showing object relationships
+- Analyze what objects depend on a selected table/view/procedure
+- Impact analysis - see what would be affected by changes
+- Visual graph rendering with dependency mapping
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+### 📊 Table Usage Analysis
+- **Object → Tables**: See what tables a procedure/function/view uses
+- **Table → Objects**: Find all objects that reference a specific table
+- **Trigger Overview**: Comprehensive trigger analysis across the database
+- Detailed operation type tracking (SELECT, INSERT, UPDATE, DELETE)
+
+### 📝 Documentation & Comments Management
+- View and edit MS_Description extended properties
+- Table and column documentation support
+- Object-level comments for views, procedures, and functions
+- Visual indicators for documented vs undocumented objects
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- Visual Studio Code 1.74.0 or higher
+- SQL Server 2008 R2 or later (including Azure SQL Database)
+- Network connectivity to your SQL Server instance
+- Database permissions: `db_datareader` or higher for full functionality
+
+## Getting Started
+
+1. **Install**: Search for "SQL Wayfarer" in VS Code Extensions
+2. **Open**: Click the SQL Wayfarer icon in the activity bar
+3. **Connect**: Add your SQL Server connection details in the Configuration tab
+4. **Select Database**: Choose a database from the dropdown
+5. **Explore**: Navigate between Explorer, Table Usage, and Comments features
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+This extension does not add any VS Code settings. All configuration is managed within the SQL Wayfarer interface.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- Large databases (1000+ objects) may experience slower initial loading
+- Dependency analysis depth is limited to prevent performance issues
+- Currently optimized for SQL Server; Azure SQL Database support may vary
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
-
 ### 1.0.0
 
-Initial release of ...
+Initial release of SQL Wayfarer
 
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+- Database object exploration with search and filtering
+- Secure connection management with VS Code secrets integration
+- Interactive dependency visualization and analysis
+- Comprehensive table usage tracking and analysis
+- MS_Description comments and documentation management
+- Multi-tab interface with responsive design
 
 ---
 
-## Working with Markdown
-
-You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
-
-
-
-Suggestions d'amélioration futures (si jamais) :
-
-Navigation dans le graphique (clic sur un nœud pour explorer)
-Export du graphique en PNG/SVG
-Filtrage par type de dépendance
-Vue "arbre" alternative pour les grandes hiérarchies
-
-Mais honnêtement, pour un "schema ultra basic", c'est parfait ! Le système fait exactement ce qu'il faut : visualiser rapidement les dépendances d'un objet de base de données sans complications. L'intégration est propre et l'UX est fluide.
-Tu as une base solide pour ton extension SQL Wayfarer ! 
+**Enjoy exploring your SQL Server databases with SQL Wayfarer!** 🧭
