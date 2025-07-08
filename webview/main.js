@@ -12,7 +12,18 @@ class AppState {
         this.savedConnections = [];
         this.connectionConfig = null;
         this.currentDependencies = null;
-        this.pendingVisualization = null; // Pour gérer les demandes de visualisation en attente
+        this.pendingVisualization = null;
+        this.allObjects = []; // Store all objects for filtering
+        this.filteredObjects = []; // Store filtered objects
+        this.filters = {
+            search: '',
+            types: {
+                Table: true,
+                View: true,
+                Procedure: true,
+                Function: true
+            }
+        };
     }
 }
 
@@ -200,12 +211,156 @@ class DependencyVisualizer {
     }
 }
 
+// Gestionnaire de filtrage et recherche
+class FilterManager {
+    constructor() {
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        // Search input
+        const searchInput = document.getElementById('objectSearch');
+        searchInput.addEventListener('input', (e) => {
+            appState.filters.search = e.target.value.toLowerCase();
+            this.applyFilters();
+        });
+
+        // Clear search button
+        document.getElementById('clearSearchBtn').addEventListener('click', () => {
+            searchInput.value = '';
+            appState.filters.search = '';
+            this.applyFilters();
+        });
+
+        // Type filter checkboxes
+        document.getElementById('filterTable').addEventListener('change', (e) => {
+            appState.filters.types.Table = e.target.checked;
+            this.applyFilters();
+        });
+
+        document.getElementById('filterView').addEventListener('change', (e) => {
+            appState.filters.types.View = e.target.checked;
+            this.applyFilters();
+        });
+
+        document.getElementById('filterProcedure').addEventListener('change', (e) => {
+            appState.filters.types.Procedure = e.target.checked;
+            this.applyFilters();
+        });
+
+        document.getElementById('filterFunction').addEventListener('change', (e) => {
+            appState.filters.types.Function = e.target.checked;
+            this.applyFilters();
+        });
+
+        // Filter action buttons
+        document.getElementById('selectAllTypesBtn').addEventListener('click', () => {
+            this.setAllFilters(true);
+        });
+
+        document.getElementById('clearAllTypesBtn').addEventListener('click', () => {
+            this.setAllFilters(false);
+        });
+    }
+
+    setAllFilters(checked) {
+        Object.keys(appState.filters.types).forEach(type => {
+            appState.filters.types[type] = checked;
+            const checkbox = document.getElementById(`filter${type}`);
+            if (checkbox) {
+                checkbox.checked = checked;
+            }
+        });
+        this.applyFilters();
+    }
+
+    applyFilters() {
+        const searchTerm = appState.filters.search;
+        const typeFilters = appState.filters.types;
+
+        appState.filteredObjects = appState.allObjects.filter(obj => {
+            // Apply search filter
+            const matchesSearch = !searchTerm || 
+                obj.name.toLowerCase().includes(searchTerm);
+
+            // Apply type filter
+            const matchesType = typeFilters[obj.object_type] === true;
+
+            return matchesSearch && matchesType;
+        });
+
+        this.updateObjectDisplay();
+    }
+
+    updateObjectDisplay() {
+        const objectList = document.getElementById('objectList');
+        const objectItems = objectList.querySelectorAll('.object-item');
+
+        // Hide all items first
+        objectItems.forEach(item => {
+            item.classList.add('hidden');
+        });
+
+        // Show filtered items
+        appState.filteredObjects.forEach(obj => {
+            const item = objectList.querySelector(`[data-name="${obj.name}"]`);
+            if (item) {
+                item.classList.remove('hidden');
+            }
+        });
+
+        // Update count
+        this.updateObjectCount();
+    }
+
+    updateObjectCount() {
+        const countElement = document.getElementById('objectCount');
+        const filteredCount = appState.filteredObjects.length;
+        const totalCount = appState.allObjects.length;
+        
+        if (filteredCount === totalCount) {
+            countElement.textContent = `(${totalCount})`;
+        } else {
+            countElement.textContent = `(${filteredCount} of ${totalCount})`;
+        }
+    }
+
+    enableFilters() {
+        document.getElementById('objectSearch').disabled = false;
+        document.getElementById('clearSearchBtn').disabled = false;
+        document.getElementById('filterTable').disabled = false;
+        document.getElementById('filterView').disabled = false;
+        document.getElementById('filterProcedure').disabled = false;
+        document.getElementById('filterFunction').disabled = false;
+        document.getElementById('selectAllTypesBtn').disabled = false;
+        document.getElementById('clearAllTypesBtn').disabled = false;
+    }
+
+    disableFilters() {
+        document.getElementById('objectSearch').disabled = true;
+        document.getElementById('clearSearchBtn').disabled = true;
+        document.getElementById('filterTable').disabled = true;
+        document.getElementById('filterView').disabled = true;
+        document.getElementById('filterProcedure').disabled = true;
+        document.getElementById('filterFunction').disabled = true;
+        document.getElementById('selectAllTypesBtn').disabled = true;
+        document.getElementById('clearAllTypesBtn').disabled = true;
+    }
+
+    resetFilters() {
+        document.getElementById('objectSearch').value = '';
+        appState.filters.search = '';
+        this.setAllFilters(true);
+    }
+}
+
 // Gestionnaire d'exploration
 class ExplorerManager {
     constructor() {
         this.initDOMElements();
         this.initEventListeners();
         this.dependencyVisualizer = new DependencyVisualizer();
+        this.filterManager = new FilterManager();
     }
 
     initDOMElements() {
@@ -227,6 +382,11 @@ class ExplorerManager {
         if (database) {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">Loading objects...</p>';
             this.elements.detailsContent.innerHTML = '<p>Loading...</p>';
+            
+            // Reset filters and disable them while loading
+            this.filterManager.resetFilters();
+            this.filterManager.disableFilters();
+            
             vscode.postMessage({
                 command: 'getObjects',
                 database: database
@@ -234,6 +394,10 @@ class ExplorerManager {
         } else {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">Select a database to view objects.</p>';
             this.elements.detailsContent.innerHTML = '<p>Select a database first.</p>';
+            appState.allObjects = [];
+            appState.filteredObjects = [];
+            this.filterManager.disableFilters();
+            this.filterManager.updateObjectCount();
         }
     }
 
@@ -299,7 +463,11 @@ class ExplorerManager {
     }
 
     onObjectsLoaded(objects) {
+        appState.allObjects = objects;
+        appState.filteredObjects = objects;
         this.displayObjects(objects);
+        this.filterManager.enableFilters();
+        this.filterManager.updateObjectCount();
     }
 
     displayObjects(objects) {

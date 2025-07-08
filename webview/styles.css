@@ -124,6 +124,7 @@ body {
     border: 1px solid var(--vscode-input-border);
     border-radius: 4px;
     padding: 15px;
+    min-width: 300px;
 }
 
 .details-panel {
@@ -133,6 +134,98 @@ body {
     border-radius: 4px;
     padding: 15px;
     position: relative;
+}
+
+/* Filter Section */
+.filter-section {
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.search-container {
+    position: relative;
+    margin-bottom: 10px;
+}
+
+#objectSearch {
+    padding-right: 25px;
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+}
+
+.clear-search-btn:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: var(--vscode-foreground);
+}
+
+.filter-types {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.filter-checkbox {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: normal;
+    margin: 0;
+    padding: 2px 0;
+}
+
+.filter-checkbox input[type="checkbox"] {
+    width: auto;
+    margin: 0 5px 0 0;
+    transform: scale(0.8);
+}
+
+.filter-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.filter-btn {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-input-border);
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 2px;
+    cursor: pointer;
+    width: auto;
+    margin: 0;
+}
+
+.filter-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.object-count {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    font-weight: normal;
+    margin-left: 10px;
 }
 
 /* Form Elements */
@@ -211,6 +304,8 @@ th {
     font-weight: bold;
     margin: 20px 0 10px 0;
     color: var(--vscode-foreground);
+    display: flex;
+    align-items: center;
 }
 
 /* Labels */
@@ -222,7 +317,7 @@ label {
 
 /* Object List */
 #objectList {
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
 }
 
@@ -233,6 +328,7 @@ label {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: background-color 0.1s ease;
 }
 
 .object-item:hover {
@@ -244,10 +340,19 @@ label {
     color: var(--vscode-list-activeSelectionForeground);
 }
 
+.object-item.hidden {
+    display: none;
+}
+
 .object-type {
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
     margin-left: 10px;
+}
+
+.object-item.selected .object-type {
+    color: var(--vscode-list-activeSelectionForeground);
+    opacity: 0.8;
 }
 
 .viz-object-btn {
@@ -407,6 +512,10 @@ label {
         right: 10px;
         bottom: 10px;
         z-index: 1000;
+    }
+    
+    .filter-types {
+        grid-template-columns: 1fr;
     }
 }
 
