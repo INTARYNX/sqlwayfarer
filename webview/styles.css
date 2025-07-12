@@ -298,6 +298,69 @@ th {
     font-weight: bold;
 }
 
+/* Index badges with different colors for each type */
+.index-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 6px;
+    white-space: nowrap;
+}
+
+/* Primary Key - Red (most important) */
+.index-primary {
+    background: #dc3545;
+    color: white;
+    border: 1px solid #c82333;
+}
+
+.index-primary::before {
+    content: "🔑";
+    margin-right: 2px;
+}
+
+/* Unique Index - Blue (important) */
+.index-unique {
+    background: #007bff;
+    color: white;
+    border: 1px solid #0056b3;
+}
+
+.index-unique::before {
+    content: "💎";
+    margin-right: 2px;
+}
+
+/* Clustered Index - Green (good performance) */
+.index-clustered {
+    background: #28a745;
+    color: white;
+    border: 1px solid #1e7e34;
+}
+
+.index-clustered::before {
+    content: "🗂️";
+    margin-right: 2px;
+}
+
+/* Non-Clustered/Normal Index - Purple (standard) */
+.index-normal {
+    background: #6f42c1;
+    color: white;
+    border: 1px solid #5a2d91;
+}
+
+.index-normal::before {
+    content: "📋";
+    margin-right: 2px;
+}
+
 /* Section Headers */
 .section-header {
     font-size: 16px;
