@@ -595,15 +595,45 @@ class ExplorerManager {
         let html = '<h3>Indexes</h3>';
         
         if (indexes && indexes.length > 0) {
-            html += '<table><tr><th>Name</th><th>Type</th><th>Unique</th><th>Primary Key</th><th>Columns</th></tr>';
+            html += '<table><tr><th>Name</th><th>Type & Properties</th><th>Columns</th></tr>';
             
             indexes.forEach(idx => {
+                let badges = '';
+                
+                // Debug: log index properties
+                console.log('Index:', idx);
+                
+                // Primary Key badge - check multiple conditions
+                if (idx.is_primary_key === true || idx.is_primary_key === 1 || 
+                    (idx.index_name && idx.index_name.toLowerCase().includes('pk_')) ||
+                    (idx.type_desc && idx.type_desc.toLowerCase().includes('primary'))) {
+                    badges += '<span class="index-badge index-primary">Primary Key</span>';
+                }
+                
+                // Unique badge (show for unique indexes, even if they're also primary keys)
+                if ((idx.is_unique === true || idx.is_unique === 1)) {
+                    badges += '<span class="index-badge index-unique">Unique</span>';
+                }
+                
+                // Clustered/NonClustered badge - always show this information
+                if (idx.type_desc) {
+                    const typeDesc = idx.type_desc.toLowerCase();
+                    if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
+                        badges += '<span class="index-badge index-clustered">Clustered</span>';
+                    } else if (typeDesc.includes('nonclustered') || typeDesc.includes('heap')) {
+                        badges += '<span class="index-badge index-normal">NonClustered</span>';
+                    }
+                }
+                
+                // If no badges were added, add a default one
+                if (!badges) {
+                    badges = '<span class="index-badge index-normal">Index</span>';
+                }
+                
                 html += `<tr>
-                    <td>${this.escapeHtml(idx.index_name)}</td>
-                    <td>${this.escapeHtml(idx.type_desc)}</td>
-                    <td>${idx.is_unique ? 'Yes' : 'No'}</td>
-                    <td>${idx.is_primary_key ? 'Yes' : 'No'}</td>
-                    <td>${this.escapeHtml(idx.columns)}</td>
+                    <td><strong>${this.escapeHtml(idx.index_name)}</strong></td>
+                    <td>${badges}</td>
+                    <td><code style="background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 2px;">${this.escapeHtml(idx.columns)}</code></td>
                 </tr>`;
             });
             
