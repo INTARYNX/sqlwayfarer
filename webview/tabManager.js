@@ -19,7 +19,7 @@ class TabManager {
 
     switchTab(tabName) {
         // Vérifier si l'utilisateur peut accéder aux onglets qui nécessitent une connexion
-        if ((tabName === 'explorer' || tabName === 'tableUsage') && !appState.isConnected) {
+        if ((tabName === 'explorer' || tabName === 'tableUsage' || tabName === 'extendedEvents') && !appState.isConnected) {
             this.showStatus('Please connect to a database first before using this feature.', 'error');
             return;
         }
@@ -41,6 +41,8 @@ class TabManager {
             this.onExplorerTabActivated();
         } else if (tabName === 'tableUsage' && appState.isConnected) {
             this.onTableUsageTabActivated();
+        } else if (tabName === 'extendedEvents' && appState.isConnected) {
+            this.onExtendedEventsTabActivated();
         }
     }
 
@@ -56,6 +58,19 @@ class TabManager {
         if (window.tableUsageManager) {
             // Synchroniser avec la base de données actuelle
             window.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
+            
+            // Recharger les bases de données si nécessaire
+            if (!appState.currentDatabase) {
+                vscode.postMessage({ command: 'getDatabases' });
+            }
+        }
+    }
+
+    onExtendedEventsTabActivated() {
+        // Initialiser l'onglet Extended Events si nécessaire
+        if (window.extendedEventsManager) {
+            // Synchroniser avec la base de données actuelle
+            window.extendedEventsManager.onDatabaseChanged(appState.currentDatabase);
             
             // Recharger les bases de données si nécessaire
             if (!appState.currentDatabase) {

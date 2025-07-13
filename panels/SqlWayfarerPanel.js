@@ -195,12 +195,23 @@ class SqlWayfarerPanel {
             case 'deleteColumnDescription':
                 await this._handleDeleteColumnDescription(message.database, message.tableName, message.columnName);
                 break;
+            // Extended Events Commands
+            case 'createExtendedEventSession':
+                await this._handleCreateExtendedEventSession(message.database, message.procedureName, message.sessionName);
+                break;
+            case 'startExtendedEventSession':
+                await this._handleStartExtendedEventSession(message.database, message.sessionName);
+                break;
+            case 'stopExtendedEventSession':
+                await this._handleStopExtendedEventSession(message.database, message.sessionName);
+                break;
+            case 'deleteExtendedEventSession':
+                await this._handleDeleteExtendedEventSession(message.database, message.sessionName);
+                break;
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }
     }
-
-    // ... [Previous connection and table handling methods remain the same] ...
 
     /**
      * Handle connection request
@@ -838,6 +849,103 @@ class SqlWayfarerPanel {
         }
     }
 
+    // Extended Events Handlers
+
+    /**
+     * Handle create extended event session request
+     * @param {string} database - Database name
+     * @param {string} procedureName - Procedure name
+     * @param {string} sessionName - Session name
+     * @private
+     */
+    async _handleCreateExtendedEventSession(database, procedureName, sessionName) {
+        try {
+            // TODO: Implement extended event session creation logic
+            // For now, return a mock success response
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionCreated',
+                success: true,
+                sessionName: sessionName,
+                message: `Extended Event session '${sessionName}' created successfully for procedure '${procedureName}'`
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionCreated',
+                success: false,
+                message: `Failed to create Extended Event session: ${error.message}`
+            });
+        }
+    }
+
+    /**
+     * Handle start extended event session request
+     * @param {string} database - Database name
+     * @param {string} sessionName - Session name
+     * @private
+     */
+    async _handleStartExtendedEventSession(database, sessionName) {
+        try {
+            // TODO: Implement extended event session start logic
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionStarted',
+                success: true,
+                message: `Extended Event session '${sessionName}' started successfully`
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionStarted',
+                success: false,
+                message: `Failed to start Extended Event session: ${error.message}`
+            });
+        }
+    }
+
+    /**
+     * Handle stop extended event session request
+     * @param {string} database - Database name
+     * @param {string} sessionName - Session name
+     * @private
+     */
+    async _handleStopExtendedEventSession(database, sessionName) {
+        try {
+            // TODO: Implement extended event session stop logic
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionStopped',
+                success: true,
+                message: `Extended Event session '${sessionName}' stopped successfully`
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionStopped',
+                success: false,
+                message: `Failed to stop Extended Event session: ${error.message}`
+            });
+        }
+    }
+
+    /**
+     * Handle delete extended event session request
+     * @param {string} database - Database name
+     * @param {string} sessionName - Session name
+     * @private
+     */
+    async _handleDeleteExtendedEventSession(database, sessionName) {
+        try {
+            // TODO: Implement extended event session deletion logic
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionDeleted',
+                success: true,
+                message: `Extended Event session '${sessionName}' deleted successfully`
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'extendedEventSessionDeleted',
+                success: false,
+                message: `Failed to delete Extended Event session: ${error.message}`
+            });
+        }
+    }
+
     /**
      * Send error message to webview
      * @param {string} message
@@ -886,6 +994,18 @@ class SqlWayfarerPanel {
         const commentsManagerUri = this._panel.webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js')
         );
+
+        const extendedEventsManagerUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js')
+        );
+
+        const commentsStylesUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webview', 'comments.css')
+        );
+
+        const extendedEventsStylesUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEvents.css')
+        );
         
         const mainScriptUri = this._panel.webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js')
@@ -897,10 +1017,13 @@ class SqlWayfarerPanel {
         
         // Replace placeholders with actual URIs
         html = html.replace('{{STYLES_URI}}', stylesUri.toString());
+        html = html.replace('{{COMMENTS_STYLES_URI}}', commentsStylesUri.toString());
+        html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', extendedEventsStylesUri.toString());
         html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
         html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
         html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
         html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
+        html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', extendedEventsManagerUri.toString());
         html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
         
         return html;

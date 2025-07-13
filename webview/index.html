@@ -6,6 +6,7 @@
     <title>SQL Wayfarer</title>
     <link href="{{STYLES_URI}}" rel="stylesheet">
     <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
+    <link href="{{EXTENDED_EVENTS_STYLES_URI}}" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -26,6 +27,7 @@
                 <button class="tab-button active" data-tab="configuration">Configuration</button>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
                 <button class="tab-button" data-tab="tableUsage">Table Usage</button>
+                <button class="tab-button" data-tab="extendedEvents">Extended Events</button>
             </div>
             
             <!-- Configuration Tab -->
@@ -254,6 +256,54 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Extended Events Tab -->
+            <div id="extendedEventsTab" class="tab-content">
+                <div class="extended-events-section">
+                    <div class="xe-control-panel">
+                        <div class="section-header">Extended Event Session</div>
+                        
+                        <!-- Session Configuration -->
+                        <div class="session-config">
+                            <div class="input-group">
+                                <label for="xeventProcedureSelect">Stored Procedure:</label>
+                                <select id="xeventProcedureSelect" disabled>
+                                    <option value="">Select a stored procedure...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="xeventSessionName">Session Name:</label>
+                                <input type="text" id="xeventSessionName" placeholder="XE_ProcedureName_Timestamp" disabled>
+                            </div>
+                        </div>
+
+                        <!-- Session Controls -->
+                        <div class="session-controls">
+                            <div class="session-control-buttons">
+                                <button id="createSessionBtn" class="create-btn" disabled>Create Session</button>
+                                <button id="startSessionBtn" class="start-btn" disabled>Start Session</button>
+                                <button id="stopSessionBtn" class="stop-btn" disabled>Stop Session</button>
+                                <button id="deleteSessionBtn" class="delete-btn" disabled>Delete Session</button>
+                            </div>
+                        </div>
+
+                        <!-- Session Information -->
+                        <div id="sessionInfo" class="session-info">
+                            <p class="placeholder-text">Connect to a database to manage Extended Event sessions.</p>
+                        </div>
+
+                        <div id="xeventStatus" class="status"></div>
+                    </div>
+
+                    <div class="xe-events-panel">
+                        <div class="section-header">Event Monitoring</div>
+                        <div id="eventsContainer">
+                            <p class="placeholder-text">Events will appear here when the session is running and the procedure is executed.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -263,6 +313,7 @@
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{TABLE_USAGE_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
+    <script src="{{EXTENDED_EVENTS_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>
