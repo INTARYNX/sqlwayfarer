@@ -88,7 +88,7 @@ class ExtendedEventsManager {
         
         if (selectedProcedure) {
             // Generate default session name
-            const sessionName = `XE_${selectedProcedure}_${Date.now()}`;
+            const sessionName = `XE_SQLWayfarer_${selectedProcedure}_${Date.now()}`;
             this.elements.sessionNameInput.value = sessionName;
             this.elements.createSessionBtn.disabled = false;
         } else {
@@ -113,10 +113,17 @@ class ExtendedEventsManager {
         this.showStatus('Creating Extended Event session...', 'info');
 
         vscode.postMessage({
-            command: 'createExtendedEventSession',
+            command: 'createExecutionFlowSession',
             database: this.currentDatabase,
-            procedureName: procedureName,
-            sessionName: sessionName
+            sessionName: sessionName,
+            config: {
+                mode: 'stored_procedure_flow',
+                targetObjects: [procedureName],
+                includeDynamicSQL: true,
+                includeSystemObjects: false,
+                maxFileSize: '100MB',
+                maxFiles: 5
+            }
         });
     }
 
@@ -131,8 +138,7 @@ class ExtendedEventsManager {
         this.showStatus('Starting Extended Event session...', 'info');
 
         vscode.postMessage({
-            command: 'startExtendedEventSession',
-            database: this.currentDatabase,
+            command: 'startExecutionFlowSession',
             sessionName: this.currentSession
         });
     }
@@ -148,8 +154,7 @@ class ExtendedEventsManager {
         this.showStatus('Stopping Extended Event session...', 'info');
 
         vscode.postMessage({
-            command: 'stopExtendedEventSession',
-            database: this.currentDatabase,
+            command: 'stopExecutionFlowSession',
             sessionName: this.currentSession
         });
     }
@@ -169,13 +174,12 @@ class ExtendedEventsManager {
         this.showStatus('Deleting Extended Event session...', 'info');
 
         vscode.postMessage({
-            command: 'deleteExtendedEventSession',
-            database: this.currentDatabase,
+            command: 'deleteExecutionFlowSession',
             sessionName: this.currentSession
         });
     }
 
-    // Message handlers (will be implemented in backend)
+    // Message handlers
     onSessionCreated(result) {
         this.setButtonState(this.elements.createSessionBtn, false, 'Create Session');
         

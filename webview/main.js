@@ -402,6 +402,12 @@ class ExplorerManager {
         const database = this.elements.databaseSelect.value;
         appState.currentDatabase = database;
         
+        // Send current database to backend
+        vscode.postMessage({
+            command: 'setCurrentDatabase',
+            database: database
+        });
+        
         if (database) {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">Loading objects...</p>';
             this.elements.detailsContent.innerHTML = '<p>Select an object to view its details.</p>';
@@ -608,22 +614,19 @@ class ExplorerManager {
             indexes.forEach(idx => {
                 let badges = '';
                 
-                // Debug: log index properties
-                console.log('Index:', idx);
-                
-                // Primary Key badge - check multiple conditions
+                // Primary Key badge
                 if (idx.is_primary_key === true || idx.is_primary_key === 1 || 
                     (idx.index_name && idx.index_name.toLowerCase().includes('pk_')) ||
                     (idx.type_desc && idx.type_desc.toLowerCase().includes('primary'))) {
                     badges += '<span class="index-badge index-primary">Primary Key</span>';
                 }
                 
-                // Unique badge (show for unique indexes, even if they're also primary keys)
+                // Unique badge
                 if ((idx.is_unique === true || idx.is_unique === 1)) {
                     badges += '<span class="index-badge index-unique">Unique</span>';
                 }
                 
-                // Clustered/NonClustered badge - always show this information
+                // Clustered/NonClustered badge
                 if (idx.type_desc) {
                     const typeDesc = idx.type_desc.toLowerCase();
                     if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
@@ -784,6 +787,14 @@ class MessageHandler {
                 }
                 break;
                 
+            case 'requestCurrentDatabase':
+                // Send current database to backend
+                vscode.postMessage({
+                    command: 'setCurrentDatabase',
+                    database: appState.currentDatabase
+                });
+                break;
+                
             case 'databasesLoaded':
                 this.explorerManager.onDatabasesLoaded(message.databases);
                 this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
@@ -851,25 +862,25 @@ class MessageHandler {
                 break;
                 
             // Extended Events Messages
-            case 'extendedEventSessionCreated':
+            case 'executionFlowSessionCreated':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onSessionCreated(message);
                 }
                 break;
                 
-            case 'extendedEventSessionStarted':
+            case 'executionFlowSessionStarted':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onSessionStarted(message);
                 }
                 break;
                 
-            case 'extendedEventSessionStopped':
+            case 'executionFlowSessionStopped':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onSessionStopped(message);
                 }
                 break;
                 
-            case 'extendedEventSessionDeleted':
+            case 'executionFlowSessionDeleted':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onSessionDeleted(message);
                 }
