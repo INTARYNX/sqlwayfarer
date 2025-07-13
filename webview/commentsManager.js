@@ -35,7 +35,7 @@ class CommentsManager {
         }
     }
 
-    // Display table comments (table + columns)
+    // Display table comments (table + columns) - CLEAN TABLE VERSION
     displayTableComments(properties) {
         this.currentProperties = properties;
         
@@ -57,65 +57,98 @@ class CommentsManager {
         html += `
             <div class="comment-section">
                 <div class="comment-section-header">
-                    <h4>Table Description</h4>
+                    <h4>📋 Table Description</h4>
                     ${this.editingMode ? '<button class="edit-btn" onclick="window.commentsManager.editTableDescription()">Edit</button>' : ''}
                 </div>
-                <div class="comment-display" id="tableDescriptionDisplay">
-                    ${this.formatDescription(properties.tableDescription, 'No description set for this table.')}
+                <div class="comment-display">
+                    ${this.formatDescriptionBox(properties.tableDescription, 'No description set for this table.')}
                 </div>
             </div>
         `;
 
-        // Column descriptions section
+        // Column descriptions section - CLEAN TABLE FORMAT
         html += `
             <div class="comment-section">
                 <div class="comment-section-header">
-                    <h4>Column Descriptions</h4>
+                    <h4>📝 Column Descriptions</h4>
                 </div>
-                <div class="columns-comments">
+                <div class="column-descriptions-table">
+                    <table class="comments-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 20%;">Column Name</th>
+                                <th style="width: 18%;">Data Type</th>
+                                <th style="width: 8%;">Nullable</th>
+                                <th style="width: 44%;">Description</th>
+                                ${this.editingMode ? '<th style="width: 10%;">Actions</th>' : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
         `;
 
         if (properties.allColumns && properties.allColumns.length > 0) {
             properties.allColumns.forEach(column => {
                 const hasDescription = column.hasDescription;
                 const description = column.description || '';
+                const rowClass = hasDescription ? 'has-description' : 'no-description';
                 
                 html += `
-                    <div class="column-comment-item ${hasDescription ? 'has-description' : 'no-description'}">
-                        <div class="column-info">
+                    <tr class="${rowClass}">
+                        <td class="column-name-cell">
                             <strong>${this.escapeHtml(column.columnName)}</strong>
-                            <span class="column-type">${column.dataType}${column.maxLength > 0 ? `(${column.maxLength})` : ''}</span>
-                            ${column.isNullable ? '<span class="nullable">NULL</span>' : '<span class="not-null">NOT NULL</span>'}
-                        </div>
-                        <div class="column-description">
-                            ${this.formatDescription(description, 'No description')}
-                            ${this.editingMode ? `<button class="edit-btn small" onclick="window.commentsManager.editColumnDescription('${column.columnName}')">Edit</button>` : ''}
-                        </div>
-                    </div>
+                        </td>
+                        <td class="column-type-cell">
+                            <code class="column-type-code">${column.dataType}${column.maxLength > 0 ? `(${column.maxLength})` : ''}</code>
+                        </td>
+                        <td class="text-center">
+                            ${column.isNullable ? 
+                                '<span class="nullable">NULL</span>' : 
+                                '<span class="not-null">NOT NULL</span>'
+                            }
+                        </td>
+                        <td class="description-cell">
+                            ${hasDescription ? 
+                                `<div class="description-text">${this.escapeHtml(description)}</div>` : 
+                                '<span class="no-description-text">No description</span>'
+                            }
+                        </td>
+                        ${this.editingMode ? `
+                            <td class="text-center action-cell">
+                                <button class="edit-btn-small" onclick="window.commentsManager.editColumnDescription('${column.columnName}')" title="Edit description">
+                                    ✏️ Edit
+                                </button>
+                            </td>
+                        ` : ''}
+                    </tr>
                 `;
             });
         } else {
-            html += '<p class="placeholder-text">No columns found.</p>';
+            html += `<tr><td colspan="${this.editingMode ? '5' : '4'}" class="text-center empty-state">No columns found.</td></tr>`;
         }
 
         html += `
+                        </tbody>
+                    </table>
                 </div>
             </div>
         `;
 
-        // Statistics
+        // Statistics section
         const totalColumns = properties.allColumns ? properties.allColumns.length : 0;
         const describedColumns = properties.allColumns ? properties.allColumns.filter(c => c.hasDescription).length : 0;
         const coveragePercent = totalColumns > 0 ? Math.round((describedColumns / totalColumns) * 100) : 0;
 
         html += `
             <div class="comment-stats">
-                <div class="stat-item">
-                    <span class="stat-label">Documentation Coverage:</span>
-                    <span class="stat-value">${describedColumns}/${totalColumns} columns (${coveragePercent}%)</span>
-                </div>
-                <div class="coverage-bar">
-                    <div class="coverage-fill" style="width: ${coveragePercent}%"></div>
+                <h4>📊 Documentation Statistics</h4>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Documentation Coverage:</span>
+                        <span class="stat-value">${describedColumns}/${totalColumns} columns (${coveragePercent}%)</span>
+                    </div>
+                    <div class="coverage-bar">
+                        <div class="coverage-fill" style="width: ${coveragePercent}%"></div>
+                    </div>
                 </div>
             </div>
         `;
@@ -147,11 +180,11 @@ class CommentsManager {
             <div class="comments-content">
                 <div class="comment-section">
                     <div class="comment-section-header">
-                        <h4>${properties.objectType} Description</h4>
+                        <h4>📋 ${properties.objectType} Description</h4>
                         ${this.editingMode ? '<button class="edit-btn" onclick="window.commentsManager.editObjectDescription()">Edit</button>' : ''}
                     </div>
-                    <div class="comment-display" id="objectDescriptionDisplay">
-                        ${this.formatDescription(properties.description, `No description set for this ${properties.objectType.toLowerCase()}.`)}
+                    <div class="comment-display">
+                        ${this.formatDescriptionBox(properties.description, `No description set for this ${properties.objectType.toLowerCase()}.`)}
                     </div>
                 </div>
             </div>
@@ -162,6 +195,21 @@ class CommentsManager {
             container.innerHTML = html;
             this.setupEventListeners();
         }
+    }
+
+    // IMPROVED: Better description formatting with proper boxes
+    formatDescriptionBox(description, placeholder) {
+        if (!description || description.trim() === '') {
+            return `<div class="description-placeholder">${placeholder}</div>`;
+        }
+        
+        // Convert line breaks and format text with proper styling
+        const formatted = this.escapeHtml(description)
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+            .replace(/\*(.*?)\*/g, '<em>$1</em>');              // Italic
+        
+        return `<div class="description-content">${formatted}</div>`;
     }
 
     // Set up event listeners
