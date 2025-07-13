@@ -412,6 +412,11 @@ class ExplorerManager {
             // Reset comments when database changes
             window.commentsManager.onDatabaseChanged();
             
+            // Reset extended events when database changes
+            if (window.extendedEventsManager) {
+                window.extendedEventsManager.onDatabaseChanged(database);
+            }
+            
             vscode.postMessage({
                 command: 'getObjects',
                 database: database
@@ -424,6 +429,9 @@ class ExplorerManager {
             this.filterManager.disableFilters();
             this.filterManager.updateObjectCount();
             window.commentsManager.onDatabaseChanged();
+            if (window.extendedEventsManager) {
+                window.extendedEventsManager.onDatabaseChanged(null);
+            }
         }
     }
 
@@ -733,12 +741,13 @@ class ExplorerManager {
 
 // Gestionnaire principal de messages
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, detailsTabManager) {
+    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
         this.tableUsageManager = tableUsageManager;
         this.commentsManager = commentsManager;
+        this.extendedEventsManager = extendedEventsManager;
         this.detailsTabManager = detailsTabManager;
     }
 
@@ -783,6 +792,9 @@ class MessageHandler {
             case 'objectsLoaded':
                 this.explorerManager.onObjectsLoaded(message.objects);
                 this.tableUsageManager.onObjectsLoaded(message.objects);
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onObjectsLoaded(message.objects);
+                }
                 break;
                 
             case 'tableDetailsLoaded':
@@ -838,6 +850,37 @@ class MessageHandler {
                 this.commentsManager.onDeleteDescriptionResult(message);
                 break;
                 
+            // Extended Events Messages
+            case 'extendedEventSessionCreated':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onSessionCreated(message);
+                }
+                break;
+                
+            case 'extendedEventSessionStarted':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onSessionStarted(message);
+                }
+                break;
+                
+            case 'extendedEventSessionStopped':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onSessionStopped(message);
+                }
+                break;
+                
+            case 'extendedEventSessionDeleted':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onSessionDeleted(message);
+                }
+                break;
+                
+            case 'extendedEventsReceived':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onEventsReceived(message.events);
+                }
+                break;
+                
             case 'error':
                 this.handleError(message.message);
                 break;
@@ -850,6 +893,8 @@ class MessageHandler {
             this.connectionManager.showStatus(message, 'error');
         } else if (appState.activeTab === 'tableUsage') {
             this.tableUsageManager.showStatus(message, 'error');
+        } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
+            this.extendedEventsManager.showStatus(message, 'error');
         } else {
             this.tabManager.showStatus(message, 'error');
         }
@@ -866,12 +911,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableUsageManager = new TableUsageManager();
     const commentsManager = new CommentsManager();
     const detailsTabManager = new DetailsTabManager();
+    
+    // Extended Events Manager - optionnel
+    let extendedEventsManager = null;
+    if (typeof ExtendedEventsManager !== 'undefined') {
+        extendedEventsManager = new ExtendedEventsManager();
+    }
+    
     const messageHandler = new MessageHandler(
         connectionManager, 
         explorerManager, 
         tabManager, 
         tableUsageManager, 
         commentsManager,
+        extendedEventsManager,
         detailsTabManager
     );
     
@@ -880,6 +933,9 @@ document.addEventListener('DOMContentLoaded', function() {
     window.tableUsageManager = tableUsageManager;
     window.commentsManager = commentsManager;
     window.detailsTabManager = detailsTabManager;
+    if (extendedEventsManager) {
+        window.extendedEventsManager = extendedEventsManager;
+    }
     
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
     
