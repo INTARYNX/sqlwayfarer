@@ -221,22 +221,365 @@ class TableUsageManager {
         this.showStatus(`Found ${triggers.length} triggers in ${database}`, 'success');
     }
 
-    // Display methods
+    // Enhanced display methods
+    /**
+     * Enhanced displayObjectUsageAnalysis with better formatting
+     */
     displayObjectUsageAnalysis(analysis) {
-        const html = [
-            `<div class="usage-summary">`,
-            `<h3 class="usage-section-title">Object Usage Analysis: ${analysis.objectName}</h3>`,
-            this.buildUsageSummaryStats(analysis.summary),
-            `</div>`,
+        let html = `
+            <div class="usage-summary">
+                <h3 class="usage-section-title">Object Usage Analysis: ${analysis.objectName}</h3>
+                ${this.buildUsageSummaryStats(analysis.summary)}
+            </div>
+        `;
+
+        // Tables Used Section
+        html += `<div class="usage-section-title">Tables Used by This Object</div>`;
+        if (analysis.tablesUsed && analysis.tablesUsed.length > 0) {
+            html += this.buildTablesUsedTable(analysis.tablesUsed);
+        } else {
+            html += '<div class="no-usage-data">No table usage detected for this object.</div>';
+        }
+        
+        // Related Objects Section
+        html += `<div class="usage-section-title">Related Objects (using same tables)</div>`;
+        if (analysis.relatedObjects && analysis.relatedObjects.length > 0) {
+            html += this.buildRelatedObjectsTable(analysis.relatedObjects);
             
-            `<div class="usage-section-title">Tables Used by This Object</div>`,
-            this.buildTablesUsedTable(analysis.tablesUsed),
-            
-            `<div class="usage-section-title">Related Objects (using same tables)</div>`,
-            this.buildRelatedObjectsTable(analysis.relatedObjects)
-        ].join('');
+            // Add summary of related objects
+            const relatedSummary = this.buildRelatedObjectsSummary(analysis.relatedObjects);
+            html += relatedSummary;
+        } else {
+            html += '<div class="no-usage-data">No related objects found using the same tables.</div>';
+        }
         
         this.elements.usageResults.innerHTML = html;
+    }
+
+    /**
+     * Enhanced buildUsageSummaryStats with operation breakdown
+     */
+    buildUsageSummaryStats(summary) {
+        const operationBreakdown = summary.operationCounts || {};
+        const totalOperations = Object.values(operationBreakdown).reduce((sum, count) => sum + count, 0);
+        
+        let html = `
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <span class="stat-number">${summary.totalTables}</span>
+                    <span class="stat-label">Total Tables</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-number">${summary.readTables}</span>
+                    <span class="stat-label">Read Tables</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-number">${summary.writeTables}</span>
+                    <span class="stat-label">Write Tables</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-number">${totalOperations}</span>
+                    <span class="stat-label">Total Operations</span>
+                </div>
+            </div>
+        `;
+
+        // Add operation breakdown if we have detailed counts
+        if (Object.keys(operationBreakdown).length > 0) {
+            html += `
+                <div class="operation-breakdown">
+                    <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--vscode-foreground);">Operation Breakdown</h4>
+            `;
+
+            // Sort operations by count (descending)
+            const sortedOperations = Object.entries(operationBreakdown)
+                .sort(([,a], [,b]) => b - a);
+
+            sortedOperations.forEach(([operation, count]) => {
+                const percentage = totalOperations > 0 ? Math.round((count / totalOperations) * 100) : 0;
+                const statClass = this.getOperationStatClass(operation);
+                
+                html += `
+                    <div class="operation-stat ${statClass}">
+                        <span class="operation-stat-number">${count}</span>
+                        <span class="operation-stat-label">${operation}</span>
+                        <div class="operation-percentage">${percentage}%</div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+        }
+
+        return html;
+    }
+
+    /**
+     * Get CSS class for operation statistics
+     */
+    getOperationStatClass(operation) {
+        const op = operation.toUpperCase();
+        if (op.includes('SELECT')) return 'select-stat';
+        if (op.includes('INSERT')) return 'insert-stat';
+        if (op.includes('UPDATE')) return 'update-stat';
+        if (op.includes('DELETE')) return 'delete-stat';
+        return 'reference-stat';
+    }
+
+    /**
+     * Build summary for related objects
+     */
+    buildRelatedObjectsSummary(relatedObjects) {
+        const objectTypes = {};
+        const operationCounts = {};
+        const uniqueObjects = new Set();
+
+        relatedObjects.forEach(obj => {
+            uniqueObjects.add(obj.object_name);
+            
+            // Count object types
+            objectTypes[obj.object_type] = (objectTypes[obj.object_type] || 0) + 1;
+            
+            // Count operations
+            if (obj.operations_array) {
+                obj.operations_array.forEach(op => {
+                    operationCounts[op] = (operationCounts[op] || 0) + 1;
+                });
+            } else if (obj.operation_type) {
+                const operations = obj.operation_type.split(',').map(op => op.trim());
+                operations.forEach(op => {
+                    operationCounts[op] = (operationCounts[op] || 0) + 1;
+                });
+            }
+        });
+
+        let html = `
+            <div class="related-objects-summary">
+                <h4 style="margin: 15px 0 10px 0; font-size: 14px; color: var(--vscode-foreground);">
+                    📈 Related Objects Summary
+                </h4>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="summary-number">${uniqueObjects.size}</span>
+                        <span class="summary-label">Unique Objects</span>
+                    </div>
+        `;
+
+        // Add object type breakdown
+        Object.entries(objectTypes).forEach(([type, count]) => {
+            html += `
+                <div class="summary-item">
+                    <span class="summary-number">${count}</span>
+                    <span class="summary-label">${type}s</span>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+
+        // Add operation distribution
+        if (Object.keys(operationCounts).length > 1) {
+            html += `
+                <div class="operation-distribution">
+                    <h5 style="margin: 10px 0 8px 0; font-size: 12px; color: var(--vscode-descriptionForeground);">
+                        Operation Distribution:
+                    </h5>
+            `;
+            
+            Object.entries(operationCounts)
+                .sort(([,a], [,b]) => b - a)
+                .forEach(([operation, count]) => {
+                    const operationClass = this.getOperationClass(operation);
+                    html += `<span class="operation-badge ${operationClass}" style="margin: 2px;">${operation} (${count})</span>`;
+                });
+            
+            html += '</div>';
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    /**
+     * Enhanced buildTablesUsedTable with consolidated operations display
+     */
+    buildTablesUsedTable(tablesUsed) {
+        if (!tablesUsed || tablesUsed.length === 0) {
+            return '<p class="placeholder-text">No table usage found.</p>';
+        }
+
+        let html = `
+            <div class="usage-table-container">
+                <table class="usage-table">
+                    <thead>
+                        <tr>
+                            <th>Table Name</th>
+                            <th>Operations</th>
+                            <th>Details</th>
+                            <th>Sources</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        tablesUsed.forEach(table => {
+            const operations = table.operations_array || [];
+            const operationBadges = operations.map(op => {
+                const operationClass = this.getOperationClass(op);
+                return `<span class="operation-badge ${operationClass}">${op}</span>`;
+            }).join(' ');
+            
+            const details = this.buildTableUsageDetails(table);
+            const sources = table.sources ? table.sources.join(', ') : 'Unknown';
+            
+            html += `
+                <tr>
+                    <td><strong>${this.escapeHtml(table.table_name)}</strong></td>
+                    <td class="operations-cell">
+                        <div class="multi-operation-container">${operationBadges}</div>
+                    </td>
+                    <td class="usage-details-cell">${details}</td>
+                    <td class="sources-cell">
+                        <span class="source-info">${this.escapeHtml(sources)}</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        return html;
+    }
+
+    /**
+     * Build detailed usage information for a table
+     */
+    buildTableUsageDetails(table) {
+        const details = [];
+        
+        if (table.is_select_all && table.is_select_all > 0) {
+            details.push('<span class="detail-item select-detail">SELECT *</span>');
+        } else if (table.is_selected && table.is_selected > 0) {
+            details.push('<span class="detail-item select-detail">SELECT columns</span>');
+        }
+        
+        if (table.is_updated && table.is_updated > 0) {
+            details.push('<span class="detail-item update-detail">UPDATE statements</span>');
+        }
+        
+        if (table.is_insert_all && table.is_insert_all > 0) {
+            details.push('<span class="detail-item insert-detail">INSERT statements</span>');
+        }
+        
+        if (table.is_delete && table.is_delete > 0) {
+            details.push('<span class="detail-item delete-detail">DELETE statements</span>');
+        }
+        
+        if (table.usage_details) {
+            details.push(`<span class="detail-item">${table.usage_details}</span>`);
+        }
+        
+        return details.length > 0 ? details.join('<br>') : '<span class="detail-item reference-detail">Referenced</span>';
+    }
+
+    /**
+     * Enhanced buildRelatedObjectsTable with proper operation consolidation
+     */
+    buildRelatedObjectsTable(relatedObjects) {
+        if (!relatedObjects || relatedObjects.length === 0) {
+            return '<div class="no-usage-data">No related objects found.</div>';
+        }
+
+        // Group objects by name to consolidate all their table operations
+        const objectGroups = new Map();
+        
+        relatedObjects.forEach(obj => {
+            if (!objectGroups.has(obj.object_name)) {
+                objectGroups.set(obj.object_name, {
+                    object_name: obj.object_name,
+                    object_type: obj.object_type,
+                    tables: new Map(),
+                    allOperations: new Set()
+                });
+            }
+            
+            const group = objectGroups.get(obj.object_name);
+            
+            if (!group.tables.has(obj.table_name)) {
+                group.tables.set(obj.table_name, new Set());
+            }
+            
+            // Add operations for this table
+            const operations = obj.operations_array || 
+                              (obj.operation_type ? obj.operation_type.split(',').map(op => op.trim()) : ['REFERENCE']);
+            
+            operations.forEach(op => {
+                group.tables.get(obj.table_name).add(op);
+                group.allOperations.add(op);
+            });
+        });
+
+        let html = `
+            <div class="usage-table-container">
+                <table class="usage-table">
+                    <thead>
+                        <tr>
+                            <th>Object Name</th>
+                            <th>Type</th>
+                            <th>Tables & Operations</th>
+                            <th>All Operations</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        Array.from(objectGroups.values()).forEach(group => {
+            const objectTypeBadge = `<span class="object-type-badge ${group.object_type.toLowerCase()}-badge">${group.object_type}</span>`;
+            
+            // Build table operations display
+            const tableOperations = Array.from(group.tables.entries()).map(([tableName, operations]) => {
+                const operationBadges = Array.from(operations).map(op => {
+                    const operationClass = this.getOperationClass(op);
+                    return `<span class="operation-badge ${operationClass}">${op}</span>`;
+                }).join(' ');
+                
+                return `
+                    <div class="table-operation-item">
+                        <strong>${this.escapeHtml(tableName)}</strong><br>
+                        <div class="multi-operation-container">${operationBadges}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Build summary operations
+            const allOperationBadges = Array.from(group.allOperations).map(op => {
+                const operationClass = this.getOperationClass(op);
+                return `<span class="operation-badge ${operationClass}">${op}</span>`;
+            }).join(' ');
+            
+            html += `
+                <tr>
+                    <td><strong>${this.escapeHtml(group.object_name)}</strong></td>
+                    <td>${objectTypeBadge}</td>
+                    <td class="table-operations-cell">${tableOperations}</td>
+                    <td class="operations-summary-cell">
+                        <div class="multi-operation-container">${allOperationBadges}</div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        return html;
     }
 
     displayTableUsageAnalysis(usage) {
@@ -265,29 +608,6 @@ class TableUsageManager {
         ].join('');
         
         this.elements.usageResults.innerHTML = html;
-    }
-
-    buildUsageSummaryStats(summary) {
-        return `
-            <div class="summary-stats">
-                <div class="summary-stat">
-                    <span class="stat-number">${summary.totalTables}</span>
-                    <span class="stat-label">Total Tables</span>
-                </div>
-                <div class="summary-stat">
-                    <span class="stat-number">${summary.readTables}</span>
-                    <span class="stat-label">Read Tables</span>
-                </div>
-                <div class="summary-stat">
-                    <span class="stat-number">${summary.writeTables}</span>
-                    <span class="stat-label">Write Tables</span>
-                </div>
-                <div class="summary-stat">
-                    <span class="stat-number">${Object.keys(summary.operationTypes || {}).length}</span>
-                    <span class="stat-label">Operation Types</span>
-                </div>
-            </div>
-        `;
     }
 
     buildTableUsageSummaryStats(summary) {
@@ -349,87 +669,6 @@ class TableUsageManager {
                 </div>
             </div>
         `;
-    }
-
-    buildTablesUsedTable(tablesUsed) {
-        if (!tablesUsed || tablesUsed.length === 0) {
-            return '<p class="placeholder-text">No table usage found.</p>';
-        }
-
-        let html = `
-            <div class="usage-table-container">
-                <table class="usage-table">
-                    <thead>
-                        <tr>
-                            <th>Table Name</th>
-                            <th>Operation Type</th>
-                            <th>Usage Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        tablesUsed.forEach(table => {
-            const operationClass = this.getOperationClass(table.operation_type);
-            const usageDetails = this.buildUsageDetails(table);
-            
-            html += `
-                <tr>
-                    <td><strong>${this.escapeHtml(table.table_name)}</strong></td>
-                    <td><span class="operation-badge ${operationClass}">${table.operation_type}</span></td>
-                    <td>${usageDetails}</td>
-                </tr>
-            `;
-        });
-
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-
-        return html;
-    }
-
-    buildRelatedObjectsTable(relatedObjects) {
-        if (!relatedObjects || relatedObjects.length === 0) {
-            return '<p class="placeholder-text">No related objects found.</p>';
-        }
-
-        let html = `
-            <div class="usage-table-container">
-                <table class="usage-table">
-                    <thead>
-                        <tr>
-                            <th>Object Name</th>
-                            <th>Object Type</th>
-                            <th>Table Used</th>
-                            <th>Operation</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        relatedObjects.forEach(obj => {
-            const operationClass = this.getOperationClass(obj.operation_type);
-            
-            html += `
-                <tr>
-                    <td><strong>${this.escapeHtml(obj.object_name)}</strong></td>
-                    <td><span class="object-type-badge">${obj.object_type}</span></td>
-                    <td>${this.escapeHtml(obj.table_name)}</td>
-                    <td><span class="operation-badge ${operationClass}">${obj.operation_type}</span></td>
-                </tr>
-            `;
-        });
-
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-
-        return html;
     }
 
     buildObjectsUsingTableTable(usedByObjects) {
@@ -517,26 +756,18 @@ class TableUsageManager {
         return html;
     }
 
-    buildUsageDetails(table) {
-        const details = [];
-        
-        if (table.is_select_all) details.push('SELECT *');
-        if (table.is_updated) details.push('UPDATE');
-        if (table.is_insert_all) details.push('INSERT');
-        if (table.is_delete) details.push('DELETE');
-        
-        return details.length > 0 ? details.join(', ') : 'Reference';
-    }
-
+    /**
+     * Enhanced operation class detection
+     */
     getOperationClass(operationType) {
         if (!operationType) return 'operation-unknown';
         
-        const type = operationType.toLowerCase();
-        if (type.includes('select')) return 'operation-select';
-        if (type.includes('insert')) return 'operation-insert';
-        if (type.includes('update')) return 'operation-update';
-        if (type.includes('delete')) return 'operation-delete';
-        if (type.includes('reference')) return 'operation-reference';
+        const type = operationType.toUpperCase().trim();
+        if (type.includes('SELECT')) return 'operation-select';
+        if (type.includes('INSERT')) return 'operation-insert';
+        if (type.includes('UPDATE')) return 'operation-update';
+        if (type.includes('DELETE')) return 'operation-delete';
+        if (type.includes('REFERENCE')) return 'operation-reference';
         return 'operation-unknown';
     }
 

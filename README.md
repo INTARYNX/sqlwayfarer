@@ -61,7 +61,7 @@ This extension does not add any VS Code settings. All configuration is managed w
 
 ## Release Notes
 
-### 1.0.0
+### 0.0.3
 
 Initial release of SQL Wayfarer
 

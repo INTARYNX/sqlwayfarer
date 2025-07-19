@@ -2,7 +2,7 @@
   "name": "sqlwayfarer",
   "displayName": "sqlwayfarer",
   "description": "",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -13,10 +13,6 @@
   "main": "./extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "sqlwayfarer.helloWorld",
-        "title": "Hello World"
-      },
       {
         "command": "sqlwayfarer.sqlwayfarer",
         "title": "Open SQL Wayfarer"

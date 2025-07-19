@@ -803,6 +803,7 @@ class SqlWayfarerPanel {
         const extendedEventsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js'));
         const commentsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'comments.css'));
         const extendedEventsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEvents.css'));
+        const tableUsageStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsage.css'));
         const mainScriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js'));
 
         const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
@@ -811,6 +812,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{STYLES_URI}}', stylesUri.toString());
         html = html.replace('{{COMMENTS_STYLES_URI}}', commentsStylesUri.toString());
         html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', extendedEventsStylesUri.toString());
+        html = html.replace('{{TABLE_USAGE_STYLES_URI}}', tableUsageStylesUri.toString());
         html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
         html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
         html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
