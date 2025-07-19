@@ -160,19 +160,33 @@ class ExtendedEventsManager {
     }
 
     // Handle delete session
-    handleDeleteSession() {
+    async handleDeleteSession() {
         if (!this.currentSession) {
             this.showStatus('No session to delete.', 'error');
             return;
         }
-
-        if (!confirm(`Are you sure you want to delete the session "${this.currentSession}"?`)) {
-            return;
-        }
-
+        
+        // Remove this broken confirm line:
+        // if (!confirm(`Are you sure you want to delete the session "${this.currentSession}"?`)) {
+        //     return;
+        // }
+        
         this.setButtonState(this.elements.deleteSessionBtn, true, 'Deleting...');
         this.showStatus('Deleting Extended Event session...', 'info');
-
+        
+        // If session is running, stop it first automatically
+        if (this.sessionStatus === 'running') {
+            this.showStatus('Stopping session before deletion...', 'info');
+            
+            vscode.postMessage({
+                command: 'stopExecutionFlowSession',
+                sessionName: this.currentSession
+            });
+            
+            // Wait a moment for the stop to complete
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
         vscode.postMessage({
             command: 'deleteExecutionFlowSession',
             sessionName: this.currentSession
@@ -186,7 +200,10 @@ class ExtendedEventsManager {
         if (result.success) {
             this.currentSession = result.sessionName;
             this.sessionStatus = 'stopped';
-            this.showStatus(`Session "${result.sessionName}" created successfully.`, 'success');
+            
+
+
+            this.showStatus(`Session "${this.currentSession}" created successfully.`, 'success');
             this.updateUI();
             this.updateSessionInfo();
         } else {
@@ -252,7 +269,7 @@ class ExtendedEventsManager {
         // Session control buttons
         this.elements.startSessionBtn.disabled = !isStopped;
         this.elements.stopSessionBtn.disabled = !isRunning;
-        this.elements.deleteSessionBtn.disabled = !hasSession || isRunning;
+        this.elements.deleteSessionBtn.disabled = false;
 
         // Procedure selection
         this.elements.procedureSelect.disabled = hasSession;
