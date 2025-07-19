@@ -1,23 +1,70 @@
 {
   "name": "sqlwayfarer",
-  "displayName": "sqlwayfarer",
-  "description": "",
+  "displayName": "SQL Wayfarer",
+  "description": "Navigate and explore SQL Server databases directly within VS Code. View tables, procedures, dependencies, and more.",
   "version": "0.0.3",
+  "publisher": "intarynx",
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "keywords": [
+    "sql",
+    "tsql",
+    "mssql",
+    "database",
+    "explorer",
+    "dependencies",
+    "schema",
+    "procedure",
+    "table"
+  ],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intarynx/sqlwayfarer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/intarynx/sqlwayfarer/issues"
+  },
+  "homepage": "https://github.com/intarynx/sqlwayfarer",
   "main": "./extension.js",
   "contributes": {
     "commands": [
       {
         "command": "sqlwayfarer.sqlwayfarer",
-        "title": "Open SQL Wayfarer"
+        "title": "Open SQL Wayfarer",
+        "icon": "$(compass)"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sql-wayfarer-container",
+          "title": "SQL Wayfarer",
+          "icon": "$(compass)"
+        }
+      ]
+    },
+    "views": {
+      "sql-wayfarer-container": [
+        {
+          "id": "sqlWayfarerView",
+          "name": "SQL Wayfarer"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "sqlwayfarer.sqlwayfarer",
+          "when": "view == sqlWayfarerView",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "lint": "eslint .",
