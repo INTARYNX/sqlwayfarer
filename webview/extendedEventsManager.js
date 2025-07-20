@@ -7,13 +7,18 @@
  */
 'use strict';
 
-// Extended Events Manager - Handles SQL Server Extended Events
+// Extended Events Manager - Handles SQL Server Extended Events with Raw XML Display
 class ExtendedEventsManager {
     constructor() {
         this.currentDatabase = null;
         this.currentSession = null;
         this.sessionStatus = 'stopped';
         this.availableProcedures = [];
+        this.lastSessionInfo = null;
+        this.lastRefreshTime = null;
+        this.isRefreshing = false;
+        this.autoRefreshTimer = null;
+        this.autoRefreshInterval = 10000; // 10 seconds
         this.initDOMElements();
         this.initEventListeners();
     }
@@ -26,6 +31,7 @@ class ExtendedEventsManager {
             startSessionBtn: document.getElementById('startSessionBtn'),
             stopSessionBtn: document.getElementById('stopSessionBtn'),
             deleteSessionBtn: document.getElementById('deleteSessionBtn'),
+            refreshEventsBtn: document.getElementById('refreshEventsBtn'),
             sessionStatus: document.getElementById('xeventStatus'),
             sessionInfo: document.getElementById('sessionInfo'),
             eventsContainer: document.getElementById('eventsContainer')
@@ -38,6 +44,11 @@ class ExtendedEventsManager {
         this.elements.stopSessionBtn.addEventListener('click', () => this.handleStopSession());
         this.elements.deleteSessionBtn.addEventListener('click', () => this.handleDeleteSession());
         this.elements.procedureSelect.addEventListener('change', () => this.handleProcedureChange());
+        
+        // Add refresh events button listener
+        if (this.elements.refreshEventsBtn) {
+            this.elements.refreshEventsBtn.addEventListener('click', () => this.handleRefreshEvents());
+        }
     }
 
     // Handle database change
@@ -45,6 +56,10 @@ class ExtendedEventsManager {
         this.currentDatabase = database;
         this.currentSession = null;
         this.sessionStatus = 'stopped';
+        this.lastSessionInfo = null;
+        this.lastRefreshTime = null;
+        this.isRefreshing = false;
+        this.stopAutoRefresh();
         this.updateUI();
         this.clearResults();
 
@@ -94,8 +109,8 @@ class ExtendedEventsManager {
         const selectedProcedure = this.elements.procedureSelect.value;
         
         if (selectedProcedure) {
-            // Generate default session name
-            const sessionName = `XE_SQLWayfarer_${selectedProcedure}_${Date.now()}`;
+            // Generate session name with _1 suffix
+            const sessionName = `XE_SQLWayfarer_${selectedProcedure}_1`;
             this.elements.sessionNameInput.value = sessionName;
             this.elements.createSessionBtn.disabled = false;
         } else {
@@ -117,7 +132,7 @@ class ExtendedEventsManager {
         }
 
         this.setButtonState(this.elements.createSessionBtn, true, 'Creating...');
-        this.showStatus('Creating Extended Event session...', 'info');
+        this.showStatus('Creating Extended Event session with ring buffer...', 'info');
 
         vscode.postMessage({
             command: 'createExecutionFlowSession',
@@ -127,9 +142,7 @@ class ExtendedEventsManager {
                 mode: 'stored_procedure_flow',
                 targetObjects: [procedureName],
                 includeDynamicSQL: true,
-                includeSystemObjects: false,
-                maxFileSize: '100MB',
-                maxFiles: 5
+                includeSystemObjects: false
             }
         });
     }
@@ -173,11 +186,6 @@ class ExtendedEventsManager {
             return;
         }
         
-        // Remove this broken confirm line:
-        // if (!confirm(`Are you sure you want to delete the session "${this.currentSession}"?`)) {
-        //     return;
-        // }
-        
         this.setButtonState(this.elements.deleteSessionBtn, true, 'Deleting...');
         this.showStatus('Deleting Extended Event session...', 'info');
         
@@ -200,6 +208,49 @@ class ExtendedEventsManager {
         });
     }
 
+    // Handle refresh events
+    handleRefreshEvents() {
+        if (!this.currentSession) {
+            this.showStatus('No active session to refresh events from.', 'error');
+            return;
+        }
+
+        this.isRefreshing = true;
+        this.showRefreshingState();
+        this.showStatus('Refreshing events from ring buffer...', 'info');
+        
+        // Get raw XML from ring buffer
+        vscode.postMessage({
+            command: 'getRawSessionEvents',
+            sessionName: this.currentSession
+        });
+        
+        // Also refresh session info to get event count
+        vscode.postMessage({
+            command: 'getExecutionFlowSessionInfo',
+            sessionName: this.currentSession
+        });
+    }
+
+    // Show refreshing state
+    showRefreshingState() {
+        const refreshBtn = document.getElementById('refreshEventsBtn');
+        if (refreshBtn) {
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '🔄 Refreshing...';
+        }
+    }
+
+    // Reset refresh button state
+    resetRefreshState() {
+        const refreshBtn = document.getElementById('refreshEventsBtn');
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '🔄 Refresh Events';
+        }
+        this.isRefreshing = false;
+    }
+
     // Message handlers
     onSessionCreated(result) {
         this.setButtonState(this.elements.createSessionBtn, false, 'Create Session');
@@ -207,12 +258,13 @@ class ExtendedEventsManager {
         if (result.success) {
             this.currentSession = result.sessionName;
             this.sessionStatus = 'stopped';
-            
-
-
+            this.lastRefreshTime = null;
             this.showStatus(`Session "${this.currentSession}" created successfully.`, 'success');
             this.updateUI();
             this.updateSessionInfo();
+            
+            // Automatically get session info
+            this.refreshSessionInfo();
         } else {
             this.showStatus(result.message, 'error');
         }
@@ -223,9 +275,15 @@ class ExtendedEventsManager {
         
         if (result.success) {
             this.sessionStatus = 'running';
-            this.showStatus(`Session started successfully.`, 'success');
+            this.showStatus(`Session started successfully. Execute your procedure to capture events.`, 'success');
             this.updateUI();
             this.updateSessionInfo();
+            
+            // Auto-refresh session info
+            this.refreshSessionInfo();
+            
+            // Start auto-refresh timer
+            this.startAutoRefresh();
         } else {
             this.showStatus(result.message, 'error');
         }
@@ -239,6 +297,12 @@ class ExtendedEventsManager {
             this.showStatus(`Session stopped successfully.`, 'success');
             this.updateUI();
             this.updateSessionInfo();
+            
+            // Stop auto-refresh
+            this.stopAutoRefresh();
+            
+            // Refresh session info and events
+            this.refreshSessionInfo();
         } else {
             this.showStatus(result.message, 'error');
         }
@@ -250,7 +314,13 @@ class ExtendedEventsManager {
         if (result.success) {
             this.currentSession = null;
             this.sessionStatus = 'stopped';
+            this.lastSessionInfo = null;
+            this.lastRefreshTime = null;
             this.elements.sessionNameInput.value = '';
+            
+            // Stop auto-refresh
+            this.stopAutoRefresh();
+            
             this.showStatus(`Session deleted successfully.`, 'success');
             this.updateUI();
             this.updateSessionInfo();
@@ -260,8 +330,111 @@ class ExtendedEventsManager {
         }
     }
 
-    onEventsReceived(events) {
-        this.displayEvents(events);
+    // Handle session info response
+    onSessionInfoReceived(sessionName, info) {
+        if (sessionName === this.currentSession) {
+            this.lastSessionInfo = info;
+            this.sessionStatus = info.status;
+            this.updateSessionInfo();
+            this.updateUI();
+        }
+    }
+
+    // Handle raw XML events response
+    onRawEventsReceived(sessionName, rawXml, message) {
+        if (sessionName !== this.currentSession) {
+            return;
+        }
+
+        // Update last refresh time
+        this.lastRefreshTime = new Date();
+        
+        // Reset refresh button state
+        this.resetRefreshState();
+        
+        this.showStatus(message, rawXml ? 'success' : 'info');
+        this.displayRawEvents(rawXml);
+        
+        // Update session info to show new refresh time
+        this.updateSessionInfo();
+        
+        // STOP auto-refresh if events are found
+        if (rawXml && this.countEventsInXml(rawXml)) {
+            this.stopAutoRefresh();
+            this.showStatus('Events captured! Auto-refresh stopped. Use manual refresh to update.', 'success');
+        }
+    }
+
+    // Display raw XML events for debugging
+    displayRawEvents(rawXml) {
+        if (!rawXml) {
+            this.elements.eventsContainer.innerHTML = `
+                <div class="no-events-message">
+                    <p>No events captured yet.</p>
+                    <p>1. Make sure the session is running</p>
+                    <p>2. Execute your stored procedure: <code>EXEC dbo.${this.elements.procedureSelect.value}</code></p>
+                    <p>3. Click "Refresh Events" to see captured data</p>
+                </div>
+            `;
+        } else {
+            // Display raw XML for debugging
+            const xmlString = typeof rawXml === 'string' ? rawXml : 
+                            (rawXml.toString ? rawXml.toString() : JSON.stringify(rawXml));
+            
+            this.elements.eventsContainer.innerHTML = `
+                <div class="raw-xml-container">
+                    <div class="xml-info">
+                        <p><strong>📋 Raw XML from Ring Buffer:</strong></p>
+                        <p>This shows the actual XML structure returned by the ring buffer target.</p>
+                        <p>Use this to understand the event structure and build proper parsing.</p>
+                        <p><strong>Events found:</strong> ${this.countEventsInXml(xmlString)}</p>
+                    </div>
+                    <div class="xml-content">
+                        <pre><code class="xml-code">${this.escapeHtml(xmlString)}</code></pre>
+                    </div>
+                </div>
+            `;
+        }
+
+        // DON'T re-attach refresh button listener - it's already in the main HTML
+    }
+
+    // Start auto-refresh timer
+    startAutoRefresh() {
+        if (this.autoRefreshTimer) {
+            clearInterval(this.autoRefreshTimer);
+        }
+        
+        this.autoRefreshTimer = setInterval(() => {
+            if (this.currentSession && this.sessionStatus === 'running' && !this.isRefreshing) {
+                this.handleRefreshEvents();
+            }
+        }, this.autoRefreshInterval);
+    }
+
+    // Stop auto-refresh timer
+    stopAutoRefresh() {
+        if (this.autoRefreshTimer) {
+            clearInterval(this.autoRefreshTimer);
+            this.autoRefreshTimer = null;
+        }
+    }
+
+    // Count events in XML
+    countEventsInXml(xmlString) {
+        if (!xmlString) return 0;
+        const eventMatches = xmlString.match(/<event/g);
+        return eventMatches ? eventMatches.length : 0;
+    }
+
+    // Helper method to refresh session info
+    refreshSessionInfo() {
+        if (this.currentSession) {
+            vscode.postMessage({
+                command: 'getExecutionFlowSessionInfo',
+                sessionName: this.currentSession
+            });
+        }
     }
 
     // UI Helper methods
@@ -276,11 +449,16 @@ class ExtendedEventsManager {
         // Session control buttons
         this.elements.startSessionBtn.disabled = !isStopped;
         this.elements.stopSessionBtn.disabled = !isRunning;
-        this.elements.deleteSessionBtn.disabled = false;
+        this.elements.deleteSessionBtn.disabled = !hasSession;
 
         // Procedure selection
         this.elements.procedureSelect.disabled = hasSession;
         this.elements.sessionNameInput.disabled = hasSession;
+
+        // Update refresh button if exists
+        if (this.elements.refreshEventsBtn) {
+            this.elements.refreshEventsBtn.disabled = !hasSession || this.isRefreshing;
+        }
     }
 
     updateSessionInfo() {
@@ -292,6 +470,14 @@ class ExtendedEventsManager {
         const statusClass = this.sessionStatus === 'running' ? 'status-running' : 'status-stopped';
         const statusText = this.sessionStatus === 'running' ? 'Running' : 'Stopped';
         const procedureName = this.elements.procedureSelect.value;
+
+        // Get event count from session info
+        const eventCount = this.lastSessionInfo?.ringBufferEventCount || 0;
+        
+        // Use actual last refresh time, or show "Never" if not refreshed yet
+        const lastRefresh = this.lastRefreshTime ? 
+            this.lastRefreshTime.toLocaleTimeString() : 
+            'Never';
 
         this.elements.sessionInfo.innerHTML = `
             <div class="session-details">
@@ -308,48 +494,16 @@ class ExtendedEventsManager {
                 <div class="session-detail-item">
                     <strong>Database:</strong> ${this.escapeHtml(this.currentDatabase)}
                 </div>
-            </div>
-        `;
-    }
-
-    displayEvents(events) {
-        if (!events || events.length === 0) {
-            this.elements.eventsContainer.innerHTML = '<p class="placeholder-text">No events captured yet. Execute the stored procedure to see events.</p>';
-            return;
-        }
-
-        let html = `
-            <div class="events-header">
-                <h4>Captured Events (${events.length})</h4>
-                <button id="clearEventsBtn" class="clear-events-btn">Clear Events</button>
-            </div>
-            <div class="events-list">
-        `;
-
-        events.forEach((event, index) => {
-            html += `
-                <div class="event-item">
-                    <div class="event-header">
-                        <span class="event-type">${this.escapeHtml(event.event_type)}</span>
-                        <span class="event-timestamp">${new Date(event.timestamp).toLocaleString()}</span>
-                    </div>
-                    <div class="event-details">
-                        <div class="event-detail"><strong>Object:</strong> ${this.escapeHtml(event.object_name || 'N/A')}</div>
-                        <div class="event-detail"><strong>Statement:</strong> ${this.escapeHtml(event.statement || 'N/A')}</div>
-                        <div class="event-detail"><strong>Duration:</strong> ${event.duration || 'N/A'} μs</div>
-                    </div>
+                <div class="session-detail-item">
+                    <strong>Events Captured:</strong> 
+                    <span class="event-count">${eventCount}</span>
                 </div>
-            `;
-        });
-
-        html += '</div>';
-        this.elements.eventsContainer.innerHTML = html;
-
-        // Add clear events listener
-        const clearBtn = document.getElementById('clearEventsBtn');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearResults());
-        }
+                <div class="session-detail-item">
+                    <strong>Last Refresh:</strong> 
+                    <span class="last-refresh">${lastRefresh}</span>
+                </div>
+            </div>
+        `;
     }
 
     // Utility methods
@@ -386,6 +540,9 @@ class ExtendedEventsManager {
         this.elements.startSessionBtn.disabled = true;
         this.elements.stopSessionBtn.disabled = true;
         this.elements.deleteSessionBtn.disabled = true;
+        if (this.elements.refreshEventsBtn) {
+            this.elements.refreshEventsBtn.disabled = true;
+        }
     }
 
     clearResults() {

@@ -868,7 +868,7 @@ class MessageHandler {
                 this.commentsManager.onDeleteDescriptionResult(message);
                 break;
                 
-            // Extended Events Messages
+            // Enhanced Extended Events Messages
             case 'executionFlowSessionCreated':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onSessionCreated(message);
@@ -893,6 +893,30 @@ class MessageHandler {
                 }
                 break;
                 
+            case 'executionFlowSessionInfo':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
+                }
+                break;
+                
+            // NEW: Raw events message handler
+            case 'rawSessionEventsResult':
+                if (this.extendedEventsManager) {
+                    this.extendedEventsManager.onRawEventsReceived(
+                        message.sessionName, 
+                        message.rawXml, 
+                        message.message
+                    );
+                }
+                break;
+                
+            case 'executionFlowSessionsList':
+                if (this.extendedEventsManager) {
+                    // Handle sessions list if needed
+                    console.log('Available sessions:', message.sessions);
+                }
+                break;
+                
             case 'extendedEventsReceived':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onEventsReceived(message.events);
@@ -902,8 +926,11 @@ class MessageHandler {
             case 'error':
                 this.handleError(message.message);
                 break;
+                
+            default:
+                console.warn(`Unknown command: ${message.command}`);
         }
-    }
+    }    
 
     handleError(message) {
         console.error('SQL Wayfarer Error:', message);
