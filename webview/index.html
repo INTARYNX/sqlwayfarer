@@ -274,7 +274,7 @@
                             
                             <div class="input-group">
                                 <label for="xeventSessionName">Session Name:</label>
-                                <input type="text" id="xeventSessionName" placeholder="XE_ProcedureName_Timestamp" disabled>
+                                <input type="text" id="xeventSessionName" placeholder="XE_ProcedureName_1" disabled>
                             </div>
                         </div>
 
@@ -297,7 +297,11 @@
                     </div>
 
                     <div class="xe-events-panel">
-                        <div class="section-header">Event Monitoring</div>
+                        <div class="events-panel-header">
+                            <div class="section-header">Event Monitoring</div>
+                            <!-- ADD REFRESH BUTTON HERE -->
+                            <button id="refreshEventsBtn" class="refresh-events-btn" disabled>🔄 Refresh Events</button>
+                        </div>
                         <div id="eventsContainer">
                             <p class="placeholder-text">Events will appear here when the session is running and the procedure is executed.</p>
                         </div>

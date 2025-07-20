@@ -208,7 +208,7 @@ class SqlWayfarerPanel {
             case 'deleteColumnDescription':
                 await this._handleDeleteColumnDescription(message.database, message.tableName, message.columnName);
                 break;
-            // Extended Events Commands
+            // Enhanced Extended Events Commands
             case 'createExecutionFlowSession':
                 await this._handleCreateExecutionFlowSession(message.database, message.sessionName, message.config);
                 break;
@@ -226,6 +226,9 @@ class SqlWayfarerPanel {
                 break;
             case 'listExecutionFlowSessions':
                 await this._handleListExecutionFlowSessions();
+                break;
+            case 'getRawSessionEvents':
+                await this._handleGetRawSessionEvents(message.sessionName);
                 break;
             default:
                 console.warn(`Unknown command: ${message.command}`);
@@ -675,7 +678,7 @@ class SqlWayfarerPanel {
         }
     }
 
-    // EXTENDED EVENTS HANDLERS
+    // ENHANCED EXTENDED EVENTS HANDLERS
     async _handleCreateExecutionFlowSession(database, sessionName, config) {
         try {
             const targetDatabase = database || this._getCurrentDatabase();
@@ -784,6 +787,27 @@ class SqlWayfarerPanel {
         }
     }
 
+    // NEW: Get raw XML events for debugging
+    async _handleGetRawSessionEvents(sessionName) {
+        try {
+            const result = await this._extendedEventsService.getSessionRawEvents(sessionName);
+            this._panel.webview.postMessage({
+                command: 'rawSessionEventsResult',
+                success: result.success,
+                sessionName: sessionName,
+                rawXml: result.rawXml,
+                message: result.message
+            });
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'rawSessionEventsResult',
+                success: false,
+                sessionName: sessionName,
+                message: `Failed to get raw events: ${error.message}`
+            });
+        }
+    }
+
     // UTILITY METHODS
     _getCurrentDatabase() {
         return this._currentSelectedDatabase || 'master';
@@ -851,4 +875,4 @@ class SqlWayfarerPanel {
 }
 
 SqlWayfarerPanel.currentPanel = undefined;
-module.exports = SqlWayfarerPanel;
+module.exports = SqlWayfarerPanel;        
