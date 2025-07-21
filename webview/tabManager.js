@@ -7,7 +7,7 @@
  */
 'use strict';
 
-// Gestionnaire d'onglets
+// Tab manager
 class TabManager {
     constructor() {
         this.tabButtons = document.querySelectorAll('.tab-button');
@@ -25,7 +25,7 @@ class TabManager {
     }
 
     switchTab(tabName) {
-        // Vérifier si l'utilisateur peut accéder aux onglets qui nécessitent une connexion
+        // Check if user can access tabs that require connection
         if ((tabName === 'explorer' || tabName === 'tableUsage' || tabName === 'extendedEvents') && !appState.isConnected) {
             this.showStatus('Please connect to a database first before using this feature.', 'error');
             return;
@@ -33,17 +33,17 @@ class TabManager {
 
         appState.activeTab = tabName;
 
-        // Mettre à jour les boutons d'onglets
+        // Update tab buttons
         this.tabButtons.forEach(button => {
             button.classList.toggle('active', button.dataset.tab === tabName);
         });
 
-        // Mettre à jour le contenu des onglets
+        // Update tab content
         this.tabContents.forEach(content => {
             content.classList.toggle('active', content.id === `${tabName}Tab`);
         });
 
-        // Actions spécifiques lors du changement d'onglet
+        // Specific actions when changing tabs
         if (tabName === 'explorer' && appState.isConnected) {
             this.onExplorerTabActivated();
         } else if (tabName === 'tableUsage' && appState.isConnected) {
@@ -54,19 +54,20 @@ class TabManager {
     }
 
     onExplorerTabActivated() {
-        // Recharger les bases de données si nécessaire
+        // Reload databases if necessary
         if (!appState.currentDatabase) {
             vscode.postMessage({ command: 'getDatabases' });
         }
+        // No forced database selection - user decides when to explore
     }
 
     onTableUsageTabActivated() {
-        // Initialiser l'onglet Table Usage si nécessaire
+        // Initialize Table Usage tab if necessary
         if (window.tableUsageManager) {
-            // Synchroniser avec la base de données actuelle
+            // Synchronize with current database
             window.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
             
-            // Recharger les bases de données si nécessaire
+            // Reload databases if necessary
             if (!appState.currentDatabase) {
                 vscode.postMessage({ command: 'getDatabases' });
             }
@@ -74,12 +75,12 @@ class TabManager {
     }
 
     onExtendedEventsTabActivated() {
-        // Initialiser l'onglet Extended Events si nécessaire
+        // Initialize Extended Events tab if necessary
         if (window.extendedEventsManager) {
-            // Synchroniser avec la base de données actuelle
+            // Synchronize with current database
             window.extendedEventsManager.onDatabaseChanged(appState.currentDatabase);
             
-            // Recharger les bases de données si nécessaire
+            // Reload databases if necessary
             if (!appState.currentDatabase) {
                 vscode.postMessage({ command: 'getDatabases' });
             }

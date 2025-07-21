@@ -1,10 +1,38 @@
-.vscode/**
-.vscode-test/**
-test/**
-.gitignore
-.yarnrc
-vsc-extension-quickstart.md
-**/jsconfig.json
-**/*.map
-**/eslint.config.mjs
-**/.vscode-test.*
+# Node.js
+node_modules/
+
+# Build & Distribution
+dist/
+build/
+out/
+lib/
+
+# Tests
+coverage/
+.nyc_output/
+test-results/
+
+# Cache & Logs
+.cache/
+*.log
+*.tmp
+
+# Configuration files des dépendances
+**/.eslintrc
+**/.nycrc
+**/.travis.yml
+**/CHANGELOG.md
+**/README.md
+# Cache seulement les LICENSE dans node_modules
+node_modules/**/LICENSE*
+node_modules/**/license*
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.local

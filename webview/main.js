@@ -9,7 +9,7 @@
 
 const vscode = acquireVsCodeApi();
 
-// État global de l'application
+// Global application state
 class AppState {
     constructor() {
         this.activeTab = 'configuration';
@@ -77,7 +77,51 @@ class DetailsTabManager {
     }
 }
 
-// Gestionnaire de visualisation des dépendances
+// Database selector UI manager
+class DatabaseSelectorManager {
+    constructor() {
+        this.databaseSelect = document.getElementById('databaseSelect');
+    }
+
+    // Show elegant glow animation when connection is ready
+    showReadyGlow() {
+        this.databaseSelect.classList.add('database-ready-glow');
+        
+        // Remove animation after it completes (2 seconds for 2 pulses)
+        setTimeout(() => {
+            this.databaseSelect.classList.remove('database-ready-glow');
+        }, 2000);
+
+        // Show temporary notification
+        this.showReadyNotification();
+    }
+
+    showReadyNotification() {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = 'database-ready-notification';
+        notification.innerHTML = `
+            <span class="notification-icon">✨</span>
+            <span class="notification-text">Connected! Select a database to explore</span>
+        `;
+
+        // Add to header section
+        const headerSection = document.querySelector('.header-section');
+        headerSection.appendChild(notification);
+
+        // Remove notification after 4 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.classList.add('fade-out');
+                setTimeout(() => {
+                    notification.parentNode.removeChild(notification);
+                }, 300);
+            }
+        }, 4000);
+    }
+}
+
+// Dependency visualizer
 class DependencyVisualizer {
     constructor() {
         this.viz = null;
@@ -252,7 +296,7 @@ class DependencyVisualizer {
     }
 }
 
-// Gestionnaire de filtrage et recherche
+// Filter and search manager
 class FilterManager {
     constructor() {
         this.initEventListeners();
@@ -384,7 +428,7 @@ class FilterManager {
     }
 }
 
-// Gestionnaire d'exploration
+// Explorer manager
 class ExplorerManager {
     constructor() {
         this.initDOMElements();
@@ -749,7 +793,7 @@ class ExplorerManager {
     }
 }
 
-// Gestionnaire principal de messages
+// Main message handler
 class MessageHandler {
     constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager) {
         this.connectionManager = connectionManager;
@@ -759,6 +803,7 @@ class MessageHandler {
         this.commentsManager = commentsManager;
         this.extendedEventsManager = extendedEventsManager;
         this.detailsTabManager = detailsTabManager;
+        this.databaseSelector = new DatabaseSelectorManager();
     }
 
     handleMessage(event) {
@@ -788,9 +833,8 @@ class MessageHandler {
             case 'connectionStatus':
                 this.connectionManager.onConnectionStatus(message);
                 if (message.success) {
-                    setTimeout(() => {
-                        this.tabManager.switchTab('explorer');
-                    }, 1000);
+                    // Show elegant glow instead of forcing tab switch
+                    this.databaseSelector.showReadyGlow();
                 }
                 break;
                 
@@ -824,165 +868,164 @@ class MessageHandler {
                     message.dependencies
                 );
                 break;
-                
             case 'objectDetailsLoaded':
-                this.explorerManager.onObjectDetailsLoaded(
-                    message.objectName,
-                    message.objectType,
-                    message.dependencies,
-                    message.definition
-                );
-                break;
-                
-            // Table Usage Messages
-            case 'allTablesForUsageResult':
-                this.tableUsageManager.onAllTablesLoaded(message.tables);
-                break;
-                
-            case 'tableUsageAnalysisResult':
-                this.tableUsageManager.onTableUsageAnalysisResult(message.objectName, message.analysis);
-                break;
-                
-            case 'tableUsageByObjectsResult':
-                this.tableUsageManager.onTableUsageByObjectsResult(message.tableName, message.usage);
-                break;
-                
-            case 'triggerAnalysisResult':
-                this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
-                break;
-                
-            // Comments Messages
-            case 'tableExtendedPropertiesResult':
-                this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
-                break;
-                
-            case 'objectExtendedPropertiesResult':
-                this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
-                break;
-                
-            case 'updateDescriptionResult':
-                this.commentsManager.onUpdateDescriptionResult(message);
-                break;
-                
-            case 'deleteDescriptionResult':
-                this.commentsManager.onDeleteDescriptionResult(message);
-                break;
-                
-            // Enhanced Extended Events Messages
-            case 'executionFlowSessionCreated':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionCreated(message);
-                }
-                break;
-                
-            case 'executionFlowSessionStarted':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionStarted(message);
-                }
-                break;
-                
-            case 'executionFlowSessionStopped':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionStopped(message);
-                }
-                break;
-                
-            case 'executionFlowSessionDeleted':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionDeleted(message);
-                }
-                break;
-                
-            case 'executionFlowSessionInfo':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
-                }
-                break;
-                
-            // NEW: Raw events message handler
-            case 'rawSessionEventsResult':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onRawEventsReceived(
-                        message.sessionName, 
-                        message.rawXml, 
-                        message.message
-                    );
-                }
-                break;
-                
-            case 'executionFlowSessionsList':
-                if (this.extendedEventsManager) {
-                    // Handle sessions list if needed
-                    console.log('Available sessions:', message.sessions);
-                }
-                break;
-                
-            case 'extendedEventsReceived':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onEventsReceived(message.events);
-                }
-                break;
-                
-            case 'error':
-                this.handleError(message.message);
-                break;
-                
-            default:
-                console.warn(`Unknown command: ${message.command}`);
-        }
-    }    
+               this.explorerManager.onObjectDetailsLoaded(
+                   message.objectName,
+                   message.objectType,
+                   message.dependencies,
+                   message.definition
+               );
+               break;
+               
+           // Table Usage Messages
+           case 'allTablesForUsageResult':
+               this.tableUsageManager.onAllTablesLoaded(message.tables);
+               break;
+               
+           case 'tableUsageAnalysisResult':
+               this.tableUsageManager.onTableUsageAnalysisResult(message.objectName, message.analysis);
+               break;
+               
+           case 'tableUsageByObjectsResult':
+               this.tableUsageManager.onTableUsageByObjectsResult(message.tableName, message.usage);
+               break;
+               
+           case 'triggerAnalysisResult':
+               this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
+               break;
+               
+           // Comments Messages
+           case 'tableExtendedPropertiesResult':
+               this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
+               break;
+               
+           case 'objectExtendedPropertiesResult':
+               this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
+               break;
+               
+           case 'updateDescriptionResult':
+               this.commentsManager.onUpdateDescriptionResult(message);
+               break;
+               
+           case 'deleteDescriptionResult':
+               this.commentsManager.onDeleteDescriptionResult(message);
+               break;
+               
+           // Enhanced Extended Events Messages
+           case 'executionFlowSessionCreated':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionCreated(message);
+               }
+               break;
+               
+           case 'executionFlowSessionStarted':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionStarted(message);
+               }
+               break;
+               
+           case 'executionFlowSessionStopped':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionStopped(message);
+               }
+               break;
+               
+           case 'executionFlowSessionDeleted':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionDeleted(message);
+               }
+               break;
+               
+           case 'executionFlowSessionInfo':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
+               }
+               break;
+               
+           // Raw events message handler
+           case 'rawSessionEventsResult':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onRawEventsReceived(
+                       message.sessionName, 
+                       message.rawXml, 
+                       message.message
+                   );
+               }
+               break;
+               
+           case 'executionFlowSessionsList':
+               if (this.extendedEventsManager) {
+                   // Handle sessions list if needed
+                   console.log('Available sessions:', message.sessions);
+               }
+               break;
+               
+           case 'extendedEventsReceived':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onEventsReceived(message.events);
+               }
+               break;
+               
+           case 'error':
+               this.handleError(message.message);
+               break;
+               
+           default:
+               console.warn(`Unknown command: ${message.command}`);
+       }
+   }    
 
-    handleError(message) {
-        console.error('SQL Wayfarer Error:', message);
-        if (appState.activeTab === 'configuration') {
-            this.connectionManager.showStatus(message, 'error');
-        } else if (appState.activeTab === 'tableUsage') {
-            this.tableUsageManager.showStatus(message, 'error');
-        } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
-            this.extendedEventsManager.showStatus(message, 'error');
-        } else {
-            this.tabManager.showStatus(message, 'error');
-        }
-    }
+   handleError(message) {
+       console.error('SQL Wayfarer Error:', message);
+       if (appState.activeTab === 'configuration') {
+           this.connectionManager.showStatus(message, 'error');
+       } else if (appState.activeTab === 'tableUsage') {
+           this.tableUsageManager.showStatus(message, 'error');
+       } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
+           this.extendedEventsManager.showStatus(message, 'error');
+       } else {
+           this.tabManager.showStatus(message, 'error');
+       }
+   }
 }
 
-// Initialisation de l'application
+// Application initialization
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('SQL Wayfarer webview loaded');
-    
-    const tabManager = new TabManager();
-    const connectionManager = new ConnectionManager();
-    const explorerManager = new ExplorerManager();
-    const tableUsageManager = new TableUsageManager();
-    const commentsManager = new CommentsManager();
-    const detailsTabManager = new DetailsTabManager();
-    
-    // Extended Events Manager - optionnel
-    let extendedEventsManager = null;
-    if (typeof ExtendedEventsManager !== 'undefined') {
-        extendedEventsManager = new ExtendedEventsManager();
-    }
-    
-    const messageHandler = new MessageHandler(
-        connectionManager, 
-        explorerManager, 
-        tabManager, 
-        tableUsageManager, 
-        commentsManager,
-        extendedEventsManager,
-        detailsTabManager
-    );
-    
-    // Rendre les managers disponibles globalement
-    window.explorerManager = explorerManager;
-    window.tableUsageManager = tableUsageManager;
-    window.commentsManager = commentsManager;
-    window.detailsTabManager = detailsTabManager;
-    if (extendedEventsManager) {
-        window.extendedEventsManager = extendedEventsManager;
-    }
-    
-    window.addEventListener('message', (event) => messageHandler.handleMessage(event));
-    
-    connectionManager.loadSavedConnections();
+   console.log('SQL Wayfarer webview loaded');
+   
+   const tabManager = new TabManager();
+   const connectionManager = new ConnectionManager();
+   const explorerManager = new ExplorerManager();
+   const tableUsageManager = new TableUsageManager();
+   const commentsManager = new CommentsManager();
+   const detailsTabManager = new DetailsTabManager();
+   
+   // Extended Events Manager - optional
+   let extendedEventsManager = null;
+   if (typeof ExtendedEventsManager !== 'undefined') {
+       extendedEventsManager = new ExtendedEventsManager();
+   }
+   
+   const messageHandler = new MessageHandler(
+       connectionManager, 
+       explorerManager, 
+       tabManager, 
+       tableUsageManager, 
+       commentsManager,
+       extendedEventsManager,
+       detailsTabManager
+   );
+   
+   // Make managers available globally
+   window.explorerManager = explorerManager;
+   window.tableUsageManager = tableUsageManager;
+   window.commentsManager = commentsManager;
+   window.detailsTabManager = detailsTabManager;
+   if (extendedEventsManager) {
+       window.extendedEventsManager = extendedEventsManager;
+   }
+   
+   window.addEventListener('message', (event) => messageHandler.handleMessage(event));
+   
+   connectionManager.loadSavedConnections();
 });
