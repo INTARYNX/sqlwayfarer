@@ -69,13 +69,22 @@ class TableUsageManager {
             return;
         }
 
+        // Find the object to get its qualified name
+        const selectedObject = this.allObjects.find(obj => 
+            obj.name === objectName || obj.qualified_name === objectName
+        );
+        
+        const qualifiedName = selectedObject ? selectedObject.qualified_name : objectName;
+
         this.setAnalyzeButtonState(this.elements.analyzeObjectBtn, true, 'Analyzing...');
         this.showStatus('Analyzing object table usage...', 'info');
+
+        console.log(`Analyzing object: ${objectName} (qualified: ${qualifiedName})`);
 
         vscode.postMessage({
             command: 'getTableUsageAnalysis',
             database: this.currentDatabase,
-            objectName: objectName
+            objectName: qualifiedName  // Use qualified name for backend
         });
     }
 
@@ -86,13 +95,22 @@ class TableUsageManager {
             return;
         }
 
+        // Find the table to get its qualified name
+        const selectedTable = this.allTables.find(table => 
+            table.name === tableName || table.qualified_name === tableName
+        );
+        
+        const qualifiedName = selectedTable ? selectedTable.qualified_name : tableName;
+
         this.setAnalyzeButtonState(this.elements.analyzeTableBtn, true, 'Analyzing...');
         this.showStatus('Analyzing table usage by objects...', 'info');
+
+        console.log(`Analyzing table: ${tableName} (qualified: ${qualifiedName})`);
 
         vscode.postMessage({
             command: 'getTableUsageByObjects',
             database: this.currentDatabase,
-            tableName: tableName
+            tableName: qualifiedName  // Use qualified name for backend
         });
     }
 
@@ -128,7 +146,9 @@ class TableUsageManager {
         
         usableObjects.forEach(obj => {
             const option = document.createElement('option');
-            option.value = obj.name;
+            // Use qualified name as value for backend operations
+            option.value = obj.qualified_name || obj.name;
+            // Display schema.object or just object name for user
             option.textContent = `${obj.name} (${obj.object_type})`;
             this.elements.usageObjectSelect.appendChild(option);
         });
@@ -178,6 +198,7 @@ class TableUsageManager {
 
     onObjectsLoaded(objects) {
         this.allObjects = objects;
+        console.log('TableUsageManager: Objects loaded:', objects.length);
         // Refresh object dropdown if in object-to-tables mode
         if (this.elements.modeSelect.value === 'object-to-tables') {
             this.loadObjectsForUsage();
@@ -186,12 +207,15 @@ class TableUsageManager {
 
     onAllTablesLoaded(tables) {
         this.allTables = tables;
+        console.log('TableUsageManager: Tables loaded:', tables.length);
         
         this.elements.usageTableSelect.innerHTML = '<option value="">Select a table...</option>';
         
         tables.forEach(table => {
             const option = document.createElement('option');
-            option.value = table.name;
+            // Use qualified name as value for backend operations
+            option.value = table.qualified_name || table.name;
+            // Display just the table name (or display name) for user
             option.textContent = table.name;
             this.elements.usageTableSelect.appendChild(option);
         });
@@ -223,9 +247,70 @@ class TableUsageManager {
 
     // Enhanced display methods
     /**
+     * Enhanced buildTablesUsedTable with better table name handling
+     */
+    buildTablesUsedTable(tablesUsed) {
+        if (!tablesUsed || tablesUsed.length === 0) {
+            return '<p class="placeholder-text">No table usage found.</p>';
+        }
+
+        let html = `
+            <div class="usage-table-container">
+                <table class="usage-table">
+                    <thead>
+                        <tr>
+                            <th>Table Name</th>
+                            <th>Operations</th>
+                            <th>Details</th>
+                            <th>Sources</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        tablesUsed.forEach(table => {
+            // Extract table name for display (remove schema if present for cleaner display)
+            const tableName = table.referenced_object || table.table_name || 'Unknown';
+            const displayTableName = tableName.includes('.') ? tableName.split('.').pop() : tableName;
+            
+            const operations = table.operations || [];
+            const operationBadges = operations.map(op => {
+                const operationClass = this.getOperationClass(op);
+                return `<span class="operation-badge ${operationClass}">${op}</span>`;
+            }).join(' ');
+            
+            const details = this.buildTableUsageDetails(table);
+            const sources = table.sources ? table.sources.join(', ') : 'Smart Parser';
+            
+            html += `
+                <tr>
+                    <td><strong>${this.escapeHtml(displayTableName)}</strong></td>
+                    <td class="operations-cell">
+                        <div class="multi-operation-container">${operationBadges}</div>
+                    </td>
+                    <td class="usage-details-cell">${details}</td>
+                    <td class="sources-cell">
+                        <span class="source-info">${this.escapeHtml(sources)}</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        return html;
+    }
+
+    /**
      * Enhanced displayObjectUsageAnalysis with better formatting
      */
     displayObjectUsageAnalysis(analysis) {
+        console.log('Displaying object usage analysis:', analysis);
+        
         let html = `
             <div class="usage-summary">
                 <h3 class="usage-section-title">Object Usage Analysis: ${analysis.objectName}</h3>
@@ -401,61 +486,6 @@ class TableUsageManager {
     }
 
     /**
-     * Enhanced buildTablesUsedTable with consolidated operations display
-     */
-    buildTablesUsedTable(tablesUsed) {
-        if (!tablesUsed || tablesUsed.length === 0) {
-            return '<p class="placeholder-text">No table usage found.</p>';
-        }
-
-        let html = `
-            <div class="usage-table-container">
-                <table class="usage-table">
-                    <thead>
-                        <tr>
-                            <th>Table Name</th>
-                            <th>Operations</th>
-                            <th>Details</th>
-                            <th>Sources</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        tablesUsed.forEach(table => {
-            const operations = table.operations_array || [];
-            const operationBadges = operations.map(op => {
-                const operationClass = this.getOperationClass(op);
-                return `<span class="operation-badge ${operationClass}">${op}</span>`;
-            }).join(' ');
-            
-            const details = this.buildTableUsageDetails(table);
-            const sources = table.sources ? table.sources.join(', ') : 'Unknown';
-            
-            html += `
-                <tr>
-                    <td><strong>${this.escapeHtml(table.table_name)}</strong></td>
-                    <td class="operations-cell">
-                        <div class="multi-operation-container">${operationBadges}</div>
-                    </td>
-                    <td class="usage-details-cell">${details}</td>
-                    <td class="sources-cell">
-                        <span class="source-info">${this.escapeHtml(sources)}</span>
-                    </td>
-                </tr>
-            `;
-        });
-
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-
-        return html;
-    }
-
-    /**
      * Build detailed usage information for a table
      */
     buildTableUsageDetails(table) {
@@ -542,6 +572,7 @@ class TableUsageManager {
             
             // Build table operations display
             const tableOperations = Array.from(group.tables.entries()).map(([tableName, operations]) => {
+                const displayTableName = tableName.includes('.') ? tableName.split('.').pop() : tableName;
                 const operationBadges = Array.from(operations).map(op => {
                     const operationClass = this.getOperationClass(op);
                     return `<span class="operation-badge ${operationClass}">${op}</span>`;
@@ -549,7 +580,7 @@ class TableUsageManager {
                 
                 return `
                     <div class="table-operation-item">
-                        <strong>${this.escapeHtml(tableName)}</strong><br>
+                        <strong>${this.escapeHtml(displayTableName)}</strong><br>
                         <div class="multi-operation-container">${operationBadges}</div>
                     </div>
                 `;
@@ -773,38 +804,38 @@ class TableUsageManager {
 
     // Utility methods
     setAnalyzeButtonState(button, disabled, text) {
-        button.disabled = disabled;
-        if (text) button.textContent = text;
-    }
+       button.disabled = disabled;
+       if (text) button.textContent = text;
+   }
 
-    showStatus(message, type) {
-        this.elements.usageStatus.className = `status ${type}`;
-        this.elements.usageStatus.textContent = message;
-    }
+   showStatus(message, type) {
+       this.elements.usageStatus.className = `status ${type}`;
+       this.elements.usageStatus.textContent = message;
+   }
 
-    clearResults() {
-        this.elements.usageResults.innerHTML = '<p class="placeholder-text">Select an analysis mode and click Analyze to see results.</p>';
-        this.elements.usageStatus.textContent = '';
-        this.elements.usageStatus.className = 'status-container';
-    }
+   clearResults() {
+       this.elements.usageResults.innerHTML = '<p class="placeholder-text">Select an analysis mode and click Analyze to see results.</p>';
+       this.elements.usageStatus.textContent = '';
+       this.elements.usageStatus.className = 'status-container';
+   }
 
-    disableAllControls() {
-        this.elements.usageObjectSelect.disabled = true;
-        this.elements.usageTableSelect.disabled = true;
-        this.elements.analyzeObjectBtn.disabled = true;
-        this.elements.analyzeTableBtn.disabled = true;
-        this.elements.analyzeTriggerBtn.disabled = true;
-        
-        // Hide all mode panels
-        this.elements.objectToTablesMode.style.display = 'none';
-        this.elements.tableToObjectsMode.style.display = 'none';
-        this.elements.triggersMode.style.display = 'none';
-    }
+   disableAllControls() {
+       this.elements.usageObjectSelect.disabled = true;
+       this.elements.usageTableSelect.disabled = true;
+       this.elements.analyzeObjectBtn.disabled = true;
+       this.elements.analyzeTableBtn.disabled = true;
+       this.elements.analyzeTriggerBtn.disabled = true;
+       
+       // Hide all mode panels
+       this.elements.objectToTablesMode.style.display = 'none';
+       this.elements.tableToObjectsMode.style.display = 'none';
+       this.elements.triggersMode.style.display = 'none';
+   }
 
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+   escapeHtml(text) {
+       if (!text) return '';
+       const div = document.createElement('div');
+       div.textContent = text;
+       return div.innerHTML;
+   }
 }

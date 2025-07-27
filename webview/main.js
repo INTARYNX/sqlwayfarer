@@ -428,7 +428,7 @@ class FilterManager {
     }
 }
 
-// Explorer manager
+// ExplorerManager class with enhanced schema support
 class ExplorerManager {
     constructor() {
         this.initDOMElements();
@@ -501,27 +501,30 @@ class ExplorerManager {
         element.classList.add('selected');
         appState.selectedObject = obj;
         
+        // Use qualified_name for backend operations, display_name for UI
+        const objectNameForBackend = obj.qualified_name || obj.name;
+        
         // Load details for structure tab
         if (obj.object_type === 'Table') {
             vscode.postMessage({
                 command: 'getTableDetails',
                 database: appState.currentDatabase,
-                table: obj.name
+                table: objectNameForBackend  // Use qualified name
             });
         } else {
             vscode.postMessage({
                 command: 'getObjectDetails',
                 database: appState.currentDatabase,
-                objectName: obj.name,
+                objectName: objectNameForBackend,  // Use qualified name
                 objectType: obj.object_type
             });
         }
 
-        // Load comments if comments tab is active
+        // Load comments if comments tab is active - use qualified name
         if (appState.activeDetailsTab === 'comments') {
             window.commentsManager.loadCommentsForObject(
                 appState.currentDatabase,
-                obj.name,
+                objectNameForBackend,  // Use qualified name
                 obj.object_type
             );
         }
@@ -535,10 +538,14 @@ class ExplorerManager {
         if (appState.selectedObject && appState.selectedObject.name === objectName && appState.currentDependencies) {
             this.dependencyVisualizer.showDependencyVisualization(objectName, appState.currentDependencies);
         } else {
+            // Find the object to get its qualified name
+            const obj = appState.allObjects.find(o => o.name === objectName);
+            const qualifiedName = obj ? (obj.qualified_name || obj.name) : objectName;
+            
             vscode.postMessage({
                 command: 'getObjectDetails',
                 database: appState.currentDatabase,
-                objectName: objectName,
+                objectName: qualifiedName,  // Use qualified name
                 objectType: 'Object'
             });
         }
@@ -564,20 +571,40 @@ class ExplorerManager {
         this.filterManager.updateObjectCount();
     }
 
-    displayObjects(objects) {
-        this.elements.objectList.innerHTML = '';
-        
-        if (objects.length === 0) {
-            this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
-            return;
+displayObjects(objects) {
+    this.elements.objectList.innerHTML = '';
+    
+    if (objects.length === 0) {
+        this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
+        return;
+    }
+    
+    // Group objects by schema for better organization
+    const objectsBySchema = this._groupObjectsBySchema(objects);
+    
+    // Display objects grouped by schema
+    Object.keys(objectsBySchema).sort().forEach(schema => {
+        // Add schema header if not dbo or if there are multiple schemas
+        if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
+            const schemaHeader = document.createElement('div');
+            schemaHeader.className = 'schema-header';
+            schemaHeader.innerHTML = `
+                <span class="schema-name">📁 ${schema}</span>
+                <span class="schema-count">(${objectsBySchema[schema].length})</span>
+            `;
+            this.elements.objectList.appendChild(schemaHeader);
         }
         
-        objects.forEach(obj => {
+        // Add objects for this schema - NO SCHEMA INDICATOR since it's already in the header
+        objectsBySchema[schema].forEach(obj => {
             const div = document.createElement('div');
             div.className = 'object-item';
             
+            // Show only object name (without schema) since it's already in the header
+            const objectDisplayName = obj.object_name || obj.name.split('.').pop();
+            
             const nameSpan = document.createElement('span');
-            nameSpan.innerHTML = `${obj.name}<span class="object-type">(${obj.object_type})</span>`;
+            nameSpan.innerHTML = `${objectDisplayName}<span class="object-type">(${obj.object_type})</span>`;
             
             const vizBtn = document.createElement('button');
             vizBtn.className = 'viz-object-btn';
@@ -587,12 +614,45 @@ class ExplorerManager {
             div.appendChild(nameSpan);
             div.appendChild(vizBtn);
             div.dataset.name = obj.name;
+            div.dataset.qualifiedName = obj.qualified_name || obj.name;
             div.dataset.type = obj.object_type;
+            div.dataset.schema = obj.schema_name || 'dbo';
             
             div.addEventListener('click', () => this.handleObjectClick(div, obj));
             
             this.elements.objectList.appendChild(div);
         });
+    });
+}
+
+    /**
+     * Group objects by schema for better display organization
+     * @private
+     */
+    _groupObjectsBySchema(objects) {
+        const grouped = {};
+        
+        objects.forEach(obj => {
+            const schema = obj.schema_name || 'dbo';
+            if (!grouped[schema]) {
+                grouped[schema] = [];
+            }
+            grouped[schema].push(obj);
+        });
+        
+        // Sort objects within each schema by type then name
+        Object.keys(grouped).forEach(schema => {
+            grouped[schema].sort((a, b) => {
+                // First by type
+                if (a.object_type !== b.object_type) {
+                    return a.object_type.localeCompare(b.object_type);
+                }
+                // Then by name
+                return a.name.localeCompare(b.name);
+            });
+        });
+        
+        return grouped;
     }
 
     onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
@@ -640,15 +700,37 @@ class ExplorerManager {
         }
 
         let html = '<h3>Columns</h3>';
-        html += '<table><tr><th>Name</th><th>Type</th><th>Nullable</th><th>Default</th><th>Length</th></tr>';
+        html += `<table>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Nullable</th>
+                <th>Default</th>
+                <th>Length</th>
+                <th>Extra</th>
+            </tr>`;
         
         columns.forEach(col => {
+            // Build extra info (identity, computed, etc.)
+            const extraInfo = [];
+            if (col.IS_IDENTITY) extraInfo.push('IDENTITY');
+            if (col.IS_COMPUTED) extraInfo.push('COMPUTED');
+            
+            // Build type display with precision/scale
+            let typeDisplay = col.DATA_TYPE;
+            if (col.CHARACTER_MAXIMUM_LENGTH) {
+                typeDisplay += `(${col.CHARACTER_MAXIMUM_LENGTH})`;
+            } else if (col.NUMERIC_PRECISION && col.NUMERIC_SCALE !== undefined) {
+                typeDisplay += `(${col.NUMERIC_PRECISION},${col.NUMERIC_SCALE})`;
+            }
+            
             html += `<tr>
-                <td>${this.escapeHtml(col.COLUMN_NAME)}</td>
-                <td>${this.escapeHtml(col.DATA_TYPE)}</td>
+                <td><strong>${this.escapeHtml(col.COLUMN_NAME)}</strong></td>
+                <td><code>${this.escapeHtml(typeDisplay)}</code></td>
                 <td>${col.IS_NULLABLE}</td>
                 <td>${this.escapeHtml(col.COLUMN_DEFAULT || '')}</td>
                 <td>${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
+                <td>${extraInfo.join(', ')}</td>
             </tr>`;
         });
         
@@ -660,21 +742,24 @@ class ExplorerManager {
         let html = '<h3>Indexes</h3>';
         
         if (indexes && indexes.length > 0) {
-            html += '<table><tr><th>Name</th><th>Type & Properties</th><th>Columns</th></tr>';
+            html += '<table><tr><th>Name</th><th>Type & Properties</th><th>Columns</th><th>Details</th></tr>';
             
             indexes.forEach(idx => {
                 let badges = '';
                 
                 // Primary Key badge
-                if (idx.is_primary_key === true || idx.is_primary_key === 1 || 
-                    (idx.index_name && idx.index_name.toLowerCase().includes('pk_')) ||
-                    (idx.type_desc && idx.type_desc.toLowerCase().includes('primary'))) {
+                if (idx.is_primary_key === true || idx.is_primary_key === 1) {
                     badges += '<span class="index-badge index-primary">Primary Key</span>';
                 }
                 
                 // Unique badge
-                if ((idx.is_unique === true || idx.is_unique === 1)) {
+                if (idx.is_unique === true || idx.is_unique === 1) {
                     badges += '<span class="index-badge index-unique">Unique</span>';
+                }
+                
+                // Unique constraint badge
+                if (idx.is_unique_constraint === true || idx.is_unique_constraint === 1) {
+                    badges += '<span class="index-badge index-unique">Unique Constraint</span>';
                 }
                 
                 // Clustered/NonClustered badge
@@ -682,7 +767,7 @@ class ExplorerManager {
                     const typeDesc = idx.type_desc.toLowerCase();
                     if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
                         badges += '<span class="index-badge index-clustered">Clustered</span>';
-                    } else if (typeDesc.includes('nonclustered') || typeDesc.includes('heap')) {
+                    } else if (typeDesc.includes('nonclustered')) {
                         badges += '<span class="index-badge index-normal">NonClustered</span>';
                     }
                 }
@@ -692,10 +777,20 @@ class ExplorerManager {
                     badges = '<span class="index-badge index-normal">Index</span>';
                 }
                 
+                // Build details
+                const details = [];
+                if (idx.fill_factor && idx.fill_factor !== 0) {
+                    details.push(`Fill Factor: ${idx.fill_factor}%`);
+                }
+                if (idx.has_filter) {
+                    details.push(`Filtered: ${idx.filter_definition || 'Yes'}`);
+                }
+                
                 html += `<tr>
                     <td><strong>${this.escapeHtml(idx.index_name)}</strong></td>
                     <td>${badges}</td>
                     <td><code style="background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 2px;">${this.escapeHtml(idx.columns)}</code></td>
+                    <td><small>${details.join('<br>')}</small></td>
                 </tr>`;
             });
             
@@ -711,14 +806,23 @@ class ExplorerManager {
         let html = '<h3>Foreign Keys</h3>';
         
         if (foreignKeys && foreignKeys.length > 0) {
-            html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th></tr>';
+            html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th><th>Actions</th></tr>';
             
             foreignKeys.forEach(fk => {
+                const actions = [];
+                if (fk.delete_referential_action_desc && fk.delete_referential_action_desc !== 'NO_ACTION') {
+                    actions.push(`ON DELETE ${fk.delete_referential_action_desc}`);
+                }
+                if (fk.update_referential_action_desc && fk.update_referential_action_desc !== 'NO_ACTION') {
+                    actions.push(`ON UPDATE ${fk.update_referential_action_desc}`);
+                }
+                
                 html += `<tr>
                     <td>${this.escapeHtml(fk.fk_name)}</td>
-                    <td>${this.escapeHtml(fk.column_name)}</td>
+                    <td><strong>${this.escapeHtml(fk.column_name)}</strong></td>
                     <td>${this.escapeHtml(fk.referenced_table)}</td>
-                    <td>${this.escapeHtml(fk.referenced_column)}</td>
+                    <td><strong>${this.escapeHtml(fk.referenced_column)}</strong></td>
+                    <td><small>${actions.join('<br>')}</small></td>
                 </tr>`;
             });
             
@@ -746,51 +850,56 @@ class ExplorerManager {
         let html = '<h3>Dependencies</h3>';
         
         if (appState.selectedObject) {
+            const objectName = appState.selectedObject.qualified_name || appState.selectedObject.name;
             html += `<div style="margin-bottom: 15px;">
-                <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${appState.selectedObject.name}', appState.currentDependencies)" 
+                <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${objectName}', appState.currentDependencies)" 
                         class="viz-btn">Show Dependency Graph</button>
             </div>`;
         }
         
         html += '<h4>Dependencies (objects this depends on):</h4>';
         if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
-            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th></tr>';
+            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
             dependencies.dependsOn.forEach(dep => {
+                const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
                 html += `<tr>
                     <td>${this.escapeHtml(dep.referenced_object)}</td>
                     <td>${this.escapeHtml(dep.referenced_object_type)}</td>
                     <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
+                    <td><small>${this.escapeHtml(operations)}</small></td>
                 </tr>`;
             });
             html += '</table>';
         } else {
             html += '<p>No dependencies found.</p>';
-        }
-        
-        html += '<h4>Referenced by (objects that depend on this):</h4>';
-        if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
-            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th></tr>';
-            dependencies.referencedBy.forEach(ref => {
-                html += `<tr>
-                    <td>${this.escapeHtml(ref.referencing_object)}</td>
-                    <td>${this.escapeHtml(ref.referencing_object_type)}</td>
-                    <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
-                </tr>`;
-            });
-            html += '</table>';
-        } else {
-            html += '<p>No objects reference this object.</p>';
-        }
-        
-        return html;
-    }
+       }
+       
+       html += '<h4>Referenced by (objects that depend on this):</h4>';
+       if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
+           html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+           dependencies.referencedBy.forEach(ref => {
+               const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
+               html += `<tr>
+                   <td>${this.escapeHtml(ref.referencing_object)}</td>
+                   <td>${this.escapeHtml(ref.referencing_object_type)}</td>
+                   <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
+                   <td><small>${this.escapeHtml(operations)}</small></td>
+               </tr>`;
+           });
+           html += '</table>';
+       } else {
+           html += '<p>No objects reference this object.</p>';
+       }
+       
+       return html;
+   }
 
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+   escapeHtml(text) {
+       if (!text) return '';
+       const div = document.createElement('div');
+       div.textContent = text;
+       return div.innerHTML;
+   }
 }
 
 // Main message handler
