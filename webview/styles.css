@@ -1103,3 +1103,338 @@ label {
         text-align: center;
     }
 }
+
+/* Schema-related styles for better organization */
+
+/* Schema Headers in Object List */
+.schema-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin: 8px 0 4px 0;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.schema-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--vscode-foreground);
+    font-weight: 600;
+}
+
+.schema-count {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: normal;
+}
+
+
+/* Enhanced Object Items with schema support */
+.object-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--vscode-input-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.1s ease;
+    margin-left: 12px; /* Indent objects under schema headers */
+    border-left: 2px solid transparent;
+}
+
+.object-item:hover {
+    background: var(--vscode-list-hoverBackground);
+    border-left-color: var(--vscode-button-background);
+}
+
+.object-item.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    border-left-color: var(--vscode-button-background);
+}
+
+/* Objects under dbo schema (when only dbo exists) */
+.object-item.dbo-only {
+    margin-left: 0; /* No indentation when only dbo schema */
+}
+
+/* Enhanced object type styling */
+.object-type {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    margin-left: 10px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+}
+
+.object-item.selected .object-type {
+    color: var(--vscode-list-activeSelectionForeground);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--vscode-list-activeSelectionForeground);
+    opacity: 0.8;
+}
+
+/* Schema-specific object type colors */
+.object-type.table {
+    background: rgba(14, 99, 156, 0.1);
+    border-color: #0E639C;
+    color: #0E639C;
+}
+
+.object-type.view {
+    background: rgba(204, 105, 0, 0.1);
+    border-color: #CC6900;
+    color: #CC6900;
+}
+
+.object-type.procedure {
+    background: rgba(123, 31, 162, 0.1);
+    border-color: #7B1FA2;
+    color: #7B1FA2;
+}
+
+.object-type.function {
+    background: rgba(93, 64, 55, 0.1);
+    border-color: #5D4037;
+    color: #5D4037;
+}
+
+/* Enhanced table styling for better schema display */
+table th, table td {
+    border: 1px solid var(--vscode-input-border);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+table th {
+    background: var(--vscode-input-background);
+    font-weight: bold;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+/* Code styling for qualified names */
+code.qualified-name {
+    background: var(--vscode-textCodeBlock-background);
+    color: var(--vscode-textPreformat-foreground);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    border: 1px solid var(--vscode-input-border);
+}
+
+/* Enhanced section headers with schema context */
+.section-header.with-schema {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-header .schema-badge {
+    font-size: 11px;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: normal;
+}
+
+/* Object List Container with better scrolling */
+#objectList {
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+}
+
+#objectList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#objectList::-webkit-scrollbar-track {
+    background: var(--vscode-editor-background);
+}
+
+#objectList::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-background);
+    border-radius: 4px;
+}
+
+#objectList::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* Enhanced filter section for schema-aware filtering */
+.filter-section {
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 15px;
+}
+
+.filter-section .schema-filter {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--vscode-input-border);
+}
+
+.filter-section .schema-filter label {
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.filter-section .schema-select {
+    width: 100%;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+/* Schema statistics in object count */
+.object-count.with-schemas {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.schema-stats {
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+/* Responsive design for schema display */
+/* Responsive design for schema display */
+@media (max-width: 768px) {
+    .schema-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding: 6px 8px;
+    }
+    
+    .object-item {
+        margin-left: 8px;
+        padding: 6px 8px;
+    }
+    
+    .object-type {
+        margin-left: 10px; /* Remettre la marge normale */
+        margin-top: 0;
+        display: inline-block; /* Remettre en inline */
+    }
+}
+
+/* Print styles for schema-aware layouts */
+@media print {
+    .schema-header {
+        background: transparent !important;
+        border: 1px solid #000 !important;
+        color: #000 !important;
+    }
+    
+    .schema-indicator,
+    .object-type {
+        border: 1px solid #000 !important;
+        color: #000 !important;
+        background: transparent !important;
+    }
+    
+    .object-item {
+        border-bottom: 1px solid #000 !important;
+    }
+}
+
+/* Loading states with schema context */
+.loading-objects-with-schemas {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    margin: 15px 0;
+}
+
+.loading-objects-with-schemas::before {
+    content: "📂 ";
+    font-size: 24px;
+    display: block;
+    margin-bottom: 10px;
+}
+
+/* Enhanced dependency visualization for schema context */
+.dependency-graph .schema-node {
+    border: 2px solid var(--vscode-button-background);
+    border-radius: 4px;
+    background: var(--vscode-input-background);
+}
+
+.dependency-graph .schema-edge {
+    stroke: var(--vscode-button-background);
+    stroke-width: 2;
+}
+
+/* Accessibility improvements for schema display */
+.schema-header[role="button"] {
+    cursor: pointer;
+}
+
+.schema-header[role="button"]:focus {
+    outline: 2px solid var(--vscode-button-background);
+    outline-offset: 2px;
+}
+
+.object-item[role="button"]:focus {
+    outline: 2px solid var(--vscode-button-background);
+    outline-offset: -2px;
+}
+
+/* Animation for schema expansion/collapse (future enhancement) */
+.schema-group.collapsed .object-item {
+    display: none;
+}
+
+.schema-group.expanded .object-item {
+    display: flex;
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
