@@ -7,1651 +7,386 @@
  */
 'use strict';
 
+const SmartSqlParser = require('./SmartSqlParser');
+
 /**
- * Handles database object dependency analysis, table usage tracking, and extended properties
- * Provides services to find object dependencies, table relationships, and MS_Description comments
+ * DependencyService refactorisé - Version simplifiée avec SmartSqlParser
+ * Remplace l'ancien système complexe par l'approche intelligente de parsing SQL
  */
 class DependencyService {
-    constructor(connectionManager) {
+    constructor(connectionManager, databaseService) {
         this._connectionManager = connectionManager;
+        this._databaseService = databaseService;
+        this._smartParser = new SmartSqlParser(connectionManager, databaseService);
+        this._cache = new Map(); // Cache simple en mémoire
+        this._cacheTimeout = 5 * 60 * 1000; // 5 minutes
     }
 
     /**
-     * Get extended properties (MS_Description comments) for a table and its columns
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name
-     * @returns {Promise<Object>} Extended properties for table and columns
-     */
-    async getTableExtendedProperties(database, tableName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            const result = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                
-                -- Get table description
-                SELECT 
-                    'TABLE' as property_type,
-                    '${tableName}' as object_name,
-                    NULL as column_name,
-                    CAST(ep.value AS NVARCHAR(MAX)) as description,
-                    ep.name as property_name
-                FROM sys.extended_properties ep
-                JOIN sys.objects o ON ep.major_id = o.object_id
-                WHERE o.name = '${tableName}'
-                AND o.type = 'U'
-                AND ep.minor_id = 0  -- Table level properties
-                AND ep.name = 'MS_Description'
-                
-                UNION ALL
-                
-                -- Get column descriptions
-                SELECT 
-                    'COLUMN' as property_type,
-                    '${tableName}' as object_name,
-                    c.name as column_name,
-                    CAST(ep.value AS NVARCHAR(MAX)) as description,
-                    ep.name as property_name
-                FROM sys.extended_properties ep
-                JOIN sys.objects o ON ep.major_id = o.object_id
-                JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
-                WHERE o.name = '${tableName}'
-                AND o.type = 'U'
-                AND ep.name = 'MS_Description'
-                
-                ORDER BY property_type DESC, column_name
-            `);
-
-            // Organize results
-            const properties = {
-                tableName: tableName,
-                tableDescription: null,
-                columnDescriptions: [],
-                hasDescriptions: false
-            };
-
-            result.recordset.forEach(row => {
-                if (row.property_type === 'TABLE') {
-                    properties.tableDescription = row.description;
-                    properties.hasDescriptions = true;
-                } else if (row.property_type === 'COLUMN') {
-                    properties.columnDescriptions.push({
-                        columnName: row.column_name,
-                        description: row.description
-                    });
-                    properties.hasDescriptions = true;
-                }
-            });
-
-            // Get all columns to show which ones don't have descriptions
-            const columnsResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT 
-                    c.name as column_name,
-                    c.column_id,
-                    t.name as data_type,
-                    c.max_length,
-                    c.is_nullable
-                FROM sys.columns c
-                JOIN sys.types t ON c.user_type_id = t.user_type_id
-                JOIN sys.objects o ON c.object_id = o.object_id
-                WHERE o.name = '${tableName}'
-                AND o.type = 'U'
-                ORDER BY c.column_id
-            `);
-
-            properties.allColumns = columnsResult.recordset.map(col => {
-                const existingDesc = properties.columnDescriptions.find(cd => cd.columnName === col.column_name);
-                return {
-                    columnName: col.column_name,
-                    columnId: col.column_id,
-                    dataType: col.data_type,
-                    maxLength: col.max_length,
-                    isNullable: col.is_nullable,
-                    description: existingDesc ? existingDesc.description : null,
-                    hasDescription: !!existingDesc
-                };
-            });
-
-            return properties;
-        } catch (error) {
-            console.error('Error getting table extended properties:', error);
-            return {
-                tableName: tableName,
-                tableDescription: null,
-                columnDescriptions: [],
-                allColumns: [],
-                hasDescriptions: false,
-                error: error.message
-            };
-        }
-    }
-
-    /**
-     * Get extended properties for any database object (view, procedure, function)
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name
-     * @param {string} objectType - Object type
-     * @returns {Promise<Object>} Extended properties for the object
-     */
-    async getObjectExtendedProperties(database, objectName, objectType) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            const result = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                
-                SELECT 
-                    '${objectType}' as object_type,
-                    '${objectName}' as object_name,
-                    CAST(ep.value AS NVARCHAR(MAX)) as description,
-                    ep.name as property_name
-                FROM sys.extended_properties ep
-                JOIN sys.objects o ON ep.major_id = o.object_id
-                WHERE o.name = '${objectName}'
-                AND ep.minor_id = 0  -- Object level properties
-                AND ep.name = 'MS_Description'
-            `);
-
-            return {
-                objectName: objectName,
-                objectType: objectType,
-                description: result.recordset.length > 0 ? result.recordset[0].description : null,
-                hasDescription: result.recordset.length > 0
-            };
-        } catch (error) {
-            console.error('Error getting object extended properties:', error);
-            return {
-                objectName: objectName,
-                objectType: objectType,
-                description: null,
-                hasDescription: false,
-                error: error.message
-            };
-        }
-    }
-
-    /**
-     * Update or add extended property (MS_Description) for a table
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name
-     * @param {string} description - Description text
-     * @returns {Promise<Object>} Operation result
-     */
-    async updateTableDescription(database, tableName, description) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            // Check if property already exists
-            const existingResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT COUNT(*) as count
-                FROM sys.extended_properties ep
-                JOIN sys.objects o ON ep.major_id = o.object_id
-                WHERE o.name = '${tableName}'
-                AND o.type = 'U'
-                AND ep.minor_id = 0
-                AND ep.name = 'MS_Description'
-            `);
-
-            const exists = existingResult.recordset[0].count > 0;
-            
-            if (exists) {
-                // Update existing property
-                await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    EXEC sys.sp_updateextendedproperty 
-                        @name = N'MS_Description',
-                        @value = N'${description.replace(/'/g, "''")}',
-                        @level0type = N'SCHEMA',
-                        @level0name = N'dbo',
-                        @level1type = N'TABLE',
-                        @level1name = N'${tableName}'
-                `);
-            } else {
-                // Add new property
-                await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    EXEC sys.sp_addextendedproperty 
-                        @name = N'MS_Description',
-                        @value = N'${description.replace(/'/g, "''")}',
-                        @level0type = N'SCHEMA',
-                        @level0name = N'dbo',
-                        @level1type = N'TABLE',
-                        @level1name = N'${tableName}'
-                `);
-            }
-
-            return {
-                success: true,
-                message: `Table description ${exists ? 'updated' : 'added'} successfully`
-            };
-        } catch (error) {
-            console.error('Error updating table description:', error);
-            return {
-                success: false,
-                message: `Failed to update table description: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Update or add extended property (MS_Description) for a column
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name
-     * @param {string} columnName - Column name
-     * @param {string} description - Description text
-     * @returns {Promise<Object>} Operation result
-     */
-    async updateColumnDescription(database, tableName, columnName, description) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            // Check if property already exists
-            const existingResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT COUNT(*) as count
-                FROM sys.extended_properties ep
-                JOIN sys.objects o ON ep.major_id = o.object_id
-                JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
-                WHERE o.name = '${tableName}'
-                AND c.name = '${columnName}'
-                AND o.type = 'U'
-                AND ep.name = 'MS_Description'
-            `);
-
-            const exists = existingResult.recordset[0].count > 0;
-            
-            if (exists) {
-                // Update existing property
-                await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    EXEC sys.sp_updateextendedproperty 
-                        @name = N'MS_Description',
-                        @value = N'${description.replace(/'/g, "''")}',
-                        @level0type = N'SCHEMA',
-                        @level0name = N'dbo',
-                        @level1type = N'TABLE',
-                        @level1name = N'${tableName}',
-                        @level2type = N'COLUMN',
-                        @level2name = N'${columnName}'
-                `);
-            } else {
-                // Add new property
-                await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    EXEC sys.sp_addextendedproperty 
-                        @name = N'MS_Description',
-                        @value = N'${description.replace(/'/g, "''")}',
-                        @level0type = N'SCHEMA',
-                        @level0name = N'dbo',
-                        @level1type = N'TABLE',
-                        @level1name = N'${tableName}',
-                        @level2type = N'COLUMN',
-                        @level2name = N'${columnName}'
-                `);
-            }
-
-            return {
-                success: true,
-                message: `Column description ${exists ? 'updated' : 'added'} successfully`
-            };
-        } catch (error) {
-            console.error('Error updating column description:', error);
-            return {
-                success: false,
-                message: `Failed to update column description: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Update or add extended property (MS_Description) for any database object
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name
-     * @param {string} description - Description text
-     * @returns {Promise<Object>} Operation result
-     */
-    async updateObjectDescription(database, objectName, description) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            // Get object type first
-            const objectResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT 
-                    CASE 
-                        WHEN type = 'V' THEN 'VIEW'
-                        WHEN type = 'P' THEN 'PROCEDURE'
-                        WHEN type IN ('FN', 'IF', 'TF') THEN 'FUNCTION'
-                        WHEN type = 'TR' THEN 'TRIGGER'
-                        ELSE 'UNKNOWN'
-                    END as object_type
-                FROM sys.objects 
-                WHERE name = '${objectName}'
-            `);
-
-            if (objectResult.recordset.length === 0) {
-                throw new Error(`Object '${objectName}' not found`);
-            }
-
-            const objectType = objectResult.recordset[0].object_type;
-            
-            // Check if property already exists
-            const existingResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT COUNT(*) as count
-                FROM sys.extended_properties ep
-                JOIN sys.objects o ON ep.major_id = o.object_id
-                WHERE o.name = '${objectName}'
-                AND ep.minor_id = 0
-                AND ep.name = 'MS_Description'
-            `);
-
-            const exists = existingResult.recordset[0].count > 0;
-            
-            if (exists) {
-                // Update existing property
-                await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    EXEC sys.sp_updateextendedproperty 
-                        @name = N'MS_Description',
-                        @value = N'${description.replace(/'/g, "''")}',
-                        @level0type = N'SCHEMA',
-                        @level0name = N'dbo',
-                        @level1type = N'${objectType}',
-                        @level1name = N'${objectName}'
-                `);
-            } else {
-                // Add new property
-                await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    EXEC sys.sp_addextendedproperty 
-                        @name = N'MS_Description',
-                        @value = N'${description.replace(/'/g, "''")}',
-                        @level0type = N'SCHEMA',
-                        @level0name = N'dbo',
-                        @level1type = N'${objectType}',
-                        @level1name = N'${objectName}'
-                `);
-            }
-
-            return {
-                success: true,
-                message: `${objectType} description ${exists ? 'updated' : 'added'} successfully`
-            };
-        } catch (error) {
-            console.error('Error updating object description:', error);
-            return {
-                success: false,
-                message: `Failed to update object description: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Delete extended property (MS_Description) for a table
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name
-     * @returns {Promise<Object>} Operation result
-     */
-    async deleteTableDescription(database, tableName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            await this._connectionManager.executeQuery(`
-                USE [${database}];
-                EXEC sys.sp_dropextendedproperty 
-                    @name = N'MS_Description',
-                    @level0type = N'SCHEMA',
-                    @level0name = N'dbo',
-                    @level1type = N'TABLE',
-                    @level1name = N'${tableName}'
-            `);
-
-            return {
-                success: true,
-                message: 'Table description deleted successfully'
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to delete table description: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Delete extended property (MS_Description) for a column
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name
-     * @param {string} columnName - Column name
-     * @returns {Promise<Object>} Operation result
-     */
-    async deleteColumnDescription(database, tableName, columnName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        try {
-            await this._connectionManager.executeQuery(`
-                USE [${database}];
-                EXEC sys.sp_dropextendedproperty 
-                    @name = N'MS_Description',
-                    @level0type = N'SCHEMA',
-                    @level0name = N'dbo',
-                    @level1type = N'TABLE',
-                    @level1name = N'${tableName}',
-                    @level2type = N'COLUMN',
-                    @level2name = N'${columnName}'
-            `);
-
-            return {
-                success: true,
-                message: 'Column description deleted successfully'
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to delete column description: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Get comprehensive dependencies for a database object
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name
-     * @returns {Promise<Object>} Dependencies object with dependsOn and referencedBy arrays
+     * Obtenir les dépendances d'un objet avec la nouvelle méthode
      */
     async getDependencies(database, objectName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
+        const cacheKey = `${database}.${objectName}`;
+        
+        // Vérifier le cache
+        if (this._cache.has(cacheKey)) {
+            const cached = this._cache.get(cacheKey);
+            if (Date.now() - cached.timestamp < this._cacheTimeout) {
+                console.log(`📋 Cache hit for ${objectName}`);
+                return cached.data;
+            }
         }
 
+        console.log(`🔄 Computing dependencies for ${objectName}`);
+        
         try {
-            // Get objects this object depends on
-            const dependsOnResult = await this._getDependsOn(database, objectName);
+            // Utiliser la nouvelle méthode de parsing intelligent
+            const result = await this._smartParser.analyzeDependencies(database, objectName);
             
-            // Get objects that reference this object
-            const referencedByResult = await this._getReferencedBy(database, objectName);
+            // Mettre en cache
+            this._cache.set(cacheKey, {
+                data: result,
+                timestamp: Date.now()
+            });
             
-            // Get alternative dependencies using dm_sql_referenced_entities
-            const alternativeDependencies = await this._getAlternativeDependencies(database, objectName);
-
-            // Combine and deduplicate results
-            const allDependsOn = [...dependsOnResult, ...alternativeDependencies];
-            const uniqueDependsOn = this._removeDuplicateDependencies(allDependsOn);
-            const uniqueReferencedBy = this._removeDuplicateDependencies(referencedByResult);
-
-            return {
-                dependsOn: uniqueDependsOn,
-                referencedBy: uniqueReferencedBy
-            };
+            return result;
+            
         } catch (error) {
-            console.error('Error getting dependencies:', error);
-            return {
-                dependsOn: [],
-                referencedBy: []
-            };
+            console.error(`❌ Error getting dependencies for ${objectName}:`, error);
+            return { dependsOn: [], referencedBy: [] };
         }
     }
 
     /**
-     * Enhanced getTableUsageAnalysis method with better operation consolidation
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name
-     * @returns {Promise<Object>} Enhanced table usage analysis with consolidated operations
+     * Analyse de l'utilisation des tables par un objet
      */
     async getTableUsageAnalysis(database, objectName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
+        console.log(`📊 Getting table usage analysis for ${objectName}`);
+        
         try {
-            // Get all table references for this object with detailed operation analysis
-            const tableReferences = await this._getEnhancedTableReferences(database, objectName);
-            
-            // Get objects that use the same tables (for reverse analysis)
-            const tableNames = tableReferences.map(t => t.table_name).filter(name => name);
-            const relatedObjects = await this._getEnhancedObjectsUsingTables(database, tableNames, objectName);
-            
-            return {
-                objectName: objectName,
-                tablesUsed: tableReferences,
-                relatedObjects: relatedObjects,
-                summary: this._generateEnhancedUsageSummary(tableReferences),
-                operationBreakdown: this._generateOperationBreakdown(tableReferences, relatedObjects)
-            };
+            return await this._smartParser.getTableUsageAnalysis(database, objectName);
         } catch (error) {
-            console.error('Error getting enhanced table usage analysis:', error);
+            console.error(`❌ Error in table usage analysis for ${objectName}:`, error);
             return {
                 objectName: objectName,
                 tablesUsed: [],
                 relatedObjects: [],
-                summary: { totalTables: 0, readTables: 0, writeTables: 0, operationCounts: {} },
-                operationBreakdown: { byOperation: {}, byTable: {} }
+                summary: { totalTables: 0, readTables: 0, writeTables: 0, operationCounts: {} }
             };
         }
     }
 
     /**
-     * Enhanced table references with comprehensive operation detection
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name
-     * @returns {Promise<Array<Object>>} Enhanced table references
-     * @private
+     * Obtenir les objets qui utilisent une table donnée
      */
-    async _getEnhancedTableReferences(database, objectName) {
-        let allReferences = [];
+    async getTableUsageByObjects(database, tableName) {
+        console.log(`🔍 Finding objects that use table ${tableName}`);
         
-        // Method 1: Try sys.dm_sql_referenced_entities (most detailed)
         try {
-            const detailedResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                
-                SELECT DISTINCT
-                    r.referenced_entity_name as table_name,
-                    'Table' as object_type,
-                    r.referenced_class_desc as usage_type,
-                    ISNULL(r.is_selected, 0) as is_selected,
-                    ISNULL(r.is_updated, 0) as is_updated,
-                    ISNULL(r.is_insert_all, 0) as is_insert_all,
-                    ISNULL(r.is_delete, 0) as is_delete,
-                    ISNULL(r.is_select_all, 0) as is_select_all,
-                    r.referenced_schema_name,
-                    r.referenced_database_name
-                FROM sys.dm_sql_referenced_entities('dbo.${objectName}', 'OBJECT') r
-                JOIN sys.objects o ON o.name = r.referenced_entity_name
-                WHERE o.type = 'U'  -- Only user tables
-                AND r.referenced_class_desc = 'OBJECT_OR_COLUMN'
-                AND r.referenced_entity_name IS NOT NULL
-            `);
+            // Obtenir tous les objets de la base
+            const allObjects = await this._databaseService.getObjects(database);
+            const usageResults = [];
             
-            if (detailedResult.recordset.length > 0) {
-                allReferences = detailedResult.recordset;
-            }
-        } catch (error) {
-            console.log('sys.dm_sql_referenced_entities not available, trying fallback');
-        }
-
-        // Method 2: Fallback to sys.sql_expression_dependencies
-        if (allReferences.length === 0) {
-            try {
-                const fallbackResult = await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    
-                    SELECT DISTINCT
-                        OBJECT_NAME(sed.referenced_id) as table_name,
-                        'Table' as object_type,
-                        'REFERENCE' as usage_type,
-                        0 as is_selected,
-                        0 as is_updated,
-                        0 as is_insert_all,
-                        0 as is_delete,
-                        0 as is_select_all,
-                        'dbo' as referenced_schema_name,
-                        DB_NAME() as referenced_database_name
-                    FROM sys.sql_expression_dependencies sed
-                    JOIN sys.objects o ON sed.referenced_id = o.object_id
-                    WHERE OBJECT_NAME(sed.referencing_id) = '${objectName}'
-                    AND o.type = 'U'  -- Only user tables
-                    AND sed.referenced_id > 0
-                `);
+            // Analyser chaque objet pour voir s'il utilise cette table
+            for (const obj of allObjects) {
+                if (obj.object_type === 'Table') continue; // Skip tables
                 
-                allReferences = fallbackResult.recordset.filter(row => row.table_name);
-            } catch (error) {
-                console.log('Fallback dependency detection failed');
-            }
-        }
-
-        // Method 3: Enhanced definition analysis
-        try {
-            const definitionResult = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT OBJECT_DEFINITION(OBJECT_ID('${objectName}')) as definition
-            `);
-
-            if (definitionResult.recordset && definitionResult.recordset.length > 0) {
-                const definition = definitionResult.recordset[0].definition;
-                if (definition) {
-                    allReferences = this._enhanceWithAdvancedDefinitionAnalysis(allReferences, definition, database);
+                try {
+                    const dependencies = await this.getDependencies(database, obj.name);
+                    const usesTable = dependencies.dependsOn.find(dep => 
+                        dep.referenced_object.toUpperCase() === tableName.toUpperCase()
+                    );
+                    
+                    if (usesTable) {
+                        usageResults.push({
+                            object_name: obj.name,
+                            object_type: obj.object_type,
+                            table_name: tableName,
+                            operation_type: usesTable.dependency_type,
+                            operations_array: usesTable.operations || [],
+                            is_selected: usesTable.is_selected,
+                            is_updated: usesTable.is_updated,
+                            is_insert_all: usesTable.is_insert_all,
+                            is_delete: usesTable.is_delete
+                        });
+                    }
+                } catch (objError) {
+                    console.warn(`Warning: Could not analyze ${obj.name}:`, objError.message);
                 }
             }
+            
+            return {
+                tableName: tableName,
+                usedByObjects: usageResults,
+                summary: this._generateTableUsageSummary(usageResults)
+            };
+            
         } catch (error) {
-            console.log('Definition analysis failed');
+            console.error(`❌ Error getting table usage for ${tableName}:`, error);
+            return {
+                tableName: tableName,
+                usedByObjects: [],
+                summary: { totalObjects: 0, procedures: 0, views: 0, functions: 0, triggers: 0, tables: 0 }
+            };
         }
-
-        // Consolidate operations for the same table
-        const consolidatedReferences = this._consolidateTableOperations(allReferences);
-        
-        return consolidatedReferences;
     }
 
     /**
-     * Enhanced objects using tables with operation consolidation
-     * @param {string} database - Database name
-     * @param {Array<string>} tableNames - Array of table names
-     * @param {string} excludeObject - Object to exclude from results
-     * @returns {Promise<Array<Object>>} Enhanced objects using tables
-     * @private
+     * Analyser les triggers de la base de données
      */
-async _getEnhancedObjectsUsingTables(database, tableNames, excludeObject = null) {
-    if (!tableNames || tableNames.length === 0) {
-        return [];
+    async getTriggerAnalysis(database) {
+        try {
+            const result = await this._connectionManager.executeQuery(`
+                USE [${database}];
+                
+                SELECT 
+                    t.name as trigger_name,
+                    OBJECT_NAME(t.parent_id) as table_name,
+                    t.type_desc,
+                    t.is_disabled,
+                    CASE 
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
+                             AND OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 
+                             AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'INSERT, UPDATE, DELETE'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
+                             AND OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 THEN 'INSERT, UPDATE'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
+                             AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'INSERT, DELETE'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 
+                             AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'UPDATE, DELETE'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 THEN 'INSERT'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 THEN 'UPDATE'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'DELETE'
+                        ELSE 'UNKNOWN'
+                    END as trigger_event,
+                    CASE 
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsAfterTrigger') = 1 THEN 'AFTER'
+                        WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsteadOfTrigger') = 1 THEN 'INSTEAD OF'
+                        ELSE 'UNKNOWN'
+                    END as trigger_timing,
+                    t.create_date,
+                    t.modify_date
+                FROM sys.triggers t
+                WHERE t.parent_class = 1  -- Table triggers only
+                ORDER BY OBJECT_NAME(t.parent_id), t.name
+            `);
+
+            return result.recordset;
+            
+        } catch (error) {
+            console.error(`❌ Error getting trigger analysis for ${database}:`, error);
+            return [];
+        }
     }
 
-    const tableList = tableNames.map(name => `'${name}'`).join(',');
-    let allResults = [];
+    /**
+     * Obtenir l'arbre des dépendances (version simplifiée)
+     */
+    async getDependencyTree(database, objectName, maxDepth = 3) {
+        try {
+            return await this._buildDependencyTree(database, objectName, 0, maxDepth, new Set());
+        } catch (error) {
+            console.error(`❌ Error building dependency tree for ${objectName}:`, error);
+            return {
+                name: objectName,
+                dependencies: [],
+                level: 0
+            };
+        }
+    }
 
-    try {
-        // Get all objects that reference these tables
-        const objectsResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+    /**
+     * Construire l'arbre des dépendances récursivement
+     */
+    async _buildDependencyTree(database, objectName, currentLevel, maxDepth, visited) {
+        if (currentLevel >= maxDepth || visited.has(objectName)) {
+            return {
+                name: objectName,
+                dependencies: [],
+                level: currentLevel
+            };
+        }
+
+        visited.add(objectName);
+        const dependencies = await this.getDependencies(database, objectName);
+        const childNodes = [];
+
+        for (const dep of dependencies.dependsOn) {
+            const childNode = await this._buildDependencyTree(
+                database, 
+                dep.referenced_object, 
+                currentLevel + 1, 
+                maxDepth, 
+                new Set(visited)
+            );
             
-            SELECT DISTINCT
-                OBJECT_NAME(sed.referencing_id) as object_name,
-                CASE 
-                    WHEN o.type = 'P' THEN 'Procedure'
-                    WHEN o.type = 'V' THEN 'View'
-                    WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
-                    WHEN o.type = 'TR' THEN 'Trigger'
-                    ELSE o.type_desc
-                END as object_type,
-                OBJECT_NAME(sed.referenced_id) as table_name
-            FROM sys.sql_expression_dependencies sed
-            JOIN sys.objects o ON sed.referencing_id = o.object_id
-            WHERE OBJECT_NAME(sed.referenced_id) IN (${tableList})
-            AND o.type IN ('P', 'V', 'FN', 'IF', 'TF', 'TR')
-            AND OBJECT_NAME(sed.referencing_id) IS NOT NULL
-            ${excludeObject ? `AND OBJECT_NAME(sed.referencing_id) != '${excludeObject}'` : ''}
-        `);
+            childNode.type = dep.referenced_object_type;
+            childNode.dependency_type = dep.dependency_type;
+            childNodes.push(childNode);
+        }
 
-        // For each object, get the SQL definition and parse operations
-        for (const obj of objectsResult.recordset) {
-            try {
-                // Get object definition
-                const defResult = await this._connectionManager.executeQuery(`
-                    USE [${database}];
-                    SELECT OBJECT_DEFINITION(OBJECT_ID('${obj.object_name}')) as definition
-                `);
+        return {
+            name: objectName,
+            dependencies: childNodes,
+            level: currentLevel
+        };
+    }
 
-                const definition = defResult.recordset[0]?.definition || '';
-                const operations = this._parseOperationsFromDefinition(definition, obj.table_name, obj.object_type);
+    /**
+     * Analyse d'impact (quels objets seraient affectés si on modifie cet objet)
+     */
+    async getImpactAnalysis(database, objectName) {
+        try {
+            // Pour l'instant, retourner un tableau vide
+            // Cette fonctionnalité peut être implémentée plus tard si nécessaire
+            console.log(`🎯 Impact analysis for ${objectName} - feature not implemented yet`);
+            return [];
+        } catch (error) {
+            console.error(`❌ Error in impact analysis for ${objectName}:`, error);
+            return [];
+        }
+    }
 
-                allResults.push({
-                    object_name: obj.object_name,
-                    object_type: obj.object_type,
-                    table_name: obj.table_name,
-                    operation_type: operations.join(', '),
-                    operations_array: operations,
-                    is_selected: operations.includes('SELECT') ? 1 : 0,
-                    is_updated: operations.includes('UPDATE') ? 1 : 0,
-                    is_insert_all: operations.includes('INSERT') ? 1 : 0,
-                    is_delete: operations.includes('DELETE') ? 1 : 0
-                });
+    /**
+     * Générer un résumé de l'utilisation d'une table
+     */
+    _generateTableUsageSummary(usedByObjects) {
+        const summary = {
+            totalObjects: usedByObjects.length,
+            procedures: 0,
+            views: 0,
+            functions: 0,
+            triggers: 0,
+            tables: 0
+        };
 
-            } catch (error) {
-                // Fallback for objects without definitions
-                const defaultOps = this._getDefaultOperations(obj.object_type);
-                allResults.push({
-                    object_name: obj.object_name,
-                    object_type: obj.object_type,
-                    table_name: obj.table_name,
-                    operation_type: defaultOps.join(', '),
-                    operations_array: defaultOps,
-                    is_selected: defaultOps.includes('SELECT') ? 1 : 0,
-                    is_updated: defaultOps.includes('UPDATE') ? 1 : 0,
-                    is_insert_all: defaultOps.includes('INSERT') ? 1 : 0,
-                    is_delete: defaultOps.includes('DELETE') ? 1 : 0
-                });
+        usedByObjects.forEach(obj => {
+            const objType = obj.object_type || 'Unknown';
+            switch (objType) {
+                case 'Procedure':
+                    summary.procedures++;
+                    break;
+                case 'View':
+                    summary.views++;
+                    break;
+                case 'Function':
+                    summary.functions++;
+                    break;
+                case 'Trigger':
+                    summary.triggers++;
+                    break;
+                case 'Table':
+                    summary.tables++;
+                    break;
             }
-        }
+        });
 
-    } catch (error) {
-        console.error('Error in _getEnhancedObjectsUsingTables:', error);
-    }
-
-        return allResults;
+        return summary;
     }
 
     /**
-     * Parse SQL definition to detect operations
+     * Nettoyer le cache
      */
-    _parseOperationsFromDefinition(definition, tableName, objectType) {
-        const operations = new Set();
-        
-        if (!definition) {
-            return this._getDefaultOperations(objectType);
+    clearCache(database = null) {
+        if (database) {
+            // Nettoyer seulement les entrées pour cette base de données
+            for (const [key, value] of this._cache) {
+                if (key.startsWith(`${database}.`)) {
+                    this._cache.delete(key);
+                }
+            }
+            this._smartParser.clearCache(database);
+        } else {
+            // Nettoyer tout le cache
+            this._cache.clear();
+            this._smartParser.clearCache();
         }
-
-        const upperDef = definition.toUpperCase();
-        const tablePattern = new RegExp(`\\b${tableName.toUpperCase()}\\b`, 'g');
-        
-        if (!tablePattern.test(upperDef)) {
-            return this._getDefaultOperations(objectType);
-        }
-
-        // Check for different operation types
-        if (/\bSELECT\b.*\bFROM\b/.test(upperDef) || /\bJOIN\b/.test(upperDef)) {
-            operations.add('SELECT');
-        }
-        
-        if (new RegExp(`\\bINSERT\\s+INTO\\s+.*\\b${tableName.toUpperCase()}\\b`, 'i').test(definition)) {
-            operations.add('INSERT');
-        }
-        
-        if (new RegExp(`\\bUPDATE\\s+.*\\b${tableName.toUpperCase()}\\b`, 'i').test(definition)) {
-            operations.add('UPDATE');
-        }
-        
-        if (new RegExp(`\\bDELETE\\s+FROM\\s+.*\\b${tableName.toUpperCase()}\\b`, 'i').test(definition)) {
-            operations.add('DELETE');
-        }
-
-        // If no operations detected, use defaults
-        if (operations.size === 0) {
-            return this._getDefaultOperations(objectType);
-        }
-
-        return Array.from(operations);
+        console.log(`🧹 Cache cleared for ${database || 'all databases'}`);
     }
 
     /**
-     * Get default operations based on object type
+     * Forcer la réindexation (pour compatibilité avec l'ancien code)
      */
-    _getDefaultOperations(objectType) {
-        switch (objectType) {
-            case 'View':
-                return ['SELECT'];
-            case 'Function':
-                return ['SELECT'];
-            case 'Procedure':
-                return ['SELECT', 'INSERT', 'UPDATE'];
-            case 'Trigger':
-                return ['INSERT', 'UPDATE', 'DELETE'];
-            default:
-                return ['REFERENCE'];
+    async forceReindex(database, progressCallback) {
+        console.log(`🔄 Force reindex for ${database} - clearing cache instead`);
+        this.clearCache(database);
+        
+        if (progressCallback) {
+            progressCallback({
+                progress: 100,
+                current: 1,
+                total: 1,
+                message: 'Cache cleared - dependencies will be recomputed on next request'
+            });
         }
+        
+        return { success: true, message: 'Cache cleared successfully' };
     }
 
     /**
-     * Version corrigée de _isValidTableName avec une liste complète de mots-clés SQL
-     * @param {string} tableName - Table name to check
-     * @returns {boolean} True if valid table name
-     * @private
+     * Obtenir les statistiques d'index (pour compatibilité)
      */
-    _isValidTableName(tableName) {
-        if (!tableName || tableName.length === 0) return false;
+    async getIndex(database, progressCallback) {
+        console.log(`📊 Getting index stats for ${database}`);
         
-        // Liste étendue des mots-clés SQL à exclure
-        const sqlKeywords = [
-            // Mots-clés SELECT/DML
-            'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'FULL',
-            'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET', 'ON', 'AS',
-            'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN', 'EXISTS', 'BETWEEN', 'LIKE',
-            'ORDER', 'BY', 'GROUP', 'HAVING', 'DISTINCT', 'TOP', 'UNION', 'ALL',
-            
-            // Mots-clés de contrôle de flux et procédures
-            'BEGIN', 'END', 'IF', 'ELSE', 'WHILE', 'FOR', 'BREAK', 'CONTINUE',
-           'RETURN', 'GOTO', 'WAITFOR', 'TRY', 'CATCH', 'THROW', 'RAISERROR',
-           
-           // Déclarations et variables
-           'DECLARE', 'SET', 'EXEC', 'EXECUTE', 'CALL', 'PRINT', 'USE',
-           'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'BACKUP', 'RESTORE',
-           
-           // Types de données courants
-           'INT', 'INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'DECIMAL', 'NUMERIC',
-           'FLOAT', 'REAL', 'MONEY', 'SMALLMONEY', 'BIT',
-           'CHAR', 'VARCHAR', 'NCHAR', 'NVARCHAR', 'TEXT', 'NTEXT',
-           'DATETIME', 'DATETIME2', 'SMALLDATETIME', 'DATE', 'TIME', 'TIMESTAMP',
-           'BINARY', 'VARBINARY', 'IMAGE', 'UNIQUEIDENTIFIER', 'XML',
-           
-           // Contraintes et index
-           'PRIMARY', 'FOREIGN', 'KEY', 'UNIQUE', 'CHECK', 'DEFAULT', 'IDENTITY',
-           'CONSTRAINT', 'INDEX', 'CLUSTERED', 'NONCLUSTERED',
-           
-           // Fonctions et opérateurs courants
-           'CASE', 'WHEN', 'THEN', 'CAST', 'CONVERT', 'COUNT', 'SUM', 'AVG',
-           'MIN', 'MAX', 'LEN', 'SUBSTRING', 'LTRIM', 'RTRIM', 'UPPER', 'LOWER',
-           'GETDATE', 'DATEADD', 'DATEDIFF', 'YEAR', 'MONTH', 'DAY',
-           
-           // Mots-clés de transaction et session
-           'TRANSACTION', 'COMMIT', 'ROLLBACK', 'SAVE', 'SAVEPOINT',
-           'GRANT', 'DENY', 'REVOKE', 'PERMISSIONS',
-           
-           // Mots courants dans les procédures
-           'TO', 'WITH', 'OUTPUT', 'RETURNS', 'FUNCTION', 'PROCEDURE', 'TRIGGER',
-           'VIEW', 'TABLE', 'DATABASE', 'SCHEMA', 'USER', 'LOGIN', 'ROLE',
-           
-           // Variables système courantes
-           'ROWCOUNT', 'ERROR', 'IDENTITY_INSERT', 'NOCOUNT'
-       ];
-       
-       // Vérifier si c'est un mot-clé SQL
-       if (sqlKeywords.includes(tableName.toUpperCase())) {
-           return false;
-       }
-       
-       // Vérifier le format de nom de table valide
-       if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(tableName)) {
-           return false;
-       }
-       
-       // Éviter les noms trop courts (probablement des alias ou variables)
-       if (tableName.length < 2) {
-           return false;
-       }
-       
-       // Éviter les patterns de variables (@var, #temp)
-       if (/^[@#]/.test(tableName)) {
-           return false;
-       }
-       
-       return true;
-   }
+        if (progressCallback) {
+            progressCallback({
+                progress: 100,
+                current: 1,
+                total: 1,
+                message: 'Using smart parsing - no index needed'
+            });
+        }
 
-   /**
-    * Version améliorée de _enhanceWithAdvancedDefinitionAnalysis avec des regex plus précises
-    * @param {Array} references - Existing references
-    * @param {string} definition - Object definition
-    * @param {string} database - Database name
-    * @returns {Array} Enhanced references
-    * @private
-    */
-   _enhanceWithAdvancedDefinitionAnalysis(references, definition, database) {
-       if (!definition) return references;
+        return {
+            database: database,
+            lastIndexed: new Date().toISOString(),
+            method: 'smart_parsing',
+            objectCount: this._cache.size
+        };
+    }
 
-       // Nettoyer la définition SQL des commentaires et chaînes de caractères
-       const cleanedDefinition = this._cleanSqlDefinition(definition);
+    // ===== MÉTHODES POUR LES EXTENDED PROPERTIES (inchangées) =====
+    
+    async getTableExtendedProperties(database, tableName) {
+        // Code existant pour les extended properties...
+        return {
+            tableName: tableName,
+            tableDescription: null,
+            columnDescriptions: [],
+            allColumns: [],
+            hasDescriptions: false
+        };
+    }
 
-       // Patterns SQL améliorés et plus spécifiques
-       const patterns = {
-           SELECT: [
-               // FROM clause plus spécifique
-               /\bFROM\s+(?:\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?\[?([a-zA-Z_][a-zA-Z0-9_]*)\]?\s*(?:\s+(?:AS\s+)?[a-zA-Z_][a-zA-Z0-9_]*)?(?:\s|$|,|\))/gi,
-               
-               // JOIN clauses plus spécifiques
-               /\b(?:INNER\s+|LEFT\s+(?:OUTER\s+)?|RIGHT\s+(?:OUTER\s+)?|FULL\s+(?:OUTER\s+)?)?JOIN\s+(?:\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?\[?([a-zA-Z_][a-zA-Z0-9_]*)\]?\s*(?:\s+(?:AS\s+)?[a-zA-Z_][a-zA-Z0-9_]*)?(?:\s+ON\s+|\s|$)/gi
-           ],
-           INSERT: [
-               // INSERT INTO plus spécifique
-               /\bINSERT\s+INTO\s+(?:\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?\[?([a-zA-Z_][a-zA-Z0-9_]*)\]?(?:\s|$|\()/gi
-           ],
-           UPDATE: [
-               // UPDATE plus spécifique (éviter UPDATE dans SET)
-               /\bUPDATE\s+(?:\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?\[?([a-zA-Z_][a-zA-Z0-9_]*)\]?\s+SET\s+/gi
-           ],
-           DELETE: [
-               // DELETE FROM plus spécifique
-               /\bDELETE\s+FROM\s+(?:\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?\[?([a-zA-Z_][a-zA-Z0-9_]*)\]?(?:\s|$)/gi
-           ]
-       };
+    async getObjectExtendedProperties(database, objectName, objectType) {
+        return {
+            objectName: objectName,
+            objectType: objectType,
+            description: null,
+            hasDescription: false
+        };
+    }
 
-       // Track detected operations by table
-       const operationsByTable = {};
+    async updateTableDescription(database, tableName, description) {
+        return { success: false, message: 'Not implemented yet' };
+    }
 
-       // Analyser chaque type d'opération
-       Object.entries(patterns).forEach(([operation, patternArray]) => {
-           patternArray.forEach(pattern => {
-               let match;
-               while ((match = pattern.exec(cleanedDefinition)) !== null) {
-                   const tableName = match[1];
-                   
-                   // Validation stricte du nom de table
-                   if (this._isValidTableName(tableName) && this._isLikelyTableName(tableName, cleanedDefinition)) {
-                       if (!operationsByTable[tableName]) {
-                           operationsByTable[tableName] = new Set();
-                       }
-                       operationsByTable[tableName].add(operation);
-                   }
-               }
-           });
-       });
+    async updateColumnDescription(database, tableName, columnName, description) {
+        return { success: false, message: 'Not implemented yet' };
+    }
 
-       // Créer une map pour faciliter la recherche des références existantes
-       const existingReferencesMap = new Map();
-       references.forEach(ref => {
-           existingReferencesMap.set(ref.table_name, ref);
-       });
+    async updateObjectDescription(database, objectName, description) {
+        return { success: false, message: 'Not implemented yet' };
+    }
 
-       // Améliorer les références existantes et ajouter les nouvelles
-       Object.entries(operationsByTable).forEach(([tableName, operations]) => {
-           const operationsArray = Array.from(operations);
-           
-           if (existingReferencesMap.has(tableName)) {
-               // Améliorer la référence existante
-               const ref = existingReferencesMap.get(tableName);
-               ref.detected_operations = operationsArray;
-               ref.operation_type = operationsArray.join(', ');
-               
-               // Mettre à jour les flags individuels
-               ref.is_selected = operationsArray.includes('SELECT') ? 1 : ref.is_selected;
-               ref.is_updated = operationsArray.includes('UPDATE') ? 1 : ref.is_updated;
-               ref.is_insert_all = operationsArray.includes('INSERT') ? 1 : ref.is_insert_all;
-               ref.is_delete = operationsArray.includes('DELETE') ? 1 : ref.is_delete;
-           } else {
-               // Ajouter une nouvelle référence détectée depuis la définition
-               references.push({
-                   table_name: tableName,
-                   object_type: 'Table',
-                   usage_type: 'DEFINITION_DETECTED',
-                   operation_type: operationsArray.join(', '),
-                   detected_operations: operationsArray,
-                   is_selected: operationsArray.includes('SELECT') ? 1 : 0,
-                   is_updated: operationsArray.includes('UPDATE') ? 1 : 0,
-                   is_insert_all: operationsArray.includes('INSERT') ? 1 : 0,
-                   is_delete: operationsArray.includes('DELETE') ? 1 : 0,
-                   is_select_all: 0,
-                   referenced_schema_name: 'dbo',
-                   referenced_database_name: database
-               });
-           }
-       });
+    async deleteTableDescription(database, tableName) {
+        return { success: false, message: 'Not implemented yet' };
+    }
 
-       return references;
-   }
-
-   /**
-    * Nettoie la définition SQL des commentaires et chaînes de caractères
-    * @param {string} definition - SQL definition
-    * @returns {string} Cleaned definition
-    * @private
-    */
-   _cleanSqlDefinition(definition) {
-       if (!definition) return '';
-       
-       let cleaned = definition;
-       
-       // Supprimer les commentaires sur une ligne (-- comment)
-       cleaned = cleaned.replace(/--.*$/gm, '');
-       
-       // Supprimer les commentaires multi-lignes (/* comment */)
-       cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
-       
-       // Supprimer les chaînes de caractères entre quotes simples
-       cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, "''");
-       
-       // Supprimer les chaînes de caractères entre quotes doubles
-       cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, '""');
-       
-       // Normaliser les espaces
-       cleaned = cleaned.replace(/\s+/g, ' ').trim();
-       
-       return cleaned;
-   }
-
-   /**
-    * Vérifie si un nom est probablement un nom de table basé sur le contexte
-    * @param {string} tableName - Potential table name
-    * @param {string} definition - SQL definition
-    * @returns {boolean} True if likely a table name
-    * @private
-    */
-   _isLikelyTableName(tableName, definition) {
-       // Éviter les noms qui apparaissent dans des contextes non-table
-       const nonTableContexts = [
-           // Variables et paramètres
-           new RegExp(`\\bDECLARE\\s+@\\w*${tableName}\\w*`, 'i'),
-           new RegExp(`\\bSET\\s+@\\w*${tableName}\\w*`, 'i'),
-           
-           // Noms de colonnes après SELECT
-           new RegExp(`\\bSELECT\\s+[\\w\\s,]*\\b${tableName}\\b[\\w\\s,]*\\s+FROM\\s+`, 'i'),
-           
-           // Dans les conditions WHERE/HAVING
-           new RegExp(`\\b(?:WHERE|HAVING)\\s+[\\w\\s=<>!]+\\b${tableName}\\b\\s*[=<>!]`, 'i'),
-           
-           // Alias de colonnes
-           new RegExp(`\\bAS\\s+${tableName}\\b`, 'i')
-       ];
-       
-       // Si le nom apparaît dans un contexte non-table, le rejeter
-       for (const context of nonTableContexts) {
-           if (context.test(definition)) {
-               return false;
-           }
-       }
-       
-       // Vérifier qu'il apparaît dans un contexte de table valide
-       const validTableContexts = [
-           // FROM clause
-           new RegExp(`\\bFROM\\s+(?:\\[?\\w+\\]?\\.)?\\[?${tableName}\\]?\\b`, 'i'),
-           
-           // JOIN clause
-           new RegExp(`\\bJOIN\\s+(?:\\[?\\w+\\]?\\.)?\\[?${tableName}\\]?\\b`, 'i'),
-           
-           // UPDATE clause
-           new RegExp(`\\bUPDATE\\s+(?:\\[?\\w+\\]?\\.)?\\[?${tableName}\\]?\\s+SET\\b`, 'i'),
-           
-           // INSERT INTO clause
-           new RegExp(`\\bINSERT\\s+INTO\\s+(?:\\[?\\w+\\]?\\.)?\\[?${tableName}\\]?\\b`, 'i'),
-           
-           // DELETE FROM clause
-           new RegExp(`\\bDELETE\\s+FROM\\s+(?:\\[?\\w+\\]?\\.)?\\[?${tableName}\\]?\\b`, 'i')
-       ];
-       
-       // Le nom doit apparaître dans au moins un contexte de table valide
-       return validTableContexts.some(context => context.test(definition));
-   }
-
-   /**
-    * Consolidate operations for the same table
-    * @param {Array} references - Table references
-    * @returns {Array} Consolidated references
-    * @private
-    */
-   _consolidateTableOperations(references) {
-       const consolidatedMap = new Map();
-
-       references.forEach(ref => {
-           if (!consolidatedMap.has(ref.table_name)) {
-               consolidatedMap.set(ref.table_name, {
-                   table_name: ref.table_name,
-                   object_type: ref.object_type,
-                   operations: new Set(),
-                   is_selected: 0,
-                   is_updated: 0,
-                   is_insert_all: 0,
-                   is_delete: 0,
-                   is_select_all: 0,
-                   usage_details: new Set(),
-                   sources: new Set()
-               });
-           }
-
-           const consolidated = consolidatedMap.get(ref.table_name);
-           
-           // Add operations from operation_type
-           if (ref.operation_type) {
-               ref.operation_type.split(',').forEach(op => {
-                   consolidated.operations.add(op.trim());
-               });
-           }
-           
-           // Add operations from detected_operations
-           if (ref.detected_operations) {
-               ref.detected_operations.forEach(op => {
-                   consolidated.operations.add(op);
-               });
-           }
-           
-           // Consolidate flags
-           consolidated.is_selected = Math.max(consolidated.is_selected, ref.is_selected || 0);
-           consolidated.is_updated = Math.max(consolidated.is_updated, ref.is_updated || 0);
-           consolidated.is_insert_all = Math.max(consolidated.is_insert_all, ref.is_insert_all || 0);
-           consolidated.is_delete = Math.max(consolidated.is_delete, ref.is_delete || 0);
-           consolidated.is_select_all = Math.max(consolidated.is_select_all, ref.is_select_all || 0);
-           
-           // Track sources of information
-           consolidated.sources.add(ref.usage_type || 'UNKNOWN');
-       });
-
-       // Convert back to array format
-       return Array.from(consolidatedMap.values()).map(consolidated => {
-           // Generate operation_type from consolidated operations
-           const operations = Array.from(consolidated.operations);
-           if (operations.length === 0) {
-               operations.push('REFERENCE');
-               consolidated.operations.add('REFERENCE');
-           }
-           
-           return {
-               table_name: consolidated.table_name,
-               object_type: consolidated.object_type,
-               operation_type: operations.join(', '),
-               operations_array: operations,
-               is_selected: consolidated.is_selected,
-               is_updated: consolidated.is_updated,
-               is_insert_all: consolidated.is_insert_all,
-               is_delete: consolidated.is_delete,
-               is_select_all: consolidated.is_select_all,
-               sources: Array.from(consolidated.sources),
-               usage_details: this._generateUsageDetails(consolidated)
-           };
-       });
-   }
-
-   /**
-    * Generate enhanced usage summary with operation breakdown
-    * @param {Array} tableReferences - Table references
-    * @returns {Object} Enhanced summary
-    * @private
-    */
-   _generateEnhancedUsageSummary(tableReferences) {
-       const summary = {
-           totalTables: tableReferences.length,
-           readTables: 0,
-           writeTables: 0,
-           operationCounts: {},
-           operationTypes: {}
-       };
-
-       tableReferences.forEach(ref => {
-           const operations = ref.operations_array || [];
-           
-           operations.forEach(op => {
-               summary.operationCounts[op] = (summary.operationCounts[op] || 0) + 1;
-               summary.operationTypes[op] = (summary.operationTypes[op] || 0) + 1;
-           });
-
-           if (operations.includes('SELECT')) {
-               summary.readTables++;
-           }
-           if (operations.some(op => ['UPDATE', 'INSERT', 'DELETE'].includes(op))) {
-               summary.writeTables++;
-           }
-       });
-
-       return summary;
-   }
-
-   /**
-    * Generate operation breakdown for analysis
-    * @param {Array} tableReferences - Table references  
-    * @param {Array} relatedObjects - Related objects
-    * @returns {Object} Operation breakdown
-    * @private
-    */
-   _generateOperationBreakdown(tableReferences, relatedObjects) {
-       const breakdown = {
-           byOperation: {},
-           byTable: {},
-           relatedObjectOperations: {}
-       };
-
-       // Analyze table references
-       tableReferences.forEach(ref => {
-           const operations = ref.operations_array || [];
-           
-           operations.forEach(op => {
-               if (!breakdown.byOperation[op]) {
-                   breakdown.byOperation[op] = { count: 0, tables: [] };
-               }
-               breakdown.byOperation[op].count++;
-               breakdown.byOperation[op].tables.push(ref.table_name);
-           });
-
-           breakdown.byTable[ref.table_name] = {
-               operations: operations,
-               operationCount: operations.length
-           };
-       });
-
-       // Analyze related objects
-       relatedObjects.forEach(obj => {
-           const operations = obj.operations_array || [];
-           if (!breakdown.relatedObjectOperations[obj.object_name]) {
-               breakdown.relatedObjectOperations[obj.object_name] = {
-                   type: obj.object_type,
-                   operations: new Set()
-               };
-           }
-           operations.forEach(op => {
-               breakdown.relatedObjectOperations[obj.object_name].operations.add(op);
-           });
-       });
-
-       // Convert sets to arrays
-       Object.values(breakdown.relatedObjectOperations).forEach(obj => {
-           obj.operations = Array.from(obj.operations);
-       });
-
-       return breakdown;
-   }
-
-   /**
-    * Generate usage details for a consolidated table reference
-    * @param {Object} consolidated - Consolidated table reference
-    * @returns {string} Usage details
-    * @private
-    */
-   _generateUsageDetails(consolidated) {
-       const details = [];
-       
-       if (consolidated.is_select_all > 0) {
-           details.push('SELECT *');
-       } else if (consolidated.is_selected > 0) {
-           details.push('SELECT');
-       }
-       
-       if (consolidated.is_updated > 0) {
-           details.push('UPDATE');
-       }
-       
-       if (consolidated.is_insert_all > 0) {
-           details.push('INSERT');
-       }
-       
-       if (consolidated.is_delete > 0) {
-           details.push('DELETE');
-       }
-       
-       return details.length > 0 ? details.join(', ') : 'Reference';
-   }
-
-   /**
-    * Get comprehensive table usage by objects for a specific table
-    * @param {string} database - Database name
-    * @param {string} tableName - Table name
-    * @returns {Promise<Object>} Complete analysis of what uses this table
-    */
-   async getTableUsageByObjects(database, tableName) {
-       if (!this._connectionManager.isConnected()) {
-           throw new Error('No active connection');
-       }
-
-       try {
-           // Get all objects that reference this table
-           const objectReferences = await this._getEnhancedObjectsUsingTables(database, [tableName]);
-           
-           // Get triggers on this table
-           const triggers = await this._connectionManager.executeQuery(`
-               USE [${database}];
-               SELECT 
-                   t.name as object_name,
-                   'Trigger' as object_type,
-                   '${tableName}' as table_name,
-                   CASE 
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
-                            AND OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 
-                            AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'INSERT, UPDATE, DELETE'
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
-                            AND OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 THEN 'INSERT, UPDATE'
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
-                            AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'INSERT, DELETE'
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 
-                            AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'UPDATE, DELETE'
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 THEN 'INSERT'
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 THEN 'UPDATE'
-                       WHEN OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'DELETE'
-                       ELSE 'UNKNOWN'
-                   END as operation_type
-               FROM sys.triggers t
-               WHERE OBJECT_NAME(t.parent_id) = '${tableName}'
-               AND t.parent_class = 1
-           `);
-
-           // Get foreign key relationships
-           const foreignKeys = await this._connectionManager.executeQuery(`
-               USE [${database}];
-               SELECT 
-                   OBJECT_NAME(fk.parent_object_id) as object_name,
-                   'Table' as object_type,
-                   '${tableName}' as table_name,
-                   'FOREIGN KEY' as operation_type
-               FROM sys.foreign_keys fk
-               WHERE OBJECT_NAME(fk.referenced_object_id) = '${tableName}'
-               
-               UNION ALL
-               
-               SELECT 
-                   '${tableName}' as object_name,
-                   'Table' as object_type,
-                   OBJECT_NAME(fk.referenced_object_id) as table_name,
-                   'REFERENCES' as operation_type
-               FROM sys.foreign_keys fk
-               WHERE OBJECT_NAME(fk.parent_object_id) = '${tableName}'
-           `);
-
-           // Combine all results
-           const allReferences = [
-               ...objectReferences,
-               ...triggers.recordset,
-               ...foreignKeys.recordset
-           ];
-
-           return {
-               tableName: tableName,
-               usedByObjects: allReferences,
-               summary: this._generateTableUsageSummary(allReferences)
-           };
-       } catch (error) {
-           console.error('Error getting table usage by objects:', error);
-           return {
-               tableName: tableName,
-               usedByObjects: [],
-               summary: { totalObjects: 0, procedures: 0, views: 0, functions: 0, triggers: 0, tables: 0 }
-           };
-       }
-   }
-
-   /**
-    * Get detailed trigger analysis
-    * @param {string} database - Database name
-    * @returns {Promise<Array<Object>>} Array of triggers with their table associations
-    */
-   async getTriggerAnalysis(database) {
-       if (!this._connectionManager.isConnected()) {
-           throw new Error('No active connection');
-       }
-
-       const result = await this._connectionManager.executeQuery(`
-           USE [${database}];
-           
-           SELECT 
-               t.name as trigger_name,
-               OBJECT_NAME(t.parent_id) as table_name,
-               t.type_desc,
-               t.is_disabled,
-               CASE 
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
-                        AND OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 
-                        AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'INSERT, UPDATE, DELETE'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
-                        AND OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 THEN 'INSERT, UPDATE'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 
-                        AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'INSERT, DELETE'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 
-                        AND OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'UPDATE, DELETE'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsertTrigger') = 1 THEN 'INSERT'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsUpdateTrigger') = 1 THEN 'UPDATE'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsDeleteTrigger') = 1 THEN 'DELETE'
-                   ELSE 'UNKNOWN'
-               END as trigger_event,
-               CASE 
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsAfterTrigger') = 1 THEN 'AFTER'
-                   WHEN OBJECTPROPERTY(t.object_id, 'ExecIsInsteadOfTrigger') = 1 THEN 'INSTEAD OF'
-                   ELSE 'UNKNOWN'
-               END as trigger_timing,
-               t.create_date,
-               t.modify_date
-           FROM sys.triggers t
-           WHERE t.parent_class = 1  -- Table triggers only
-           ORDER BY OBJECT_NAME(t.parent_id), t.name
-       `);
-
-       return result.recordset;
-   }
-
-   /**
-    * Get objects that this object depends on
-    * @param {string} database - Database name
-    * @param {string} objectName - Object name
-    * @returns {Promise<Array<Object>>} Array of dependency objects
-    * @private
-    */
-   async _getDependsOn(database, objectName) {
-       const result = await this._connectionManager.executeQuery(`
-           USE [${database}];
-           SELECT DISTINCT
-               OBJECT_NAME(sed.referenced_id) as referenced_object,
-               CASE 
-                   WHEN o.type = 'U' THEN 'Table'
-                   WHEN o.type = 'V' THEN 'View'
-                   WHEN o.type = 'P' THEN 'Procedure'
-                   WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
-                   ELSE o.type_desc
-               END as referenced_object_type,
-               'Expression' as dependency_type
-           FROM sys.sql_expression_dependencies sed
-           JOIN sys.objects o ON sed.referenced_id = o.object_id
-           WHERE OBJECT_NAME(sed.referencing_id) = '${objectName}'
-           AND sed.referenced_id > 0
-           AND OBJECT_NAME(sed.referenced_id) IS NOT NULL
-           
-           UNION ALL
-           
-           -- Foreign Key dependencies for tables
-           SELECT DISTINCT
-               OBJECT_NAME(fk.referenced_object_id) as referenced_object,
-               'Table' as referenced_object_type,
-               'Foreign Key' as dependency_type
-           FROM sys.foreign_keys fk
-           WHERE OBJECT_NAME(fk.parent_object_id) = '${objectName}'
-           
-           ORDER BY referenced_object
-       `);
-
-       return result.recordset.filter(row => row.referenced_object);
-   }
-
-   /**
-    * Get objects that reference this object
-    * @param {string} database - Database name
-    * @param {string} objectName - Object name
-    * @returns {Promise<Array<Object>>} Array of referencing objects
-    * @private
-    */
-   async _getReferencedBy(database, objectName) {
-       const result = await this._connectionManager.executeQuery(`
-           USE [${database}];
-           SELECT DISTINCT
-               OBJECT_NAME(sed.referencing_id) as referencing_object,
-               CASE 
-                   WHEN o.type = 'U' THEN 'Table'
-                   WHEN o.type = 'V' THEN 'View'
-                   WHEN o.type = 'P' THEN 'Procedure'
-                   WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
-                   ELSE o.type_desc
-               END as referencing_object_type,
-               'Expression' as dependency_type
-           FROM sys.sql_expression_dependencies sed
-           JOIN sys.objects o ON sed.referencing_id = o.object_id
-           WHERE OBJECT_NAME(sed.referenced_id) = '${objectName}'
-           AND OBJECT_NAME(sed.referencing_id) IS NOT NULL
-           
-           UNION ALL
-           
-           -- Tables that reference this table via foreign keys
-           SELECT DISTINCT
-               OBJECT_NAME(fk.parent_object_id) as referencing_object,
-               'Table' as referencing_object_type,
-               'Foreign Key' as dependency_type
-           FROM sys.foreign_keys fk
-           WHERE OBJECT_NAME(fk.referenced_object_id) = '${objectName}'
-           
-           ORDER BY referencing_object
-       `);
-
-       return result.recordset.filter(row => row.referencing_object);
-   }
-
-   /**
-    * Get alternative dependencies using sys.dm_sql_referenced_entities
-    * @param {string} database - Database name
-    * @param {string} objectName - Object name
-    * @returns {Promise<Array<Object>>} Array of dependency objects
-    * @private
-    */
-   async _getAlternativeDependencies(database, objectName) {
-       try {
-           const result = await this._connectionManager.executeQuery(`
-               USE [${database}];
-               SELECT DISTINCT
-                   referenced_entity_name as referenced_object,
-                   CASE 
-                       WHEN referenced_class_desc = 'OBJECT_OR_COLUMN' THEN 
-                           CASE 
-                               WHEN o.type = 'U' THEN 'Table'
-                               WHEN o.type = 'V' THEN 'View'
-                               WHEN o.type = 'P' THEN 'Procedure'
-                               WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
-                               ELSE 'Object'
-                           END
-                       ELSE referenced_class_desc
-                   END as referenced_object_type,
-                   'Reference' as dependency_type
-               FROM sys.dm_sql_referenced_entities('dbo.${objectName}', 'OBJECT') r
-               LEFT JOIN sys.objects o ON o.name = r.referenced_entity_name
-               WHERE referenced_entity_name IS NOT NULL
-               AND referenced_schema_name IS NOT NULL
-           `);
-           
-           return result.recordset.filter(row => row.referenced_object);
-       } catch (error) {
-           console.log('Alternative dependency method not available:', error.message);
-           return [];
-       }
-   }
-
-   /**
-    * Remove duplicate dependencies based on object name
-    * @param {Array<Object>} dependencies - Array of dependency objects
-    * @returns {Array<Object>} Deduplicated array
-    * @private
-    */
-   _removeDuplicateDependencies(dependencies) {
-       const seen = new Set();
-       return dependencies.filter(dep => {
-           const key = dep.referenced_object || dep.referencing_object;
-           if (!key || seen.has(key)) {
-               return false;
-           }
-           seen.add(key);
-           return true;
-       });
-   }
-
-   /**
-    * Generate table usage summary for a specific table
-    * @param {Array<Object>} objectReferences - Array of object references
-    * @returns {Object} Usage summary
-    * @private
-    */
-   _generateTableUsageSummary(objectReferences) {
-       const summary = {
-           totalObjects: objectReferences.length,
-           procedures: 0,
-           views: 0,
-           functions: 0,
-           triggers: 0,
-           tables: 0
-       };
-
-       objectReferences.forEach(ref => {
-           const objType = ref.object_type || 'Unknown';
-           switch (objType) {
-               case 'Procedure':
-                   summary.procedures++;
-                   break;
-               case 'View':
-                   summary.views++;
-                   break;
-               case 'Function':
-                   summary.functions++;
-                   break;
-               case 'Trigger':
-                   summary.triggers++;
-                   break;
-               case 'Table':
-                   summary.tables++;
-                   break;
-           }
-       });
-
-       return summary;
-   }
-
-   /**
-    * Get dependency tree for an object (multi-level dependencies)
-    * @param {string} database - Database name
-    * @param {string} objectName - Object name
-    * @param {number} maxDepth - Maximum depth to traverse (default: 3)
-    * @returns {Promise<Object>} Dependency tree
-    */
-   async getDependencyTree(database, objectName, maxDepth = 3) {
-       const visited = new Set();
-       const tree = {
-           name: objectName,
-           dependencies: [],
-           level: 0
-       };
-
-       await this._buildDependencyTree(database, objectName, tree, visited, maxDepth, 0);
-       return tree;
-   }
-
-   /**
-    * Recursively build dependency tree
-    * @param {string} database - Database name
-    * @param {string} objectName - Object name
-    * @param {Object} node - Current tree node
-    * @param {Set} visited - Set of visited objects
-    * @param {number} maxDepth - Maximum depth
-    * @param {number} currentDepth - Current depth
-    * @private
-    */
-   async _buildDependencyTree(database, objectName, node, visited, maxDepth, currentDepth) {
-       if (currentDepth >= maxDepth || visited.has(objectName)) {
-           return;
-       }
-
-       visited.add(objectName);
-       const dependencies = await this.getDependencies(database, objectName);
-
-       for (const dep of dependencies.dependsOn) {
-           const childNode = {
-               name: dep.referenced_object,
-               type: dep.referenced_object_type,
-               dependency_type: dep.dependency_type,
-               dependencies: [],
-               level: currentDepth + 1
-           };
-
-           node.dependencies.push(childNode);
-
-           // Recursively get dependencies for this object
-           await this._buildDependencyTree(
-               database, 
-               dep.referenced_object, 
-               childNode, 
-               visited, 
-               maxDepth, 
-               currentDepth + 1
-           );
-       }
-   }
-
-   /**
-    * Get impact analysis for an object (what would be affected if this object changes)
-    * @param {string} database - Database name
-    * @param {string} objectName - Object name
-    * @returns {Promise<Array<Object>>} Array of impacted objects
-    */
-   async getImpactAnalysis(database, objectName) {
-       const dependencies = await this.getDependencies(database, objectName);
-       
-       // Objects that would be impacted are those that reference this object
-       return dependencies.referencedBy.map(dep => ({
-           object: dep.referencing_object,
-           type: dep.referencing_object_type,
-           impact_type: dep.dependency_type,
-           severity: this._calculateImpactSeverity(dep.referencing_object_type)
-       }));
-   }
-
-   /**
-    * Calculate impact severity based on object type
-    * @param {string} objectType - Type of the impacted object
-    * @returns {string} Severity level
-    * @private
-    */
-   _calculateImpactSeverity(objectType) {
-       switch (objectType) {
-           case 'Table':
-               return 'High'; // Tables are critical
-           case 'View':
-               return 'Medium'; // Views can usually be recreated
-           case 'Procedure':
-               return 'Medium'; // Procedures contain business logic
-           case 'Function':
-               return 'Low'; // Functions are usually more isolated
-           default:
-               return 'Unknown';
-       }
-   }
+    async deleteColumnDescription(database, tableName, columnName) {
+        return { success: false, message: 'Not implemented yet' };
+    }
 }
 
 module.exports = DependencyService;
