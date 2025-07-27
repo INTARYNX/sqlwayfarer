@@ -401,7 +401,6 @@ class SqlWayfarerPanel {
         try {
             console.log(`Getting objects for database: ${database}`);
             
-            // Get objects immediately (existing behavior)
             const objects = await this._databaseService.getObjects(database);
             this._panel.webview.postMessage({
                 command: 'objectsLoaded',
@@ -412,7 +411,6 @@ class SqlWayfarerPanel {
 
             // Start indexing in background with improved error handling
             if (!this._indexingInProgress) {
-                // Don't await - let it run in background
                 this._startBackgroundIndexing(database).catch(error => {
                     console.error('Background indexing setup failed:', error);
                     // Don't throw - just log the error
@@ -910,313 +908,313 @@ class SqlWayfarerPanel {
            console.error('Background indexing failed:', error);
            
            // Send error message to webview
-           this._panel.webview.postMessage({
-               command: 'indexingCompleted',
-               database: database,
-               success: false,
-               message: `Indexing failed: ${error.message}`
-           });
-
-           // Show user-friendly error message
-           const errorMsg = this._getUserFriendlyIndexingError(error);
-           vscode.window.showWarningMessage(`Database indexing failed: ${errorMsg}`, 'Retry', 'Ignore')
-               .then(selection => {
-                   if (selection === 'Retry') {
-                       // Retry indexing after a short delay
-                       setTimeout(() => {
-                           this._indexingInProgress = false;
-                           this._startBackgroundIndexing(database);
-                       }, 2000);
-                   }
-               });
-
-       } finally {
-           this._indexingInProgress = false;
-       }
-   }
-
-   /**
-    * Convert technical error to user-friendly message
-    * @private
-    */
-   _getUserFriendlyIndexingError(error) {
-       const message = error.message.toLowerCase();
-       
-       if (message.includes('getindex is not a function')) {
-           return 'Service configuration error. Please reload the extension.';
-       }
-       if (message.includes('timeout')) {
-           return 'Indexing took too long. Try with a smaller database.';
-       }
-       if (message.includes('permission denied') || message.includes('eacces')) {
-           return 'Permission denied. Check file system permissions.';
-       }
-       if (message.includes('no active connection')) {
-           return 'Database connection lost during indexing.';
-       }
-       if (message.includes('connection')) {
-           return 'Database connection issue. Please reconnect.';
-       }
-       
-       return error.message || 'Unknown indexing error';
-   }
-
-   async _handleForceReindex(database) {
-       try {
-           const targetDatabase = database || this._getCurrentDatabase();
-           if (!targetDatabase) {
-               this._sendError('No database selected for reindexing');
-               return;
-           }
-
-           if (this._indexingInProgress) {
-               this._sendError('Indexing already in progress. Please wait for completion.');
-               return;
-           }
-
-           console.log(`Force reindexing database: ${targetDatabase}`);
-
-           // CORRECTION: Vérifier que la méthode forceReindex existe
-           if (typeof this._dependencyService.forceReindex !== 'function') {
-               throw new Error('DependencyService.forceReindex method is not available');
-           }
-
-           this._indexingInProgress = true;
-
-           // Send starting message
-           this._panel.webview.postMessage({
-               command: 'indexingStarted',
-               database: targetDatabase,
-               forced: true
-           });
-
-           // Progress callback
-           const progressCallback = (progress) => {
-               try {
-                   this._panel.webview.postMessage({
-                       command: 'indexingProgress',
-                       database: targetDatabase,
-                       progress: progress.progress,
-                       current: progress.current,
-                       total: progress.total,
-                       message: progress.message
-                   });
-               } catch (err) {
-                   console.error('Error sending reindex progress:', err);
-               }
-           };
-
-           // Force reindex with timeout
-           const reindexTimeout = 600000; // 10 minutes for force reindex
-           const reindexPromise = this._dependencyService.forceReindex(targetDatabase, progressCallback);
-           
-           const timeoutPromise = new Promise((_, reject) => {
-               setTimeout(() => reject(new Error('Force reindex timeout after 10 minutes')), reindexTimeout);
-           });
-
-           await Promise.race([reindexPromise, timeoutPromise]);
-
-           // Send completion message
-           this._panel.webview.postMessage({
-               command: 'indexingCompleted',
-               database: targetDatabase,
-               success: true,
-               forced: true,
-               message: 'Database reindexing completed successfully'
-           });
-
-           console.log(`Force reindexing completed successfully for database: ${targetDatabase}`);
-
-       } catch (error) {
-           console.error('Force reindexing failed:', error);
-           
-           this._panel.webview.postMessage({
+            this._panel.webview.postMessage({
               command: 'indexingCompleted',
               database: database,
               success: false,
-              forced: true,
-              message: `Reindexing failed: ${error.message}`
+              message: `Indexing failed: ${error.message}`
           });
 
+          // Show user-friendly error message
           const errorMsg = this._getUserFriendlyIndexingError(error);
-          vscode.window.showErrorMessage(`Force reindexing failed: ${errorMsg}`);
+          vscode.window.showWarningMessage(`Database indexing failed: ${errorMsg}`, 'Retry', 'Ignore')
+              .then(selection => {
+                  if (selection === 'Retry') {
+                      // Retry indexing after a short delay
+                      setTimeout(() => {
+                          this._indexingInProgress = false;
+                          this._startBackgroundIndexing(database);
+                      }, 2000);
+                  }
+              });
 
       } finally {
           this._indexingInProgress = false;
       }
   }
 
-  async _handleCancelIndexing() {
-      try {
-          console.log('Canceling indexing operation');
-          
-          // Set flag to stop indexing
-          this._indexingInProgress = false;
-          
-          // CORRECTION: Vérifier si la méthode clearIndex existe
-          if (this._currentSelectedDatabase && 
-              typeof this._dependencyService.clearIndex === 'function') {
-              try {
-                  await this._dependencyService.clearIndex(this._currentSelectedDatabase);
-                  console.log('Index cleared during cancellation');
-              } catch (clearError) {
-                  console.warn('Error clearing index during cancellation:', clearError);
-              }
-          }
-
-          this._panel.webview.postMessage({
-              command: 'indexingCancelled',
-              message: 'Indexing operation cancelled',
-              success: true
-          });
-
-      } catch (error) {
-          console.error('Error cancelling indexing:', error);
-          this._panel.webview.postMessage({
-              command: 'indexingCancelled',
-              message: `Error cancelling indexing: ${error.message}`,
-              success: false
-          });
+  /**
+   * Convert technical error to user-friendly message
+   * @private
+   */
+  _getUserFriendlyIndexingError(error) {
+      const message = error.message.toLowerCase();
+      
+      if (message.includes('getindex is not a function')) {
+          return 'Service configuration error. Please reload the extension.';
       }
+      if (message.includes('timeout')) {
+          return 'Indexing took too long. Try with a smaller database.';
+      }
+      if (message.includes('permission denied') || message.includes('eacces')) {
+          return 'Permission denied. Check file system permissions.';
+      }
+      if (message.includes('no active connection')) {
+          return 'Database connection lost during indexing.';
+      }
+      if (message.includes('connection')) {
+          return 'Database connection issue. Please reconnect.';
+      }
+      
+      return error.message || 'Unknown indexing error';
   }
 
-  async _handleGetIndexStats(database) {
+  async _handleForceReindex(database) {
       try {
           const targetDatabase = database || this._getCurrentDatabase();
           if (!targetDatabase) {
-              this._sendError('No database selected');
+              this._sendError('No database selected for reindexing');
               return;
           }
 
-          console.log(`Getting index stats for database: ${targetDatabase}`);
-
-          // Check if we have index service available
-          let stats = {
-              exists: false,
-              objectCount: 0,
-              lastIndexed: null,
-              indexingInProgress: this._indexingInProgress
-          };
-
-          // CORRECTION: Vérifier l'existence des méthodes avant de les utiliser
-          if (this._dependencyService && 
-              typeof this._dependencyService.getIndex === 'function') {
-              try {
-                  // Try to get basic index info without triggering full indexing
-                  // This is a simplified approach - you might want to add a specific getIndexStats method
-                  stats.exists = true;
-                  stats.lastIndexed = new Date().toISOString();
-                  console.log('Index service is available');
-              } catch (indexError) {
-                  console.warn('Index service available but index not accessible:', indexError);
-                  stats.exists = false;
-              }
-          } else {
-              console.warn('Index service or getIndex method not available');
+          if (this._indexingInProgress) {
+              this._sendError('Indexing already in progress. Please wait for completion.');
+              return;
           }
 
+          console.log(`Force reindexing database: ${targetDatabase}`);
+
+          // CORRECTION: Vérifier que la méthode forceReindex existe
+          if (typeof this._dependencyService.forceReindex !== 'function') {
+              throw new Error('DependencyService.forceReindex method is not available');
+          }
+
+          this._indexingInProgress = true;
+
+          // Send starting message
           this._panel.webview.postMessage({
-              command: 'indexStatsResult',
+              command: 'indexingStarted',
               database: targetDatabase,
-              stats: stats
+              forced: true
           });
 
-      } catch (error) {
-          console.error('Error getting index stats:', error);
-          this._sendError(`Failed to get index stats: ${error.message}`);
-      }
-  }
-
-  // UTILITY METHODS
-  _getCurrentDatabase() {
-      return this._currentSelectedDatabase || 'master';
-  }
-
-  _sendError(message) {
-      this._panel.webview.postMessage({
-          command: 'error',
-          message: message
-      });
-  }
-
-  _update() {
-      this._panel.title = 'SQL Wayfarer';
-      this._panel.webview.html = this._getHtmlForWebview();
-  }
-
-  _getHtmlForWebview() {
-      const stylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'styles.css'));
-      const tabManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tabManager.js'));
-      const connectionManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'connectionManager.js'));
-      const tableUsageManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js'));
-      const commentsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js'));
-      const extendedEventsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js'));
-      const commentsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'comments.css'));
-      const extendedEventsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEvents.css'));
-      const tableUsageStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsage.css'));
-      const mainScriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js'));
-
-      const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
-      let html = fs.readFileSync(htmlPath, 'utf8');
-
-      html = html.replace('{{STYLES_URI}}', stylesUri.toString());
-      html = html.replace('{{COMMENTS_STYLES_URI}}', commentsStylesUri.toString());
-      html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', extendedEventsStylesUri.toString());
-      html = html.replace('{{TABLE_USAGE_STYLES_URI}}', tableUsageStylesUri.toString());
-      html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
-      html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
-      html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
-      html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
-      html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', extendedEventsManagerUri.toString());
-      html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
-
-      return html;
-  }
-
-  async dispose() {
-      SqlWayfarerPanel.currentPanel = undefined;
-      this._panel.dispose();
-
-      // Clean up indexing
-      this._indexingInProgress = false;
-      if (this._dependencyService && this._currentSelectedDatabase) {
-          try {
-              if (typeof this._dependencyService.clearIndex === 'function') {
-                  await this._dependencyService.clearIndex(this._currentSelectedDatabase);
-              }
-          } catch (error) {
-              console.warn('Error clearing index during disposal:', error);
-          }
-      }
-
-      if (this._extendedEventsService) {
-          try {
-              await this._extendedEventsService.dispose();
-          } catch (error) {
-              console.warn('Error disposing extended events service:', error);
-          }
-      }
-      
-      if (this._connectionManager) {
-          try {
-              await this._connectionManager.dispose();
-          } catch (error) {
-              console.warn('Error disposing connection manager:', error);
-          }
-      }
-
-      while (this._disposables.length) {
-          const x = this._disposables.pop();
-          if (x) {
+          // Progress callback
+          const progressCallback = (progress) => {
               try {
-                  x.dispose();
-              } catch (error) {
-                  console.warn('Error disposing resource:', error);
+                  this._panel.webview.postMessage({
+                      command: 'indexingProgress',
+                      database: targetDatabase,
+                      progress: progress.progress,
+                      current: progress.current,
+                      total: progress.total,
+                      message: progress.message
+                  });
+              } catch (err) {
+                  console.error('Error sending reindex progress:', err);
               }
-          }
-      }
-  }
+          };
+
+          // Force reindex with timeout
+          const reindexTimeout = 600000; // 10 minutes for force reindex
+          const reindexPromise = this._dependencyService.forceReindex(targetDatabase, progressCallback);
+          
+          const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Force reindex timeout after 10 minutes')), reindexTimeout);
+          });
+
+          await Promise.race([reindexPromise, timeoutPromise]);
+
+          // Send completion message
+          this._panel.webview.postMessage({
+              command: 'indexingCompleted',
+              database: targetDatabase,
+              success: true,
+              forced: true,
+              message: 'Database reindexing completed successfully'
+          });
+
+          console.log(`Force reindexing completed successfully for database: ${targetDatabase}`);
+
+      } catch (error) {
+          console.error('Force reindexing failed:', error);
+          
+          this._panel.webview.postMessage({
+             command: 'indexingCompleted',
+             database: database,
+             success: false,
+             forced: true,
+             message: `Reindexing failed: ${error.message}`
+         });
+
+         const errorMsg = this._getUserFriendlyIndexingError(error);
+         vscode.window.showErrorMessage(`Force reindexing failed: ${errorMsg}`);
+
+     } finally {
+         this._indexingInProgress = false;
+     }
+ }
+
+ async _handleCancelIndexing() {
+     try {
+         console.log('Canceling indexing operation');
+         
+         // Set flag to stop indexing
+         this._indexingInProgress = false;
+         
+         // CORRECTION: Vérifier si la méthode clearIndex existe
+         if (this._currentSelectedDatabase && 
+             typeof this._dependencyService.clearIndex === 'function') {
+             try {
+                 await this._dependencyService.clearIndex(this._currentSelectedDatabase);
+                 console.log('Index cleared during cancellation');
+             } catch (clearError) {
+                 console.warn('Error clearing index during cancellation:', clearError);
+             }
+         }
+
+         this._panel.webview.postMessage({
+             command: 'indexingCancelled',
+             message: 'Indexing operation cancelled',
+             success: true
+         });
+
+     } catch (error) {
+         console.error('Error cancelling indexing:', error);
+         this._panel.webview.postMessage({
+             command: 'indexingCancelled',
+             message: `Error cancelling indexing: ${error.message}`,
+             success: false
+         });
+     }
+ }
+
+ async _handleGetIndexStats(database) {
+     try {
+         const targetDatabase = database || this._getCurrentDatabase();
+         if (!targetDatabase) {
+             this._sendError('No database selected');
+             return;
+         }
+
+         console.log(`Getting index stats for database: ${targetDatabase}`);
+
+         // Check if we have index service available
+         let stats = {
+             exists: false,
+             objectCount: 0,
+             lastIndexed: null,
+             indexingInProgress: this._indexingInProgress
+         };
+
+         // CORRECTION: Vérifier l'existence des méthodes avant de les utiliser
+         if (this._dependencyService && 
+             typeof this._dependencyService.getIndex === 'function') {
+             try {
+                 // Try to get basic index info without triggering full indexing
+                 // This is a simplified approach - you might want to add a specific getIndexStats method
+                 stats.exists = true;
+                 stats.lastIndexed = new Date().toISOString();
+                 console.log('Index service is available');
+             } catch (indexError) {
+                 console.warn('Index service available but index not accessible:', indexError);
+                 stats.exists = false;
+             }
+         } else {
+             console.warn('Index service or getIndex method not available');
+         }
+
+         this._panel.webview.postMessage({
+             command: 'indexStatsResult',
+             database: targetDatabase,
+             stats: stats
+         });
+
+     } catch (error) {
+         console.error('Error getting index stats:', error);
+         this._sendError(`Failed to get index stats: ${error.message}`);
+     }
+ }
+
+ // UTILITY METHODS
+ _getCurrentDatabase() {
+     return this._currentSelectedDatabase || 'master';
+ }
+
+ _sendError(message) {
+     this._panel.webview.postMessage({
+         command: 'error',
+         message: message
+     });
+ }
+
+ _update() {
+     this._panel.title = 'SQL Wayfarer';
+     this._panel.webview.html = this._getHtmlForWebview();
+ }
+
+ _getHtmlForWebview() {
+     const stylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'styles.css'));
+     const tabManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tabManager.js'));
+     const connectionManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'connectionManager.js'));
+     const tableUsageManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js'));
+     const commentsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js'));
+     const extendedEventsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js'));
+     const commentsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'comments.css'));
+     const extendedEventsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEvents.css'));
+     const tableUsageStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsage.css'));
+     const mainScriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js'));
+
+     const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
+     let html = fs.readFileSync(htmlPath, 'utf8');
+
+     html = html.replace('{{STYLES_URI}}', stylesUri.toString());
+     html = html.replace('{{COMMENTS_STYLES_URI}}', commentsStylesUri.toString());
+     html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', extendedEventsStylesUri.toString());
+     html = html.replace('{{TABLE_USAGE_STYLES_URI}}', tableUsageStylesUri.toString());
+     html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
+     html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
+     html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
+     html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
+     html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', extendedEventsManagerUri.toString());
+     html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
+
+     return html;
+ }
+
+ async dispose() {
+     SqlWayfarerPanel.currentPanel = undefined;
+     this._panel.dispose();
+
+     // Clean up indexing
+     this._indexingInProgress = false;
+     if (this._dependencyService && this._currentSelectedDatabase) {
+         try {
+             if (typeof this._dependencyService.clearIndex === 'function') {
+                 await this._dependencyService.clearIndex(this._currentSelectedDatabase);
+             }
+         } catch (error) {
+             console.warn('Error clearing index during disposal:', error);
+         }
+     }
+
+     if (this._extendedEventsService) {
+         try {
+             await this._extendedEventsService.dispose();
+         } catch (error) {
+             console.warn('Error disposing extended events service:', error);
+         }
+     }
+     
+     if (this._connectionManager) {
+         try {
+             await this._connectionManager.dispose();
+         } catch (error) {
+             console.warn('Error disposing connection manager:', error);
+         }
+     }
+
+     while (this._disposables.length) {
+         const x = this._disposables.pop();
+         if (x) {
+             try {
+                 x.dispose();
+             } catch (error) {
+                 console.warn('Error disposing resource:', error);
+             }
+         }
+     }
+ }
 }
 
 SqlWayfarerPanel.currentPanel = undefined;
-module.exports = SqlWayfarerPanel;
+module.exports = SqlWayfarerPanel;           

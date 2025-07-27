@@ -428,7 +428,7 @@ class FilterManager {
     }
 }
 
-// ExplorerManager class with enhanced schema support
+// ExplorerManager class with enhanced schema support and object name utilities
 class ExplorerManager {
     constructor() {
         this.initDOMElements();
@@ -447,6 +447,17 @@ class ExplorerManager {
 
     initEventListeners() {
         this.elements.databaseSelect.addEventListener('change', () => this.handleDatabaseChange());
+    }
+
+    // UTILITY METHODS FOR CONSISTENT OBJECT NAME HANDLING
+    _getQualifiedName(obj) {
+        // Always return the qualified name for backend operations
+        return obj.qualified_name || obj.name;
+    }
+
+    _getDisplayName(obj) {
+        // Always return the display name for UI
+        return obj.name;
     }
 
     handleDatabaseChange() {
@@ -501,32 +512,32 @@ class ExplorerManager {
         element.classList.add('selected');
         appState.selectedObject = obj;
         
-        // Use qualified_name for backend operations, display_name for UI
-        const objectNameForBackend = obj.qualified_name || obj.name;
+        // USE UTILITY METHOD:
+        const objectNameForBackend = this._getQualifiedName(obj);
         
-        console.log(`Selected object: ${obj.name} (qualified: ${objectNameForBackend})`);
+        console.log(`Selected object: ${this._getDisplayName(obj)} (qualified: ${objectNameForBackend})`);
         
         // Load details for structure tab
         if (obj.object_type === 'Table') {
             vscode.postMessage({
                 command: 'getTableDetails',
                 database: appState.currentDatabase,
-                table: objectNameForBackend  // Use qualified name
+                table: objectNameForBackend
             });
         } else {
             vscode.postMessage({
                 command: 'getObjectDetails',
                 database: appState.currentDatabase,
-                objectName: objectNameForBackend,  // Use qualified name
+                objectName: objectNameForBackend,
                 objectType: obj.object_type
             });
         }
 
-        // Load comments if comments tab is active - use qualified name
+        // Load comments if comments tab is active
         if (appState.activeDetailsTab === 'comments') {
             window.commentsManager.loadCommentsForObject(
                 appState.currentDatabase,
-                objectNameForBackend,  // Use qualified name
+                objectNameForBackend,
                 obj.object_type
             );
         }
@@ -537,616 +548,616 @@ class ExplorerManager {
         
         appState.pendingVisualization = objectName;
         
-        if (appState.selectedObject && appState.selectedObject.name === objectName && appState.currentDependencies) {
+        if (appState.selectedObject && this._getDisplayName(appState.selectedObject) === objectName && appState.currentDependencies) {
             this.dependencyVisualizer.showDependencyVisualization(objectName, appState.currentDependencies);
         } else {
             // Find the object to get its qualified name
-            const obj = appState.allObjects.find(o => o.name === objectName);
-            const qualifiedName = obj ? (obj.qualified_name || obj.name) : objectName;
+            const obj = appState.allObjects.find(o => this._getDisplayName(o) === objectName);
+            const qualifiedName = obj ? this._getQualifiedName(obj) : objectName;
             
             vscode.postMessage({
                 command: 'getObjectDetails',
                 database: appState.currentDatabase,
-                objectName: qualifiedName,  // Use qualified name
+                objectName: qualifiedName,
                 objectType: 'Object'
             });
         }
     }
 
     onDatabasesLoaded(databases) {
-        this.elements.databaseSelect.disabled = false;
-        this.elements.databaseSelect.innerHTML = '<option value="">Select a database...</option>';
-        
-        databases.forEach(db => {
-            const option = document.createElement('option');
-            option.value = db;
-            option.textContent = db;
-            this.elements.databaseSelect.appendChild(option);
-        });
-    }
+       this.elements.databaseSelect.disabled = false;
+       this.elements.databaseSelect.innerHTML = '<option value="">Select a database...</option>';
+       
+       databases.forEach(db => {
+           const option = document.createElement('option');
+           option.value = db;
+           option.textContent = db;
+           this.elements.databaseSelect.appendChild(option);
+       });
+   }
 
-    onObjectsLoaded(objects) {
-        appState.allObjects = objects;
-        appState.filteredObjects = objects;
-        this.displayObjects(objects);
-        this.filterManager.enableFilters();
-        this.filterManager.updateObjectCount();
-    }
+   onObjectsLoaded(objects) {
+       appState.allObjects = objects;
+       appState.filteredObjects = objects;
+       this.displayObjects(objects);
+       this.filterManager.enableFilters();
+       this.filterManager.updateObjectCount();
+   }
 
-    displayObjects(objects) {
-        this.elements.objectList.innerHTML = '';
-        
-        if (objects.length === 0) {
-            this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
-            return;
-        }
-        
-        // Group objects by schema for better organization
-        const objectsBySchema = this._groupObjectsBySchema(objects);
-        
-        // Display objects grouped by schema
-        Object.keys(objectsBySchema).sort().forEach(schema => {
-            // Add schema header if not dbo or if there are multiple schemas
-            if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
-                const schemaHeader = document.createElement('div');
-                schemaHeader.className = 'schema-header';
-                schemaHeader.innerHTML = `
-                    <span class="schema-name">📁 ${schema}</span>
-                    <span class="schema-count">(${objectsBySchema[schema].length})</span>
-                `;
-                this.elements.objectList.appendChild(schemaHeader);
-            }
-            
-            // Add objects for this schema - NO SCHEMA INDICATOR since it's already in the header
-            objectsBySchema[schema].forEach(obj => {
-                const div = document.createElement('div');
-                div.className = 'object-item';
-                
-                // Show only object name (without schema) since it's already in the header
-                const objectDisplayName = obj.object_name || obj.name.split('.').pop();
-                
-                const nameSpan = document.createElement('span');
-                nameSpan.innerHTML = `${objectDisplayName}<span class="object-type">(${obj.object_type})</span>`;
-                
-                const vizBtn = document.createElement('button');
-                vizBtn.className = 'viz-object-btn';
-                vizBtn.textContent = 'Graph';
-                vizBtn.onclick = (e) => this.handleShowDependencies(obj.name, e);
-                
-                div.appendChild(nameSpan);
-                div.appendChild(vizBtn);
-                div.dataset.name = obj.name;
-                div.dataset.qualifiedName = obj.qualified_name || obj.name;
-                div.dataset.type = obj.object_type;
-                div.dataset.schema = obj.schema_name || 'dbo';
-                
-                div.addEventListener('click', () => this.handleObjectClick(div, obj));
-                
-                this.elements.objectList.appendChild(div);
-            });
-        });
-    }
+   displayObjects(objects) {
+       this.elements.objectList.innerHTML = '';
+       
+       if (objects.length === 0) {
+           this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
+           return;
+       }
+       
+       // Group objects by schema for better organization
+       const objectsBySchema = this._groupObjectsBySchema(objects);
+       
+       // Display objects grouped by schema
+       Object.keys(objectsBySchema).sort().forEach(schema => {
+           // Add schema header if not dbo or if there are multiple schemas
+           if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
+               const schemaHeader = document.createElement('div');
+               schemaHeader.className = 'schema-header';
+               schemaHeader.innerHTML = `
+                   <span class="schema-name">📁 ${schema}</span>
+                   <span class="schema-count">(${objectsBySchema[schema].length})</span>
+               `;
+               this.elements.objectList.appendChild(schemaHeader);
+           }
+           
+           // Add objects for this schema - NO SCHEMA INDICATOR since it's already in the header
+           objectsBySchema[schema].forEach(obj => {
+               const div = document.createElement('div');
+               div.className = 'object-item';
+               
+               // Show only object name (without schema) since it's already in the header
+               const objectDisplayName = obj.object_name || obj.name.split('.').pop();
+               
+               const nameSpan = document.createElement('span');
+               nameSpan.innerHTML = `${objectDisplayName}<span class="object-type">(${obj.object_type})</span>`;
+               
+               const vizBtn = document.createElement('button');
+               vizBtn.className = 'viz-object-btn';
+               vizBtn.textContent = 'Graph';
+               vizBtn.onclick = (e) => this.handleShowDependencies(obj.name, e);
+               
+               div.appendChild(nameSpan);
+               div.appendChild(vizBtn);
+               div.dataset.name = obj.name;
+               div.dataset.qualifiedName = obj.qualified_name || obj.name;
+               div.dataset.type = obj.object_type;
+               div.dataset.schema = obj.schema_name || 'dbo';
+               
+               div.addEventListener('click', () => this.handleObjectClick(div, obj));
+               
+               this.elements.objectList.appendChild(div);
+           });
+       });
+   }
 
-    /**
-     * Group objects by schema for better display organization
-     * @private
-     */
-    _groupObjectsBySchema(objects) {
-        const grouped = {};
-        
-        objects.forEach(obj => {
-            const schema = obj.schema_name || 'dbo';
-            if (!grouped[schema]) {
-                grouped[schema] = [];
-            }
-            grouped[schema].push(obj);
-        });
-        
-        // Sort objects within each schema by type then name
-        Object.keys(grouped).forEach(schema => {
-            grouped[schema].sort((a, b) => {
-                // First by type
-                if (a.object_type !== b.object_type) {
-                    return a.object_type.localeCompare(b.object_type);
-                }
-                // Then by name
-                return a.name.localeCompare(b.name);
-            });
-        });
-        
-        return grouped;
-    }
+   /**
+    * Group objects by schema for better display organization
+    * @private
+    */
+   _groupObjectsBySchema(objects) {
+       const grouped = {};
+       
+       objects.forEach(obj => {
+           const schema = obj.schema_name || 'dbo';
+           if (!grouped[schema]) {
+               grouped[schema] = [];
+           }
+           grouped[schema].push(obj);
+       });
+       
+       // Sort objects within each schema by type then name
+       Object.keys(grouped).forEach(schema => {
+           grouped[schema].sort((a, b) => {
+               // First by type
+               if (a.object_type !== b.object_type) {
+                   return a.object_type.localeCompare(b.object_type);
+               }
+               // Then by name
+               return a.name.localeCompare(b.name);
+           });
+       });
+       
+       return grouped;
+   }
 
-    onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
-        console.log(`Table details loaded for: ${tableName}`);
-        console.log('Columns:', columns);
-        console.log('Indexes:', indexes);
-        console.log('Foreign Keys:', foreignKeys);
-        console.log('Dependencies:', dependencies);
-        
-        appState.currentDependencies = dependencies;
-        
-        const html = [
-            `<div class="section-header">Table: ${this.escapeHtml(tableName)}</div>`,
-            this.buildColumnsTable(columns),
-            this.buildIndexesTable(indexes),
-            this.buildForeignKeysTable(foreignKeys),
-            this.buildDependenciesSection(dependencies)
-        ].join('');
-        
-        this.elements.detailsContent.innerHTML = html;
-        this.checkPendingVisualization(tableName, dependencies);
-    }
+   onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
+       console.log(`Table details loaded for: ${tableName}`);
+       console.log('Columns:', columns);
+       console.log('Indexes:', indexes);
+       console.log('Foreign Keys:', foreignKeys);
+       console.log('Dependencies:', dependencies);
+       
+       appState.currentDependencies = dependencies;
+       
+       const html = [
+           `<div class="section-header">Table: ${this.escapeHtml(tableName)}</div>`,
+           this.buildColumnsTable(columns),
+           this.buildIndexesTable(indexes),
+           this.buildForeignKeysTable(foreignKeys),
+           this.buildDependenciesSection(dependencies)
+       ].join('');
+       
+       this.elements.detailsContent.innerHTML = html;
+       this.checkPendingVisualization(tableName, dependencies);
+   }
 
-    onObjectDetailsLoaded(objectName, objectType, dependencies, definition) {
-        console.log(`Object details loaded for: ${objectName} (${objectType})`);
-        console.log('Dependencies:', dependencies);
-        console.log('Definition length:', definition ? definition.length : 0);
-        
-        appState.currentDependencies = dependencies;
-        
-        let html = `<div class="section-header">${objectType}: ${this.escapeHtml(objectName)}</div>`;
-        
-        if (definition) {
-            html += this.buildDefinitionSection(definition);
-        }
-        
-        html += this.buildDependenciesSection(dependencies);
-        
-        this.elements.detailsContent.innerHTML = html;
-        this.checkPendingVisualization(objectName, dependencies);
-    }
+   onObjectDetailsLoaded(objectName, objectType, dependencies, definition) {
+       console.log(`Object details loaded for: ${objectName} (${objectType})`);
+       console.log('Dependencies:', dependencies);
+       console.log('Definition length:', definition ? definition.length : 0);
+       
+       appState.currentDependencies = dependencies;
+       
+       let html = `<div class="section-header">${objectType}: ${this.escapeHtml(objectName)}</div>`;
+       
+       if (definition) {
+           html += this.buildDefinitionSection(definition);
+       }
+       
+       html += this.buildDependenciesSection(dependencies);
+       
+       this.elements.detailsContent.innerHTML = html;
+       this.checkPendingVisualization(objectName, dependencies);
+   }
 
-    checkPendingVisualization(objectName, dependencies) {
-        if (appState.pendingVisualization === objectName) {
-            appState.pendingVisualization = null;
-            setTimeout(() => {
-                this.dependencyVisualizer.showDependencyVisualization(objectName, dependencies);
-            }, 100);
-        }
-    }
+   checkPendingVisualization(objectName, dependencies) {
+       if (appState.pendingVisualization === objectName) {
+           appState.pendingVisualization = null;
+           setTimeout(() => {
+               this.dependencyVisualizer.showDependencyVisualization(objectName, dependencies);
+           }, 100);
+       }
+   }
 
-    buildColumnsTable(columns) {
-        if (!columns || columns.length === 0) {
-            return '<h3>Columns</h3><p>No columns found.</p>';
-        }
+   buildColumnsTable(columns) {
+       if (!columns || columns.length === 0) {
+           return '<h3>Columns</h3><p>No columns found.</p>';
+       }
 
-        let html = '<h3>Columns</h3>';
-        html += `<table>
-            <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Nullable</th>
-                <th>Default</th>
-                <th>Length</th>
-                <th>Extra</th>
-            </tr>`;
-        
-        columns.forEach(col => {
-            // Build extra info (identity, computed, etc.)
-            const extraInfo = [];
-            if (col.IS_IDENTITY) extraInfo.push('IDENTITY');
-            if (col.IS_COMPUTED) extraInfo.push('COMPUTED');
-            
-            // Build type display with precision/scale
-            let typeDisplay = col.DATA_TYPE;
-            if (col.CHARACTER_MAXIMUM_LENGTH) {
-                typeDisplay += `(${col.CHARACTER_MAXIMUM_LENGTH})`;
-            } else if (col.NUMERIC_PRECISION && col.NUMERIC_SCALE !== undefined) {
-                typeDisplay += `(${col.NUMERIC_PRECISION},${col.NUMERIC_SCALE})`;
-            }
-            
-            html += `<tr>
-                <td><strong>${this.escapeHtml(col.COLUMN_NAME)}</strong></td>
-                <td><code>${this.escapeHtml(typeDisplay)}</code></td>
-                <td>${col.IS_NULLABLE}</td>
-                <td>${this.escapeHtml(col.COLUMN_DEFAULT || '')}</td>
-                <td>${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
-                <td>${extraInfo.join(', ')}</td>
-            </tr>`;
-        });
-        
-        html += '</table>';
-        return html;
-    }
+       let html = '<h3>Columns</h3>';
+       html += `<table>
+           <tr>
+               <th>Name</th>
+               <th>Type</th>
+               <th>Nullable</th>
+               <th>Default</th>
+               <th>Length</th>
+               <th>Extra</th>
+           </tr>`;
+       
+       columns.forEach(col => {
+           // Build extra info (identity, computed, etc.)
+           const extraInfo = [];
+           if (col.IS_IDENTITY) extraInfo.push('IDENTITY');
+           if (col.IS_COMPUTED) extraInfo.push('COMPUTED');
+           
+           // Build type display with precision/scale
+           let typeDisplay = col.DATA_TYPE;
+           if (col.CHARACTER_MAXIMUM_LENGTH) {
+               typeDisplay += `(${col.CHARACTER_MAXIMUM_LENGTH})`;
+           } else if (col.NUMERIC_PRECISION && col.NUMERIC_SCALE !== undefined) {
+               typeDisplay += `(${col.NUMERIC_PRECISION},${col.NUMERIC_SCALE})`;
+           }
+           
+           html += `<tr>
+               <td><strong>${this.escapeHtml(col.COLUMN_NAME)}</strong></td>
+               <td><code>${this.escapeHtml(typeDisplay)}</code></td>
+               <td>${col.IS_NULLABLE}</td>
+               <td>${this.escapeHtml(col.COLUMN_DEFAULT || '')}</td>
+               <td>${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
+               <td>${extraInfo.join(', ')}</td>
+           </tr>`;
+       });
+       
+       html += '</table>';
+       return html;
+   }
 
-    buildIndexesTable(indexes) {
-        let html = '<h3>Indexes</h3>';
-        
-        if (indexes && indexes.length > 0) {
-            html += '<table><tr><th>Name</th><th>Type & Properties</th><th>Columns</th><th>Details</th></tr>';
-            
-            indexes.forEach(idx => {
-                let badges = '';
-                
-                // Primary Key badge
-                if (idx.is_primary_key === true || idx.is_primary_key === 1) {
-                    badges += '<span class="index-badge index-primary">Primary Key</span>';
-                }
-                
-                // Unique badge
-                if (idx.is_unique === true || idx.is_unique === 1) {
-                    badges += '<span class="index-badge index-unique">Unique</span>';
-                }
-                
-                // Unique constraint badge
-                if (idx.is_unique_constraint === true || idx.is_unique_constraint === 1) {
-                    badges += '<span class="index-badge index-unique">Unique Constraint</span>';
-                }
-                
-                // Clustered/NonClustered badge
-                if (idx.type_desc) {
-                    const typeDesc = idx.type_desc.toLowerCase();
-                    if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
-                        badges += '<span class="index-badge index-clustered">Clustered</span>';
-                    } else if (typeDesc.includes('nonclustered')) {
-                        badges += '<span class="index-badge index-normal">NonClustered</span>';
-                    }
-                }
-                
-                // If no badges were added, add a default one
-                if (!badges) {
-                    badges = '<span class="index-badge index-normal">Index</span>';
-                }
-                
-                // Build details
-                const details = [];
-                if (idx.fill_factor && idx.fill_factor !== 0) {
-                    details.push(`Fill Factor: ${idx.fill_factor}%`);
-                }
-                if (idx.has_filter) {
-                    details.push(`Filtered: ${idx.filter_definition || 'Yes'}`);
-                }
-                
-                html += `<tr>
-                    <td><strong>${this.escapeHtml(idx.index_name)}</strong></td>
-                    <td>${badges}</td>
-                    <td><code style="background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 2px;">${this.escapeHtml(idx.columns)}</code></td>
-                    <td><small>${details.join('<br>')}</small></td>
-                </tr>`;
-            });
-            
-            html += '</table>';
-        } else {
-            html += '<p>No indexes found.</p>';
-        }
-        
-        return html;
-    }
+   buildIndexesTable(indexes) {
+       let html = '<h3>Indexes</h3>';
+       
+       if (indexes && indexes.length > 0) {
+           html += '<table><tr><th>Name</th><th>Type & Properties</th><th>Columns</th><th>Details</th></tr>';
+           
+           indexes.forEach(idx => {
+               let badges = '';
+               
+               // Primary Key badge
+               if (idx.is_primary_key === true || idx.is_primary_key === 1) {
+                   badges += '<span class="index-badge index-primary">Primary Key</span>';
+               }
+               
+               // Unique badge
+               if (idx.is_unique === true || idx.is_unique === 1) {
+                   badges += '<span class="index-badge index-unique">Unique</span>';
+               }
+               
+               // Unique constraint badge
+               if (idx.is_unique_constraint === true || idx.is_unique_constraint === 1) {
+                   badges += '<span class="index-badge index-unique">Unique Constraint</span>';
+               }
+               
+               // Clustered/NonClustered badge
+               if (idx.type_desc) {
+                   const typeDesc = idx.type_desc.toLowerCase();
+                   if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
+                       badges += '<span class="index-badge index-clustered">Clustered</span>';
+                   } else if (typeDesc.includes('nonclustered')) {
+                       badges += '<span class="index-badge index-normal">NonClustered</span>';
+                   }
+               }
+               
+               // If no badges were added, add a default one
+               if (!badges) {
+                   badges = '<span class="index-badge index-normal">Index</span>';
+               }
+               
+               // Build details
+               const details = [];
+               if (idx.fill_factor && idx.fill_factor !== 0) {
+                   details.push(`Fill Factor: ${idx.fill_factor}%`);
+               }
+               if (idx.has_filter) {
+                   details.push(`Filtered: ${idx.filter_definition || 'Yes'}`);
+               }
+               
+               html += `<tr>
+                   <td><strong>${this.escapeHtml(idx.index_name)}</strong></td>
+                   <td>${badges}</td>
+                   <td><code style="background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 2px;">${this.escapeHtml(idx.columns)}</code></td>
+                   <td><small>${details.join('<br>')}</small></td>
+               </tr>`;
+           });
+           
+           html += '</table>';
+       } else {
+           html += '<p>No indexes found.</p>';
+       }
+       
+       return html;
+   }
 
-    buildForeignKeysTable(foreignKeys) {
-        let html = '<h3>Foreign Keys</h3>';
-        
-        if (foreignKeys && foreignKeys.length > 0) {
-            html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th><th>Actions</th></tr>';
-            
-            foreignKeys.forEach(fk => {
-                const actions = [];
-                if (fk.delete_referential_action_desc && fk.delete_referential_action_desc !== 'NO_ACTION') {
-                    actions.push(`ON DELETE ${fk.delete_referential_action_desc}`);
-                }
-                if (fk.update_referential_action_desc && fk.update_referential_action_desc !== 'NO_ACTION') {
-                    actions.push(`ON UPDATE ${fk.update_referential_action_desc}`);
-                }
-                
-                html += `<tr>
-                    <td>${this.escapeHtml(fk.fk_name)}</td>
-                    <td><strong>${this.escapeHtml(fk.column_name)}</strong></td>
-                    <td>${this.escapeHtml(fk.referenced_table)}</td>
-                    <td><strong>${this.escapeHtml(fk.referenced_column)}</strong></td>
-                    <td><small>${actions.join('<br>')}</small></td>
-                </tr>`;
-            });
-            
-            html += '</table>';
-        } else {
-            html += '<p>No foreign keys found.</p>';
-        }
-        
-        return html;
-    }
+   buildForeignKeysTable(foreignKeys) {
+       let html = '<h3>Foreign Keys</h3>';
+       
+       if (foreignKeys && foreignKeys.length > 0) {
+           html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th><th>Actions</th></tr>';
+           
+           foreignKeys.forEach(fk => {
+               const actions = [];
+               if (fk.delete_referential_action_desc && fk.delete_referential_action_desc !== 'NO_ACTION') {
+                   actions.push(`ON DELETE ${fk.delete_referential_action_desc}`);
+               }
+               if (fk.update_referential_action_desc && fk.update_referential_action_desc !== 'NO_ACTION') {
+                   actions.push(`ON UPDATE ${fk.update_referential_action_desc}`);
+               }
+               
+               html += `<tr>
+                   <td>${this.escapeHtml(fk.fk_name)}</td>
+                   <td><strong>${this.escapeHtml(fk.column_name)}</strong></td>
+                   <td>${this.escapeHtml(fk.referenced_table)}</td>
+                   <td><strong>${this.escapeHtml(fk.referenced_column)}</strong></td>
+                   <td><small>${actions.join('<br>')}</small></td>
+               </tr>`;
+           });
+           
+           html += '</table>';
+       } else {
+           html += '<p>No foreign keys found.</p>';
+       }
+       
+       return html;
+   }
 
-    buildDefinitionSection(definition) {
-        let html = '<h3>Definition</h3>';
-        html += '<div class="definition-container">';
-        html += `<pre><code>${this.escapeHtml(definition || 'No definition available')}</code></pre>`;
-        html += '</div>';
-        return html;
-    }
+   buildDefinitionSection(definition) {
+       let html = '<h3>Definition</h3>';
+       html += '<div class="definition-container">';
+       html += `<pre><code>${this.escapeHtml(definition || 'No definition available')}</code></pre>`;
+       html += '</div>';
+       return html;
+   }
 
-    buildDependenciesSection(dependencies) {
-        if (!dependencies) {
-            return '<h3>Dependencies</h3><p>No dependency information available.</p>';
-        }
-        
-        let html = '<h3>Dependencies</h3>';
-        
-        if (appState.selectedObject) {
-            const objectName = appState.selectedObject.qualified_name || appState.selectedObject.name;
-            html += `<div style="margin-bottom: 15px;">
-                <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${objectName}', appState.currentDependencies)" 
-                        class="viz-btn">Show Dependency Graph</button>
-            </div>`;
-        }
-        
-        html += '<h4>Dependencies (objects this depends on):</h4>';
-        if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
-            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
-            dependencies.dependsOn.forEach(dep => {
-                const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
-                html += `<tr>
-                    <td>${this.escapeHtml(dep.referenced_object)}</td>
-                    <td>${this.escapeHtml(dep.referenced_object_type)}</td>
-                    <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
-                    <td><small>${this.escapeHtml(operations)}</small></td>
-                </tr>`;
-            });
-            html += '</table>';
-        } else {
-            html += '<p>No dependencies found.</p>';
-        }
-        
-        html += '<h4>Referenced by (objects that depend on this):</h4>';
-        if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
-            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
-            dependencies.referencedBy.forEach(ref => {
-                const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
-                html += `<tr>
-                    <td>${this.escapeHtml(ref.referencing_object)}</td>
-                    <td>${this.escapeHtml(ref.referencing_object_type)}</td>
-                    <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
-                    <td><small>${this.escapeHtml(operations)}</small></td>
-                </tr>`;
-            });
-            html += '</table>';
-        } else {
-            html += '<p>No objects reference this object.</p>';
-        }
-        
-        return html;
-    }
+   buildDependenciesSection(dependencies) {
+       if (!dependencies) {
+           return '<h3>Dependencies</h3><p>No dependency information available.</p>';
+       }
+       
+       let html = '<h3>Dependencies</h3>';
+       
+       if (appState.selectedObject) {
+           const objectName = this._getQualifiedName(appState.selectedObject);
+           html += `<div style="margin-bottom: 15px;">
+               <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${objectName}', appState.currentDependencies)" 
+                       class="viz-btn">Show Dependency Graph</button>
+           </div>`;
+       }
+       
+       html += '<h4>Dependencies (objects this depends on):</h4>';
+       if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
+           html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+           dependencies.dependsOn.forEach(dep => {
+               const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
+               html += `<tr>
+                   <td>${this.escapeHtml(dep.referenced_object)}</td>
+                   <td>${this.escapeHtml(dep.referenced_object_type)}</td>
+                   <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
+                   <td><small>${this.escapeHtml(operations)}</small></td>
+               </tr>`;
+           });
+           html += '</table>';
+       } else {
+           html += '<p>No dependencies found.</p>';
+       }
+       
+       html += '<h4>Referenced by (objects that depend on this):</h4>';
+       if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
+           html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+           dependencies.referencedBy.forEach(ref => {
+               const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
+               html += `<tr>
+                   <td>${this.escapeHtml(ref.referencing_object)}</td>
+                   <td>${this.escapeHtml(ref.referencing_object_type)}</td>
+                   <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
+                   <td><small>${this.escapeHtml(operations)}</small></td>
+               </tr>`;
+           });
+           html += '</table>';
+       } else {
+           html += '<p>No objects reference this object.</p>';
+       }
+       
+       return html;
+   }
 
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+   escapeHtml(text) {
+       if (!text) return '';
+       const div = document.createElement('div');
+       div.textContent = text;
+       return div.innerHTML;
+   }
 }
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager) {
-        this.connectionManager = connectionManager;
-        this.explorerManager = explorerManager;
-        this.tabManager = tabManager;
-        this.tableUsageManager = tableUsageManager;
-        this.commentsManager = commentsManager;
-        this.extendedEventsManager = extendedEventsManager;
-        this.detailsTabManager = detailsTabManager;
-        this.databaseSelector = new DatabaseSelectorManager();
-    }
+   constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager) {
+       this.connectionManager = connectionManager;
+       this.explorerManager = explorerManager;
+       this.tabManager = tabManager;
+       this.tableUsageManager = tableUsageManager;
+       this.commentsManager = commentsManager;
+       this.extendedEventsManager = extendedEventsManager;
+       this.detailsTabManager = detailsTabManager;
+       this.databaseSelector = new DatabaseSelectorManager();
+   }
 
-    handleMessage(event) {
-        const message = event.data;
-        
-        switch (message.command) {
-            case 'savedConnectionsLoaded':
-                this.connectionManager.onSavedConnectionsLoaded(message.connections);
-                break;
-                
-            case 'connectionLoadedForDisplay':
-                this.connectionManager.onConnectionLoadedForDisplay(message.connection);
-                break;
-                
-            case 'connectionSaved':
-                this.connectionManager.onConnectionSaved(message);
-                break;
-                
-            case 'connectionDeleted':
-                this.connectionManager.onConnectionDeleted(message);
-                break;
-                
-            case 'testConnectionResult':
-                this.connectionManager.onTestConnectionResult(message);
-                break;
-                
-            case 'connectionStatus':
-                this.connectionManager.onConnectionStatus(message);
-                if (message.success) {
-                    // Show elegant glow instead of forcing tab switch
-                    this.databaseSelector.showReadyGlow();
-                }
-                break;
-                
-            case 'requestCurrentDatabase':
-                // Send current database to backend
-                vscode.postMessage({
-                    command: 'setCurrentDatabase',
-                    database: appState.currentDatabase
-                });
-                break;
-                
-            case 'databasesLoaded':
-                this.explorerManager.onDatabasesLoaded(message.databases);
-                this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
-                break;
-                
-            case 'objectsLoaded':
-                this.explorerManager.onObjectsLoaded(message.objects);
-                this.tableUsageManager.onObjectsLoaded(message.objects);
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onObjectsLoaded(message.objects);
-                }
-                break;
-                
-            case 'tableDetailsLoaded':
-                this.explorerManager.onTableDetailsLoaded(
-                    message.tableName, 
-                    message.columns, 
-                    message.indexes, 
-                    message.foreignKeys,
-                    message.dependencies
-                );
-                break;
-            case 'objectDetailsLoaded':
-               this.explorerManager.onObjectDetailsLoaded(
-                   message.objectName,
-                   message.objectType,
-                   message.dependencies,
-                   message.definition
+   handleMessage(event) {
+       const message = event.data;
+       
+       switch (message.command) {
+           case 'savedConnectionsLoaded':
+               this.connectionManager.onSavedConnectionsLoaded(message.connections);
+               break;
+               
+           case 'connectionLoadedForDisplay':
+               this.connectionManager.onConnectionLoadedForDisplay(message.connection);
+               break;
+               
+           case 'connectionSaved':
+               this.connectionManager.onConnectionSaved(message);
+               break;
+               
+           case 'connectionDeleted':
+               this.connectionManager.onConnectionDeleted(message);
+               break;
+               
+           case 'testConnectionResult':
+               this.connectionManager.onTestConnectionResult(message);
+               break;
+               
+           case 'connectionStatus':
+               this.connectionManager.onConnectionStatus(message);
+               if (message.success) {
+                   // Show elegant glow instead of forcing tab switch
+                   this.databaseSelector.showReadyGlow();
+               }
+               break;
+               
+           case 'requestCurrentDatabase':
+               // Send current database to backend
+               vscode.postMessage({
+                   command: 'setCurrentDatabase',
+                   database: appState.currentDatabase
+               });
+               break;
+               
+           case 'databasesLoaded':
+               this.explorerManager.onDatabasesLoaded(message.databases);
+               this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
+               break;
+               
+           case 'objectsLoaded':
+               this.explorerManager.onObjectsLoaded(message.objects);
+               this.tableUsageManager.onObjectsLoaded(message.objects);
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onObjectsLoaded(message.objects);
+               }
+               break;
+               
+           case 'tableDetailsLoaded':
+               this.explorerManager.onTableDetailsLoaded(
+                   message.tableName, 
+                   message.columns, 
+                   message.indexes, 
+                   message.foreignKeys,
+                   message.dependencies
                );
                break;
-               
-           // Table Usage Messages
-           case 'allTablesForUsageResult':
-               this.tableUsageManager.onAllTablesLoaded(message.tables);
-               break;
-               
-           case 'tableUsageAnalysisResult':
-               this.tableUsageManager.onTableUsageAnalysisResult(message.objectName, message.analysis);
-               break;
-               
-           case 'tableUsageByObjectsResult':
-               this.tableUsageManager.onTableUsageByObjectsResult(message.tableName, message.usage);
-               break;
-               
-           case 'triggerAnalysisResult':
-               this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
-               break;
-               
-           // Comments Messages
-           case 'tableExtendedPropertiesResult':
-               this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
-               break;
-               
-           case 'objectExtendedPropertiesResult':
-               this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
-               break;
-               
-           case 'updateDescriptionResult':
-               this.commentsManager.onUpdateDescriptionResult(message);
-               break;
-               
-           case 'deleteDescriptionResult':
-               this.commentsManager.onDeleteDescriptionResult(message);
-               break;
-               
-           // Enhanced Extended Events Messages
-           case 'executionFlowSessionCreated':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onSessionCreated(message);
-               }
-               break;
-               
-           case 'executionFlowSessionStarted':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onSessionStarted(message);
-               }
-               break;
-               
-           case 'executionFlowSessionStopped':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onSessionStopped(message);
-               }
-               break;
-               
-           case 'executionFlowSessionDeleted':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onSessionDeleted(message);
-               }
-               break;
-               
-           case 'executionFlowSessionInfo':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
-               }
-               break;
-               
-           // Raw events message handler
-           case 'rawSessionEventsResult':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onRawEventsReceived(
-                       message.sessionName, 
-                       message.rawXml, 
-                       message.message
-                   );
-               }
-               break;
-               
-           case 'executionFlowSessionsList':
-               if (this.extendedEventsManager) {
-                   // Handle sessions list if needed
-                   console.log('Available sessions:', message.sessions);
-               }
-               break;
-               
-           case 'extendedEventsReceived':
-               if (this.extendedEventsManager) {
-                   this.extendedEventsManager.onEventsReceived(message.events);
-               }
-               break;
-               
-           case 'error':
-               this.handleError(message.message);
-               break;
-               
-           default:
-               console.warn(`Unknown command: ${message.command}`);
-       }
-   }    
+           case 'objectDetailsLoaded':
+              this.explorerManager.onObjectDetailsLoaded(
+                  message.objectName,
+                  message.objectType,
+                  message.dependencies,
+                  message.definition
+              );
+              break;
+              
+          // Table Usage Messages
+          case 'allTablesForUsageResult':
+              this.tableUsageManager.onAllTablesLoaded(message.tables);
+              break;
+              
+          case 'tableUsageAnalysisResult':
+              this.tableUsageManager.onTableUsageAnalysisResult(message.objectName, message.analysis);
+              break;
+              
+          case 'tableUsageByObjectsResult':
+              this.tableUsageManager.onTableUsageByObjectsResult(message.tableName, message.usage);
+              break;
+              
+          case 'triggerAnalysisResult':
+              this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
+              break;
+              
+          // Comments Messages
+          case 'tableExtendedPropertiesResult':
+              this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
+              break;
+              
+          case 'objectExtendedPropertiesResult':
+              this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
+              break;
+              
+          case 'updateDescriptionResult':
+              this.commentsManager.onUpdateDescriptionResult(message);
+              break;
+              
+          case 'deleteDescriptionResult':
+              this.commentsManager.onDeleteDescriptionResult(message);
+              break;
+              
+          // Enhanced Extended Events Messages
+          case 'executionFlowSessionCreated':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onSessionCreated(message);
+              }
+              break;
+              
+          case 'executionFlowSessionStarted':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onSessionStarted(message);
+              }
+              break;
+              
+          case 'executionFlowSessionStopped':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onSessionStopped(message);
+              }
+              break;
+              
+          case 'executionFlowSessionDeleted':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onSessionDeleted(message);
+              }
+              break;
+              
+          case 'executionFlowSessionInfo':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
+              }
+              break;
+              
+          // Raw events message handler
+          case 'rawSessionEventsResult':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onRawEventsReceived(
+                      message.sessionName, 
+                      message.rawXml, 
+                      message.message
+                  );
+              }
+              break;
+              
+          case 'executionFlowSessionsList':
+              if (this.extendedEventsManager) {
+                  // Handle sessions list if needed
+                  console.log('Available sessions:', message.sessions);
+              }
+              break;
+              
+          case 'extendedEventsReceived':
+              if (this.extendedEventsManager) {
+                  this.extendedEventsManager.onEventsReceived(message.events);
+              }
+              break;
+              
+          case 'error':
+              this.handleError(message.message);
+              break;
+              
+          default:
+              console.warn(`Unknown command: ${message.command}`);
+      }
+  }    
 
-   handleError(message) {
-       console.error('SQL Wayfarer Error:', message);
-       if (appState.activeTab === 'configuration') {
-           this.connectionManager.showStatus(message, 'error');
-       } else if (appState.activeTab === 'tableUsage') {
-           this.tableUsageManager.showStatus(message, 'error');
-       } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
-           this.extendedEventsManager.showStatus(message, 'error');
-       } else {
-           this.tabManager.showStatus(message, 'error');
-       }
-   }
+  handleError(message) {
+      console.error('SQL Wayfarer Error:', message);
+      if (appState.activeTab === 'configuration') {
+          this.connectionManager.showStatus(message, 'error');
+      } else if (appState.activeTab === 'tableUsage') {
+          this.tableUsageManager.showStatus(message, 'error');
+      } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
+          this.extendedEventsManager.showStatus(message, 'error');
+      } else {
+          this.tabManager.showStatus(message, 'error');
+      }
+  }
 }
 
 // Application initialization
 document.addEventListener('DOMContentLoaded', function() {
-   console.log('SQL Wayfarer webview loaded');
-   
-   const tabManager = new TabManager();
-   const connectionManager = new ConnectionManager();
-   const explorerManager = new ExplorerManager();
-   const tableUsageManager = new TableUsageManager();
-   const commentsManager = new CommentsManager();
-   const detailsTabManager = new DetailsTabManager();
-   
-   // Extended Events Manager - optional
-   let extendedEventsManager = null;
-   if (typeof ExtendedEventsManager !== 'undefined') {
-       extendedEventsManager = new ExtendedEventsManager();
-   }
-   
-   const messageHandler = new MessageHandler(
-       connectionManager, 
-       explorerManager, 
-       tabManager, 
-       tableUsageManager, 
-       commentsManager,
-       extendedEventsManager,
-       detailsTabManager
-   );
-   
-   // Make managers available globally
-   window.explorerManager = explorerManager;
-   window.tableUsageManager = tableUsageManager;
-   window.commentsManager = commentsManager;
-   window.detailsTabManager = detailsTabManager;
-   if (extendedEventsManager) {
-       window.extendedEventsManager = extendedEventsManager;
-   }
-   
-   window.addEventListener('message', (event) => messageHandler.handleMessage(event));
-   
-   connectionManager.loadSavedConnections();
+  console.log('SQL Wayfarer webview loaded');
+  
+  const tabManager = new TabManager();
+  const connectionManager = new ConnectionManager();
+  const explorerManager = new ExplorerManager();
+  const tableUsageManager = new TableUsageManager();
+  const commentsManager = new CommentsManager();
+  const detailsTabManager = new DetailsTabManager();
+  
+  // Extended Events Manager - optional
+  let extendedEventsManager = null;
+  if (typeof ExtendedEventsManager !== 'undefined') {
+      extendedEventsManager = new ExtendedEventsManager();
+  }
+  
+  const messageHandler = new MessageHandler(
+      connectionManager, 
+      explorerManager, 
+      tabManager, 
+      tableUsageManager, 
+      commentsManager,
+      extendedEventsManager,
+      detailsTabManager
+  );
+  
+  // Make managers available globally
+  window.explorerManager = explorerManager;
+  window.tableUsageManager = tableUsageManager;
+  window.commentsManager = commentsManager;
+  window.detailsTabManager = detailsTabManager;
+  if (extendedEventsManager) {
+      window.extendedEventsManager = extendedEventsManager;
+  }
+  
+  window.addEventListener('message', (event) => messageHandler.handleMessage(event));
+  
+  connectionManager.loadSavedConnections();
 });
