@@ -110,7 +110,7 @@ class DatabaseService {
 
         console.log(`Getting table details for: ${qualifiedTableName} (schema: ${schema}, object: ${objectName})`);
 
-        // Get columns with enhanced schema handling
+        // Get columns with enhanced schema handling - FIXED VERSION
         const columnsResult = await this._connectionManager.executeQuery(`
             USE [${database}];
             SELECT 
@@ -122,16 +122,14 @@ class DatabaseService {
                 c.ORDINAL_POSITION,
                 c.NUMERIC_PRECISION,
                 c.NUMERIC_SCALE,
-                -- Check for identity columns
-                CASE WHEN ic.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END as IS_IDENTITY,
+                -- Check for identity columns using sys.identity_columns instead
+                CASE WHEN ic.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_IDENTITY,
                 -- Check for computed columns
                 CASE WHEN cc.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_COMPUTED
             FROM INFORMATION_SCHEMA.COLUMNS c
-            LEFT JOIN INFORMATION_SCHEMA.IDENTITY_COLUMNS ic 
-                ON c.TABLE_CATALOG = ic.TABLE_CATALOG 
-                AND c.TABLE_SCHEMA = ic.TABLE_SCHEMA 
-                AND c.TABLE_NAME = ic.TABLE_NAME 
-                AND c.COLUMN_NAME = ic.COLUMN_NAME
+            LEFT JOIN sys.identity_columns ic 
+                ON ic.object_id = OBJECT_ID('${qualifiedTableName}')
+                AND ic.name = c.COLUMN_NAME
             LEFT JOIN sys.computed_columns cc 
                 ON cc.object_id = OBJECT_ID('${qualifiedTableName}')
                 AND cc.name = c.COLUMN_NAME
@@ -159,7 +157,7 @@ class DatabaseService {
             WHERE i.object_id = OBJECT_ID('${qualifiedTableName}')
             AND i.type > 0  -- Exclude heaps
             GROUP BY i.name, i.type_desc, i.is_unique, i.is_primary_key, i.is_unique_constraint, 
-                     i.fill_factor, i.has_filter, i.filter_definition
+                    i.fill_factor, i.has_filter, i.filter_definition
             ORDER BY i.is_primary_key DESC, i.is_unique DESC, i.name
         `);
 
