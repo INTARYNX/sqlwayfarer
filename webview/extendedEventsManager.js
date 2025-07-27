@@ -560,4 +560,25 @@ class ExtendedEventsManager {
         div.textContent = text;
         return div.innerHTML;
     }
+    
+    dispose() {
+        // Stop auto-refresh
+        this.stopAutoRefresh();
+        
+        // Clear any pending timeouts
+        if (this.autoRefreshTimer) {
+            clearInterval(this.autoRefreshTimer);
+            this.autoRefreshTimer = null;
+        }
+        
+        // Reset state
+        this.currentSession = null;
+        this.sessionStatus = 'stopped';
+        this.lastSessionInfo = null;
+        this.lastRefreshTime = null;
+        this.isRefreshing = false;
+        
+        console.log('ExtendedEventsManager disposed');
+    }
+
 }

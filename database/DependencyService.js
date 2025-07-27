@@ -814,22 +814,27 @@ class DependencyService {
     * @returns {string} Identifiant sécurisé
     * @private
     */
-   _sanitizeIdentifier(identifier) {
-       if (!identifier || typeof identifier !== 'string') {
-           throw new Error('Invalid identifier provided');
-       }
-       
-       // Supprimer les caractères dangereux et limiter la longueur
-       const cleaned = identifier
-           .replace(/[^\w\-_.]/g, '') // Garde seulement les caractères alphanumériques, tirets, underscores et points
-           .substring(0, 128); // Limite la longueur
-       
-       if (cleaned.length === 0) {
-           throw new Error('Identifier became empty after sanitization');
-       }
-       
-       return cleaned;
-   }
+    _sanitizeIdentifier(identifier) {
+        if (!identifier || typeof identifier !== 'string') {
+            throw new Error('Invalid identifier provided');
+        }
+        
+        // Remove dangerous patterns first
+        const dangerous = /(\-\-|\/\*|\*\/|;|'|"|xp_|sp_|exec\s|execute\s)/i;
+        if (dangerous.test(identifier)) {
+            throw new Error('Dangerous characters detected in identifier');
+        }
+        
+        // For SQL Server identifiers, allow: letters, numbers, underscore, dot, brackets
+        // This preserves schema.object notation and [bracketed identifiers]
+        const cleaned = identifier.replace(/[^a-zA-Z0-9_.\[\]]/g, '').substring(0, 128);
+        
+        if (cleaned.length === 0) {
+            throw new Error('Identifier became empty after sanitization');
+        }
+        
+        return cleaned;
+    }
 
    /**
     * Parse object name to extract schema and object name - version améliorée
