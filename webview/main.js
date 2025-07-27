@@ -504,6 +504,8 @@ class ExplorerManager {
         // Use qualified_name for backend operations, display_name for UI
         const objectNameForBackend = obj.qualified_name || obj.name;
         
+        console.log(`Selected object: ${obj.name} (qualified: ${objectNameForBackend})`);
+        
         // Load details for structure tab
         if (obj.object_type === 'Table') {
             vscode.postMessage({
@@ -571,59 +573,59 @@ class ExplorerManager {
         this.filterManager.updateObjectCount();
     }
 
-displayObjects(objects) {
-    this.elements.objectList.innerHTML = '';
-    
-    if (objects.length === 0) {
-        this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
-        return;
-    }
-    
-    // Group objects by schema for better organization
-    const objectsBySchema = this._groupObjectsBySchema(objects);
-    
-    // Display objects grouped by schema
-    Object.keys(objectsBySchema).sort().forEach(schema => {
-        // Add schema header if not dbo or if there are multiple schemas
-        if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
-            const schemaHeader = document.createElement('div');
-            schemaHeader.className = 'schema-header';
-            schemaHeader.innerHTML = `
-                <span class="schema-name">📁 ${schema}</span>
-                <span class="schema-count">(${objectsBySchema[schema].length})</span>
-            `;
-            this.elements.objectList.appendChild(schemaHeader);
+    displayObjects(objects) {
+        this.elements.objectList.innerHTML = '';
+        
+        if (objects.length === 0) {
+            this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
+            return;
         }
         
-        // Add objects for this schema - NO SCHEMA INDICATOR since it's already in the header
-        objectsBySchema[schema].forEach(obj => {
-            const div = document.createElement('div');
-            div.className = 'object-item';
+        // Group objects by schema for better organization
+        const objectsBySchema = this._groupObjectsBySchema(objects);
+        
+        // Display objects grouped by schema
+        Object.keys(objectsBySchema).sort().forEach(schema => {
+            // Add schema header if not dbo or if there are multiple schemas
+            if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
+                const schemaHeader = document.createElement('div');
+                schemaHeader.className = 'schema-header';
+                schemaHeader.innerHTML = `
+                    <span class="schema-name">📁 ${schema}</span>
+                    <span class="schema-count">(${objectsBySchema[schema].length})</span>
+                `;
+                this.elements.objectList.appendChild(schemaHeader);
+            }
             
-            // Show only object name (without schema) since it's already in the header
-            const objectDisplayName = obj.object_name || obj.name.split('.').pop();
-            
-            const nameSpan = document.createElement('span');
-            nameSpan.innerHTML = `${objectDisplayName}<span class="object-type">(${obj.object_type})</span>`;
-            
-            const vizBtn = document.createElement('button');
-            vizBtn.className = 'viz-object-btn';
-            vizBtn.textContent = 'Graph';
-            vizBtn.onclick = (e) => this.handleShowDependencies(obj.name, e);
-            
-            div.appendChild(nameSpan);
-            div.appendChild(vizBtn);
-            div.dataset.name = obj.name;
-            div.dataset.qualifiedName = obj.qualified_name || obj.name;
-            div.dataset.type = obj.object_type;
-            div.dataset.schema = obj.schema_name || 'dbo';
-            
-            div.addEventListener('click', () => this.handleObjectClick(div, obj));
-            
-            this.elements.objectList.appendChild(div);
+            // Add objects for this schema - NO SCHEMA INDICATOR since it's already in the header
+            objectsBySchema[schema].forEach(obj => {
+                const div = document.createElement('div');
+                div.className = 'object-item';
+                
+                // Show only object name (without schema) since it's already in the header
+                const objectDisplayName = obj.object_name || obj.name.split('.').pop();
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.innerHTML = `${objectDisplayName}<span class="object-type">(${obj.object_type})</span>`;
+                
+                const vizBtn = document.createElement('button');
+                vizBtn.className = 'viz-object-btn';
+                vizBtn.textContent = 'Graph';
+                vizBtn.onclick = (e) => this.handleShowDependencies(obj.name, e);
+                
+                div.appendChild(nameSpan);
+                div.appendChild(vizBtn);
+                div.dataset.name = obj.name;
+                div.dataset.qualifiedName = obj.qualified_name || obj.name;
+                div.dataset.type = obj.object_type;
+                div.dataset.schema = obj.schema_name || 'dbo';
+                
+                div.addEventListener('click', () => this.handleObjectClick(div, obj));
+                
+                this.elements.objectList.appendChild(div);
+            });
         });
-    });
-}
+    }
 
     /**
      * Group objects by schema for better display organization
@@ -656,10 +658,16 @@ displayObjects(objects) {
     }
 
     onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
+        console.log(`Table details loaded for: ${tableName}`);
+        console.log('Columns:', columns);
+        console.log('Indexes:', indexes);
+        console.log('Foreign Keys:', foreignKeys);
+        console.log('Dependencies:', dependencies);
+        
         appState.currentDependencies = dependencies;
         
         const html = [
-            `<div class="section-header">Table: ${tableName}</div>`,
+            `<div class="section-header">Table: ${this.escapeHtml(tableName)}</div>`,
             this.buildColumnsTable(columns),
             this.buildIndexesTable(indexes),
             this.buildForeignKeysTable(foreignKeys),
@@ -671,9 +679,13 @@ displayObjects(objects) {
     }
 
     onObjectDetailsLoaded(objectName, objectType, dependencies, definition) {
+        console.log(`Object details loaded for: ${objectName} (${objectType})`);
+        console.log('Dependencies:', dependencies);
+        console.log('Definition length:', definition ? definition.length : 0);
+        
         appState.currentDependencies = dependencies;
         
-        let html = `<div class="section-header">${objectType}: ${objectName}</div>`;
+        let html = `<div class="section-header">${objectType}: ${this.escapeHtml(objectName)}</div>`;
         
         if (definition) {
             html += this.buildDefinitionSection(definition);
@@ -872,34 +884,34 @@ displayObjects(objects) {
             html += '</table>';
         } else {
             html += '<p>No dependencies found.</p>';
-       }
-       
-       html += '<h4>Referenced by (objects that depend on this):</h4>';
-       if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
-           html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
-           dependencies.referencedBy.forEach(ref => {
-               const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
-               html += `<tr>
-                   <td>${this.escapeHtml(ref.referencing_object)}</td>
-                   <td>${this.escapeHtml(ref.referencing_object_type)}</td>
-                   <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
-                   <td><small>${this.escapeHtml(operations)}</small></td>
-               </tr>`;
-           });
-           html += '</table>';
-       } else {
-           html += '<p>No objects reference this object.</p>';
-       }
-       
-       return html;
-   }
+        }
+        
+        html += '<h4>Referenced by (objects that depend on this):</h4>';
+        if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
+            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+            dependencies.referencedBy.forEach(ref => {
+                const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
+                html += `<tr>
+                    <td>${this.escapeHtml(ref.referencing_object)}</td>
+                    <td>${this.escapeHtml(ref.referencing_object_type)}</td>
+                    <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
+                    <td><small>${this.escapeHtml(operations)}</small></td>
+                </tr>`;
+            });
+            html += '</table>';
+        } else {
+            html += '<p>No objects reference this object.</p>';
+        }
+        
+        return html;
+    }
 
-   escapeHtml(text) {
-       if (!text) return '';
-       const div = document.createElement('div');
-       div.textContent = text;
-       return div.innerHTML;
-   }
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 }
 
 // Main message handler

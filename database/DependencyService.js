@@ -330,63 +330,459 @@ class DependencyService {
         console.log(`📊 Getting index stats for ${database}`);
         
         if (progressCallback) {
-            progressCallback({
-                progress: 100,
-                current: 1,
-                total: 1,
-                message: 'Using smart parsing - no index needed'
-            });
-        }
+           progressCallback({
+               progress: 100,
+               current: 1,
+               total: 1,
+               message: 'Using smart parsing - no index needed'
+           });
+       }
 
-        return {
-            database: database,
-            lastIndexed: new Date().toISOString(),
-            method: 'smart_parsing',
-            objectCount: this._cache.size
-        };
-    }
+       return {
+           database: database,
+           lastIndexed: new Date().toISOString(),
+           method: 'smart_parsing',
+           objectCount: this._cache.size
+       };
+   }
 
-    // ===== MÉTHODES POUR LES EXTENDED PROPERTIES (inchangées) =====
-    
-    async getTableExtendedProperties(database, tableName) {
-        // Code existant pour les extended properties...
-        return {
-            tableName: tableName,
-            tableDescription: null,
-            columnDescriptions: [],
-            allColumns: [],
-            hasDescriptions: false
-        };
-    }
+   // ===== MÉTHODES POUR LES EXTENDED PROPERTIES (Comments) =====
+   
+   /**
+    * Get table extended properties with schema support
+    */
+   async getTableExtendedProperties(database, tableName) {
+       try {
+           if (!this._connectionManager.isConnected()) {
+               throw new Error('No active connection');
+           }
 
-    async getObjectExtendedProperties(database, objectName, objectType) {
-        return {
-            objectName: objectName,
-            objectType: objectType,
-            description: null,
-            hasDescription: false
-        };
-    }
+           console.log(`Getting extended properties for table: ${tableName}`);
 
-    async updateTableDescription(database, tableName, description) {
-        return { success: false, message: 'Not implemented yet' };
-    }
+           // Parse table name to handle schema
+           const { schema, objectName } = this._parseObjectName(tableName);
+           const qualifiedTableName = `${schema}.${objectName}`;
 
-    async updateColumnDescription(database, tableName, columnName, description) {
-        return { success: false, message: 'Not implemented yet' };
-    }
+           // Get table description
+           const tableDescResult = await this._connectionManager.executeQuery(`
+               USE [${database}];
+               SELECT 
+                   ep.value as table_description
+               FROM sys.extended_properties ep
+               INNER JOIN sys.objects o ON ep.major_id = o.object_id
+               INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+               WHERE ep.class = 1 
+               AND ep.minor_id = 0 
+               AND ep.name = 'MS_Description'
+               AND s.name = '${schema}'
+               AND o.name = '${objectName}'
+           `);
 
-    async updateObjectDescription(database, objectName, description) {
-        return { success: false, message: 'Not implemented yet' };
-    }
+           const tableDescription = tableDescResult.recordset.length > 0 ? 
+               tableDescResult.recordset[0].table_description : null;
 
-    async deleteTableDescription(database, tableName) {
-        return { success: false, message: 'Not implemented yet' };
-    }
+           // Get all columns with their descriptions
+           const columnsResult = await this._connectionManager.executeQuery(`
+               USE [${database}];
+               SELECT 
+                   c.COLUMN_NAME as columnName,
+                   c.DATA_TYPE as dataType,
+                   c.IS_NULLABLE as isNullable,
+                   c.CHARACTER_MAXIMUM_LENGTH as maxLength,
+                   c.ORDINAL_POSITION as ordinalPosition,
+                   ep.value as description,
+                   CASE WHEN ep.value IS NOT NULL THEN 1 ELSE 0 END as hasDescription
+               FROM INFORMATION_SCHEMA.COLUMNS c
+               LEFT JOIN sys.extended_properties ep ON ep.major_id = OBJECT_ID('${qualifiedTableName}')
+                   AND ep.minor_id = c.ORDINAL_POSITION
+                   AND ep.class = 1
+                   AND ep.name = 'MS_Description'
+               WHERE c.TABLE_SCHEMA = '${schema}' 
+               AND c.TABLE_NAME = '${objectName}'
+               ORDER BY c.ORDINAL_POSITION
+           `);
 
-    async deleteColumnDescription(database, tableName, columnName) {
-        return { success: false, message: 'Not implemented yet' };
-    }
+           // Get column descriptions separately for better mapping
+           const columnDescriptions = [];
+           columnsResult.recordset.forEach(column => {
+               columnDescriptions.push({
+                   columnName: column.columnName,
+                   dataType: column.dataType,
+                   isNullable: column.isNullable === 'YES',
+                   maxLength: column.maxLength,
+                   ordinalPosition: column.ordinalPosition,
+                   description: column.description,
+                   hasDescription: column.hasDescription === 1
+               });
+           });
+
+           const result = {
+               tableName: tableName,
+               qualifiedName: qualifiedTableName,
+               schema: schema,
+               objectName: objectName,
+               tableDescription: tableDescription,
+               columnDescriptions: columnDescriptions,
+               allColumns: columnDescriptions, // For compatibility
+               hasDescriptions: tableDescription !== null || columnDescriptions.some(c => c.hasDescription)
+           };
+
+           console.log(`Extended properties result:`, result);
+           return result;
+
+       } catch (error) {
+           console.error(`Error getting table extended properties for ${tableName}:`, error);
+           return {
+               tableName: tableName,
+               tableDescription: null,
+               columnDescriptions: [],
+               allColumns: [],
+               hasDescriptions: false
+           };
+       }
+   }
+
+   /**
+    * Get object extended properties with schema support
+    */
+   async getObjectExtendedProperties(database, objectName, objectType) {
+       try {
+           if (!this._connectionManager.isConnected()) {
+               throw new Error('No active connection');
+           }
+
+           console.log(`Getting extended properties for ${objectType}: ${objectName}`);
+
+           // Parse object name to handle schema
+           const { schema, objectName: parsedObjectName } = this._parseObjectName(objectName);
+           const qualifiedObjectName = `${schema}.${parsedObjectName}`;
+
+           // Get object description
+           const descResult = await this._connectionManager.executeQuery(`
+               USE [${database}];
+               SELECT 
+                   ep.value as description
+               FROM sys.extended_properties ep
+               INNER JOIN sys.objects o ON ep.major_id = o.object_id
+               INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+               WHERE ep.class = 1 
+               AND ep.minor_id = 0 
+               AND ep.name = 'MS_Description'
+               AND s.name = '${schema}'
+               AND o.name = '${parsedObjectName}'
+           `);
+
+           const description = descResult.recordset.length > 0 ? 
+               descResult.recordset[0].description : null;
+
+           return {
+               objectName: objectName,
+               objectType: objectType,
+               description: description,
+               hasDescription: description !== null
+           };
+
+       } catch (error) {
+           console.error(`Error getting object extended properties for ${objectName}:`, error);
+           return {
+               objectName: objectName,
+               objectType: objectType,
+               description: null,
+               hasDescription: false
+           };
+       }
+   }
+
+   /**
+    * Update table description with schema support
+    */
+   async updateTableDescription(database, tableName, description) {
+       try {
+           if (!this._connectionManager.isConnected()) {
+               throw new Error('No active connection');
+           }
+
+           const { schema, objectName } = this._parseObjectName(tableName);
+           const qualifiedTableName = `${schema}.${objectName}`;
+
+           if (description && description.trim() !== '') {
+               // Add or update description
+               const sql = `
+                   USE [${database}];
+                   IF EXISTS (
+                       SELECT 1 FROM sys.extended_properties ep
+                       INNER JOIN sys.objects o ON ep.major_id = o.object_id
+                       INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                       WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+                       AND s.name = '${schema}' AND o.name = '${objectName}'
+                   )
+                   BEGIN
+                       EXEC sys.sp_updateextendedproperty 
+                           @name = N'MS_Description',
+                           @value = N'${description.replace(/'/g, "''")}',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'TABLE', @level1name = N'${objectName}';
+                   END
+                   ELSE
+                   BEGIN
+                       EXEC sys.sp_addextendedproperty 
+                           @name = N'MS_Description',
+                           @value = N'${description.replace(/'/g, "''")}',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'TABLE', @level1name = N'${objectName}';
+                   END
+               `;
+               
+               await this._connectionManager.executeQuery(sql);
+           } else {
+               // Delete description
+               const sql = `
+                   USE [${database}];
+                   IF EXISTS (
+                       SELECT 1 FROM sys.extended_properties ep
+                       INNER JOIN sys.objects o ON ep.major_id = o.object_id
+                       INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                       WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+                       AND s.name = '${schema}' AND o.name = '${objectName}'
+                   )
+                   BEGIN
+                       EXEC sys.sp_dropextendedproperty 
+                           @name = N'MS_Description',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'TABLE', @level1name = N'${objectName}';
+                   END
+               `;
+               
+               await this._connectionManager.executeQuery(sql);
+           }
+
+           return {
+               success: true,
+               message: 'Table description updated successfully'
+           };
+
+       } catch (error) {
+           console.error(`Error updating table description for ${tableName}:`, error);
+           return {
+               success: false,
+               message: `Failed to update table description: ${error.message}`
+           };
+       }
+   }
+
+   /**
+    * Update column description with schema support
+    */
+   async updateColumnDescription(database, tableName, columnName, description) {
+       try {
+           if (!this._connectionManager.isConnected()) {
+               throw new Error('No active connection');
+           }
+
+           const { schema, objectName } = this._parseObjectName(tableName);
+
+           if (description && description.trim() !== '') {
+               // Add or update description
+               const sql = `
+                   USE [${database}];
+                   IF EXISTS (
+                       SELECT 1 FROM sys.extended_properties ep
+                       INNER JOIN sys.objects o ON ep.major_id = o.object_id
+                       INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                       INNER JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
+                       WHERE ep.class = 1 AND ep.name = 'MS_Description'
+                       AND s.name = '${schema}' AND o.name = '${objectName}' AND c.name = '${columnName}'
+                   )
+                   BEGIN
+                       EXEC sys.sp_updateextendedproperty 
+                           @name = N'MS_Description',
+                           @value = N'${description.replace(/'/g, "''")}',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'TABLE', @level1name = N'${objectName}',
+                           @level2type = N'COLUMN', @level2name = N'${columnName}';
+                   END
+                   ELSE
+                   BEGIN
+                       EXEC sys.sp_addextendedproperty 
+                           @name = N'MS_Description',
+                           @value = N'${description.replace(/'/g, "''")}',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'TABLE', @level1name = N'${objectName}',
+                           @level2type = N'COLUMN', @level2name = N'${columnName}';
+                   END
+               `;
+               
+               await this._connectionManager.executeQuery(sql);
+           } else {
+               // Delete description
+               const sql = `
+                   USE [${database}];
+                   IF EXISTS (
+                       SELECT 1 FROM sys.extended_properties ep
+                       INNER JOIN sys.objects o ON ep.major_id = o.object_id
+                       INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                       INNER JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
+                       WHERE ep.class = 1 AND ep.name = 'MS_Description'
+                       AND s.name = '${schema}' AND o.name = '${objectName}' AND c.name = '${columnName}'
+                   )
+                   BEGIN
+                       EXEC sys.sp_dropextendedproperty 
+                           @name = N'MS_Description',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'TABLE', @level1name = N'${objectName}',
+                           @level2type = N'COLUMN', @level2name = N'${columnName}';
+                   END
+               `;
+               
+               await this._connectionManager.executeQuery(sql);
+           }
+
+           return {
+               success: true,
+               message: 'Column description updated successfully'
+           };
+
+       } catch (error) {
+           console.error(`Error updating column description for ${tableName}.${columnName}:`, error);
+           return {
+               success: false,
+               message: `Failed to update column description: ${error.message}`
+           };
+       }
+   }
+
+   /**
+    * Update object description with schema support
+    */
+   async updateObjectDescription(database, objectName, description) {
+       try {
+           if (!this._connectionManager.isConnected()) {
+               throw new Error('No active connection');
+           }
+
+           const { schema, objectName: parsedObjectName } = this._parseObjectName(objectName);
+
+           // Get object type for proper stored procedure call
+           const objectInfo = await this._databaseService.getObjectInfo(database, objectName);
+           if (!objectInfo) {
+               throw new Error(`Object ${objectName} not found`);
+           }
+
+           let level1Type = 'TABLE';
+           switch (objectInfo.object_type) {
+               case 'View':
+                   level1Type = 'VIEW';
+                   break;
+               case 'Procedure':
+                   level1Type = 'PROCEDURE';
+                   break;
+               case 'Function':
+                   level1Type = 'FUNCTION';
+                   break;
+               default:
+                   level1Type = 'TABLE';
+           }
+
+           if (description && description.trim() !== '') {
+               // Add or update description
+               const sql = `
+                   USE [${database}];
+                   IF EXISTS (
+                       SELECT 1 FROM sys.extended_properties ep
+                       INNER JOIN sys.objects o ON ep.major_id = o.object_id
+                       INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                       WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+                       AND s.name = '${schema}' AND o.name = '${parsedObjectName}'
+                   )
+                   BEGIN
+                       EXEC sys.sp_updateextendedproperty 
+                           @name = N'MS_Description',
+                           @value = N'${description.replace(/'/g, "''")}',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'${level1Type}', @level1name = N'${parsedObjectName}';
+                   END
+                   ELSE
+                   BEGIN
+                       EXEC sys.sp_addextendedproperty 
+                           @name = N'MS_Description',
+                           @value = N'${description.replace(/'/g, "''")}',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'${level1Type}', @level1name = N'${parsedObjectName}';
+                   END
+               `;
+               
+               await this._connectionManager.executeQuery(sql);
+           } else {
+               // Delete description
+               const sql = `
+                   USE [${database}];
+                   IF EXISTS (
+                       SELECT 1 FROM sys.extended_properties ep
+                       INNER JOIN sys.objects o ON ep.major_id = o.object_id
+                       INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                       WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+                       AND s.name = '${schema}' AND o.name = '${parsedObjectName}'
+                   )
+                   BEGIN
+                       EXEC sys.sp_dropextendedproperty 
+                           @name = N'MS_Description',
+                           @level0type = N'SCHEMA', @level0name = N'${schema}',
+                           @level1type = N'${level1Type}', @level1name = N'${parsedObjectName}';
+                   END
+               `;
+               
+               await this._connectionManager.executeQuery(sql);
+           }
+
+           return {
+               success: true,
+               message: 'Object description updated successfully'
+           };
+
+       } catch (error) {
+           console.error(`Error updating object description for ${objectName}:`, error);
+           return {
+               success: false,
+               message: `Failed to update object description: ${error.message}`
+           };
+       }
+   }
+
+   async deleteTableDescription(database, tableName) {
+       return await this.updateTableDescription(database, tableName, '');
+   }
+
+   async deleteColumnDescription(database, tableName, columnName) {
+       return await this.updateColumnDescription(database, tableName, columnName, '');
+   }
+
+   /**
+    * Parse object name to extract schema and object name
+    * @param {string} objectName - Object name (can be qualified with schema)
+    * @returns {Object} Object with schema and objectName properties
+    * @private
+    */
+   _parseObjectName(objectName) {
+       if (!objectName) {
+           return { schema: 'dbo', objectName: '' };
+       }
+
+       // Remove brackets if present
+       let cleanName = objectName.replace(/[\[\]]/g, '');
+       
+       // Split on the last dot to handle cases like [database].[schema].[object]
+       const parts = cleanName.split('.');
+       
+       if (parts.length >= 2) {
+           // Take the last part as object name and second-to-last as schema
+           const objName = parts[parts.length - 1];
+           const schema = parts[parts.length - 2];
+           return { schema: schema || 'dbo', objectName: objName };
+       } else {
+           // No schema specified, default to dbo
+           return { schema: 'dbo', objectName: cleanName };
+       }
+   }
 }
 
 module.exports = DependencyService;

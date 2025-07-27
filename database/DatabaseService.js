@@ -108,6 +108,8 @@ class DatabaseService {
         const { schema, objectName } = this._parseObjectName(tableName);
         const qualifiedTableName = `${schema}.${objectName}`;
 
+        console.log(`Getting table details for: ${qualifiedTableName} (schema: ${schema}, object: ${objectName})`);
+
         // Get columns with enhanced schema handling
         const columnsResult = await this._connectionManager.executeQuery(`
             USE [${database}];
@@ -225,16 +227,16 @@ class DatabaseService {
             if (!objectName.includes('.')) {
                 const schemasToTry = ['dbo', 'hr', 'sales', 'production', 'purchasing', 'person'];
                 
-                for (const schemaToTry of schemasToTry) {
+                for (const schema of schemasToTry) {
                     try {
                         result = await this._connectionManager.executeQuery(`
                             USE [${database}];
-                            SELECT OBJECT_DEFINITION(OBJECT_ID('${schemaToTry}.${parsedObjectName}')) as definition
+                            SELECT OBJECT_DEFINITION(OBJECT_ID('${schema}.${parsedObjectName}')) as definition
                         `);
                         
                         definition = result.recordset[0]?.definition;
                         if (definition && definition.trim() !== '') {
-                            console.log(`Found ${parsedObjectName} in schema ${schemaToTry}`);
+                            console.log(`Found ${parsedObjectName} in schema ${schema}`);
                             return definition;
                         }
                     } catch (error) {
