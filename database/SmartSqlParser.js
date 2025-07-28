@@ -22,6 +22,7 @@
  * - Dynamic SQL string analysis
  * - Temporary table tracking
  * - Complexity scoring
+ * - SQL Server version compatibility (2017+ support)
  */
 class SmartSqlParser {
     constructor(connectionManager, databaseService) {
@@ -32,6 +33,10 @@ class SmartSqlParser {
         this._cacheTimeout = 5 * 60 * 1000; // 5 minutes cache timeout
         this._maxCacheSize = 100; // Limite du cache par base de données
         this._temporaryTables = new Map(); // Track CTEs and temp tables
+        
+        // Version compatibility
+        this._serverVersion = null;
+        this._isLegacyServer = false;
         
         // Enhanced SQL keywords for better parsing
         this._sqlKeywords = new Set([
@@ -61,6 +66,31 @@ class SmartSqlParser {
         this._cleanupInterval = setInterval(() => {
             this._cleanupExpiredCache();
         }, 10 * 60 * 1000); // Toutes les 10 minutes
+    }
+
+    /**
+     * Check SQL Server version for compatibility
+     */
+    async _checkServerVersion(database) {
+        if (this._serverVersion === null) {
+            try {
+                // Try to get version info
+                if (typeof this._databaseService.getServerVersion === 'function') {
+                    this._serverVersion = await this._databaseService.getServerVersion(database);
+                } else {
+                    // Fallback: assume legacy for safety
+                    this._serverVersion = '14.0.0';
+                }
+                
+                const majorVersion = parseInt(this._serverVersion.split('.')[0]);
+                this._isLegacyServer = majorVersion < 15; // Before SQL Server 2019
+                
+                console.log(`SQL Server version: ${this._serverVersion} (Legacy mode: ${this._isLegacyServer})`);
+            } catch (error) {
+                console.warn('Could not detect SQL Server version, using legacy mode:', error);
+                this._isLegacyServer = true;
+            }
+        }
     }
 
     /**
@@ -98,6 +128,9 @@ class SmartSqlParser {
         console.log(`🔍 Analyzing dependencies for ${objectName} with enhanced parsing`);
         
         try {
+            // Check server version first
+            await this._checkServerVersion(database);
+            
             // Validation des paramètres
             if (!database || !objectName) {
                 throw new Error('Database and object name are required');
@@ -140,8 +173,11 @@ class SmartSqlParser {
         try {
             const tableUsages = new Map();
             
-            // Clean and normalize SQL code with improved method
-            const cleanedCode = this._cleanSqlCodeEnhanced(sqlCode);
+            // Clean and normalize SQL code - use simpler method for legacy servers
+            const cleanedCode = this._isLegacyServer 
+                ? this._cleanSqlCodeLegacy(sqlCode)
+                : this._cleanSqlCodeEnhanced(sqlCode);
+                
             if (!cleanedCode.trim()) {
                 console.warn(`Empty SQL code after cleaning for ${objectName}`);
                 return [];
@@ -151,7 +187,10 @@ class SmartSqlParser {
             const tableNameMap = this._createSchemaAwareTableLookupMap(tables);
             
             // 1. Parse main SQL structure
-            const tokens = this._tokenizeSqlEnhanced(cleanedCode);
+            const tokens = this._isLegacyServer 
+                ? this._tokenizeSqlBasic(cleanedCode)
+                : this._tokenizeSqlEnhanced(cleanedCode);
+                
             if (tokens.length === 0) {
                 console.warn(`No tokens extracted from SQL for ${objectName}`);
                 return [];
@@ -160,17 +199,94 @@ class SmartSqlParser {
             // Parse tokens with schema-aware context algorithm
             this._parseTokensWithSchemaContext(tokens, tableNameMap, tableUsages, objectName);
             
-            // 2. Parse complex structures (CTEs and Subqueries)
-            this._parseComplexStructures(cleanedCode, tableNameMap, tableUsages, objectName);
-            
-            // 3. Analyze dynamic SQL
-            this._analyzeDynamicSQL(cleanedCode, tableNameMap, tableUsages, objectName);
+            // 2. Parse complex structures (CTEs and Subqueries) - only for modern servers
+            if (!this._isLegacyServer) {
+                this._parseComplexStructures(cleanedCode, tableNameMap, tableUsages, objectName);
+                // 3. Analyze dynamic SQL - only for modern servers
+                this._analyzeDynamicSQL(cleanedCode, tableNameMap, tableUsages, objectName);
+            } else {
+                // Basic CTE parsing for legacy servers
+                this._parseBasicCTEs(cleanedCode, tableNameMap, tableUsages, objectName);
+            }
             
             // Post-process to remove duplicates and validate results
             return this._postProcessTableUsages(tableUsages);
             
         } catch (error) {
             console.error(`Error in enhanced parsing for ${objectName}:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * Basic CTE parsing for legacy servers
+     */
+    _parseBasicCTEs(sqlCode, tableNameMap, tableUsages, objectName) {
+        try {
+            const cteRegex = /WITH\s+(\w+)\s+AS\s*\(\s*([^)]+)\s*\)/gi;
+            let match;
+            
+            while ((match = cteRegex.exec(sqlCode)) !== null) {
+                const cteName = match[1];
+                const cteContent = match[2];
+                
+                console.log(`🔍 Found basic CTE: ${cteName}`);
+                
+                const cteTokens = this._tokenizeSqlBasic(cteContent);
+                this._parseTokensWithSchemaContext(cteTokens, tableNameMap, tableUsages, objectName);
+                this._trackTemporaryTable(cteName, 'CTE', objectName);
+            }
+        } catch (error) {
+            console.warn('Error in basic CTE parsing:', error);
+        }
+    }
+
+    /**
+     * Legacy SQL code cleaning (simpler approach)
+     */
+    _cleanSqlCodeLegacy(sqlCode) {
+        if (!sqlCode || typeof sqlCode !== 'string') {
+            return '';
+        }
+        
+        try {
+            let cleaned = sqlCode;
+            
+            // Simple comment removal
+            cleaned = cleaned.replace(/--.*$/gm, ' ');
+            cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, ' ');
+            
+            // Simple string literal removal
+            cleaned = cleaned.replace(/'[^']*'/g, "''");
+            cleaned = cleaned.replace(/"[^"]*"/g, '""');
+            
+            // Basic normalization
+            cleaned = cleaned.replace(/\s+/g, ' ').trim().toUpperCase();
+            
+            return cleaned;
+        } catch (error) {
+            console.error('Error in legacy SQL cleaning:', error);
+            return sqlCode.toUpperCase();
+        }
+    }
+
+    /**
+     * Basic tokenization for legacy compatibility
+     */
+    _tokenizeSqlBasic(sqlCode) {
+        try {
+            if (!sqlCode) return [];
+            
+            let processedCode = sqlCode;
+            processedCode = processedCode.replace(/\./g, ' . ');
+            processedCode = processedCode.replace(/\[/g, ' [ ');
+            processedCode = processedCode.replace(/\]/g, ' ] ');
+            
+            return processedCode.split(/[\s,\(\);=<>!+\-\*\/\n\r\t]+/)
+                .map(token => token.trim())
+                .filter(token => token.length > 0);
+        } catch (error) {
+            console.error('Error in basic tokenization:', error);
             return [];
         }
     }
@@ -653,7 +769,7 @@ class SmartSqlParser {
      * Schema-aware token parsing with better operation detection
      */
     _parseTokensWithSchemaContext(tokens, tableNameMap, tableUsages, objectName) {
-        const contextWindow = 15; // Larger window for schema-qualified names
+        const contextWindow = this._isLegacyServer ? 10 : 15; // Smaller window for legacy
         
         for (let i = 0; i < tokens.length; i++) {
             try {
@@ -661,791 +777,666 @@ class SmartSqlParser {
                 const multiPartMatch = this._findMultiPartTableMatch(tokens, i, tableNameMap);
                 if (multiPartMatch) {
                     // Found a multi-part table reference
-                    const operations = this._findOperationsInContext(tokens, i, contextWindow);
-                    this._addTableUsage(tableUsages, multiPartMatch.originalName, operations, i, objectName);
-                    
-                    // Skip the next token if it was part of the multi-part identifier
-                    if (multiPartMatch.tokensConsumed > 1) {
-                        i += multiPartMatch.tokensConsumed - 1;
-                    }
-                    continue;
-                }
-                
-                // Check for single token table match
-                const token = tokens[i];
-                if (!token) continue;
-                
-                const tableInfo = this._findTableMatch(token, tableNameMap);
-                if (tableInfo) {
-                    const operations = this._findOperationsInContext(tokens, i, contextWindow);
-                    if (operations.length > 0) {
-                        this._addTableUsage(tableUsages, tableInfo.originalName, operations, i, objectName);
-                    } else {
-                        // Even without explicit operations, it's still a reference
-                        this._addTableUsage(tableUsages, tableInfo.originalName, ['REFERENCE'], i, objectName);
-                    }
-                }
-            } catch (error) {
-                console.warn(`Error parsing token "${tokens[i]}" at position ${i}:`, error);
-                continue;
-            }
-        }
-    }
-
-    /**
-     * Find multi-part table identifiers (schema.table)
-     */
-    _findMultiPartTableMatch(tokens, startIndex, tableNameMap) {
-        if (startIndex + 2 >= tokens.length) {
-            return null;
-        }
-        
-        const token1 = tokens[startIndex];
-        const token2 = tokens[startIndex + 1];
-        const token3 = tokens[startIndex + 2];
-        
-        if (!token1 || !token2 || !token3) {
-            return null;
-        }
-        
-        // Check for schema.table pattern
-        if (token2 === '.' || token2 === '.[' || token2 === '].') {
-            const multiPartName = `${token1}.${token3}`;
-            const tableInfo = tableNameMap.get(multiPartName.toUpperCase());
-            if (tableInfo) {
-                return {
-                    ...tableInfo,
-                    tokensConsumed: 3
-                };
-            }
-            
-            // Also try with brackets removed
-            const cleanMultiPartName = multiPartName.replace(/[\[\]]/g, '');
-            const cleanTableInfo = tableNameMap.get(cleanMultiPartName.toUpperCase());
-            if (cleanTableInfo) {
-                return {
-                    ...cleanTableInfo,
-                    tokensConsumed: 3
-                };
-            }
-        }
-        
-        return null;
-    }
-
-    /**
-     * Enhanced table matching with schema context
-     */
-    _findTableMatch(token, tableNameMap) {
-        if (!token) return null;
-        
-        try {
-            // Direct match first
-            if (tableNameMap.has(token.toUpperCase())) {
-                return tableNameMap.get(token.toUpperCase());
-            }
-            
-            // Try without brackets
-            const withoutBrackets = token.replace(/[\[\]]/g, '');
-            if (tableNameMap.has(withoutBrackets.toUpperCase())) {
-                return tableNameMap.get(withoutBrackets.toUpperCase());
-            }
-            
-            // Try with common schema prefixes if no schema specified
-            if (!token.includes('.')) {
-                const schemasToTry = ['DBO', 'HR', 'SALES', 'PRODUCTION', 'PURCHASING', 'PERSON'];
-                
-                for (const schema of schemasToTry) {
-                    const schemaQualified = `${schema}.${withoutBrackets}`;
-                    if (tableNameMap.has(schemaQualified.toUpperCase())) {
-                        return tableNameMap.get(schemaQualified.toUpperCase());
-                    }
-                }
-            }
-            
-            return null;
-        } catch (error) {
-            console.warn(`Error in table matching for token "${token}":`, error);
-            return null;
-        }
-    }
-
-    /**
-     * Find SQL operations within context window with weighted scoring
-     */
-    _findOperationsInContext(tokens, currentIndex, windowSize) {
-        const operations = [];
-        const operationScores = new Map();
-        
-        // Search in both directions from current position
-        const startIndex = Math.max(0, currentIndex - windowSize);
-        const endIndex = Math.min(tokens.length - 1, currentIndex + windowSize);
-        
-        for (let i = startIndex; i <= endIndex; i++) {
-            if (i === currentIndex) continue; // Skip the table name itself
-           
-           const token = tokens[i];
-           if (!token) continue;
-           
-           const operationInfo = this._operationKeywords.get(token);
-           
-           if (operationInfo) {
-               // Calculate distance weight (closer = higher weight)
-               const distance = Math.abs(i - currentIndex);
-               const distanceWeight = Math.max(1, windowSize - distance);
-               const totalWeight = operationInfo.weight * distanceWeight;
-               
-               if (!operationScores.has(operationInfo.type) || 
-                   operationScores.get(operationInfo.type) < totalWeight) {
-                   operationScores.set(operationInfo.type, totalWeight);
-               }
-           }
-       }
-       
-       // Convert to sorted operations (highest weight first)
-       return Array.from(operationScores.entries())
-           .sort(([, a], [, b]) => b - a)
-           .map(([operation, ]) => operation);
-   }
-
-   /**
-    * Add table usage with deduplication and validation
-    */
-   _addTableUsage(tableUsages, tableName, operations, position, objectName) {
-       try {
-           if (!tableName) return;
-           
-           const key = tableName.toUpperCase();
-           
-           if (!tableUsages.has(key)) {
-               tableUsages.set(key, {
-                   tableName: tableName,
-                   operations: new Set(),
-                   positions: [],
-                   confidence: 0
-               });
-           }
-           
-           const usage = tableUsages.get(key);
-           
-           // Add operations (deduplicated by Set)
-           if (Array.isArray(operations)) {
-               operations.forEach(op => {
-                   if (op && typeof op === 'string') {
-                       usage.operations.add(op);
+                   const operations = this._findOperationsInContext(tokens, i, contextWindow);
+                   this._addTableUsage(tableUsages, multiPartMatch.originalName, operations, i, objectName);
+                   
+                   // Skip the next token if it was part of the multi-part identifier
+                   if (multiPartMatch.tokensConsumed > 1) {
+                       i += multiPartMatch.tokensConsumed - 1;
                    }
-               });
-           }
-           
-           // Track positions for debugging
-           usage.positions.push(position);
-           
-           // Increase confidence score
-           usage.confidence += operations.length || 1;
-           
-       } catch (error) {
-           console.warn(`Error adding table usage for ${tableName}:`, error);
-       }
-   }
-
-   /**
-    * Post-process table usages to clean up and validate
-    */
-   _postProcessTableUsages(tableUsages) {
-       const results = [];
-       
-       for (const [tableName, usage] of tableUsages) {
-           try {
-               // Convert Set to Array
-               const operationsArray = Array.from(usage.operations);
-               
-               // Skip if no meaningful operations found
-               if (operationsArray.length === 0) {
                    continue;
                }
                
-               // Create final usage object
-               const finalUsage = {
-                   tableName: usage.tableName,
-                   operations: operationsArray,
-                   confidence: usage.confidence,
-                   positions: usage.positions.length
-               };
+               // Check for single token table match
+               const token = tokens[i];
+               if (!token) continue;
                
-               results.push(finalUsage);
-               
+               const tableInfo = this._findTableMatch(token, tableNameMap);
+               if (tableInfo) {
+                   const operations = this._findOperationsInContext(tokens, i, contextWindow);
+                   if (operations.length > 0) {
+                       this._addTableUsage(tableUsages, tableInfo.originalName, operations, i, objectName);
+                   } else {
+                       // Even without explicit operations, it's still a reference
+                       this._addTableUsage(tableUsages, tableInfo.originalName, ['REFERENCE'], i, objectName);
+                   }
+               }
            } catch (error) {
-               console.warn(`Error post-processing usage for ${tableName}:`, error);
+               console.warn(`Error parsing token "${tokens[i]}" at position ${i}:`, error);
                continue;
            }
        }
-       
-       // Sort by confidence (higher confidence first)
-       return results.sort((a, b) => b.confidence - a.confidence);
    }
 
    /**
-    * Convert to expected format with enhanced validation
+    * Find multi-part table identifiers (schema.table)
     */
-   _convertToExpectedFormat(tableUsages) {
-       return tableUsages.map(usage => {
-           try {
-               const operations = usage.operations || [];
-               
+   _findMultiPartTableMatch(tokens, startIndex, tableNameMap) {
+       if (startIndex + 2 >= tokens.length) {
+           return null;
+       }
+       
+       const token1 = tokens[startIndex];
+       const token2 = tokens[startIndex + 1];
+       const token3 = tokens[startIndex + 2];
+       
+       if (!token1 || !token2 || !token3) {
+           return null;
+       }
+       
+       // Check for schema.table pattern
+       if (token2 === '.' || token2 === '.[' || token2 === '].') {
+           const multiPartName = `${token1}.${token3}`;
+           const tableInfo = tableNameMap.get(multiPartName.toUpperCase());
+           if (tableInfo) {
                return {
-                   referenced_object: usage.tableName,
-                   referenced_object_type: 'Table',
-                   dependency_type: operations.join(', '),
-                   operations: operations,
-                   is_selected: operations.includes('SELECT') ? 1 : 0,
-                   is_updated: operations.includes('UPDATE') ? 1 : 0,
-                   is_insert_all: operations.includes('INSERT') ? 1 : 0,
-                   is_delete: operations.includes('DELETE') ? 1 : 0,
-                   confidence: usage.confidence || 0,
-                   positions: usage.positions || 0,
-                   // Enhanced metadata
-                   has_cte: operations.includes('CTE') ? 1 : 0,
-                   has_subquery: operations.includes('SUBQUERY') ? 1 : 0,
-                   has_dynamic_sql: operations.includes('DYNAMIC_SQL') ? 1 : 0
-               };
-           } catch (error) {
-               console.warn(`Error converting usage to expected format:`, error);
-               return {
-                   referenced_object: usage.tableName || 'Unknown',
-                   referenced_object_type: 'Table',
-                   dependency_type: 'REFERENCE',
-                   operations: ['REFERENCE'],
-                   is_selected: 0,
-                   is_updated: 0,
-                   is_insert_all: 0,
-                   is_delete: 0,
-                   confidence: 0,
-                   positions: 0,
-                   has_cte: 0,
-                   has_subquery: 0,
-                   has_dynamic_sql: 0
+                   ...tableInfo,
+                   tokensConsumed: 3
                };
            }
-       });
-   }
-
-   /**
-    * Enhanced SQL code cleaning with better handling of edge cases
-    */
-   _cleanSqlCodeEnhanced(sqlCode) {
-       if (!sqlCode || typeof sqlCode !== 'string') {
-           return '';
-       }
-       
-       let cleaned = sqlCode;
-       
-       try {
-           // Remove single-line comments (-- comment) mais préserver les lignes
-           cleaned = cleaned.replace(/--.*$/gm, ' ');
            
-           // Remove multi-line comments (/* comment */) with proper nesting handling
-           // Traiter les commentaires imbriqués de façon plus sûre
-           let commentDepth = 0;
-           let result = '';
-           let i = 0;
-           
-           while (i < cleaned.length) {
-               if (i < cleaned.length - 1 && cleaned.substring(i, i + 2) === '/*') {
-                   commentDepth++;
-                   i += 2;
-               } else if (i < cleaned.length - 1 && cleaned.substring(i, i + 2) === '*/' && commentDepth > 0) {
-                   commentDepth--;
-                   i += 2;
-               } else if (commentDepth === 0) {
-                   result += cleaned[i];
-                   i++;
-               } else {
-                   i++;
-               }
+           // Also try with brackets removed
+           const cleanMultiPartName = multiPartName.replace(/[\[\]]/g, '');
+           const cleanTableInfo = tableNameMap.get(cleanMultiPartName.toUpperCase());
+           if (cleanTableInfo) {
+               return {
+                   ...cleanTableInfo,
+                   tokensConsumed: 3
+               };
            }
-           cleaned = result;
-           
-           // Remove string literals more carefully
-           // Handle escaped quotes and mixed quote types
-           cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, "''");
-           cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, '""');
-           
-           // Preserve important punctuation for parsing
-           cleaned = cleaned.replace(/\s+/g, ' ').trim();
-           
-           // Convert to uppercase for consistent parsing
-           cleaned = cleaned.toUpperCase();
-           
-           return cleaned;
-           
-       } catch (error) {
-           console.error('Error cleaning SQL code:', error);
-           return sqlCode.toUpperCase(); // Fallback to simple uppercase
        }
+       
+       return null;
    }
 
    /**
-    * Enhanced tokenization with better SQL structure awareness
+    * Enhanced table matching with schema context
     */
-   _tokenizeSqlEnhanced(sqlCode) {
+   _findTableMatch(token, tableNameMap) {
+       if (!token) return null;
+       
        try {
-           if (!sqlCode) return [];
+           // Direct match first
+           if (tableNameMap.has(token.toUpperCase())) {
+               return tableNameMap.get(token.toUpperCase());
+           }
            
-           // Préserver les opérateurs importants pendant la tokenisation
-           let processedCode = sqlCode;
+           // Try without brackets
+           const withoutBrackets = token.replace(/[\[\]]/g, '');
+           if (tableNameMap.has(withoutBrackets.toUpperCase())) {
+               return tableNameMap.get(withoutBrackets.toUpperCase());
+           }
            
-           // Marquer les points importants (pour schema.table)
-           processedCode = processedCode.replace(/\./g, ' . ');
-           processedCode = processedCode.replace(/\[/g, ' [ ');
-           processedCode = processedCode.replace(/\]/g, ' ] ');
-           
-           // Split on multiple delimiters while preserving important operators
-           const tokens = processedCode.split(/[\s,\(\);=<>!+\-\*\/\n\r\t]+/)
-               .map(token => token.trim())
-               .filter(token => token.length > 0)
-               .filter(token => token !== '');
-           
-           // Post-traitement pour recombiner les identifiants avec brackets
-           const finalTokens = [];
-           for (let i = 0; i < tokens.length; i++) {
-               const token = tokens[i];
+           // Try with common schema prefixes if no schema specified
+           if (!token.includes('.') && !this._isLegacyServer) {
+               const schemasToTry = ['DBO', 'HR', 'SALES', 'PRODUCTION', 'PURCHASING', 'PERSON'];
                
-               // Recombiner [schema].[table] patterns
-               if (token === '[' && i + 2 < tokens.length && tokens[i + 2] === ']') {
-                   finalTokens.push(`[${tokens[i + 1]}]`);
-                   i += 2; // Skip next 2 tokens
-               } else if (token !== '[' && token !== ']') {
-                   finalTokens.push(token);
+               for (const schema of schemasToTry) {
+                   const schemaQualified = `${schema}.${withoutBrackets}`;
+                   if (tableNameMap.has(schemaQualified.toUpperCase())) {
+                       return tableNameMap.get(schemaQualified.toUpperCase());
+                   }
                }
            }
            
-           return finalTokens;
-           
+           return null;
        } catch (error) {
-           console.error('Error in tokenization:', error);
-           return [];
+           console.warn(`Error in table matching for token "${token}":`, error);
+           return null;
        }
    }
 
    /**
-    * Get tables for database with improved caching and error handling
+    * Find SQL operations within context window with weighted scoring
     */
-   async _getTablesForDatabase(database) {
-       if (!database || typeof database !== 'string') {
-           throw new Error('Invalid database name provided');
-       }
+   _findOperationsInContext(tokens, currentIndex, windowSize) {
+       const operations = [];
+       const operationScores = new Map();
        
-       const cacheKey = database.toUpperCase();
+       // Search in both directions from current position
+       const startIndex = Math.max(0, currentIndex - windowSize);
+       const endIndex = Math.min(tokens.length - 1, currentIndex + windowSize);
        
-       // Check cache validity
-       if (this._tablesCache.has(cacheKey)) {
-           const timestamp = this._cacheTimestamps.get(cacheKey);
-           if (timestamp && (Date.now() - timestamp) < this._cacheTimeout) {
-               return this._tablesCache.get(cacheKey);
-           } else {
-               // Cache expired, remove it
-               this._tablesCache.delete(cacheKey);
-               this._cacheTimestamps.delete(cacheKey);
-           }
-       }
-       
-       try {
-           console.log(`🔄 Loading tables for database: ${database}`);
-           const objects = await this._databaseService.getObjects(database);
-           
-           if (!Array.isArray(objects)) {
-               throw new Error('Invalid objects array returned from database service');
-           }
-           
-           const tables = objects.filter(obj => obj && obj.object_type === 'Table');
-           
-           // Gérer la taille du cache
-           if (this._tablesCache.size >= this._maxCacheSize) {
-               // Supprimer les entrées les plus anciennes
-               const oldestEntry = Array.from(this._cacheTimestamps.entries())
-                   .sort((a, b) => a[1] - b[1])[0];
-               
-               if (oldestEntry) {
-                   this._tablesCache.delete(oldestEntry[0]);
-                   this._cacheTimestamps.delete(oldestEntry[0]);
-               }
-           }
-           
-           // Cache the results with timestamp
-           this._tablesCache.set(cacheKey, tables);
-           this._cacheTimestamps.set(cacheKey, Date.now());
-           
-           console.log(`✅ Loaded ${tables.length} tables for ${database}`);
-           return tables;
-           
-       } catch (error) {
-           console.error(`❌ Error getting tables for ${database}:`, error);
-           // Don't cache errors, return empty array
-           return [];
-       }
-   }
+       for (let i = startIndex; i <= endIndex; i++) {
+           if (i === currentIndex) continue; // Skip the table name itself
+          
+          const token = tokens[i];
+          if (!token) continue;
+          
+          const operationInfo = this._operationKeywords.get(token);
+          
+          if (operationInfo) {
+              // Calculate distance weight (closer = higher weight)
+              const distance = Math.abs(i - currentIndex);
+              const distanceWeight = Math.max(1, windowSize - distance);
+              const totalWeight = operationInfo.weight * distanceWeight;
+              
+              if (!operationScores.has(operationInfo.type) || 
+                  operationScores.get(operationInfo.type) < totalWeight) {
+                  operationScores.set(operationInfo.type, totalWeight);
+              }
+          }
+      }
+      
+      // Convert to sorted operations (highest weight first)
+      return Array.from(operationScores.entries())
+          .sort(([, a], [, b]) => b - a)
+          .map(([operation, ]) => operation);
+  }
 
-   /**
-    * Get object definition with better error handling and schema awareness
-    */
-   async _getObjectDefinition(database, objectName) {
-       try {
-           if (!database || !objectName) {
-               throw new Error('Database and object name are required');
-           }
-           
-           // Check if it's a table (tables don't have definitions)
-           const objectInfo = await this._databaseService.getObjectInfo(database, objectName);
-           if (!objectInfo) {
-               console.warn(`Object ${objectName} not found in database ${database}`);
-               return null;
-           }
-           
-           if (objectInfo.object_type === 'Table') {
-              console.log(`Skipping definition for table: ${objectName}`);
-              return null;
+  /**
+   * Add table usage with deduplication and validation
+   */
+  _addTableUsage(tableUsages, tableName, operations, position, objectName) {
+      try {
+          if (!tableName) return;
+          
+          const key = tableName.toUpperCase();
+          
+          if (!tableUsages.has(key)) {
+              tableUsages.set(key, {
+                  tableName: tableName,
+                  operations: new Set(),
+                  positions: [],
+                  confidence: 0
+              });
           }
           
-          // Try to get definition with enhanced method
-          const definition = await this._databaseService.getObjectDefinition(database, objectName);
+          const usage = tableUsages.get(key);
           
-          if (!definition || definition.trim() === '') {
-              // Check if object exists but is encrypted or has permission issues
-              if (objectInfo.is_encrypted) {
-                  console.warn(`🔒 Object ${objectName} is encrypted, cannot analyze dependencies`);
-                  return null;
-              }
-              
-              console.warn(`⚠️ Empty definition returned for ${objectName} in schema ${objectInfo.schema_name || 'unknown'}`);
-              
-              // If object exists but no definition, try alternative approach
-              if (objectInfo.schema_name && objectInfo.schema_name !== 'dbo') {
-                  const qualifiedName = `${objectInfo.schema_name}.${objectName}`;
-                  console.log(`🔄 Retrying with qualified name: ${qualifiedName}`);
-                  const retryDefinition = await this._databaseService.getObjectDefinition(database, qualifiedName);
-                  
-                  if (retryDefinition && retryDefinition.trim() !== '') {
-                      console.log(`✅ Found definition using qualified name: ${qualifiedName}`);
-                      return retryDefinition;
+          // Add operations (deduplicated by Set)
+          if (Array.isArray(operations)) {
+              operations.forEach(op => {
+                  if (op && typeof op === 'string') {
+                      usage.operations.add(op);
                   }
-              }
-              
-              return null;
+              });
           }
           
-          console.log(`✅ Successfully retrieved definition for ${objectName}`);
-          return definition;
+          // Track positions for debugging
+          usage.positions.push(position);
+          
+          // Increase confidence score
+          usage.confidence += operations.length || 1;
           
       } catch (error) {
-          console.error(`Error getting definition for ${objectName}:`, error);
-          return null;
+          console.warn(`Error adding table usage for ${tableName}:`, error);
       }
   }
 
   /**
-   * Enhanced cache management
+   * Post-process table usages to clean up and validate
    */
-  clearCache(database = null) {
+  _postProcessTableUsages(tableUsages) {
+      const results = [];
+      
+      for (const [tableName, usage] of tableUsages) {
+          try {
+              // Convert Set to Array
+              const operationsArray = Array.from(usage.operations);
+              
+              // Skip if no meaningful operations found
+              if (operationsArray.length === 0) {
+                  continue;
+              }
+              
+              // Create final usage object
+              const finalUsage = {
+                  tableName: usage.tableName,
+                  operations: operationsArray,
+                  confidence: usage.confidence,
+                  positions: usage.positions.length
+              };
+              
+              results.push(finalUsage);
+              
+          } catch (error) {
+              console.warn(`Error post-processing usage for ${tableName}:`, error);
+              continue;
+          }
+      }
+      
+      // Sort by confidence (higher confidence first)
+      return results.sort((a, b) => b.confidence - a.confidence);
+  }
+
+  /**
+   * Convert to expected format with enhanced validation
+   */
+  _convertToExpectedFormat(tableUsages) {
+      return tableUsages.map(usage => {
+          try {
+              const operations = usage.operations || [];
+              
+              return {
+                  referenced_object: usage.tableName,
+                  referenced_object_type: 'Table',
+                  dependency_type: operations.join(', '),
+                  operations: operations,
+                  is_selected: operations.includes('SELECT') ? 1 : 0,
+                  is_updated: operations.includes('UPDATE') ? 1 : 0,
+                  is_insert_all: operations.includes('INSERT') ? 1 : 0,
+                  is_delete: operations.includes('DELETE') ? 1 : 0,
+                  confidence: usage.confidence || 0,
+                  positions: usage.positions || 0,
+                  // Enhanced metadata (only for modern servers)
+                  has_cte: !this._isLegacyServer && operations.includes('CTE') ? 1 : 0,
+                  has_subquery: !this._isLegacyServer && operations.includes('SUBQUERY') ? 1 : 0,
+                  has_dynamic_sql: !this._isLegacyServer && operations.includes('DYNAMIC_SQL') ? 1 : 0
+              };
+          } catch (error) {
+              console.warn(`Error converting usage to expected format:`, error);
+              return {
+                  referenced_object: usage.tableName || 'Unknown',
+                  referenced_object_type: 'Table',
+                  dependency_type: 'REFERENCE',
+                  operations: ['REFERENCE'],
+                  is_selected: 0,
+                  is_updated: 0,
+                  is_insert_all: 0,
+                  is_delete: 0,
+                  confidence: 0,
+                  positions: 0,
+                  has_cte: 0,
+                  has_subquery: 0,
+                  has_dynamic_sql: 0
+              };
+          }
+      });
+  }
+
+  /**
+   * Enhanced SQL code cleaning with better handling of edge cases
+   */
+  _cleanSqlCodeEnhanced(sqlCode) {
+      if (!sqlCode || typeof sqlCode !== 'string') {
+          return '';
+      }
+      
+      let cleaned = sqlCode;
+      
       try {
-          if (database) {
-              const cacheKey = database.toUpperCase();
+          // Remove single-line comments (-- comment) mais préserver les lignes
+          cleaned = cleaned.replace(/--.*$/gm, ' ');
+          
+          // Remove multi-line comments (/* comment */) with proper nesting handling
+          // Traiter les commentaires imbriqués de façon plus sûre
+          let commentDepth = 0;
+          let result = '';
+          let i = 0;
+          
+          while (i < cleaned.length) {
+              if (i < cleaned.length - 1 && cleaned.substring(i, i + 2) === '/*') {
+                  commentDepth++;
+                  i += 2;
+              } else if (i < cleaned.length - 1 && cleaned.substring(i, i + 2) === '*/' && commentDepth > 0) {
+                  commentDepth--;
+                  i += 2;
+              } else if (commentDepth === 0) {
+                  result += cleaned[i];
+                  i++;
+              } else {
+                  i++;
+              }
+          }
+          cleaned = result;
+          
+          // Remove string literals more carefully
+          // Handle escaped quotes and mixed quote types
+          cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, "''");
+          cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, '""');
+          
+          // Preserve important punctuation for parsing
+          cleaned = cleaned.replace(/\s+/g, ' ').trim();
+          
+          // Convert to uppercase for consistent parsing
+          cleaned = cleaned.toUpperCase();
+          
+          return cleaned;
+          
+      } catch (error) {
+          console.error('Error cleaning SQL code:', error);
+          return sqlCode.toUpperCase(); // Fallback to simple uppercase
+      }
+  }
+
+  /**
+   * Enhanced tokenization with better SQL structure awareness
+   */
+  _tokenizeSqlEnhanced(sqlCode) {
+      try {
+          if (!sqlCode) return [];
+          
+          // Préserver les opérateurs importants pendant la tokenisation
+          let processedCode = sqlCode;
+          
+          // Marquer les points importants (pour schema.table)
+          processedCode = processedCode.replace(/\./g, ' . ');
+          processedCode = processedCode.replace(/\[/g, ' [ ');
+          processedCode = processedCode.replace(/\]/g, ' ] ');
+          
+          // Split on multiple delimiters while preserving important operators
+          const tokens = processedCode.split(/[\s,\(\);=<>!+\-\*\/\n\r\t]+/)
+              .map(token => token.trim())
+              .filter(token => token.length > 0)
+              .filter(token => token !== '');
+          
+          // Post-traitement pour recombiner les identifiants avec brackets
+          const finalTokens = [];
+          for (let i = 0; i < tokens.length; i++) {
+              const token = tokens[i];
+              
+              // Recombiner [schema].[table] patterns
+              if (token === '[' && i + 2 < tokens.length && tokens[i + 2] === ']') {
+                  finalTokens.push(`[${tokens[i + 1]}]`);
+                  i += 2; // Skip next 2 tokens
+              } else if (token !== '[' && token !== ']') {
+                  finalTokens.push(token);
+              }
+          }
+          
+          return finalTokens;
+          
+      } catch (error) {
+          console.error('Error in tokenization:', error);
+          return [];
+      }
+  }
+
+  /**
+   * Get tables for database with improved caching and error handling
+   */
+  async _getTablesForDatabase(database) {
+      if (!database || typeof database !== 'string') {
+          throw new Error('Invalid database name provided');
+      }
+      
+      const cacheKey = database.toUpperCase();
+      
+      // Check cache validity
+      if (this._tablesCache.has(cacheKey)) {
+          const timestamp = this._cacheTimestamps.get(cacheKey);
+          if (timestamp && (Date.now() - timestamp) < this._cacheTimeout) {
+              return this._tablesCache.get(cacheKey);
+          } else {
+              // Cache expired, remove it
               this._tablesCache.delete(cacheKey);
               this._cacheTimestamps.delete(cacheKey);
-              console.log(`🧹 Cache cleared for database: ${database}`);
-          } else {
-              this._tablesCache.clear();
-              this._cacheTimestamps.clear();
-              this._temporaryTables.clear();
-              console.log(`🧹 All cache cleared`);
           }
+      }
+      
+      try {
+          console.log(`🔄 Loading tables for database: ${database}`);
+          const objects = await this._databaseService.getObjects(database);
+          
+          if (!Array.isArray(objects)) {
+              throw new Error('Invalid objects array returned from database service');
+          }
+          
+          const tables = objects.filter(obj => obj && obj.object_type === 'Table');
+          
+          // Gérer la taille du cache
+          if (this._tablesCache.size >= this._maxCacheSize) {
+              // Supprimer les entrées les plus anciennes
+              const oldestEntry = Array.from(this._cacheTimestamps.entries())
+                  .sort((a, b) => a[1] - b[1])[0];
+              
+              if (oldestEntry) {
+                  this._tablesCache.delete(oldestEntry[0]);
+                  this._cacheTimestamps.delete(oldestEntry[0]);
+              }
+          }
+          
+          // Cache the results with timestamp
+          this._tablesCache.set(cacheKey, tables);
+          this._cacheTimestamps.set(cacheKey, Date.now());
+          
+          console.log(`✅ Loaded ${tables.length} tables for ${database}`);
+          return tables;
+          
       } catch (error) {
-          console.error('Error clearing cache:', error);
+          console.error(`❌ Error getting tables for ${database}:`, error);
+          // Don't cache errors, return empty array
+          return [];
       }
   }
 
   /**
-   * Get cache statistics for debugging
+   * Get object definition with better error handling and schema awareness
    */
-  getCacheStats() {
-      return {
-          cachedDatabases: this._tablesCache.size,
-          maxCacheSize: this._maxCacheSize,
-          cacheTimeout: this._cacheTimeout,
-          temporaryTables: this._temporaryTables.size,
-          cacheHits: Array.from(this._cacheTimestamps.entries()).map(([db, timestamp]) => ({
-              database: db,
-              age: Date.now() - timestamp,
-              expired: (Date.now() - timestamp) > this._cacheTimeout
-          }))
-      };
-  }
-
-  /**
-   * Table usage analysis with enhanced error handling
-   */
-  async getTableUsageAnalysis(database, objectName) {
+  async _getObjectDefinition(database, objectName) {
       try {
           if (!database || !objectName) {
               throw new Error('Database and object name are required');
           }
           
-          const dependencies = await this.analyzeDependencies(database, objectName);
-          
-          return {
-              objectName: objectName,
-              tablesUsed: dependencies.dependsOn,
-              relatedObjects: [], // Will be implemented separately if needed
-              summary: this._generateEnhancedSummary(dependencies.dependsOn)
-          };
-      } catch (error) {
-          console.error(`Error in table usage analysis for ${objectName}:`, error);
-          return {
-              objectName: objectName,
-              tablesUsed: [],
-              relatedObjects: [],
-              summary: { totalTables: 0, readTables: 0, writeTables: 0, operationCounts: {} }
-          };
-      }
-  }
-
-  /**
-   * Generate enhanced analysis summary with new parsing capabilities
-   */
-  _generateEnhancedSummary(tablesUsed) {
-      try {
-          const summary = {
-              totalTables: tablesUsed.length,
-              readTables: 0,
-              writeTables: 0,
-              operationCounts: {},
-              // Enhanced metrics
-              cteReferences: 0,
-              subqueryReferences: 0,
-              dynamicSqlReferences: 0,
-              temporaryTables: this._temporaryTables ? this._temporaryTables.size : 0,
-              complexityScore: 0
-          };
-
-          tablesUsed.forEach(table => {
-              try {
-                  if (table.is_selected) summary.readTables++;
-                  if (table.is_updated || table.is_insert_all || table.is_delete) {
-                      summary.writeTables++;
-                  }
-                  
-                  // Count enhanced features
-                  if (table.has_cte) summary.cteReferences++;
-                  if (table.has_subquery) summary.subqueryReferences++;
-                  if (table.has_dynamic_sql) summary.dynamicSqlReferences++;
-                  
-                  const operations = table.operations || [];
-                  operations.forEach(op => {
-                      if (op && typeof op === 'string') {
-                          summary.operationCounts[op] = (summary.operationCounts[op] || 0) + 1;
-                      }
-                  });
-              } catch (tableError) {
-                  console.warn('Error processing table in summary:', tableError);
-              }
-          });
-
-          // Calculate complexity score
-          summary.complexityScore = this._calculateComplexityScore(tablesUsed);
-
-          return summary;
-      } catch (error) {
-          console.error('Error generating enhanced summary:', error);
-          return { 
-              totalTables: 0, 
-              readTables: 0, 
-              writeTables: 0, 
-              operationCounts: {},
-              cteReferences: 0,
-              subqueryReferences: 0,
-              dynamicSqlReferences: 0,
-              temporaryTables: 0,
-              complexityScore: 0
-          };
-      }
-  }
-
-  /**
-   * Calculate SQL complexity score based on parsing results
-   */
-  _calculateComplexityScore(tablesUsed) {
-      let score = 0;
-      
-      tablesUsed.forEach(table => {
-          try {
-              score += table.operations ? table.operations.length : 0;
-              if (table.has_cte) score += 2;
-              if (table.has_subquery) score += 1;
-              if (table.has_dynamic_sql) score += 3;
-              score += (table.confidence || 0) * 0.1;
-          } catch (error) {
-              console.warn('Error calculating complexity for table:', error);
-          }
-      });
-      
-      return Math.min(score, 100); // Cap at 100
-  }
-
-  /**
-   * Validate input parameters
-   * @param {string} database 
-   * @param {string} objectName 
-   * @private
-   */
-   _validateInputs(database, objectName) {
-       if (!database || typeof database !== 'string' || database.trim() === '') {
-           throw new Error('Valid database name is required');
-       }
-       
-       if (!objectName || typeof objectName !== 'string' || objectName.trim() === '') {
-           throw new Error('Valid object name is required');
-       }
-       
-       // Vérification de base contre l'injection SQL - correction de la regex
-       const dangerousChars = /[';]|--|\/\*|\*\/|xp_|sp_|exec\s+|execute\s+/i;
-       if (dangerousChars.test(database) || dangerousChars.test(objectName)) {
-           throw new Error('Invalid characters detected in input parameters');
-       }
-   }
-
-  /**
-   * Get performance metrics
-   */
-  getPerformanceMetrics() {
-      return {
-          cacheSize: this._tablesCache.size,
-          cacheHitRate: this._calculateCacheHitRate(),
-          averageParsingTime: this._averageParsingTime || 0,
-          totalParsedObjects: this._totalParsedObjects || 0,
-          temporaryTablesTracked: this._temporaryTables.size,
-          enhancedFeaturesUsed: {
-              cteAnalysis: true,
-              subqueryAnalysis: true,
-              dynamicSqlAnalysis: true,
-              complexityScoring: true
-          }
-      };
-  }
-
-  /**
-   * Calculate cache hit rate
-   * @private
-   */
-  _calculateCacheHitRate() {
-      // Simplistic calculation - in a real implementation, you'd track hits and misses
-      return this._tablesCache.size > 0 ? 0.8 : 0; // Placeholder
-  }
-
-  /**
-   * Clean up resources and timers
-   */
-  dispose() {
-      // Nettoyer le timer de nettoyage automatique
-      if (this._cleanupInterval) {
-          clearInterval(this._cleanupInterval);
-          this._cleanupInterval = null;
-      }
-      
-      // Nettoyer les caches
-      this._tablesCache.clear();
-      this._cacheTimestamps.clear();
-      this._temporaryTables.clear();
-      
-      // Nettoyer les références
-      this._connectionManager = null;
-      this._databaseService = null;
-      
-      console.log('🧹 SmartSqlParser disposed');
-  }
-
-  /**
-   * Get diagnostic information for debugging
-   */
-  getDiagnostics() {
-      return {
-          cacheStats: this.getCacheStats(),
-          performanceMetrics: this.getPerformanceMetrics(),
-          sqlKeywords: this._sqlKeywords.size,
-          operationKeywords: this._operationKeywords.size,
-          enhancedFeatures: {
-              cteSupport: true,
-              subquerySupport: true,
-              dynamicSqlSupport: true,
-              schemaAwareness: true,
-              complexityAnalysis: true
-          },
-          isDisposed: this._cleanupInterval === null
-      };
-  }
-
-  /**
-   * Validate and sanitize SQL code input
-   * @param {string} sqlCode 
-   * @private
-   */
-  _validateSqlCode(sqlCode) {
-      if (!sqlCode || typeof sqlCode !== 'string') {
-          return '';
-      }
-      
-      // Limite de taille pour éviter les problèmes de performance
-      const maxSqlLength = 1024 * 1024; // 1MB
-      if (sqlCode.length > maxSqlLength) {
-          console.warn(`SQL code truncated from ${sqlCode.length} to ${maxSqlLength} characters`);
-          return sqlCode.substring(0, maxSqlLength);
-      }
-      
-      return sqlCode;
-  }
-
-  /**
-   * Enhanced error handling for parsing operations
-   * @param {Error} error 
-   * @param {string} operation 
-   * @param {string} objectName 
-   * @private
-   */
-  _handleParsingError(error, operation, objectName) {
-      const errorInfo = {
-          operation: operation,
-          objectName: objectName,
-          error: error.message,
-          timestamp: new Date().toISOString(),
-          enhancedParser: true
-      };
-      
-      console.error(`❌ Parsing error in ${operation} for ${objectName}:`, errorInfo);
-      
-      // En production, vous pourriez vouloir envoyer ces erreurs à un service de monitoring
-      // this._sendErrorToMonitoring(errorInfo);
-  }
-
-  /**
-   * Memory usage optimization - limit cache growth
-   * @private
-   */
-  _optimizeMemoryUsage() {
-      const maxMemoryEntries = 50;
-      
-      if (this._tablesCache.size > maxMemoryEntries) {
-          // Supprimer les entrées les plus anciennes
-          const sortedEntries = Array.from(this._cacheTimestamps.entries())
-              .sort((a, b) => a[1] - b[1]);
-          
-          const entriesToRemove = this._tablesCache.size - maxMemoryEntries;
-          for (let i = 0; i < entriesToRemove; i++) {
-              const [database] = sortedEntries[i];
-              this._tablesCache.delete(database);
-              this._cacheTimestamps.delete(database);
+          // Check if it's a table (tables don't have definitions)
+          const objectInfo = await this._databaseService.getObjectInfo(database, objectName);
+          if (!objectInfo) {
+              console.warn(`Object ${objectName} not found in database ${database}`);
+              return null;
           }
           
-          console.log(`🧹 Memory optimization: removed ${entriesToRemove} cache entries`);
-      }
-  }
+          if (objectInfo.object_type === 'Table') {
+             console.log(`Skipping definition for table: ${objectName}`);
+             return null;
+         }
+         
+         // Try to get definition with enhanced method
+         const definition = await this._databaseService.getObjectDefinition(database, objectName);
+         
+         if (!definition || definition.trim() === '') {
+             // Check if object exists but is encrypted or has permission issues
+             if (objectInfo.is_encrypted) {
+                 console.warn(`🔒 Object ${objectName} is encrypted, cannot analyze dependencies`);
+                 return null;
+             }
+             
+             console.warn(`⚠️ Empty definition returned for ${objectName} in schema ${objectInfo.schema_name || 'unknown'}`);
+             
+             // If object exists but no definition, try alternative approach
+             if (objectInfo.schema_name && objectInfo.schema_name !== 'dbo') {
+                 const qualifiedName = `${objectInfo.schema_name}.${objectName}`;
+                 console.log(`🔄 Retrying with qualified name: ${qualifiedName}`);
+                 const retryDefinition = await this._databaseService.getObjectDefinition(database, qualifiedName);
+                 
+                 if (retryDefinition && retryDefinition.trim() !== '') {
+                     console.log(`✅ Found definition using qualified name: ${qualifiedName}`);
+                     return retryDefinition;
+                 }
+             }
+             
+             return null;
+         }
+         
+         console.log(`✅ Successfully retrieved definition for ${objectName}`);
+         return definition;
+         
+     } catch (error) {
+         console.error(`Error getting definition for ${objectName}:`, error);
+         return null;
+     }
+ }
+
+ /**
+  * Enhanced cache management
+  */
+ clearCache(database = null) {
+     try {
+         if (database) {
+             const cacheKey = database.toUpperCase();
+             this._tablesCache.delete(cacheKey);
+             this._cacheTimestamps.delete(cacheKey);
+             console.log(`🧹 Cache cleared for database: ${database}`);
+         } else {
+             this._tablesCache.clear();
+             this._cacheTimestamps.clear();
+             this._temporaryTables.clear();
+             console.log(`🧹 All cache cleared`);
+         }
+     } catch (error) {
+         console.error('Error clearing cache:', error);
+     }
+ }
+
+ /**
+  * Get cache statistics for debugging
+  */
+ getCacheStats() {
+     return {
+         cachedDatabases: this._tablesCache.size,
+         maxCacheSize: this._maxCacheSize,
+         cacheTimeout: this._cacheTimeout,
+         temporaryTables: this._temporaryTables.size,
+         serverVersion: this._serverVersion,
+         isLegacyServer: this._isLegacyServer,
+         cacheHits: Array.from(this._cacheTimestamps.entries()).map(([db, timestamp]) => ({
+             database: db,
+             age: Date.now() - timestamp,
+             expired: (Date.now() - timestamp) > this._cacheTimeout
+         }))
+     };
+ }
+
+ /**
+  * Table usage analysis with enhanced error handling
+  */
+ async getTableUsageAnalysis(database, objectName) {
+     try {
+         if (!database || !objectName) {
+             throw new Error('Database and object name are required');
+         }
+         
+         const dependencies = await this.analyzeDependencies(database, objectName);
+         
+         return {
+             objectName: objectName,
+             tablesUsed: dependencies.dependsOn,
+             relatedObjects: [], // Will be implemented separately if needed
+             summary: this._generateEnhancedSummary(dependencies.dependsOn)
+         };
+     } catch (error) {
+         console.error(`Error in table usage analysis for ${objectName}:`, error);
+         return {
+             objectName: objectName,
+             tablesUsed: [],
+             relatedObjects: [],
+             summary: { totalTables: 0, readTables: 0, writeTables: 0, operationCounts: {} }
+         };
+     }
+ }
+
+ /**
+  * Generate enhanced analysis summary with new parsing capabilities
+  */
+ _generateEnhancedSummary(tablesUsed) {
+     try {
+         const summary = {
+             totalTables: tablesUsed.length,
+             readTables: 0,
+             writeTables: 0,
+             operationCounts: {},
+             // Enhanced metrics (only for modern servers)
+             cteReferences: 0,
+             subqueryReferences: 0,
+             dynamicSqlReferences: 0,
+             temporaryTables: this._temporaryTables ? this._temporaryTables.size : 0,
+             complexityScore: 0,
+             serverVersion: this._serverVersion,
+             legacyMode: this._isLegacyServer
+         };
+
+         tablesUsed.forEach(table => {
+             try {
+                 if (table.is_selected) summary.readTables++;
+                 if (table.is_updated || table.is_insert_all || table.is_delete) {
+                     summary.writeTables++;
+                 }
+                 
+                 // Count enhanced features (only for modern servers)
+                 if (!this._isLegacyServer) {
+                     if (table.has_cte) summary.cteReferences++;
+                     if (table.has_subquery) summary.subqueryReferences++;
+                     if (table.has_dynamic_sql) summary.dynamicSqlReferences++;
+                 }
+                 
+                 const operations = table.operations || [];
+                 operations.forEach(op => {
+                     if (op && typeof op === 'string') {
+                         summary.operationCounts[op] = (summary.operationCounts[op] || 0) + 1;
+                     }
+                 });
+             } catch (tableError) {
+                 console.warn('Error processing table in summary:', tableError);
+             }
+         });
+
+         // Calculate complexity score
+         summary.complexityScore = this._calculateComplexityScore(tablesUsed);
+
+         return summary;
+     } catch (error) {
+         console.error('Error generating enhanced summary:', error);
+         return { 
+             totalTables: 0, 
+             readTables: 0, 
+             writeTables: 0, 
+             operationCounts: {},
+             cteReferences: 0,
+             subqueryReferences: 0,
+             dynamicSqlReferences: 0,
+             temporaryTables: 0,
+             complexityScore: 0,
+             serverVersion: this._serverVersion || 'Unknown',
+             legacyMode: this._isLegacyServer
+         };
+     }
+ }
+
+ /**
+  * Calculate SQL complexity score based on parsing results
+  */
+ _calculateComplexityScore(tablesUsed) {
+     let score = 0;
+     
+     tablesUsed.forEach(table => {
+         try {
+             score += table.operations ? table.operations.length : 0;
+             if (!this._isLegacyServer) {
+                 if (table.has_cte) score += 2;
+                 if (table.has_subquery) score += 1;
+                 if (table.has_dynamic_sql) score += 3;
+             }
+             score += (table.confidence || 0) * 0.1;
+         } catch (error) {
+             console.warn('Error calculating complexity for table:', error);
+         }
+     });
+     
+     return Math.min(score, 100); // Cap at 100
+ }
+
+ /**
+  * Clean up resources and timers
+  */
+ dispose() {
+     // Nettoyer le timer de nettoyage automatique
+     if (this._cleanupInterval) {
+         clearInterval(this._cleanupInterval);
+         this._cleanupInterval = null;
+     }
+     
+     // Nettoyer les caches
+     this._tablesCache.clear();
+     this._cacheTimestamps.clear();
+     this._temporaryTables.clear();
+     
+     // Nettoyer les références
+     this._connectionManager = null;
+     this._databaseService = null;
+     
+     console.log('🧹 SmartSqlParser disposed');
+ }
 }
 
 module.exports = SmartSqlParser;
