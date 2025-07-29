@@ -1142,34 +1142,38 @@ class SqlWayfarerPanel {
      this._panel.webview.html = this._getHtmlForWebview();
  }
 
- _getHtmlForWebview() {
-     const stylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'styles.css'));
-     const tabManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tabManager.js'));
-     const connectionManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'connectionManager.js'));
-     const tableUsageManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js'));
-     const commentsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js'));
-     const extendedEventsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js'));
-     const commentsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'comments.css'));
-     const extendedEventsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEvents.css'));
-     const tableUsageStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsage.css'));
-     const mainScriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js'));
+_getHtmlForWebview() {
+    const stylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'styles.css'));
+    const tabManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tabManager.js'));
+    const connectionManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'connectionManager.js'));
+    const tableUsageManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js'));
+    const commentsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js'));
+    const extendedEventsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js'));
+    const codeViewManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'codeViewManager.js')); // NOUVEAU
+    const commentsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'comments.css'));
+    const extendedEventsStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEvents.css'));
+    const tableUsageStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsage.css'));
+    const codeViewStylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'codeView.css')); // NOUVEAU
+    const mainScriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'main.js'));
 
-     const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
-     let html = fs.readFileSync(htmlPath, 'utf8');
+    const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
+    let html = fs.readFileSync(htmlPath, 'utf8');
 
-     html = html.replace('{{STYLES_URI}}', stylesUri.toString());
-     html = html.replace('{{COMMENTS_STYLES_URI}}', commentsStylesUri.toString());
-     html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', extendedEventsStylesUri.toString());
-     html = html.replace('{{TABLE_USAGE_STYLES_URI}}', tableUsageStylesUri.toString());
-     html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
-     html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
-     html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
-     html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
-     html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', extendedEventsManagerUri.toString());
-     html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
+    html = html.replace('{{STYLES_URI}}', stylesUri.toString());
+    html = html.replace('{{COMMENTS_STYLES_URI}}', commentsStylesUri.toString());
+    html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', extendedEventsStylesUri.toString());
+    html = html.replace('{{TABLE_USAGE_STYLES_URI}}', tableUsageStylesUri.toString());
+    html = html.replace('{{CODE_VIEW_STYLES_URI}}', codeViewStylesUri.toString()); // NOUVEAU
+    html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
+    html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
+    html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
+    html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
+    html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', extendedEventsManagerUri.toString());
+    html = html.replace('{{CODE_VIEW_MANAGER_URI}}', codeViewManagerUri.toString()); // NOUVEAU
+    html = html.replace('{{MAIN_SCRIPT_URI}}', mainScriptUri.toString());
 
-     return html;
- }
+    return html;
+}
 
  async dispose() {
      SqlWayfarerPanel.currentPanel = undefined;
