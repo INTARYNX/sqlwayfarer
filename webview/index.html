@@ -7,6 +7,7 @@
     <link href="{{STYLES_URI}}" rel="stylesheet">
     <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
     <link href="{{EXTENDED_EVENTS_STYLES_URI}}" rel="stylesheet">
+    <link href="{{CODE_VIEW_STYLES_URI}}" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -162,6 +163,7 @@
                         <!-- Details Panel Navigation -->
                         <div class="details-nav">
                             <button class="details-tab-button active" data-details-tab="structure">Structure</button>
+                            <button class="details-tab-button" data-details-tab="code">Code</button>
                             <button class="details-tab-button" data-details-tab="comments">Comments</button>
                         </div>
 
@@ -173,7 +175,17 @@
                             </div>
                         </div>
 
-                        <!-- Comments Tab (new) -->
+                        <!-- Code Tab (new) -->
+                        <div id="codeDetailsTab" class="details-tab-content">
+                            <div id="codeContainer">
+                                <div class="code-placeholder">
+                                    <h3>💻 Code View</h3>
+                                    <p class="placeholder-text">Select a view, procedure, or function to view its code definition.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Comments Tab -->
                         <div id="commentsDetailsTab" class="details-tab-content">
                             <div id="commentsContainer">
                                 <div class="comments-placeholder">
@@ -318,6 +330,7 @@
     <script src="{{TABLE_USAGE_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{EXTENDED_EVENTS_MANAGER_URI}}"></script>
+    <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>
