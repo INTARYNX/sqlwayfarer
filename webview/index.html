@@ -8,6 +8,7 @@
     <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
     <link href="{{EXTENDED_EVENTS_STYLES_URI}}" rel="stylesheet">
     <link href="{{CODE_VIEW_STYLES_URI}}" rel="stylesheet">
+    <link href="{{TABLE_USAGE_STYLES_URI}}" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -26,6 +27,7 @@
         <div class="tab-container">
             <div class="tab-nav">
                 <button class="tab-button active" data-tab="configuration">Configuration</button>
+                <button class="tab-button" data-tab="objects">Objects</button>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
                 <button class="tab-button" data-tab="tableUsage">Table Usage</button>
                 <button class="tab-button" data-tab="extendedEvents">Extended Events</button>
@@ -111,6 +113,19 @@
                     </div>
                     
                     <div id="connectionStatus"></div>
+                </div>
+            </div>
+
+            <!-- Objects Tab (NEW - SIMPLE) -->
+            <div id="objectsTab" class="tab-content">
+                <div class="objects-section">
+                    <div class="objects-header">
+                        <h2>Database Objects - Raw JSON Index</h2>
+                        <button id="forceReindexBtn" class="force-reindex-btn" disabled>🔄 Force Reindex</button>
+                    </div>
+                    <div id="objectsJsonContent">
+                        <p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>
+                    </div>
                 </div>
             </div>
             

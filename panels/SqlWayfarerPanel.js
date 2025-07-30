@@ -17,6 +17,7 @@ const DatabaseService = require('../database/DatabaseService');
 // CORRECTION: Utiliser DependencyService au lieu de OldDependencyService
 const DependencyService = require('../database/DependencyService');
 const ExtendedEventsService = require('../database/ExtendedEventsService');
+const IndexService = require('../database/IndexServices');
 
 /**
  * Manages the SQL Wayfarer webview panel
@@ -40,7 +41,7 @@ class SqlWayfarerPanel {
         this._connectionStorage = new ConnectionStorage(context);
         this._connectionManager = new ConnectionManager(this._connectionStorage);
         this._databaseService = new DatabaseService(this._connectionManager);
-        // CORRECTION: Utiliser DependencyService qui a la méthode getIndex
+        this._indexService = new IndexService(this._connectionManager, this._databaseService);
         this._dependencyService = new DependencyService(this._connectionManager, this._databaseService);
         this._extendedEventsService = new ExtendedEventsService(this._connectionManager);
 
@@ -83,6 +84,10 @@ class SqlWayfarerPanel {
         try {
             // Load saved connections
             await this._connectionStorage.initialize();
+            
+            // IMPORTANT: Connect IndexService with DependencyService
+            this._dependencyService.setIndexService(this._indexService);
+            console.log('🔗 IndexService connected to DependencyService');
             
             // Set up panel
             this._update();
@@ -243,6 +248,12 @@ class SqlWayfarerPanel {
             case 'getIndexStats':
                 await this._handleGetIndexStats(message.database);
                 break;
+            case 'getIndex':
+                await this._handleGetIndex(message.database);
+                break;     
+            case 'confirmForceReindex':
+                await this._handleConfirmForceReindex(message.database);
+                break;    
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }
@@ -933,117 +944,89 @@ class SqlWayfarerPanel {
       }
   }
 
-  /**
-   * Convert technical error to user-friendly message
-   * @private
-   */
-  _getUserFriendlyIndexingError(error) {
-      const message = error.message.toLowerCase();
-      
-      if (message.includes('getindex is not a function')) {
-          return 'Service configuration error. Please reload the extension.';
-      }
-      if (message.includes('timeout')) {
-          return 'Indexing took too long. Try with a smaller database.';
-      }
-      if (message.includes('permission denied') || message.includes('eacces')) {
-          return 'Permission denied. Check file system permissions.';
-      }
-      if (message.includes('no active connection')) {
-          return 'Database connection lost during indexing.';
-      }
-      if (message.includes('connection')) {
-          return 'Database connection issue. Please reconnect.';
-      }
-      
-      return error.message || 'Unknown indexing error';
-  }
+  async _handleConfirmForceReindex(database) {
+    try {
+        // Use VS Code's native confirmation dialog
+        const selection = await vscode.window.showWarningMessage(
+            `Are you sure you want to force reindex database "${database}"?\n\nThis will clear the existing index and rebuild it from scratch.`,
+            { modal: true },
+            'Yes, Force Reindex',
+            'Cancel'
+        );
 
-  async _handleForceReindex(database) {
-      try {
-          const targetDatabase = database || this._getCurrentDatabase();
-          if (!targetDatabase) {
-              this._sendError('No database selected for reindexing');
-              return;
-          }
+        if (selection === 'Yes, Force Reindex') {
+            // User confirmed, proceed with force reindex
+            this._panel.webview.postMessage({
+                command: 'forceReindexConfirmed',
+                database: database
+            });
+        }
+    } catch (error) {
+        console.error('Error showing confirmation dialog:', error);
+        this._sendError('Failed to show confirmation dialog');
+    }
+}
 
-          if (this._indexingInProgress) {
-              this._sendError('Indexing already in progress. Please wait for completion.');
-              return;
-          }
+async _handleForceReindex(database) {
+    try {
+        if (!database) {
+            this._sendError('No database specified for force reindex');
+            return;
+        }
 
-          console.log(`Force reindexing database: ${targetDatabase}`);
+        console.log(`Force reindexing database: ${database}`);
 
-          // CORRECTION: Vérifier que la méthode forceReindex existe
-          if (typeof this._dependencyService.forceReindex !== 'function') {
-              throw new Error('DependencyService.forceReindex method is not available');
-          }
+        // Send indexing started message
+        this._panel.webview.postMessage({
+            command: 'indexingStarted',
+            database: database,
+            forced: true
+        });
 
-          this._indexingInProgress = true;
+        const progressCallback = (progress) => {
+            this._panel.webview.postMessage({
+                command: 'indexingProgress',
+                database: database,
+                progress: progress.progress,
+                current: progress.current,
+                total: progress.total,
+                message: progress.message
+            });
+        };
 
-          // Send starting message
-          this._panel.webview.postMessage({
-              command: 'indexingStarted',
-              database: targetDatabase,
-              forced: true
-          });
+        // USE forceReindex method instead of clearIndex + getIndex
+        const index = await this._indexService.forceReindex(database, progressCallback);
+        
+        this._panel.webview.postMessage({
+            command: 'indexResult',
+            indexData: index
+        });
 
-          // Progress callback
-          const progressCallback = (progress) => {
-              try {
-                  this._panel.webview.postMessage({
-                      command: 'indexingProgress',
-                      database: targetDatabase,
-                      progress: progress.progress,
-                      current: progress.current,
-                      total: progress.total,
-                      message: progress.message
-                  });
-              } catch (err) {
-                  console.error('Error sending reindex progress:', err);
-              }
-          };
+        this._panel.webview.postMessage({
+            command: 'indexingCompleted',
+            database: database,
+            success: true,
+            forced: true,
+            message: 'Force reindex completed successfully'
+        });
 
-          // Force reindex with timeout
-          const reindexTimeout = 600000; // 10 minutes for force reindex
-          const reindexPromise = this._dependencyService.forceReindex(targetDatabase, progressCallback);
-          
-          const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Force reindex timeout after 10 minutes')), reindexTimeout);
-          });
+        console.log(`Force reindex completed for database: ${database}`);
 
-          await Promise.race([reindexPromise, timeoutPromise]);
-
-          // Send completion message
-          this._panel.webview.postMessage({
-              command: 'indexingCompleted',
-              database: targetDatabase,
-              success: true,
-              forced: true,
-              message: 'Database reindexing completed successfully'
-          });
-
-          console.log(`Force reindexing completed successfully for database: ${targetDatabase}`);
-
-      } catch (error) {
-          console.error('Force reindexing failed:', error);
-          
-          this._panel.webview.postMessage({
-             command: 'indexingCompleted',
-             database: database,
-             success: false,
-             forced: true,
-             message: `Reindexing failed: ${error.message}`
-         });
-
-         const errorMsg = this._getUserFriendlyIndexingError(error);
-         vscode.window.showErrorMessage(`Force reindexing failed: ${errorMsg}`);
-
-     } finally {
-         this._indexingInProgress = false;
-     }
- }
-
+    } catch (error) {
+        console.error('Error force reindexing:', error);
+        
+        this._panel.webview.postMessage({
+            command: 'indexingCompleted',
+            database: database,
+            success: false,
+            forced: true,
+            message: `Force reindex failed: ${error.message}`
+        });
+        
+        this._sendError(`Failed to force reindex: ${error.message}`);
+    }
+}
+  
  async _handleCancelIndexing() {
      try {
          console.log('Canceling indexing operation');
@@ -1125,6 +1108,46 @@ class SqlWayfarerPanel {
      }
  }
 
+ async _handleGetIndex(database) {
+    try {
+        if (!database) {
+            this._sendError('No database specified for indexing');
+            return;
+        }
+
+        console.log(`Getting index for database: ${database}`);
+
+        // Progress callback to send updates to frontend
+        const progressCallback = (progress) => {
+            this._panel.webview.postMessage({
+                command: 'indexingProgress',
+                database: database,
+                progress: progress.progress,
+                current: progress.current,
+                total: progress.total,
+                message: progress.message
+            });
+        };
+
+        // Get the index directly from IndexService
+        const index = await this._indexService.getIndex(database, progressCallback);
+        
+        this._panel.webview.postMessage({
+            command: 'indexResult',
+            indexData: index
+        });
+
+        console.log(`Index retrieved for database: ${database}`);
+
+    } catch (error) {
+        console.error('Error getting index:', error);
+        this._panel.webview.postMessage({
+            command: 'indexResult',
+            indexData: null
+        });
+        this._sendError(`Failed to get index: ${error.message}`);
+    }
+}
  // UTILITY METHODS
  _getCurrentDatabase() {
      return this._currentSelectedDatabase || 'master';

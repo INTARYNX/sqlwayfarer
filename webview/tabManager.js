@@ -43,6 +43,11 @@ class TabManager {
             content.classList.toggle('active', content.id === `${tabName}Tab`);
         });
 
+        if ((tabName === 'explorer' || tabName === 'tableUsage' || tabName === 'extendedEvents' || tabName === 'objects') && !appState.isConnected) {
+            this.showStatus('Please connect to a database first before using this feature.', 'error');
+            return;
+        }
+
         // Specific actions when changing tabs
         if (tabName === 'explorer' && appState.isConnected) {
             this.onExplorerTabActivated();

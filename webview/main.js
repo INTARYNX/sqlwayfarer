@@ -23,6 +23,7 @@ class AppState {
         this.pendingVisualization = null;
         this.allObjects = [];
         this.filteredObjects = [];
+        this.currentIndex = null; // Store the raw index data
         this.filters = {
             search: '',
             types: {
@@ -36,6 +37,128 @@ class AppState {
 }
 
 const appState = new AppState();
+
+// Simple Objects Tab Manager
+class ObjectsTabManager {
+    constructor() {
+        this.objectsJsonContent = document.getElementById('objectsJsonContent');
+        this.forceReindexBtn = document.getElementById('forceReindexBtn');
+        this.currentDatabase = null;
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        if (this.forceReindexBtn) {
+            this.forceReindexBtn.addEventListener('click', () => this.handleForceReindex());
+        }
+    }
+
+    // Called when database changes
+    onDatabaseChanged(database) {
+        this.currentDatabase = database;
+        
+        if (!database) {
+            this.showPlaceholder();
+            this.forceReindexBtn.disabled = true;
+            return;
+        }
+        
+        this.forceReindexBtn.disabled = false;
+        this.showLoading();
+        
+        // Request index from backend
+        vscode.postMessage({
+            command: 'getIndex',
+            database: database
+        });
+    }
+
+    // Handle force reindex button click
+    handleForceReindex() {
+        if (!this.currentDatabase) {
+            return;
+        }
+
+        // Use VS Code's showWarningMessage instead of confirm()
+        vscode.postMessage({
+            command: 'confirmForceReindex',
+            database: this.currentDatabase
+        });
+    }
+  
+    // Handle confirmation response from backend
+    onForceReindexConfirmed(database) {
+        this.showLoading('Force reindexing...');
+        this.forceReindexBtn.disabled = true;
+        
+        vscode.postMessage({
+            command: 'forceReindex',
+            database: database
+        });
+    }
+
+    // Handle indexing started
+    onIndexingStarted(database, forced = false) {
+        const message = forced ? 'Force reindexing started...' : 'Indexing started...';
+        this.showLoading(message);
+        this.forceReindexBtn.disabled = true;
+    }
+
+    // Handle indexing cancelled
+    onIndexingCancelled(result) {
+        this.forceReindexBtn.disabled = false;
+        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${result.message}</p>`;
+    }
+
+    // Show loading state
+    showLoading(message = 'Loading database index...') {
+        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${message}</p>`;
+    }
+
+    // Show placeholder
+    showPlaceholder() {
+        this.objectsJsonContent.innerHTML = '<p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>';
+    }
+
+    // Display raw JSON index
+    displayIndex(indexData) {
+        this.forceReindexBtn.disabled = false;
+        
+        if (!indexData) {
+            this.objectsJsonContent.innerHTML = '<p class="placeholder-text">No index data available.</p>';
+            return;
+        }
+
+        // Format and display the raw JSON
+        const formattedJson = JSON.stringify(indexData, null, 2);
+        this.objectsJsonContent.textContent = formattedJson;
+    }
+
+    // Handle indexing progress
+    onIndexingProgress(progress) {
+        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing in progress... ${progress.progress}% (${progress.current}/${progress.total})<br>${progress.message}</p>`;
+    }
+
+    // Handle indexing completion
+    onIndexingCompleted(database, success, message) {
+        this.forceReindexBtn.disabled = false;
+        
+        if (success) {
+            // Request the index data
+            vscode.postMessage({
+                command: 'getIndex',
+                database: database
+            });
+        } else {
+            this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing failed: ${message}</p>`;
+        }
+    }
+
+    // Handle force reindex completion
+    onForceReindexCompleted(database, success, message) {
+        this.onIndexingCompleted(database, success, message);
+    }
+}
 
 // Details Tab Manager
 class DetailsTabManager {
@@ -78,13 +201,12 @@ class DetailsTabManager {
                     break;
                     
                 case 'code':
-                    // Load code for the selected object
                     const objectNameForBackend = window.explorerManager._getQualifiedName(appState.selectedObject);
                     window.codeViewManager.loadCodeForObject(
                         appState.currentDatabase,
                         objectNameForBackend,
                         appState.selectedObject.object_type,
-                        appState.selectedObject.definition // Si déjà disponible
+                        appState.selectedObject.definition
                     );
                     break;
             }
@@ -98,21 +220,17 @@ class DatabaseSelectorManager {
         this.databaseSelect = document.getElementById('databaseSelect');
     }
 
-    // Show elegant glow animation when connection is ready
     showReadyGlow() {
         this.databaseSelect.classList.add('database-ready-glow');
         
-        // Remove animation after it completes (2 seconds for 2 pulses)
         setTimeout(() => {
             this.databaseSelect.classList.remove('database-ready-glow');
         }, 2000);
 
-        // Show temporary notification
         this.showReadyNotification();
     }
 
     showReadyNotification() {
-        // Create notification element
         const notification = document.createElement('div');
         notification.className = 'database-ready-notification';
         notification.innerHTML = `
@@ -120,11 +238,9 @@ class DatabaseSelectorManager {
             <span class="notification-text">Connected! Select a database to explore</span>
         `;
 
-        // Add to header section
         const headerSection = document.querySelector('.header-section');
         headerSection.appendChild(notification);
 
-        // Remove notification after 4 seconds
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.classList.add('fade-out');
@@ -466,12 +582,10 @@ class ExplorerManager {
 
     // UTILITY METHODS FOR CONSISTENT OBJECT NAME HANDLING
     _getQualifiedName(obj) {
-        // Always return the qualified name for backend operations
         return obj.qualified_name || obj.name;
     }
 
     _getDisplayName(obj) {
-        // Always return the display name for UI
         return obj.name;
     }
 
@@ -479,7 +593,6 @@ class ExplorerManager {
         const database = this.elements.databaseSelect.value;
         appState.currentDatabase = database;
         
-        // Send current database to backend
         vscode.postMessage({
             command: 'setCurrentDatabase',
             database: database
@@ -492,12 +605,15 @@ class ExplorerManager {
             this.filterManager.resetFilters();
             this.filterManager.disableFilters();
             
-            // Reset comments when database changes
             window.commentsManager.onDatabaseChanged();
             
-            // Reset extended events when database changes
             if (window.extendedEventsManager) {
                 window.extendedEventsManager.onDatabaseChanged(database);
+            }
+
+            // NEW: Notify Objects tab about database change
+            if (window.objectsTabManager) {
+                window.objectsTabManager.onDatabaseChanged(database);
             }
             
             vscode.postMessage({
@@ -515,6 +631,9 @@ class ExplorerManager {
             if (window.extendedEventsManager) {
                 window.extendedEventsManager.onDatabaseChanged(null);
             }
+            if (window.objectsTabManager) {
+                window.objectsTabManager.onDatabaseChanged(null);
+            }
         }
     }
 
@@ -527,12 +646,10 @@ class ExplorerManager {
         element.classList.add('selected');
         appState.selectedObject = obj;
         
-        // USE UTILITY METHOD:
         const objectNameForBackend = this._getQualifiedName(obj);
         
         console.log(`Selected object: ${this._getDisplayName(obj)} (qualified: ${objectNameForBackend})`);
         
-        // Load details for structure tab
         if (obj.object_type === 'Table') {
             vscode.postMessage({
                 command: 'getTableDetails',
@@ -548,7 +665,6 @@ class ExplorerManager {
             });
         }
 
-        // Load content for active tabs
         if (appState.activeDetailsTab === 'comments') {
             window.commentsManager.loadCommentsForObject(
                 appState.currentDatabase,
@@ -572,7 +688,6 @@ class ExplorerManager {
         if (appState.selectedObject && this._getDisplayName(appState.selectedObject) === objectName && appState.currentDependencies) {
             this.dependencyVisualizer.showDependencyVisualization(objectName, appState.currentDependencies);
         } else {
-            // Find the object to get its qualified name
             const obj = appState.allObjects.find(o => this._getDisplayName(o) === objectName);
             const qualifiedName = obj ? this._getQualifiedName(obj) : objectName;
             
@@ -613,12 +728,9 @@ class ExplorerManager {
            return;
        }
        
-       // Group objects by schema for better organization
        const objectsBySchema = this._groupObjectsBySchema(objects);
        
-       // Display objects grouped by schema
        Object.keys(objectsBySchema).sort().forEach(schema => {
-           // Add schema header if not dbo or if there are multiple schemas
            if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
                const schemaHeader = document.createElement('div');
                schemaHeader.className = 'schema-header';
@@ -629,12 +741,10 @@ class ExplorerManager {
                this.elements.objectList.appendChild(schemaHeader);
            }
            
-           // Add objects for this schema - NO SCHEMA INDICATOR since it's already in the header
            objectsBySchema[schema].forEach(obj => {
                const div = document.createElement('div');
                div.className = 'object-item';
                
-               // Show only object name (without schema) since it's already in the header
                const objectDisplayName = obj.object_name || obj.name.split('.').pop();
                
                const nameSpan = document.createElement('span');
@@ -659,10 +769,6 @@ class ExplorerManager {
        });
    }
 
-   /**
-    * Group objects by schema for better display organization
-    * @private
-    */
    _groupObjectsBySchema(objects) {
        const grouped = {};
        
@@ -674,14 +780,11 @@ class ExplorerManager {
            grouped[schema].push(obj);
        });
        
-       // Sort objects within each schema by type then name
        Object.keys(grouped).forEach(schema => {
            grouped[schema].sort((a, b) => {
-               // First by type
                if (a.object_type !== b.object_type) {
                    return a.object_type.localeCompare(b.object_type);
                }
-               // Then by name
                return a.name.localeCompare(b.name);
            });
        });
@@ -691,10 +794,6 @@ class ExplorerManager {
 
    onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
        console.log(`Table details loaded for: ${tableName}`);
-       console.log('Columns:', columns);
-       console.log('Indexes:', indexes);
-       console.log('Foreign Keys:', foreignKeys);
-       console.log('Dependencies:', dependencies);
        
        appState.currentDependencies = dependencies;
        
@@ -712,25 +811,19 @@ class ExplorerManager {
 
     onObjectDetailsLoaded(objectName, objectType, dependencies, definition) {
         console.log(`Object details loaded for: ${objectName} (${objectType})`);
-        console.log('Dependencies:', dependencies);
-        console.log('Definition length:', definition ? definition.length : 0);
         
         appState.currentDependencies = dependencies;
         
-        // Store definition for code view
         if (appState.selectedObject) {
             appState.selectedObject.definition = definition;
         }
         
         let html = `<div class="section-header">${objectType}: ${this.escapeHtml(objectName)}</div>`;
-        
-        // NE PLUS AFFICHER LA DÉFINITION ICI - seulement les dépendances
         html += this.buildDependenciesSection(dependencies);
         
         this.elements.detailsContent.innerHTML = html;
         this.checkPendingVisualization(objectName, dependencies);
         
-        // Update code view if it's the active tab
         if (appState.activeDetailsTab === 'code' && window.codeViewManager) {
             window.codeViewManager.onDefinitionReceived(objectName, definition);
         }
@@ -762,12 +855,10 @@ class ExplorerManager {
            </tr>`;
        
        columns.forEach(col => {
-           // Build extra info (identity, computed, etc.)
            const extraInfo = [];
            if (col.IS_IDENTITY) extraInfo.push('IDENTITY');
            if (col.IS_COMPUTED) extraInfo.push('COMPUTED');
            
-           // Build type display with precision/scale
            let typeDisplay = col.DATA_TYPE;
            if (col.CHARACTER_MAXIMUM_LENGTH) {
                typeDisplay += `(${col.CHARACTER_MAXIMUM_LENGTH})`;
@@ -798,22 +889,18 @@ class ExplorerManager {
            indexes.forEach(idx => {
                let badges = '';
                
-               // Primary Key badge
                if (idx.is_primary_key === true || idx.is_primary_key === 1) {
                    badges += '<span class="index-badge index-primary">Primary Key</span>';
                }
                
-               // Unique badge
                if (idx.is_unique === true || idx.is_unique === 1) {
                    badges += '<span class="index-badge index-unique">Unique</span>';
                }
                
-               // Unique constraint badge
                if (idx.is_unique_constraint === true || idx.is_unique_constraint === 1) {
                    badges += '<span class="index-badge index-unique">Unique Constraint</span>';
                }
                
-               // Clustered/NonClustered badge
                if (idx.type_desc) {
                    const typeDesc = idx.type_desc.toLowerCase();
                    if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
@@ -823,12 +910,10 @@ class ExplorerManager {
                    }
                }
                
-               // If no badges were added, add a default one
                if (!badges) {
                    badges = '<span class="index-badge index-normal">Index</span>';
                }
                
-               // Build details
                const details = [];
                if (idx.fill_factor && idx.fill_factor !== 0) {
                    details.push(`Fill Factor: ${idx.fill_factor}%`);
@@ -947,7 +1032,7 @@ class ExplorerManager {
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager, codeViewManager) {
+    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager, codeViewManager, objectsTabManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
@@ -956,6 +1041,7 @@ class MessageHandler {
         this.extendedEventsManager = extendedEventsManager;
         this.detailsTabManager = detailsTabManager;
         this.codeViewManager = codeViewManager;
+        this.objectsTabManager = objectsTabManager;
         this.databaseSelector = new DatabaseSelectorManager();
     }
 
@@ -986,13 +1072,11 @@ class MessageHandler {
             case 'connectionStatus':
                 this.connectionManager.onConnectionStatus(message);
                 if (message.success) {
-                    // Show elegant glow instead of forcing tab switch
                     this.databaseSelector.showReadyGlow();
                 }
                 break;
                 
             case 'requestCurrentDatabase':
-                // Send current database to backend
                 vscode.postMessage({
                     command: 'setCurrentDatabase',
                     database: appState.currentDatabase
@@ -1002,7 +1086,6 @@ class MessageHandler {
             case 'databasesLoaded':
                 this.explorerManager.onDatabasesLoaded(message.databases);
                 this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
-                // Reset code view when database changes
                 if (this.codeViewManager) {
                     this.codeViewManager.onDatabaseChanged();
                 }
@@ -1033,6 +1116,25 @@ class MessageHandler {
                     message.dependencies,
                     message.definition
                 );
+                break;
+
+            // NEW: Index-related messages
+            case 'indexResult':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.displayIndex(message.indexData);
+                }
+                break;
+
+            case 'indexingProgress':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onIndexingProgress(message);
+                }
+                break;
+
+            case 'indexingCompleted':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onIndexingCompleted(message.database, message.success, message.message);
+                }
                 break;
                 
             // Table Usage Messages
@@ -1100,7 +1202,6 @@ class MessageHandler {
                 }
                 break;
                 
-            // Raw events message handler
             case 'rawSessionEventsResult':
                 if (this.extendedEventsManager) {
                     this.extendedEventsManager.onRawEventsReceived(
@@ -1113,7 +1214,6 @@ class MessageHandler {
                 
             case 'executionFlowSessionsList':
                 if (this.extendedEventsManager) {
-                    // Handle sessions list if needed
                     console.log('Available sessions:', message.sessions);
                 }
                 break;
@@ -1127,6 +1227,23 @@ class MessageHandler {
             case 'error':
                 this.handleError(message.message);
                 break;
+
+            case 'indexingStarted':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onIndexingStarted(message.database, message.forced);
+                }
+                break;
+
+            case 'indexingCancelled':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onIndexingCancelled(message);
+                }
+                break;    
+            case 'forceReindexConfirmed':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onForceReindexConfirmed(message.database);
+                }
+                break;    
                 
             default:
                 console.warn(`Unknown command: ${message.command}`);
@@ -1156,10 +1273,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const explorerManager = new ExplorerManager();
     const tableUsageManager = new TableUsageManager();
     const commentsManager = new CommentsManager();
-    const codeViewManager = new CodeViewManager(); // NOUVEAU
+    const codeViewManager = new CodeViewManager();
     const detailsTabManager = new DetailsTabManager();
+    const objectsTabManager = new ObjectsTabManager(); // NEW
     
-    // Extended Events Manager - optional
     let extendedEventsManager = null;
     if (typeof ExtendedEventsManager !== 'undefined') {
         extendedEventsManager = new ExtendedEventsManager();
@@ -1173,15 +1290,17 @@ document.addEventListener('DOMContentLoaded', function() {
         commentsManager,
         extendedEventsManager,
         detailsTabManager,
-        codeViewManager // NOUVEAU
+        codeViewManager,
+        objectsTabManager // NEW
     );
     
     // Make managers available globally
     window.explorerManager = explorerManager;
     window.tableUsageManager = tableUsageManager;
     window.commentsManager = commentsManager;
-    window.codeViewManager = codeViewManager; // NOUVEAU
+    window.codeViewManager = codeViewManager;
     window.detailsTabManager = detailsTabManager;
+    window.objectsTabManager = objectsTabManager; // NEW
     if (extendedEventsManager) {
         window.extendedEventsManager = extendedEventsManager;
     }
