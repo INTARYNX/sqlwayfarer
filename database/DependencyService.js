@@ -25,15 +25,15 @@ class DependencyService {
             // Find the object - try different variations
             let objectData = null;
             const cleanName = objectName.replace(/[\[\]]/g, '');
-            
+
             // Try exact match
             if (index.objects[cleanName]) {
                 objectData = index.objects[cleanName];
             } else {
                 // Try case insensitive
                 for (const [key, obj] of Object.entries(index.objects)) {
-                    if (key.toLowerCase() === cleanName.toLowerCase() || 
-                        obj.name === cleanName || 
+                    if (key.toLowerCase() === cleanName.toLowerCase() ||
+                        obj.name === cleanName ||
                         obj.qualifiedName === cleanName) {
                         objectData = obj;
                         break;
@@ -64,12 +64,12 @@ class DependencyService {
                     // Check if any of this object's dependencies match our target object
                     const matchesDependency = obj.dependencies.some(dep => {
                         const cleanDep = dep.replace(/[\[\]]/g, '');
-                        return cleanDep === cleanName || 
+                        return cleanDep === cleanName ||
                             cleanDep.toLowerCase() === cleanName.toLowerCase() ||
                             dep === objectName ||
                             dep === cleanName;
                     });
-                    
+
                     if (matchesDependency) {
                         referencedBy.push({
                             referencing_object: obj.name || key,
@@ -131,7 +131,7 @@ class DependencyService {
             const cleanTableName = tableName.replace(/[\[\]]/g, '');
 
             for (const [key, obj] of Object.entries(index.objects)) {
-                if (obj.dependencies && obj.dependencies.some(dep => 
+                if (obj.dependencies && obj.dependencies.some(dep =>
                     dep.toLowerCase().includes(cleanTableName.toLowerCase()))) {
                     usedByObjects.push({
                         object_name: obj.name || key,
@@ -174,18 +174,49 @@ class DependencyService {
         }
     }
 
+    // In DependencyService.js - replace the existing method
     async getDependencyTree(database, objectName, maxDepth = 3) {
-        const deps = await this.getDependencies(database, objectName);
-        return {
-            name: objectName,
-            dependencies: deps.dependsOn.map(dep => ({
-                name: dep.referenced_object,
-                type: dep.referenced_object_type,
-                dependencies: [],
-                level: 1
-            })),
-            level: 0
-        };
+        try {
+            if (!this._indexService) {
+                return { name: objectName, dependencies: [] };
+            }
+
+            const index = await this._indexService.getIndex(database);
+            if (!index || !index.objects) {
+                return { name: objectName, dependencies: [] };
+            }
+
+            const visited = new Set();
+
+            const buildTree = (objName, level) => {
+                if (level >= maxDepth || visited.has(objName)) {
+                    return { name: objName, dependencies: [] };
+                }
+
+                visited.add(objName);
+
+                const cleanName = objName.replace(/[\[\]]/g, '');
+                const objectData = index.objects[cleanName];
+
+                if (!objectData || !objectData.dependencies) {
+                    visited.delete(objName);
+                    return { name: objName, dependencies: [] };
+                }
+
+                const children = objectData.dependencies.map(dep =>
+                    buildTree(dep, level + 1)
+                );
+
+                visited.delete(objName);
+                return { name: objName, dependencies: children };
+            };
+
+            return buildTree(objectName, 0);
+
+        } catch (error) {
+            console.error('Tree error:', error);
+            return { name: objectName, dependencies: [] };
+        }
     }
 
     async getImpactAnalysis(database, objectName) {
@@ -321,13 +352,13 @@ class DependencyService {
 
         try {
             const { schema, objectName } = this._parseObjectName(tableName);
-            
+
             console.log(`Updating table description for: ${schema}.${objectName}`);
 
             if (description && description.trim() !== '') {
                 // Add or update description
                 const escapedDescription = description.replace(/'/g, "''");
-                
+
                 await this._connectionManager.executeQuery(`
                     USE [${database}];
                     
@@ -402,13 +433,13 @@ class DependencyService {
 
         try {
             const { schema, objectName } = this._parseObjectName(tableName);
-            
+
             console.log(`Updating column description for: ${schema}.${objectName}.${columnName}`);
 
             if (description && description.trim() !== '') {
                 // Add or update description
                 const escapedDescription = description.replace(/'/g, "''");
-                
+
                 await this._connectionManager.executeQuery(`
                     USE [${database}];
                     
@@ -495,13 +526,13 @@ class DependencyService {
 
         try {
             const { schema, objectName: parsedObjectName } = this._parseObjectName(objectName);
-            
+
             console.log(`Updating object description for: ${schema}.${parsedObjectName}`);
 
             if (description && description.trim() !== '') {
                 // Add or update description
                 const escapedDescription = description.replace(/'/g, "''");
-                
+
                 await this._connectionManager.executeQuery(`
                     USE [${database}];
                     
@@ -585,10 +616,10 @@ class DependencyService {
 
         // Remove brackets if present
         let cleanName = objectName.replace(/[\[\]]/g, '');
-        
+
         // Split on the last dot to handle cases like [database].[schema].[object]
         const parts = cleanName.split('.');
-        
+
         if (parts.length >= 2) {
             // Take the last part as object name and second-to-last as schema
             const objName = parts[parts.length - 1];
@@ -613,7 +644,7 @@ class DependencyService {
         if (objectName.toLowerCase().startsWith('fn_') || objectName.toLowerCase().startsWith('ufn_')) {
             return 'FUNCTION';
         }
-        
+
         // Default assumption - you might want to improve this logic
         return 'PROCEDURE';
     }
@@ -634,7 +665,7 @@ class DependencyService {
         if (this._indexService) {
             return await this._indexService.getIndex(database, progressCallback);
         }
-        
+
         if (progressCallback) {
             progressCallback({ progress: 100, current: 1, total: 1, message: 'Done' });
         }
