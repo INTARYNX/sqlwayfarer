@@ -48,7 +48,7 @@ class DependencyService {
             // Convert dependencies to expected format
             const dependsOn = (objectData.dependencies || []).map(dep => ({
                 referenced_object: dep,
-                referenced_object_type: 'Table',
+                referenced_object_type: 'Table', // You might want to look this up in the index
                 dependency_type: 'REFERENCE',
                 operations: ['REFERENCE'],
                 is_selected: 1,
@@ -57,15 +57,26 @@ class DependencyService {
                 is_delete: 0
             }));
 
-            // Find reverse dependencies
+            // Find reverse dependencies - FIXED
             const referencedBy = [];
             for (const [key, obj] of Object.entries(index.objects)) {
-                if (obj.dependencies && obj.dependencies.includes(cleanName)) {
-                    referencedBy.push({
-                        referencing_object: obj.name || key,
-                        referencing_object_type: this._getTypeFromCode(obj.type),
-                        dependency_type: 'REFERENCE'
+                if (obj.dependencies && obj.dependencies.length > 0) {
+                    // Check if any of this object's dependencies match our target object
+                    const matchesDependency = obj.dependencies.some(dep => {
+                        const cleanDep = dep.replace(/[\[\]]/g, '');
+                        return cleanDep === cleanName || 
+                            cleanDep.toLowerCase() === cleanName.toLowerCase() ||
+                            dep === objectName ||
+                            dep === cleanName;
                     });
+                    
+                    if (matchesDependency) {
+                        referencedBy.push({
+                            referencing_object: obj.name || key,
+                            referencing_object_type: this._getTypeFromCode(obj.type),
+                            dependency_type: 'REFERENCE'
+                        });
+                    }
                 }
             }
 

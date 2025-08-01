@@ -26,7 +26,7 @@ class TabManager {
 
     switchTab(tabName) {
         // Check if user can access tabs that require connection
-        if ((tabName === 'explorer' || tabName === 'tableUsage' || tabName === 'extendedEvents') && !appState.isConnected) {
+        if ((tabName === 'explorer' || tabName === 'extendedEvents') && !appState.isConnected) {
             this.showStatus('Please connect to a database first before using this feature.', 'error');
             return;
         }
@@ -43,7 +43,7 @@ class TabManager {
             content.classList.toggle('active', content.id === `${tabName}Tab`);
         });
 
-        if ((tabName === 'explorer' || tabName === 'tableUsage' || tabName === 'extendedEvents' || tabName === 'objects') && !appState.isConnected) {
+        if ((tabName === 'explorer' || tabName === 'extendedEvents' || tabName === 'objects') && !appState.isConnected) {
             this.showStatus('Please connect to a database first before using this feature.', 'error');
             return;
         }
@@ -51,8 +51,6 @@ class TabManager {
         // Specific actions when changing tabs
         if (tabName === 'explorer' && appState.isConnected) {
             this.onExplorerTabActivated();
-        } else if (tabName === 'tableUsage' && appState.isConnected) {
-            this.onTableUsageTabActivated();
         } else if (tabName === 'extendedEvents' && appState.isConnected) {
             this.onExtendedEventsTabActivated();
         }
@@ -64,19 +62,6 @@ class TabManager {
             vscode.postMessage({ command: 'getDatabases' });
         }
         // No forced database selection - user decides when to explore
-    }
-
-    onTableUsageTabActivated() {
-        // Initialize Table Usage tab if necessary
-        if (window.tableUsageManager) {
-            // Synchronize with current database
-            window.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
-            
-            // Reload databases if necessary
-            if (!appState.currentDatabase) {
-                vscode.postMessage({ command: 'getDatabases' });
-            }
-        }
     }
 
     onExtendedEventsTabActivated() {

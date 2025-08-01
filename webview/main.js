@@ -890,422 +890,397 @@ class ExplorerManager {
                let badges = '';
                
                if (idx.is_primary_key === true || idx.is_primary_key === 1) {
-                   badges += '<span class="index-badge index-primary">Primary Key</span>';
-               }
-               
-               if (idx.is_unique === true || idx.is_unique === 1) {
-                   badges += '<span class="index-badge index-unique">Unique</span>';
-               }
-               
-               if (idx.is_unique_constraint === true || idx.is_unique_constraint === 1) {
-                   badges += '<span class="index-badge index-unique">Unique Constraint</span>';
-               }
-               
-               if (idx.type_desc) {
-                   const typeDesc = idx.type_desc.toLowerCase();
-                   if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
-                       badges += '<span class="index-badge index-clustered">Clustered</span>';
-                   } else if (typeDesc.includes('nonclustered')) {
-                       badges += '<span class="index-badge index-normal">NonClustered</span>';
-                   }
-               }
-               
-               if (!badges) {
-                   badges = '<span class="index-badge index-normal">Index</span>';
-               }
-               
-               const details = [];
-               if (idx.fill_factor && idx.fill_factor !== 0) {
-                   details.push(`Fill Factor: ${idx.fill_factor}%`);
-               }
-               if (idx.has_filter) {
-                   details.push(`Filtered: ${idx.filter_definition || 'Yes'}`);
-               }
-               
-               html += `<tr>
-                   <td><strong>${this.escapeHtml(idx.index_name)}</strong></td>
-                   <td>${badges}</td>
-                   <td><code style="background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 2px;">${this.escapeHtml(idx.columns)}</code></td>
-                   <td><small>${details.join('<br>')}</small></td>
-               </tr>`;
-           });
-           
-           html += '</table>';
-       } else {
-           html += '<p>No indexes found.</p>';
-       }
-       
-       return html;
-   }
+                  badges += '<span class="index-badge index-primary">Primary Key</span>';
+              }
+              
+              if (idx.is_unique === true || idx.is_unique === 1) {
+                  badges += '<span class="index-badge index-unique">Unique</span>';
+              }
+              
+              if (idx.is_unique_constraint === true || idx.is_unique_constraint === 1) {
+                  badges += '<span class="index-badge index-unique">Unique Constraint</span>';
+              }
+              
+              if (idx.type_desc) {
+                  const typeDesc = idx.type_desc.toLowerCase();
+                  if (typeDesc.includes('clustered') && !typeDesc.includes('nonclustered')) {
+                      badges += '<span class="index-badge index-clustered">Clustered</span>';
+                  } else if (typeDesc.includes('nonclustered')) {
+                      badges += '<span class="index-badge index-normal">NonClustered</span>';
+                  }
+              }
+              
+              if (!badges) {
+                  badges = '<span class="index-badge index-normal">Index</span>';
+              }
+              
+              const details = [];
+              if (idx.fill_factor && idx.fill_factor !== 0) {
+                  details.push(`Fill Factor: ${idx.fill_factor}%`);
+              }
+              if (idx.has_filter) {
+                  details.push(`Filtered: ${idx.filter_definition || 'Yes'}`);
+              }
+              
+              html += `<tr>
+                  <td><strong>${this.escapeHtml(idx.index_name)}</strong></td>
+                  <td>${badges}</td>
+                  <td><code style="background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 2px;">${this.escapeHtml(idx.columns)}</code></td>
+                  <td><small>${details.join('<br>')}</small></td>
+              </tr>`;
+          });
+          
+          html += '</table>';
+      } else {
+          html += '<p>No indexes found.</p>';
+      }
+      
+      return html;
+  }
 
-   buildForeignKeysTable(foreignKeys) {
-       let html = '<h3>Foreign Keys</h3>';
-       
-       if (foreignKeys && foreignKeys.length > 0) {
-           html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th><th>Actions</th></tr>';
-           
-           foreignKeys.forEach(fk => {
-               const actions = [];
-               if (fk.delete_referential_action_desc && fk.delete_referential_action_desc !== 'NO_ACTION') {
-                   actions.push(`ON DELETE ${fk.delete_referential_action_desc}`);
-               }
-               if (fk.update_referential_action_desc && fk.update_referential_action_desc !== 'NO_ACTION') {
-                   actions.push(`ON UPDATE ${fk.update_referential_action_desc}`);
-               }
-               
-               html += `<tr>
-                   <td>${this.escapeHtml(fk.fk_name)}</td>
-                   <td><strong>${this.escapeHtml(fk.column_name)}</strong></td>
-                   <td>${this.escapeHtml(fk.referenced_table)}</td>
-                   <td><strong>${this.escapeHtml(fk.referenced_column)}</strong></td>
-                   <td><small>${actions.join('<br>')}</small></td>
-               </tr>`;
-           });
-           
-           html += '</table>';
-       } else {
-           html += '<p>No foreign keys found.</p>';
-       }
-       
-       return html;
-   }
+  buildForeignKeysTable(foreignKeys) {
+      let html = '<h3>Foreign Keys</h3>';
+      
+      if (foreignKeys && foreignKeys.length > 0) {
+          html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th><th>Actions</th></tr>';
+          
+          foreignKeys.forEach(fk => {
+              const actions = [];
+              if (fk.delete_referential_action_desc && fk.delete_referential_action_desc !== 'NO_ACTION') {
+                  actions.push(`ON DELETE ${fk.delete_referential_action_desc}`);
+              }
+              if (fk.update_referential_action_desc && fk.update_referential_action_desc !== 'NO_ACTION') {
+                  actions.push(`ON UPDATE ${fk.update_referential_action_desc}`);
+              }
+              
+              html += `<tr>
+                  <td>${this.escapeHtml(fk.fk_name)}</td>
+                  <td><strong>${this.escapeHtml(fk.column_name)}</strong></td>
+                  <td>${this.escapeHtml(fk.referenced_table)}</td>
+                  <td><strong>${this.escapeHtml(fk.referenced_column)}</strong></td>
+                  <td><small>${actions.join('<br>')}</small></td>
+              </tr>`;
+          });
+          
+          html += '</table>';
+      } else {
+          html += '<p>No foreign keys found.</p>';
+      }
+      
+      return html;
+  }
 
-   buildDependenciesSection(dependencies) {
-       if (!dependencies) {
-           return '<h3>Dependencies</h3><p>No dependency information available.</p>';
-       }
-       
-       let html = '<h3>Dependencies</h3>';
-       
-       if (appState.selectedObject) {
-           const objectName = this._getQualifiedName(appState.selectedObject);
-           html += `<div style="margin-bottom: 15px;">
-               <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${objectName}', appState.currentDependencies)" 
-                       class="viz-btn">Show Dependency Graph</button>
-           </div>`;
-       }
-       
-       html += '<h4>Dependencies (objects this depends on):</h4>';
-       if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
-           html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
-           dependencies.dependsOn.forEach(dep => {
-               const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
-               html += `<tr>
-                   <td>${this.escapeHtml(dep.referenced_object)}</td>
-                   <td>${this.escapeHtml(dep.referenced_object_type)}</td>
-                   <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
-                   <td><small>${this.escapeHtml(operations)}</small></td>
-               </tr>`;
-           });
-           html += '</table>';
-       } else {
-           html += '<p>No dependencies found.</p>';
-       }
-       
-       html += '<h4>Referenced by (objects that depend on this):</h4>';
-       if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
-           html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
-           dependencies.referencedBy.forEach(ref => {
-               const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
-               html += `<tr>
-                   <td>${this.escapeHtml(ref.referencing_object)}</td>
-                   <td>${this.escapeHtml(ref.referencing_object_type)}</td>
-                   <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
-                   <td><small>${this.escapeHtml(operations)}</small></td>
-               </tr>`;
-           });
-           html += '</table>';
-       } else {
-           html += '<p>No objects reference this object.</p>';
-       }
-       
-       return html;
-   }
+  buildDependenciesSection(dependencies) {
+      if (!dependencies) {
+          return '<h3>Dependencies</h3><p>No dependency information available.</p>';
+      }
+      
+      let html = '<h3>Dependencies</h3>';
+      
+      if (appState.selectedObject) {
+          const objectName = this._getQualifiedName(appState.selectedObject);
+          html += `<div style="margin-bottom: 15px;">
+              <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${objectName}', appState.currentDependencies)" 
+                      class="viz-btn">Show Dependency Graph</button>
+          </div>`;
+      }
+      
+      html += '<h4>Dependencies (objects this depends on):</h4>';
+      if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
+          html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+          dependencies.dependsOn.forEach(dep => {
+              const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
+              html += `<tr>
+                  <td>${this.escapeHtml(dep.referenced_object)}</td>
+                  <td>${this.escapeHtml(dep.referenced_object_type)}</td>
+                  <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
+                  <td><small>${this.escapeHtml(operations)}</small></td>
+              </tr>`;
+          });
+          html += '</table>';
+      } else {
+          html += '<p>No dependencies found.</p>';
+      }
+      
+      html += '<h4>Referenced by (objects that depend on this):</h4>';
+      if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
+          html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+          dependencies.referencedBy.forEach(ref => {
+              const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
+              html += `<tr>
+                  <td>${this.escapeHtml(ref.referencing_object)}</td>
+                  <td>${this.escapeHtml(ref.referencing_object_type)}</td>
+                  <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
+                  <td><small>${this.escapeHtml(operations)}</small></td>
+              </tr>`;
+          });
+          html += '</table>';
+      } else {
+          html += '<p>No objects reference this object.</p>';
+      }
+      
+      return html;
+  }
 
-   escapeHtml(text) {
-       if (!text) return '';
-       const div = document.createElement('div');
-       div.textContent = text;
-       return div.innerHTML;
-   }
+  escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+  }
 }
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, tableUsageManager, commentsManager, extendedEventsManager, detailsTabManager, codeViewManager, objectsTabManager) {
-        this.connectionManager = connectionManager;
-        this.explorerManager = explorerManager;
-        this.tabManager = tabManager;
-        this.tableUsageManager = tableUsageManager;
-        this.commentsManager = commentsManager;
-        this.extendedEventsManager = extendedEventsManager;
-        this.detailsTabManager = detailsTabManager;
-        this.codeViewManager = codeViewManager;
-        this.objectsTabManager = objectsTabManager;
-        this.databaseSelector = new DatabaseSelectorManager();
-    }
+   constructor(connectionManager, explorerManager, tabManager, commentsManager, extendedEventsManager, detailsTabManager, codeViewManager, objectsTabManager) {
+       this.connectionManager = connectionManager;
+       this.explorerManager = explorerManager;
+       this.tabManager = tabManager;
+       this.commentsManager = commentsManager;
+       this.extendedEventsManager = extendedEventsManager;
+       this.detailsTabManager = detailsTabManager;
+       this.codeViewManager = codeViewManager;
+       this.objectsTabManager = objectsTabManager;
+       this.databaseSelector = new DatabaseSelectorManager();
+   }
 
-    handleMessage(event) {
-        const message = event.data;
-        
-        switch (message.command) {
-            case 'savedConnectionsLoaded':
-                this.connectionManager.onSavedConnectionsLoaded(message.connections);
-                break;
-                
-            case 'connectionLoadedForDisplay':
-                this.connectionManager.onConnectionLoadedForDisplay(message.connection);
-                break;
-                
-            case 'connectionSaved':
-                this.connectionManager.onConnectionSaved(message);
-                break;
-                
-            case 'connectionDeleted':
-                this.connectionManager.onConnectionDeleted(message);
-                break;
-                
-            case 'testConnectionResult':
-                this.connectionManager.onTestConnectionResult(message);
-                break;
-                
-            case 'connectionStatus':
-                this.connectionManager.onConnectionStatus(message);
-                if (message.success) {
-                    this.databaseSelector.showReadyGlow();
-                }
-                break;
-                
-            case 'requestCurrentDatabase':
-                vscode.postMessage({
-                    command: 'setCurrentDatabase',
-                    database: appState.currentDatabase
-                });
-                break;
-                
-            case 'databasesLoaded':
-                this.explorerManager.onDatabasesLoaded(message.databases);
-                this.tableUsageManager.onDatabaseChanged(appState.currentDatabase);
-                if (this.codeViewManager) {
-                    this.codeViewManager.onDatabaseChanged();
-                }
-                break;
-                
-            case 'objectsLoaded':
-                this.explorerManager.onObjectsLoaded(message.objects);
-                this.tableUsageManager.onObjectsLoaded(message.objects);
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onObjectsLoaded(message.objects);
-                }
-                break;
-                
-            case 'tableDetailsLoaded':
-                this.explorerManager.onTableDetailsLoaded(
-                    message.tableName, 
-                    message.columns, 
-                    message.indexes, 
-                    message.foreignKeys,
-                    message.dependencies
-                );
-                break;
-                
-            case 'objectDetailsLoaded':
-                this.explorerManager.onObjectDetailsLoaded(
-                    message.objectName,
-                    message.objectType,
-                    message.dependencies,
-                    message.definition
-                );
-                break;
+   handleMessage(event) {
+       const message = event.data;
+       
+       switch (message.command) {
+           case 'savedConnectionsLoaded':
+               this.connectionManager.onSavedConnectionsLoaded(message.connections);
+               break;
+               
+           case 'connectionLoadedForDisplay':
+               this.connectionManager.onConnectionLoadedForDisplay(message.connection);
+               break;
+               
+           case 'connectionSaved':
+               this.connectionManager.onConnectionSaved(message);
+               break;
+               
+           case 'connectionDeleted':
+               this.connectionManager.onConnectionDeleted(message);
+               break;
+               
+           case 'testConnectionResult':
+               this.connectionManager.onTestConnectionResult(message);
+               break;
+               
+           case 'connectionStatus':
+               this.connectionManager.onConnectionStatus(message);
+               if (message.success) {
+                   this.databaseSelector.showReadyGlow();
+               }
+               break;
+               
+           case 'requestCurrentDatabase':
+               vscode.postMessage({
+                   command: 'setCurrentDatabase',
+                   database: appState.currentDatabase
+               });
+               break;
+               
+           case 'databasesLoaded':
+               this.explorerManager.onDatabasesLoaded(message.databases);
+               if (this.codeViewManager) {
+                   this.codeViewManager.onDatabaseChanged();
+               }
+               break;
+               
+           case 'objectsLoaded':
+               this.explorerManager.onObjectsLoaded(message.objects);
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onObjectsLoaded(message.objects);
+               }
+               break;
+               
+           case 'tableDetailsLoaded':
+               this.explorerManager.onTableDetailsLoaded(
+                   message.tableName, 
+                   message.columns, 
+                   message.indexes, 
+                   message.foreignKeys,
+                   message.dependencies
+               );
+               break;
+               
+           case 'objectDetailsLoaded':
+               this.explorerManager.onObjectDetailsLoaded(
+                   message.objectName,
+                   message.objectType,
+                   message.dependencies,
+                   message.definition
+               );
+               break;
 
-            // NEW: Index-related messages
-            case 'indexResult':
-                if (this.objectsTabManager) {
-                    this.objectsTabManager.displayIndex(message.indexData);
-                }
-                break;
+           // Index-related messages
+           case 'indexResult':
+               if (this.objectsTabManager) {
+                   this.objectsTabManager.displayIndex(message.indexData);
+               }
+               break;
 
-            case 'indexingProgress':
-                if (this.objectsTabManager) {
-                    this.objectsTabManager.onIndexingProgress(message);
-                }
-                break;
+           case 'indexingProgress':
+               if (this.objectsTabManager) {
+                   this.objectsTabManager.onIndexingProgress(message);
+               }
+               break;
 
-            case 'indexingCompleted':
-                if (this.objectsTabManager) {
-                    this.objectsTabManager.onIndexingCompleted(message.database, message.success, message.message);
-                }
-                break;
-                
-            // Table Usage Messages
-            case 'allTablesForUsageResult':
-                this.tableUsageManager.onAllTablesLoaded(message.tables);
-                break;
-                
-            case 'tableUsageAnalysisResult':
-                this.tableUsageManager.onTableUsageAnalysisResult(message.objectName, message.analysis);
-                break;
-                
-            case 'tableUsageByObjectsResult':
-                this.tableUsageManager.onTableUsageByObjectsResult(message.tableName, message.usage);
-                break;
-                
-            case 'triggerAnalysisResult':
-                this.tableUsageManager.onTriggerAnalysisResult(message.database, message.triggers);
-                break;
-                
-            // Comments Messages
-            case 'tableExtendedPropertiesResult':
-                this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
-                break;
-                
-            case 'objectExtendedPropertiesResult':
-                this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
-                break;
-                
-            case 'updateDescriptionResult':
-                this.commentsManager.onUpdateDescriptionResult(message);
-                break;
-                
-            case 'deleteDescriptionResult':
-                this.commentsManager.onDeleteDescriptionResult(message);
-                break;
-                
-            // Enhanced Extended Events Messages
-            case 'executionFlowSessionCreated':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionCreated(message);
-                }
-                break;
-                
-            case 'executionFlowSessionStarted':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionStarted(message);
-                }
-                break;
-                
-            case 'executionFlowSessionStopped':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionStopped(message);
-                }
-                break;
-                
-            case 'executionFlowSessionDeleted':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionDeleted(message);
-                }
-                break;
-                
-            case 'executionFlowSessionInfo':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
-                }
-                break;
-                
-            case 'rawSessionEventsResult':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onRawEventsReceived(
-                        message.sessionName, 
-                        message.rawXml, 
-                        message.message
-                    );
-                }
-                break;
-                
-            case 'executionFlowSessionsList':
-                if (this.extendedEventsManager) {
-                    console.log('Available sessions:', message.sessions);
-                }
-                break;
-                
-            case 'extendedEventsReceived':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onEventsReceived(message.events);
-                }
-                break;
-                
-            case 'error':
-                this.handleError(message.message);
-                break;
+           case 'indexingCompleted':
+               if (this.objectsTabManager) {
+                   this.objectsTabManager.onIndexingCompleted(message.database, message.success, message.message);
+               }
+               break;
+               
+           // Comments Messages
+           case 'tableExtendedPropertiesResult':
+               this.commentsManager.onTableExtendedPropertiesResult(message.tableName, message.properties);
+               break;
+               
+           case 'objectExtendedPropertiesResult':
+               this.commentsManager.onObjectExtendedPropertiesResult(message.objectName, message.objectType, message.properties);
+               break;
+               
+           case 'updateDescriptionResult':
+               this.commentsManager.onUpdateDescriptionResult(message);
+               break;
+               
+           case 'deleteDescriptionResult':
+               this.commentsManager.onDeleteDescriptionResult(message);
+               break;
+               
+           // Extended Events Messages
+           case 'executionFlowSessionCreated':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionCreated(message);
+               }
+               break;
+               
+           case 'executionFlowSessionStarted':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionStarted(message);
+               }
+               break;
+               
+           case 'executionFlowSessionStopped':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionStopped(message);
+               }
+               break;
+               
+           case 'executionFlowSessionDeleted':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionDeleted(message);
+               }
+               break;
+               
+           case 'executionFlowSessionInfo':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
+               }
+               break;
+               
+           case 'rawSessionEventsResult':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onRawEventsReceived(
+                       message.sessionName, 
+                       message.rawXml, 
+                       message.message
+                   );
+               }
+               break;
+               
+           case 'executionFlowSessionsList':
+               if (this.extendedEventsManager) {
+                   console.log('Available sessions:', message.sessions);
+               }
+               break;
+               
+           case 'extendedEventsReceived':
+               if (this.extendedEventsManager) {
+                   this.extendedEventsManager.onEventsReceived(message.events);
+               }
+               break;
+               
+           case 'error':
+               this.handleError(message.message);
+               break;
 
-            case 'indexingStarted':
-                if (this.objectsTabManager) {
-                    this.objectsTabManager.onIndexingStarted(message.database, message.forced);
-                }
-                break;
+           case 'indexingStarted':
+               if (this.objectsTabManager) {
+                   this.objectsTabManager.onIndexingStarted(message.database, message.forced);
+               }
+               break;
 
-            case 'indexingCancelled':
-                if (this.objectsTabManager) {
-                    this.objectsTabManager.onIndexingCancelled(message);
-                }
-                break;    
-            case 'forceReindexConfirmed':
-                if (this.objectsTabManager) {
-                    this.objectsTabManager.onForceReindexConfirmed(message.database);
-                }
-                break;    
-                
-            default:
-                console.warn(`Unknown command: ${message.command}`);
-        }
-    }    
+           case 'indexingCancelled':
+               if (this.objectsTabManager) {
+                   this.objectsTabManager.onIndexingCancelled(message);
+               }
+               break;    
+           case 'forceReindexConfirmed':
+               if (this.objectsTabManager) {
+                   this.objectsTabManager.onForceReindexConfirmed(message.database);
+               }
+               break;    
+               
+           default:
+               console.warn(`Unknown command: ${message.command}`);
+       }
+   }    
 
-    handleError(message) {
-        console.error('SQL Wayfarer Error:', message);
-        if (appState.activeTab === 'configuration') {
-            this.connectionManager.showStatus(message, 'error');
-        } else if (appState.activeTab === 'tableUsage') {
-            this.tableUsageManager.showStatus(message, 'error');
-        } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
-            this.extendedEventsManager.showStatus(message, 'error');
-        } else {
-            this.tabManager.showStatus(message, 'error');
-        }
-    }
+   handleError(message) {
+       console.error('SQL Wayfarer Error:', message);
+       if (appState.activeTab === 'configuration') {
+           this.connectionManager.showStatus(message, 'error');
+       } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
+           this.extendedEventsManager.showStatus(message, 'error');
+       } else {
+           this.tabManager.showStatus(message, 'error');
+       }
+   }
 }
 
 // Application initialization
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('SQL Wayfarer webview loaded');
-    
-    const tabManager = new TabManager();
-    const connectionManager = new ConnectionManager();
-    const explorerManager = new ExplorerManager();
-    const tableUsageManager = new TableUsageManager();
-    const commentsManager = new CommentsManager();
-    const codeViewManager = new CodeViewManager();
-    const detailsTabManager = new DetailsTabManager();
-    const objectsTabManager = new ObjectsTabManager(); // NEW
-    
-    let extendedEventsManager = null;
-    if (typeof ExtendedEventsManager !== 'undefined') {
-        extendedEventsManager = new ExtendedEventsManager();
-    }
-    
-    const messageHandler = new MessageHandler(
-        connectionManager, 
-        explorerManager, 
-        tabManager, 
-        tableUsageManager, 
-        commentsManager,
-        extendedEventsManager,
-        detailsTabManager,
-        codeViewManager,
-        objectsTabManager // NEW
-    );
-    
-    // Make managers available globally
-    window.explorerManager = explorerManager;
-    window.tableUsageManager = tableUsageManager;
-    window.commentsManager = commentsManager;
-    window.codeViewManager = codeViewManager;
-    window.detailsTabManager = detailsTabManager;
-    window.objectsTabManager = objectsTabManager; // NEW
-    if (extendedEventsManager) {
-        window.extendedEventsManager = extendedEventsManager;
-    }
-    
-    window.addEventListener('message', (event) => messageHandler.handleMessage(event));
-    
-    connectionManager.loadSavedConnections();
+   console.log('SQL Wayfarer webview loaded');
+   
+   const tabManager = new TabManager();
+   const connectionManager = new ConnectionManager();
+   const explorerManager = new ExplorerManager();
+   const commentsManager = new CommentsManager();
+   const codeViewManager = new CodeViewManager();
+   const detailsTabManager = new DetailsTabManager();
+   const objectsTabManager = new ObjectsTabManager();
+   
+   let extendedEventsManager = null;
+   if (typeof ExtendedEventsManager !== 'undefined') {
+       extendedEventsManager = new ExtendedEventsManager();
+   }
+   
+   const messageHandler = new MessageHandler(
+       connectionManager, 
+       explorerManager, 
+       tabManager, 
+       commentsManager,
+       extendedEventsManager,
+       detailsTabManager,
+       codeViewManager,
+       objectsTabManager
+   );
+   
+   // Make managers available globally
+   window.explorerManager = explorerManager;
+   window.commentsManager = commentsManager;
+   window.codeViewManager = codeViewManager;
+   window.detailsTabManager = detailsTabManager;
+   window.objectsTabManager = objectsTabManager;
+   if (extendedEventsManager) {
+       window.extendedEventsManager = extendedEventsManager;
+   }
+   
+   window.addEventListener('message', (event) => messageHandler.handleMessage(event));
+   
+   connectionManager.loadSavedConnections();
 });
