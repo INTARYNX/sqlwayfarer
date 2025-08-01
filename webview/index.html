@@ -178,6 +178,7 @@
                         <div class="details-nav">
                             <button class="details-tab-button active" data-details-tab="structure">Structure</button>
                             <button class="details-tab-button" data-details-tab="tree">Tree</button>
+                            <button class="details-tab-button" data-details-tab="graph">Graph</button>
                             <button class="details-tab-button" data-details-tab="code">Code</button>
                             <button class="details-tab-button" data-details-tab="comments">Comments</button>
                         </div>
@@ -196,6 +197,16 @@
                                 <div class="tree-placeholder">
                                     <h3>🌳 Dependency Tree</h3>
                                     <p class="placeholder-text">Select an object to view its dependency tree.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Graph Tab (new) -->
+                        <div id="graphDetailsTab" class="details-tab-content">
+                            <div id="graphContainer">
+                                <div class="graph-placeholder">
+                                    <h3>📊 Dependency Graph</h3>
+                                    <p class="placeholder-text">Select an object to view its dependency graph.</p>
                                 </div>
                             </div>
                         </div>
