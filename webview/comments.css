@@ -1,4 +1,4 @@
-/* Comments Section Styles */
+/* === COMMENTS SECTION === */
 .comments-header {
     display: flex;
     justify-content: space-between;
@@ -75,11 +75,6 @@
     line-height: 1.5;
 }
 
-.description-text {
-    color: var(--vscode-foreground);
-    word-wrap: break-word;
-}
-
 .description-placeholder {
     color: var(--vscode-descriptionForeground);
     font-style: italic;
@@ -104,401 +99,391 @@
 }
 
 .edit-btn:hover {
-    background: var(--vscode-button-hoverBackground);
+   background: var(--vscode-button-hoverBackground);
 }
 
-.edit-btn.small {
-    padding: 2px 6px;
-    font-size: 10px;
-}
-
-/* Comments Table Styles */
+/* === COMMENTS TABLE === */
 .comments-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 10px 0;
-    background: var(--vscode-editor-background);
+   width: 100%;
+   border-collapse: collapse;
+   margin: 10px 0;
+   background: var(--vscode-editor-background);
 }
 
 .comments-table th,
 .comments-table td {
-    border: 1px solid var(--vscode-input-border);
-    padding: 8px 12px;
-    text-align: left;
-    vertical-align: top;
+   border: 1px solid var(--vscode-input-border);
+   padding: 8px 12px;
+   text-align: left;
+   vertical-align: top;
 }
 
 .comments-table th {
-    background: var(--vscode-input-background);
-    font-weight: bold;
-    font-size: 12px;
-    color: var(--vscode-foreground);
-    position: sticky;
-    top: 0;
-    z-index: 3;
+   background: var(--vscode-input-background);
+   font-weight: bold;
+   font-size: 12px;
+   color: var(--vscode-foreground);
+   position: sticky;
+   top: 0;
+   z-index: 3;
 }
 
 .comments-table td {
-    font-size: 13px;
+   font-size: 13px;
 }
 
-/* Column table specific styles */
 .column-descriptions-table {
-    margin: 15px 0;
+   margin: 15px 0;
 }
 
 .column-name-cell {
-    min-width: 150px;
+   min-width: 150px;
 }
 
 .column-type-cell {
-    min-width: 120px;
+   min-width: 120px;
 }
 
 .column-type-code {
-    background: var(--vscode-textCodeBlock-background);
-    color: var(--vscode-textPreformat-foreground);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: var(--vscode-editor-font-family);
-    font-size: 11px;
-    border: 1px solid var(--vscode-input-border);
+   background: var(--vscode-textCodeBlock-background);
+   color: var(--vscode-textPreformat-foreground);
+   padding: 2px 6px;
+   border-radius: 3px;
+   font-family: var(--vscode-editor-font-family);
+   font-size: 11px;
+   border: 1px solid var(--vscode-input-border);
 }
 
 .description-cell {
-    min-width: 200px;
+   min-width: 200px;
 }
 
 .action-cell {
-    width: 80px;
-    text-align: center;
+   width: 80px;
+   text-align: center;
 }
 
 .text-center {
-    text-align: center;
+   text-align: center;
 }
 
 .empty-state {
-    text-align: center;
-    color: var(--vscode-descriptionForeground);
-    font-style: italic;
-    padding: 20px;
+   text-align: center;
+   color: var(--vscode-descriptionForeground);
+   font-style: italic;
+   padding: 20px;
 }
 
-/* Row highlighting based on description status */
 .has-description {
-    border-left: 3px solid var(--vscode-button-background);
+   border-left: 3px solid var(--vscode-button-background);
 }
 
 .no-description {
-    border-left: 3px solid var(--vscode-descriptionForeground);
-    opacity: 0.8;
+   border-left: 3px solid var(--vscode-descriptionForeground);
+   opacity: 0.8;
 }
 
 .no-description-text {
-    color: var(--vscode-descriptionForeground);
-    font-style: italic;
-    font-size: 12px;
+   color: var(--vscode-descriptionForeground);
+   font-style: italic;
+   font-size: 12px;
 }
 
-/* Nullable/Not null badges */
 .nullable, .not-null {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: black;
+   font-size: 10px;
+   padding: 2px 6px;
+   border-radius: 3px;
+   font-weight: bold;
+   text-transform: uppercase;
+   color: black;
 }
 
 .nullable {
-    background: var(--vscode-terminal-ansiYellow);
-    color: var(--vscode-terminal-background);
+   background: var(--vscode-terminal-ansiYellow);
+   color: var(--vscode-terminal-background);
 }
 
 .not-null {
-    background: var(--vscode-terminal-ansiRed);
-    color: var(--vscode-terminal-background);
+   background: var(--vscode-terminal-ansiRed);
+   color: var(--vscode-terminal-background);
 }
 
-/* Edit button for columns */
 .edit-btn-small {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 3px 8px;
-    font-size: 10px;
-    border-radius: 2px;
-    cursor: pointer;
-    width: auto;
-    margin: 0;
+   background: var(--vscode-button-background);
+   color: var(--vscode-button-foreground);
+   border: none;
+   padding: 3px 8px;
+   font-size: 10px;
+   border-radius: 2px;
+   cursor: pointer;
+   width: auto;
+   margin: 0;
 }
 
 .edit-btn-small:hover {
-    background: var(--vscode-button-hoverBackground);
+   background: var(--vscode-button-hoverBackground);
 }
 
-/* Comment Statistics */
+/* === COMMENT STATISTICS === */
 .comment-stats {
-    margin-top: 20px;
-    padding: 15px;
-    background: var(--vscode-input-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
+   margin-top: 20px;
+   padding: 15px;
+   background: var(--vscode-input-background);
+   border: 1px solid var(--vscode-input-border);
+   border-radius: 4px;
 }
 
 .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+   display: grid;
+   grid-template-columns: 1fr;
+   gap: 10px;
 }
 
 .stat-item {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
+   display: flex;
+   justify-content: space-between;
+   margin-bottom: 10px;
 }
 
 .stat-label {
-    color: var(--vscode-foreground);
+   color: var(--vscode-foreground);
 }
 
 .stat-value {
-    color: var(--vscode-button-foreground);
-    font-weight: bold;
+   color: var(--vscode-button-foreground);
+   font-weight: bold;
 }
 
 .coverage-bar {
-    width: 100%;
-    height: 8px;
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 5px;
+   width: 100%;
+   height: 8px;
+   background: var(--vscode-editor-background);
+   border: 1px solid var(--vscode-input-border);
+   border-radius: 4px;
+   overflow: hidden;
+   margin-top: 5px;
 }
 
 .coverage-fill {
-    height: 100%;
-    background: linear-gradient(90deg, 
-        var(--vscode-terminal-ansiRed) 0%, 
-        var(--vscode-terminal-ansiYellow) 50%, 
-        var(--vscode-terminal-ansiGreen) 100%);
-    transition: width 0.3s ease;
+   height: 100%;
+   background: linear-gradient(90deg, 
+       var(--vscode-terminal-ansiRed) 0%, 
+       var(--vscode-terminal-ansiYellow) 50%, 
+       var(--vscode-terminal-ansiGreen) 100%);
+   transition: width 0.3s ease;
 }
 
-/* Comments Status */
 .comments-status {
-    padding: 8px 12px;
-    border-radius: 4px;
-    margin-bottom: 15px;
-    font-size: 13px;
-    font-weight: 500;
+   padding: 8px 12px;
+   border-radius: 4px;
+   margin-bottom: 15px;
+   font-size: 13px;
+   font-weight: 500;
 }
 
 .comments-status.success {
-    background: var(--vscode-terminal-ansiGreen);
-    color: var(--vscode-terminal-background);
+   background: var(--vscode-terminal-ansiGreen);
+   color: var(--vscode-terminal-background);
 }
 
 .comments-status.error {
-    background: var(--vscode-terminal-ansiRed);
-    color: var(--vscode-terminal-background);
+   background: var(--vscode-terminal-ansiRed);
+   color: var(--vscode-terminal-background);
 }
 
 .comments-placeholder {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--vscode-descriptionForeground);
+   text-align: center;
+   padding: 40px 20px;
+   color: var(--vscode-descriptionForeground);
 }
 
 .comments-placeholder h3 {
-    margin: 0 0 15px 0;
-    color: var(--vscode-foreground);
+   margin: 0 0 15px 0;
+   color: var(--vscode-foreground);
 }
 
-/* Modal Dialog Styles */
+/* === MODAL DIALOG === */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
+   position: fixed;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 100%;
+   background: rgba(0, 0, 0, 0.6);
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   z-index: 1000;
 }
 
 .modal-dialog {
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 6px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    width: 90%;
-    max-width: 500px;
-    max-height: 80vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+   background: var(--vscode-editor-background);
+   border: 1px solid var(--vscode-input-border);
+   border-radius: 6px;
+   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+   width: 90%;
+   max-width: 500px;
+   max-height: 80vh;
+   overflow: hidden;
+   display: flex;
+   flex-direction: column;
 }
 
 .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    border-bottom: 1px solid var(--vscode-input-border);
-    background: var(--vscode-input-background);
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   padding: 15px 20px;
+   border-bottom: 1px solid var(--vscode-input-border);
+   background: var(--vscode-input-background);
 }
 
 .modal-header h3 {
-    margin: 0;
-    color: var(--vscode-foreground);
-    font-size: 16px;
+   margin: 0;
+   color: var(--vscode-foreground);
+   font-size: 16px;
 }
 
 .modal-close {
-    background: transparent;
-    border: none;
-    color: var(--vscode-foreground);
-    font-size: 20px;
-    cursor: pointer;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 2px;
+   background: transparent;
+   border: none;
+   color: var(--vscode-foreground);
+   font-size: 20px;
+   cursor: pointer;
+   padding: 0;
+   width: 24px;
+   height: 24px;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   border-radius: 2px;
 }
 
 .modal-close:hover {
-    background: var(--vscode-list-hoverBackground);
+   background: var(--vscode-list-hoverBackground);
 }
 
 .modal-body {
-    padding: 20px;
-    flex: 1;
-    overflow-y: auto;
+   padding: 20px;
+   flex: 1;
+   overflow-y: auto;
 }
 
 .modal-body p {
-    margin: 0 0 15px 0;
-    color: var(--vscode-foreground);
+   margin: 0 0 15px 0;
+   color: var(--vscode-foreground);
 }
 
 .modal-body textarea {
-    width: 100%;
-    min-height: 120px;
-    background: var(--vscode-input-background);
-    color: var(--vscode-input-foreground);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 3px;
-    padding: 8px;
-    font-family: var(--vscode-editor-font-family);
-    font-size: 13px;
-    resize: vertical;
-    box-sizing: border-box;
+   width: 100%;
+   min-height: 120px;
+   background: var(--vscode-input-background);
+   color: var(--vscode-input-foreground);
+   border: 1px solid var(--vscode-input-border);
+   border-radius: 3px;
+   padding: 8px;
+   font-family: var(--vscode-editor-font-family);
+   font-size: 13px;
+   resize: vertical;
+   box-sizing: border-box;
 }
 
 .modal-body textarea:focus {
-    outline: none;
-    border-color: var(--vscode-button-background);
+   outline: none;
+   border-color: var(--vscode-button-background);
 }
 
 .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 15px 20px;
-    border-top: 1px solid var(--vscode-input-border);
-    background: var(--vscode-input-background);
+   display: flex;
+   justify-content: flex-end;
+   gap: 10px;
+   padding: 15px 20px;
+   border-top: 1px solid var(--vscode-input-border);
+   background: var(--vscode-input-background);
 }
 
 .btn-primary {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 8px 16px;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    width: auto;
-    margin: 0;
+   background: var(--vscode-button-background);
+   color: var(--vscode-button-foreground);
+   border: none;
+   padding: 8px 16px;
+   border-radius: 3px;
+   cursor: pointer;
+   font-size: 13px;
+   font-weight: 500;
+   width: auto;
+   margin: 0;
 }
 
 .btn-primary:hover {
-    background: var(--vscode-button-hoverBackground);
+   background: var(--vscode-button-hoverBackground);
 }
 
 .btn-secondary {
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: 1px solid var(--vscode-input-border);
-    padding: 8px 16px;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 13px;
-    width: auto;
-    margin: 0;
+   background: var(--vscode-button-secondaryBackground);
+   color: var(--vscode-button-secondaryForeground);
+   border: 1px solid var(--vscode-input-border);
+   padding: 8px 16px;
+   border-radius: 3px;
+   cursor: pointer;
+   font-size: 13px;
+   width: auto;
+   margin: 0;
 }
 
 .btn-secondary:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
+   background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .btn-danger {
-    background: var(--vscode-terminal-ansiRed);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    width: auto;
-    margin: 0;
+   background: var(--vscode-terminal-ansiRed);
+   color: white;
+   border: none;
+   padding: 8px 16px;
+   border-radius: 3px;
+   cursor: pointer;
+   font-size: 13px;
+   font-weight: 500;
+   width: auto;
+   margin: 0;
 }
 
 .btn-danger:hover {
-    background: #d32f2f;
+   background: #d32f2f;
 }
 
-/* Responsive Design */
+/* === RESPONSIVE DESIGN === */
 @media (max-width: 768px) {
-    .comments-header {
-        flex-direction: column;
-        gap: 10px;
-        align-items: flex-start;
-    }
-    
-    .comments-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
-    
-    .comments-table {
-        font-size: 11px;
-    }
-    
-    .comments-table th,
-    .comments-table td {
-        padding: 6px 8px;
-    }
-    
-    .modal-dialog {
-        width: 95%;
-        margin: 10px;
-    }
-    
-    .modal-footer {
-        flex-direction: column;
-    }
-    
-    .modal-footer button {
-        width: 100%;
-    }
+   .comments-header {
+       flex-direction: column;
+       gap: 10px;
+       align-items: flex-start;
+   }
+   
+   .comments-actions {
+       width: 100%;
+       justify-content: flex-start;
+   }
+   
+   .comments-table {
+       font-size: 11px;
+   }
+   
+   .comments-table th,
+   .comments-table td {
+       padding: 6px 8px;
+   }
+   
+   .modal-dialog {
+       width: 95%;
+       margin: 10px;
+   }
+   
+   .modal-footer {
+       flex-direction: column;
+   }
+   
+   .modal-footer button {
+       width: 100%;
+   }
 }
