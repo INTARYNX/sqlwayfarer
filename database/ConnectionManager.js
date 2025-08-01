@@ -27,7 +27,7 @@ class ConnectionManager {
      */
     async buildConnectionString(connectionConfig) {
         let connectionString = '';
-        
+
         // Get password from secure storage if it's a saved connection
         let password = connectionConfig.password;
         if (connectionConfig.isLoadedConnection && connectionConfig.name && !password) {
@@ -38,32 +38,32 @@ class ConnectionManager {
         } else if (connectionConfig.name && !password) {
             password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
         }
-        
+
         // Build connection string from individual fields
         connectionString = `Server=${connectionConfig.server}`;
-        
+
         if (connectionConfig.port) {
             connectionString += `,${connectionConfig.port}`;
         }
-        
+
         if (connectionConfig.database) {
             connectionString += `;Database=${connectionConfig.database}`;
         }
-        
+
         if (connectionConfig.username && password) {
             connectionString += `;User Id=${connectionConfig.username};Password=${password}`;
         } else {
             connectionString += ';Integrated Security=true';
         }
-        
+
         if (connectionConfig.encrypt !== undefined) {
             connectionString += `;Encrypt=${connectionConfig.encrypt}`;
         }
-        
+
         if (connectionConfig.trustServerCertificate !== undefined) {
             connectionString += `;TrustServerCertificate=${connectionConfig.trustServerCertificate}`;
         }
-        
+
         return connectionString;
     }
 
@@ -81,10 +81,10 @@ class ConnectionManager {
 
             // Return connection without sensitive data
             const displayConnection = { ...connection };
-            
+
             // Don't include the password
             delete displayConnection.password;
-            
+
             return displayConnection;
         } catch (error) {
             console.error('Error getting connection for display:', error);
@@ -102,7 +102,7 @@ class ConnectionManager {
             const connectionString = await this.buildConnectionString(connectionConfig);
             const testConnection = await sql.connect(connectionString);
             await testConnection.close();
-            
+
             return {
                 success: true,
                 message: 'Connection test successful!'
@@ -127,10 +127,10 @@ class ConnectionManager {
                 await this._activeConnection.close();
                 this._activeConnection = null;
             }
-            
+
             const connectionString = await this.buildConnectionString(connectionConfig);
             this._activeConnection = await sql.connect(connectionString);
-            
+
             return {
                 success: true,
                 message: 'Connected successfully!'
@@ -172,7 +172,7 @@ class ConnectionManager {
 
             // Use the existing connect method
             return await this.connect(connectionConfig);
-            
+
         } catch (error) {
             return {
                 success: false,
@@ -191,7 +191,7 @@ class ConnectionManager {
                 await this._activeConnection.close();
                 this._activeConnection = null;
             }
-            
+
             return {
                 success: true,
                 message: 'Disconnected successfully!'
@@ -230,7 +230,7 @@ class ConnectionManager {
         if (!this._activeConnection) {
             throw new Error('No active connection');
         }
-        
+
         return await this._activeConnection.request().query(query);
     }
 
@@ -245,14 +245,14 @@ class ConnectionManager {
         if (!this._activeConnection) {
             throw new Error('No active connection');
         }
-        
+
         const request = this._activeConnection.request();
-        
+
         // Add parameters to request
         for (const [key, value] of Object.entries(parameters)) {
             request.input(key, value);
         }
-        
+
         return await request.query(query);
     }
 

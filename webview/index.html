@@ -177,6 +177,7 @@
                         <!-- Details Panel Navigation -->
                         <div class="details-nav">
                             <button class="details-tab-button active" data-details-tab="structure">Structure</button>
+                            <button class="details-tab-button" data-details-tab="tree">Tree</button>
                             <button class="details-tab-button" data-details-tab="code">Code</button>
                             <button class="details-tab-button" data-details-tab="comments">Comments</button>
                         </div>
@@ -186,6 +187,16 @@
                             <div class="section-header">Details</div>
                             <div id="detailsContent">
                                 <p>Select a table to view its structure, indexes, and constraints.</p>
+                            </div>
+                        </div>
+
+                        <!-- Add new Tree tab content -->
+                        <div id="treeDetailsTab" class="details-tab-content">
+                            <div id="treeContainer">
+                                <div class="tree-placeholder">
+                                    <h3>🌳 Dependency Tree</h3>
+                                    <p class="placeholder-text">Select an object to view its dependency tree.</p>
+                                </div>
                             </div>
                         </div>
 

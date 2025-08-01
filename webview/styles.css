@@ -1520,3 +1520,21 @@ code.qualified-name {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+.dependency-tree-text {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--vscode-editor-foreground);
+    background: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-input-border);
+    padding: 15px;
+    margin: 10px 0;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.tree-header h3 {
+    margin: 0 0 10px 0;
+    color: var(--vscode-foreground);
+}
