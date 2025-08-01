@@ -785,9 +785,9 @@ class ExplorerManager {
                 const schemaHeader = document.createElement('div');
                 schemaHeader.className = 'schema-header';
                 schemaHeader.innerHTML = `
-                   <span class="schema-name">📁 ${schema}</span>
-                   <span class="schema-count">(${objectsBySchema[schema].length})</span>
-               `;
+                <span class="schema-name">📁 ${schema}</span>
+                <span class="schema-count">(${objectsBySchema[schema].length})</span>
+            `;
                 this.elements.objectList.appendChild(schemaHeader);
             }
 
@@ -797,16 +797,14 @@ class ExplorerManager {
 
                 const objectDisplayName = obj.object_name || obj.name.split('.').pop();
 
-                const nameSpan = document.createElement('span');
-                nameSpan.innerHTML = `${objectDisplayName}<span class="object-type">(${obj.object_type})</span>`;
+                // Get icon based on object type
+                const icon = this._getObjectTypeIcon(obj.object_type);
 
-                const vizBtn = document.createElement('button');
-                vizBtn.className = 'viz-object-btn';
-                vizBtn.textContent = 'Graph';
-                vizBtn.onclick = (e) => this.handleShowDependencies(obj.name, e);
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'object-name-with-icon';
+                nameSpan.innerHTML = `${icon} ${objectDisplayName}`;
 
                 div.appendChild(nameSpan);
-                div.appendChild(vizBtn);
                 div.dataset.name = obj.name;
                 div.dataset.qualifiedName = obj.qualified_name || obj.name;
                 div.dataset.type = obj.object_type;
@@ -819,6 +817,22 @@ class ExplorerManager {
         });
     }
 
+    _getObjectTypeIcon(objectType) {
+        switch (objectType) {
+            case 'Table':
+                return '📋';
+            case 'View':
+                return '👁️';
+            case 'Procedure':
+                return '⚙️';
+            case 'Function':
+                return '🔧';
+            case 'Trigger':
+                return '⚡';
+            default:
+                return '📄';
+        }
+    }
     _groupObjectsBySchema(objects) {
         const grouped = {};
 
