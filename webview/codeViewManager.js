@@ -131,51 +131,22 @@ class CodeViewManager {
     highlightSQL(sql) {
         if (!sql) return '';
         
-        let highlighted = this.escapeHtml(sql);
-        
-        // SQL Keywords
-        const keywords = [
-            'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER',
-            'GROUP BY', 'ORDER BY', 'HAVING', 'INSERT', 'UPDATE', 'DELETE', 'CREATE',
-            'ALTER', 'DROP', 'TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'TRIGGER',
-            'BEGIN', 'END', 'IF', 'ELSE', 'WHILE', 'FOR', 'DECLARE', 'SET', 'EXEC',
-            'RETURN', 'AS', 'ON', 'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'LIKE', 'BETWEEN',
-            'IS', 'NULL', 'DISTINCT', 'TOP', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'
-        ];
-
-        // Highlight keywords
-        keywords.forEach(keyword => {
-            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-            highlighted = highlighted.replace(regex, `<span class="sql-keyword">${keyword}</span>`);
-        });
-
-        // Highlight strings
-        highlighted = highlighted.replace(/'([^']*)'/g, '<span class="sql-string">\'$1\'</span>');
-        highlighted = highlighted.replace(/"([^"]*)"/g, '<span class="sql-string">"$1"</span>');
-
-        // Highlight comments
-        highlighted = highlighted.replace(/--.*$/gm, '<span class="sql-comment">$&</span>');
-        highlighted = highlighted.replace(/\/\*[\s\S]*?\*\//g, '<span class="sql-comment">$&</span>');
-
-        // Highlight numbers
-        highlighted = highlighted.replace(/\b\d+\.?\d*\b/g, '<span class="sql-number">$&</span>');
-
-        return highlighted;
+        // Just escape HTML and return plain text - no syntax highlighting
+        return this.escapeHtml(sql);
     }
+        // Display message for tables (no code to show)
+        displayTableMessage() {
+            const container = document.getElementById('codeContainer');
+            if (!container) return;
 
-    // Display message for tables (no code to show)
-    displayTableMessage() {
-        const container = document.getElementById('codeContainer');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div class="table-code-message">
-                <p><strong>Table Structure</strong></p>
-                <p>Tables don't have code definitions to display.</p>
-                <p>Switch to the <strong>Structure</strong> tab to view table columns, indexes, and constraints.</p>
-            </div>
-        `;
-    }
+            container.innerHTML = `
+                <div class="table-code-message">
+                    <p><strong>Table Structure</strong></p>
+                    <p>Tables don't have code definitions to display.</p>
+                    <p>Switch to the <strong>Structure</strong> tab to view table columns, indexes, and constraints.</p>
+                </div>
+            `;
+        }
 
     // Display message when no code is available
     displayNoCodeMessage() {
