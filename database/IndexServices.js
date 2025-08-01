@@ -169,7 +169,7 @@ class IndexService {
                   DB_NAME() as database_name
               FROM sys.objects o
               INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
-              WHERE o.is_ms_shipped = 0 and o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR')
+              WHERE o.is_ms_shipped = 0 and o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR','V')
               ORDER BY o.type, s.name, o.name;
           `;
           
@@ -197,7 +197,7 @@ class IndexService {
               SELECT s.name AS schema_name, o.name AS object_name, o.type
               FROM sys.objects o
               JOIN sys.schemas s ON o.schema_id = s.schema_id
-              WHERE o.is_ms_shipped = 0 and o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR');
+              WHERE o.is_ms_shipped = 0 and o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR','V');
               OPEN object_cursor;
               FETCH NEXT FROM object_cursor INTO @schema_name, @object_name, @type;
               WHILE @@FETCH_STATUS = 0

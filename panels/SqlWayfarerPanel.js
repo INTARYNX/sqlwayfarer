@@ -181,19 +181,6 @@ class SqlWayfarerPanel {
             case 'getImpactAnalysis':
                 await this._handleGetImpactAnalysis(message.database, message.objectName);
                 break;
-            // Table Usage Analysis Commands
-            case 'getTableUsageAnalysis':
-                await this._handleGetTableUsageAnalysis(message.database, message.objectName);
-                break;
-            case 'getTableUsageByObjects':
-                await this._handleGetTableUsageByObjects(message.database, message.tableName);
-                break;
-            case 'getTriggerAnalysis':
-                await this._handleGetTriggerAnalysis(message.database);
-                break;
-            case 'getAllTablesForUsage':
-                await this._handleGetAllTablesForUsage(message.database);
-                break;
             // Extended Properties (Comments) Commands
             case 'getTableExtendedProperties':
                 await this._handleGetTableExtendedProperties(message.database, message.tableName);
@@ -535,60 +522,6 @@ class SqlWayfarerPanel {
             });
         } catch (error) {
             this._sendError(`Failed to get impact analysis: ${error.message}`);
-        }
-    }
-
-    // TABLE USAGE HANDLERS
-    async _handleGetTableUsageAnalysis(database, objectName) {
-        try {
-            const analysis = await this._dependencyService.getTableUsageAnalysis(database, objectName);
-            this._panel.webview.postMessage({
-                command: 'tableUsageAnalysisResult',
-                objectName: objectName,
-                analysis: analysis
-            });
-        } catch (error) {
-            this._sendError(`Failed to get table usage analysis: ${error.message}`);
-        }
-    }
-
-    async _handleGetTableUsageByObjects(database, tableName) {
-        try {
-            const usage = await this._dependencyService.getTableUsageByObjects(database, tableName);
-            this._panel.webview.postMessage({
-                command: 'tableUsageByObjectsResult',
-                tableName: tableName,
-                usage: usage
-            });
-        } catch (error) {
-            this._sendError(`Failed to get table usage by objects: ${error.message}`);
-        }
-    }
-
-    async _handleGetTriggerAnalysis(database) {
-        try {
-            const triggers = await this._dependencyService.getTriggerAnalysis(database);
-            this._panel.webview.postMessage({
-                command: 'triggerAnalysisResult',
-                database: database,
-                triggers: triggers
-            });
-        } catch (error) {
-            this._sendError(`Failed to get trigger analysis: ${error.message}`);
-        }
-    }
-
-    async _handleGetAllTablesForUsage(database) {
-        try {
-            const allObjects = await this._databaseService.getObjects(database);
-            const tables = allObjects.filter(obj => obj.object_type === 'Table');
-            this._panel.webview.postMessage({
-                command: 'allTablesForUsageResult',
-                database: database,
-                tables: tables
-            });
-        } catch (error) {
-            this._sendError(`Failed to get tables for usage analysis: ${error.message}`);
         }
     }
 
@@ -1169,7 +1102,6 @@ _getHtmlForWebview() {
     const stylesUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'styles.css'));
     const tabManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tabManager.js'));
     const connectionManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'connectionManager.js'));
-    const tableUsageManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'tableUsageManager.js'));
     const commentsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'commentsManager.js'));
     const extendedEventsManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'extendedEventsManager.js'));
     const codeViewManagerUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'codeViewManager.js')); // NOUVEAU
@@ -1189,7 +1121,6 @@ _getHtmlForWebview() {
     html = html.replace('{{CODE_VIEW_STYLES_URI}}', codeViewStylesUri.toString()); // NOUVEAU
     html = html.replace('{{TAB_MANAGER_URI}}', tabManagerUri.toString());
     html = html.replace('{{CONNECTION_MANAGER_URI}}', connectionManagerUri.toString());
-    html = html.replace('{{TABLE_USAGE_MANAGER_URI}}', tableUsageManagerUri.toString());
     html = html.replace('{{COMMENTS_MANAGER_URI}}', commentsManagerUri.toString());
     html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', extendedEventsManagerUri.toString());
     html = html.replace('{{CODE_VIEW_MANAGER_URI}}', codeViewManagerUri.toString()); // NOUVEAU
