@@ -191,6 +191,8 @@ class DetailsTabManager {
 
         // Load content for the active tab if needed
         if (appState.selectedObject && appState.currentDatabase) {
+            const objectNameForBackend = window.explorerManager._getQualifiedName(appState.selectedObject);
+
             switch (tabName) {
                 case 'comments':
                     window.commentsManager.loadCommentsForObject(
@@ -201,7 +203,6 @@ class DetailsTabManager {
                     break;
 
                 case 'code':
-                    const objectNameForBackend = window.explorerManager._getQualifiedName(appState.selectedObject);
                     window.codeViewManager.loadCodeForObject(
                         appState.currentDatabase,
                         objectNameForBackend,
@@ -211,12 +212,21 @@ class DetailsTabManager {
                     break;
 
                 case 'tree':
-                    // NEW: Request dependency tree
                     vscode.postMessage({
                         command: 'getDependencyTree',
                         database: appState.currentDatabase,
-                        objectName: window.explorerManager._getQualifiedName(appState.selectedObject),
+                        objectName: objectNameForBackend,
                         maxDepth: 3
+                    });
+                    break;
+
+                case 'graph':
+                    // NEW: Load dependency graph
+                    vscode.postMessage({
+                        command: 'getObjectDetails',
+                        database: appState.currentDatabase,
+                        objectName: objectNameForBackend,
+                        objectType: appState.selectedObject.object_type
                     });
                     break;
             }
@@ -278,6 +288,21 @@ class DependencyVisualizer {
             this.viz = new Viz();
         } catch (error) {
             console.error('Failed to initialize Viz.js:', error);
+        }
+    }
+
+    getNodeColorDark(objectType) {
+        switch (objectType) {
+            case 'Table':
+                return '#1976D2';      // Darker blue
+            case 'View':
+                return '#F57C00';      // Darker orange
+            case 'Procedure':
+                return '#7B1FA2';      // Purple (already dark)
+            case 'Function':
+                return '#5D4037';      // Brown (already dark)
+            default:
+                return '#424242';      // Dark gray
         }
     }
 
@@ -364,9 +389,12 @@ class DependencyVisualizer {
     generateDotSource(objectName, dependencies) {
         let dot = 'digraph Dependencies {\n';
         dot += '  rankdir=LR;\n';
-        dot += '  node [shape=box, style=filled, fontname="Arial", fontsize=10];\n';
-        dot += '  edge [fontname="Arial", fontsize=8];\n\n';
+        dot += '  bgcolor="transparent";\n';  // NEW: Transparent background
+        dot += '  node [shape=box, style=filled, fontname="Arial", fontsize=10, fontcolor="white"];\n';  // NEW: White text
+        dot += '  edge [fontname="Arial", fontsize=8, color="white", fontcolor="white"];\n';  // NEW: White edges and labels
+        dot += '\n';
 
+        // Main object - bright blue for visibility
         dot += `  "${objectName}" [fillcolor="#007ACC", fontcolor="white", fontweight=bold];\n\n`;
 
         const addedNodes = new Set([objectName]);
@@ -378,7 +406,7 @@ class DependencyVisualizer {
             dependencies.dependsOn.forEach(dep => {
                 const depName = dep.referenced_object;
                 if (!addedNodes.has(depName)) {
-                    const color = this.getNodeColor(dep.referenced_object_type);
+                    const color = this.getNodeColorDark(dep.referenced_object_type);  // NEW: Dark mode colors
                     dot += `  "${depName}" [fillcolor="${color}", fontcolor="white", label="${depName}\\n(${dep.referenced_object_type})"];\n`;
                     addedNodes.add(depName);
                 }
@@ -386,7 +414,7 @@ class DependencyVisualizer {
                 const edgeKey = `${objectName}->${depName}`;
                 if (!addedEdges.has(edgeKey)) {
                     const label = dep.dependency_type || 'depends on';
-                    dot += `  "${objectName}" -> "${depName}" [label="${label}", color="#0066CC", fontcolor="#0066CC"];\n`;
+                    dot += `  "${objectName}" -> "${depName}" [label="${label}", color="#4CAF50", fontcolor="#4CAF50"];\n`;  // NEW: Green arrows
                     addedEdges.add(edgeKey);
                 }
             });
@@ -398,7 +426,7 @@ class DependencyVisualizer {
             dependencies.referencedBy.forEach(ref => {
                 const refName = ref.referencing_object;
                 if (!addedNodes.has(refName)) {
-                    const color = this.getNodeColor(ref.referencing_object_type);
+                    const color = this.getNodeColorDark(ref.referencing_object_type);  // NEW: Dark mode colors
                     dot += `  "${refName}" [fillcolor="${color}", fontcolor="white", label="${refName}\\n(${ref.referencing_object_type})"];\n`;
                     addedNodes.add(refName);
                 }
@@ -406,7 +434,7 @@ class DependencyVisualizer {
                 const edgeKey = `${refName}->${objectName}`;
                 if (!addedEdges.has(edgeKey)) {
                     const label = ref.dependency_type || 'references';
-                    dot += `  "${refName}" -> "${objectName}" [label="${label}", color="#CC6600", fontcolor="#CC6600"];\n`;
+                    dot += `  "${refName}" -> "${objectName}" [label="${label}", color="#FF9800", fontcolor="#FF9800"];\n`;  // NEW: Orange arrows
                     addedEdges.add(edgeKey);
                 }
             });
@@ -570,6 +598,7 @@ class FilterManager {
 }
 
 // ExplorerManager class with enhanced schema support and object name utilities
+// ExplorerManager class with enhanced schema support and object name utilities
 class ExplorerManager {
     constructor() {
         this.initDOMElements();
@@ -689,13 +718,15 @@ class ExplorerManager {
                 obj.object_type
             );
         } else if (appState.activeDetailsTab === 'tree') {
-            // NEW: Update tree when object is selected and tree tab is active
             vscode.postMessage({
                 command: 'getDependencyTree',
                 database: appState.currentDatabase,
                 objectName: objectNameForBackend,
                 maxDepth: 3
             });
+        } else if (appState.activeDetailsTab === 'graph') {
+            // NEW: Update graph when object is selected and graph tab is active
+            // The graph will be updated when objectDetailsLoaded is received
         }
     }
 
@@ -825,6 +856,12 @@ class ExplorerManager {
         ].join('');
 
         this.elements.detailsContent.innerHTML = html;
+
+        // Update graph tab if it's active
+        if (appState.activeDetailsTab === 'graph') {
+            this.displayDependencyGraph(tableName, dependencies);
+        }
+
         this.checkPendingVisualization(tableName, dependencies);
     }
 
@@ -837,15 +874,72 @@ class ExplorerManager {
             appState.selectedObject.definition = definition;
         }
 
+        // Update structure tab
         let html = `<div class="section-header">${objectType}: ${this.escapeHtml(objectName)}</div>`;
         html += this.buildDependenciesSection(dependencies);
-
         this.elements.detailsContent.innerHTML = html;
-        this.checkPendingVisualization(objectName, dependencies);
 
+        // Update graph tab if it's active
+        if (appState.activeDetailsTab === 'graph') {
+            this.displayDependencyGraph(objectName, dependencies);
+        }
+
+        // Handle code tab
         if (appState.activeDetailsTab === 'code' && window.codeViewManager) {
             window.codeViewManager.onDefinitionReceived(objectName, definition);
         }
+
+        this.checkPendingVisualization(objectName, dependencies);
+    }
+
+    // NEW METHOD: Display dependency graph in the graph tab
+    displayDependencyGraph(objectName, dependencies) {
+        const container = document.getElementById('graphContainer');
+        if (!container) return;
+
+        if (!dependencies || (!dependencies.dependsOn?.length && !dependencies.referencedBy?.length)) {
+            container.innerHTML = `
+                <div class="graph-placeholder">
+                    <h3>📊 Dependency Graph</h3>
+                    <p class="placeholder-text">No dependencies found for ${objectName}</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Create a new visualization container for the graph tab
+        container.innerHTML = `
+            <div class="graph-viz-container">
+                <div class="graph-header">
+                    <h3>📊 Dependency Graph: ${this.escapeHtml(objectName)}</h3>
+                    <div class="viz-controls">
+                        <button id="showDependenciesBtn" class="viz-btn">Dependencies</button>
+                        <button id="showReferencesBtn" class="viz-btn">References</button>
+                        <button id="showBothBtn" class="viz-btn active">Both</button>
+                    </div>
+                </div>
+                <div id="dependencyGraph" class="dependency-graph"></div>
+            </div>
+        `;
+
+        // Show the dependency visualization in the graph container
+        setTimeout(() => {
+            this.dependencyVisualizer.currentMode = 'both';
+            this.dependencyVisualizer.currentObjectName = objectName;
+            this.dependencyVisualizer.dependencies = dependencies;
+            this.dependencyVisualizer.generateGraph(objectName, dependencies);
+
+            // Re-attach event listeners for the controls
+            document.getElementById('showDependenciesBtn').addEventListener('click', () => {
+                this.dependencyVisualizer.setMode('dependencies');
+            });
+            document.getElementById('showReferencesBtn').addEventListener('click', () => {
+                this.dependencyVisualizer.setMode('references');
+            });
+            document.getElementById('showBothBtn').addEventListener('click', () => {
+                this.dependencyVisualizer.setMode('both');
+            });
+        }, 100);
     }
 
     checkPendingVisualization(objectName, dependencies) {
@@ -855,6 +949,36 @@ class ExplorerManager {
                 this.dependencyVisualizer.showDependencyVisualization(objectName, dependencies);
             }, 100);
         }
+    }
+
+    displayDependencyTree(treeData) {
+        const container = document.getElementById('treeContainer');
+        if (!container) return;
+
+        if (!treeData) {
+            container.innerHTML = '<p class="placeholder-text">No dependency data</p>';
+            return;
+        }
+
+        // Simple recursive text tree
+        function buildTree(node, prefix = '') {
+            let result = node.name + '\n';
+
+            if (node.dependencies && node.dependencies.length > 0) {
+                node.dependencies.forEach((child, index) => {
+                    const isLast = index === node.dependencies.length - 1;
+                    const connector = isLast ? '└── ' : '├── ';
+                    const nextPrefix = prefix + (isLast ? '    ' : '│   ');
+
+                    result += prefix + connector + buildTree(child, nextPrefix);
+                });
+            }
+
+            return result;
+        }
+
+        const treeText = buildTree(treeData);
+        container.innerHTML = `<pre>${treeText}</pre>`;
     }
 
     buildColumnsTable(columns) {
@@ -996,25 +1120,17 @@ class ExplorerManager {
 
         let html = '<h3>Dependencies</h3>';
 
-        if (appState.selectedObject) {
-            const objectName = this._getQualifiedName(appState.selectedObject);
-            html += `<div style="margin-bottom: 15px;">
-              <button onclick="window.explorerManager.dependencyVisualizer.showDependencyVisualization('${objectName}', appState.currentDependencies)" 
-                      class="viz-btn">Show Dependency Graph</button>
-          </div>`;
-        }
-
         html += '<h4>Dependencies (objects this depends on):</h4>';
         if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
             html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
             dependencies.dependsOn.forEach(dep => {
                 const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
                 html += `<tr>
-                  <td>${this.escapeHtml(dep.referenced_object)}</td>
-                  <td>${this.escapeHtml(dep.referenced_object_type)}</td>
-                  <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
-                  <td><small>${this.escapeHtml(operations)}</small></td>
-              </tr>`;
+              <td>${this.escapeHtml(dep.referenced_object)}</td>
+              <td>${this.escapeHtml(dep.referenced_object_type)}</td>
+              <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
+              <td><small>${this.escapeHtml(operations)}</small></td>
+          </tr>`;
             });
             html += '</table>';
         } else {
@@ -1027,11 +1143,11 @@ class ExplorerManager {
             dependencies.referencedBy.forEach(ref => {
                 const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
                 html += `<tr>
-                  <td>${this.escapeHtml(ref.referencing_object)}</td>
-                  <td>${this.escapeHtml(ref.referencing_object_type)}</td>
-                  <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
-                  <td><small>${this.escapeHtml(operations)}</small></td>
-              </tr>`;
+              <td>${this.escapeHtml(ref.referencing_object)}</td>
+              <td>${this.escapeHtml(ref.referencing_object_type)}</td>
+              <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
+              <td><small>${this.escapeHtml(operations)}</small></td>
+          </tr>`;
             });
             html += '</table>';
         } else {
@@ -1040,37 +1156,6 @@ class ExplorerManager {
 
         return html;
     }
-
-    displayDependencyTree(treeData) {
-        const container = document.getElementById('treeContainer');
-        if (!container) return;
-
-        if (!treeData) {
-            container.innerHTML = '<p class="placeholder-text">No dependency data</p>';
-            return;
-        }
-
-        // Simple recursive text tree
-        function buildTree(node, prefix = '') {
-            let result = node.name + '\n';
-
-            if (node.dependencies && node.dependencies.length > 0) {
-                node.dependencies.forEach((child, index) => {
-                    const isLast = index === node.dependencies.length - 1;
-                    const connector = isLast ? '└── ' : '├── ';
-                    const nextPrefix = prefix + (isLast ? '    ' : '│   ');
-
-                    result += prefix + connector + buildTree(child, nextPrefix);
-                });
-            }
-
-            return result;
-        }
-
-        const treeText = buildTree(treeData);
-        container.innerHTML = `<pre>${treeText}</pre>`;
-    }
-
 
     escapeHtml(text) {
         if (!text) return '';
