@@ -1,6 +1,12 @@
 # SQL Wayfarer
 
-A comprehensive SQL Server database explorer and analysis tool for Visual Studio Code. Navigate your database schema, analyze object dependencies, track table usage, manage documentation, and view SQL code - all within your favorite editor.
+> ⚠️ **Early Development Notice**  
+> SQL Wayfarer is currently in **early development**. Features and functionality may be incomplete or unstable.  
+> Expect bugs, inconsistent behavior, and missing features. Your feedback is welcome as we improve the extension!
+
+A comprehensive SQL Server database explorer and analysis tool for Visual Studio Code. Navigate your database schema, analyze object dependencies, track table usage, manage documentation, and view SQL code — all within your favorite editor.
+
+---
 
 ## Features
 
@@ -34,7 +40,7 @@ A comprehensive SQL Server database explorer and analysis tool for Visual Studio
 ### 🕸️ Dependency Analysis & Visualization
 - Interactive dependency graphs showing object relationships
 - Analyze what objects depend on a selected table/view/procedure
-- Impact analysis - see what would be affected by changes
+- Impact analysis — see what would be affected by changes
 - Visual graph rendering with dependency mapping
 - Three view modes: Dependencies, References, or Both
 
@@ -61,6 +67,8 @@ A comprehensive SQL Server database explorer and analysis tool for Visual Studio
 - Session lifecycle management (create, start, stop, delete)
 - Raw XML event data inspection for debugging
 
+---
+
 ## Interface Overview
 
 ### Main Tabs
@@ -74,6 +82,8 @@ A comprehensive SQL Server database explorer and analysis tool for Visual Studio
 - **Code**: SQL definitions with syntax highlighting and tools
 - **Comments**: Documentation and extended properties
 
+---
+
 ## Requirements
 
 - Visual Studio Code 1.74.0 or higher
@@ -81,6 +91,8 @@ A comprehensive SQL Server database explorer and analysis tool for Visual Studio
 - Network connectivity to your SQL Server instance
 - Database permissions: `db_datareader` or higher for full functionality
 - For Extended Events: `ALTER ANY EVENT SESSION` permission
+
+---
 
 ## Getting Started
 
@@ -90,6 +102,8 @@ A comprehensive SQL Server database explorer and analysis tool for Visual Studio
 4. **Select Database**: Choose a database from the header dropdown
 5. **Explore**: Navigate between different features using the main tabs
 6. **View Code**: Select an object and switch to the Code tab to see SQL definitions
+
+---
 
 ## Tips & Best Practices
 
@@ -111,16 +125,22 @@ A comprehensive SQL Server database explorer and analysis tool for Visual Studio
 - Analyze **triggers** to identify automated business logic
 - Review **impact analysis** for refactoring planning
 
+---
+
 ## Extension Settings
 
 This extension does not add any VS Code settings. All configuration is managed within the SQL Wayfarer interface.
 
+---
+
 ## Performance Considerations
 
-- **Large databases** (1000+ objects): Initial loading may take 30-60 seconds
+- **Large databases** (1000+ objects): Initial loading may take 30–60 seconds
 - **Dependency analysis**: Depth limited to 3 levels to prevent performance issues
 - **Code formatting**: Basic formatting only; complex SQL may need manual adjustment
 - **Extended Events**: Sessions are automatically cleaned up on extension reload
+
+---
 
 ## Known Issues
 
@@ -128,6 +148,8 @@ This extension does not add any VS Code settings. All configuration is managed w
 - **Complex schemas**: Very large schemas may experience slower rendering
 - **Azure SQL Database**: Some Extended Events features may not be available
 - **Syntax highlighting**: Basic SQL highlighting; advanced T-SQL features may not be colored
+
+---
 
 ## Troubleshooting
 
@@ -147,34 +169,23 @@ This extension does not add any VS Code settings. All configuration is managed w
 - Large procedures (10,000+ lines) may take time to load
 - Some formatting may not work perfectly with complex T-SQL
 
+---
+
 ## Release Notes
 
-### 0.6.3
-**Major Feature: Code View Integration**
-- Added dedicated **Code tab** in Explorer for SQL object definitions
-- **Syntax highlighting** for SQL code with keyword recognition
-- **Interactive code tools**: copy, format, line numbers, expand/collapse
-- **Code metrics**: line count, character count, complexity estimation
-- **Object type indicators** with visual badges for procedures, functions, views
-- **Enhanced Explorer structure**: separated code from metadata display
-- **Improved user experience**: cleaner interface with specialized views
-- **Error handling**: graceful handling of encrypted or inaccessible code
+### 0.6.3 – Code View Integration
+- New **Code tab** in Explorer with SQL definitions
+- **Syntax highlighting**, **interactive tools**, and **code metrics**
+- Object type badges for quick visual identification
+- Improved structure separation between code and metadata
+- Performance and UX improvements
 
-**Improvements:**
-- Better schema organization and display
-- Enhanced dependency analysis with improved parsing
-- Refined documentation management interface
-- Performance optimizations for large databases
-- Updated visual design with modern VS Code theming
-
-### 0.0.3
-Initial release of SQL Wayfarer
-- Database object exploration with search and filtering
-- Secure connection management with VS Code secrets integration
-- Interactive dependency visualization and analysis
-- Comprehensive table usage tracking and analysis
-- MS_Description comments and documentation management
-- Multi-tab interface with responsive design
+### 0.0.3 – Initial Release
+- Secure connection management
+- Object browsing and metadata viewing
+- Dependency and table usage analysis
+- Documentation and comments editor
+- Early support for Extended Events
 
 ---
 

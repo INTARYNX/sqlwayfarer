@@ -109,41 +109,6 @@
     -moz-tab-size: 4;
 }
 
-/* SQL Syntax Highlighting */
-.sql-keyword {
-    color: #569cd6;
-    font-weight: bold;
-}
-
-.sql-string {
-    color: #ce9178;
-}
-
-.sql-comment {
-    color: #6a9955;
-    font-style: italic;
-}
-
-.sql-number {
-    color: #b5cea8;
-}
-
-.sql-operator {
-    color: #d4d4d4;
-}
-
-.sql-function {
-    color: #dcdcaa;
-}
-
-.sql-table {
-    color: #4ec9b0;
-}
-
-.sql-column {
-    color: #9cdcfe;
-}
-
 /* Code metrics */
 .code-metrics {
     display: flex;
