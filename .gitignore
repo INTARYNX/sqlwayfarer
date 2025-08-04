@@ -1,4 +1,4 @@
-node_modules
+node_modules/
 single_file.ps1
 merged_output.txt
 .vscode-test/
