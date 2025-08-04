@@ -1,3 +1,7 @@
+# .vscodeignore
+node_modules/**
+!node_modules/mssql/**
+
 # Build & Distribution
 dist/
 build/
