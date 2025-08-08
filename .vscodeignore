@@ -24,6 +24,7 @@ test-results/
 .eslintrc*
 tsconfig.json
 webpack.config.js
+package-lock.json
 build.cmd
 *.log
 
