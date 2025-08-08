@@ -41,13 +41,15 @@ IF ERRORLEVEL 1 (
 echo - Webpack build successful
 
 echo [5/6] Pruning node_modules to production only...
+timeout /t 3 /nobreak >nul
 call npm prune --omit=dev
 IF ERRORLEVEL 1 (
     echo [WARN] npm prune failed — forcing clean reinstall of production deps...
+    timeout /t 2 /nobreak >nul
     rd /s /q node_modules
+    timeout /t 1 /nobreak >nul
     call npm install --omit=dev
 )
-
 echo - Dev dependencies removed, node_modules is now production-only
 
 echo [6/6] Creating VSIX package...
