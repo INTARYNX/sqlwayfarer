@@ -9,6 +9,7 @@
 
 const vscode = require('vscode');
 const SqlWayfarerPanel = require('./panels/SqlWayfarerPanel');
+const connectionManager = require('./database/ConnectionManager.js');
 
 /**
  * Provider minimal pour que l'icône apparaisse

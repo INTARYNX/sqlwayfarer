@@ -1,6 +1,17 @@
+# Node
 node_modules/
-single_file.ps1
-merged_output.txt
-.vscode-test/
+dist/
+
+# Node
+node_modules/
+package-lock.json
+
+# Build artifacts
+dist/
+out/
 *.vsix
+
+# VS Code
+.vscode/
+.vscode-test/
 .env

@@ -2,7 +2,7 @@
   "name": "sqlwayfarer",
   "displayName": "SQL Wayfarer",
   "description": "Navigate and explore SQL Server databases directly within VS Code. View tables, procedures, dependencies, and more.",
-  "version": "0.6.8",
+  "version": "0.6.11",
   "publisher": "intarynx",
   "engines": {
     "vscode": "^1.100.0"
@@ -30,7 +30,7 @@
     "url": "https://github.com/intarynx/sqlwayfarer/issues"
   },
   "homepage": "https://github.com/intarynx/sqlwayfarer",
-  "main": "./extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -67,9 +67,9 @@
     }
   },
   "scripts": {
-    "lint": "eslint .",
-    "pretest": "npm run lint",
-    "test": "vscode-test"
+    "build": "webpack",
+    "package": "npm run build && vsce package",
+    "publish": "npm run build && vsce publish"
   },
   "dependencies": {
     "mssql": "^10.0.1"
@@ -80,6 +80,9 @@
     "@types/vscode": "^1.100.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.5.2",
-    "eslint": "^9.25.1"
+    "eslint": "^9.25.1",
+    "typescript": "^5.1.6",
+    "webpack": "^5.101.0",
+    "webpack-cli": "^5.1.4"
   }
 }
