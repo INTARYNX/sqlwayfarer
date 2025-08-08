@@ -1,5 +1,8 @@
 # SQL Wayfarer
 
+[![GitHub Repository](https://img.shields.io/badge/-GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/intarynx/sqlwayfarer)
+[![VS Code Marketplace](https://img.shields.io/badge/-VS%20Code%20Marketplace-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
+
 > ⚠️ **Early Development** — Features may be incomplete or unstable. Feedback welcome!
 
 A lightweight SQL Server explorer and analyzer for Visual Studio Code. Browse schemas, view object code, analyze dependencies, and manage documentation — all inside VS Code.
@@ -21,7 +24,7 @@ A lightweight SQL Server explorer and analyzer for Visual Studio Code. Browse sc
 
 ## Usage
 
-1. Install “SQL Wayfarer” from the VS Code Extensions marketplace.  
+1. Install [**SQL Wayfarer** from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer).  
 2. Open via activity bar or `Ctrl+Shift+P` → “SQL Wayfarer: Open”.  
 3. Add your SQL Server connection and select a database.  
 4. Browse objects and switch tabs for code, structure, and docs.  
@@ -55,4 +58,4 @@ A lightweight SQL Server explorer and analyzer for Visual Studio Code. Browse sc
 ---
 
 Enjoy exploring your SQL Server databases with SQL Wayfarer! 🧭  
-*Built with ❤️ for the SQL Server community*
+*Built with ❤️ for the SQL Server community*  
