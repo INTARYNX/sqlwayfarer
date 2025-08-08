@@ -1,8 +1,6 @@
 # SQL Wayfarer
 
-[![GitHub](https://img.shields.io/badge/-GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/intarynx/sqlwayfarer)
-[![VS Code Marketplace](https://img.shields.io/badge/-VS%20Code%20Marketplace-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
-
+➡️ [GitHub — Repository](https://github.com/intarynx/sqlwayfarer) • 🧭 [VS Code Marketplace — Installer l'extension](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
 
 > ⚠️ **Early Development** — Features may be incomplete or unstable. Feedback welcome!
 
