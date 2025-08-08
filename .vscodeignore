@@ -1,39 +1,63 @@
-# .vscodeignore
-node_modules/**
-!node_modules/mssql/**
+# Development files
+.vscode/**
+.git/**
+.gitignore
+.github/**
 
-# Build & Distribution
-dist/
-build/
-out/
-lib/
+# Ignore raw sources - keep only dist
+database/**
+panels/**
+storage/**
+webview/**
+src/**
+!dist/**
 
 # Tests
+test/**
+src/test/**
+out/test/**
 coverage/
 .nyc_output/
 test-results/
 
-# Cache & Logs
-.cache/
+# Build tools and configs
+.eslintrc*
+tsconfig.json
+webpack.config.js
+build.cmd
 *.log
+
+# Temporary files
 *.tmp
+.cache/
 
-# Configuration files des dépendances
-**/.eslintrc
-**/.nycrc
-**/.travis.yml
-**/CHANGELOG.md
-**/README.md
-# Cache seulement les LICENSE dans node_modules
-node_modules/**/LICENSE*
-node_modules/**/license*
-
-# OS & IDE
+# OS files
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
 
 # Environment
 .env
 .env.local
+
+# Don't exclude node_modules entirely - we need runtime dependencies!
+# Remove dev-only modules
+node_modules/@types/**
+node_modules/@vscode/**
+node_modules/eslint/**
+node_modules/mocha/**
+
+# Remove extra files from node_modules
+**/test/
+**/tests/
+**/doc/
+**/docs/
+**/example/
+**/examples/
+**/*.md
+**/*.markdown
+**/CHANGELOG*
+**/CHANGES*
+dist/**/*.map
+
+# Keep dist at all costs
+!dist/**
