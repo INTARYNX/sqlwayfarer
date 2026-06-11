@@ -29,48 +29,31 @@ class ExtendedEventsService {
             throw new Error('No active connection');
         }
 
-        try {
-            // Validate session name (prevent SQL injection)
-            if (!this._isValidSessionName(sessionName)) {
-                throw new Error('Invalid session name. Use only alphanumeric characters and underscores.');
-            }
-
-            // Extract procedure name from config
-            const procedureName = config.targetObjects && config.targetObjects[0];
-            if (!procedureName) {
-                throw new Error('Procedure name is required');
-            }
-
-            // Generate session name with _1 suffix
-            const finalSessionName = `XE_SQLWayfarer_${procedureName}_1`;
-
-            // Create session SQL with ring buffer and procedure-specific filtering
-            const sessionSQL = this._generateProcedureSessionSQL(finalSessionName, procedureName);
-            
-            // Execute session creation
-            await this._connectionManager.executeQuery(sessionSQL);
-            
-            // Track the session
-            this.activeSessions.set(finalSessionName, {
-                database: database,
-                procedureName: procedureName,
-                config: config,
-                status: 'stopped',
-                created: new Date()
-            });
-
-            return {
-                success: true,
-                message: `Extended Events session '${finalSessionName}' created successfully`,
-                sessionName: finalSessionName
-            };
-
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to create session: ${error.message}`
-            };
+        if (!this._isValidSessionName(sessionName)) {
+            throw new Error('Invalid session name. Use only alphanumeric characters and underscores.');
         }
+
+        const procedureName = config.targetObjects && config.targetObjects[0];
+        if (!procedureName) {
+            throw new Error('Procedure name is required');
+        }
+
+        const finalSessionName = `XE_SQLWayfarer_${procedureName}_1`;
+        await this._connectionManager.executeQuery(this._generateProcedureSessionSQL(finalSessionName, procedureName));
+
+        this.activeSessions.set(finalSessionName, {
+            database: database,
+            procedureName: procedureName,
+            config: config,
+            status: 'stopped',
+            created: new Date()
+        });
+
+        return {
+            success: true,
+            message: `Extended Events session '${finalSessionName}' created successfully`,
+            sessionName: finalSessionName
+        };
     }
 
     /**
@@ -118,10 +101,9 @@ WITH (
             throw new Error('No active connection');
         }
 
+        console.log(`Getting raw events for session: ${sessionName}`);
+
         try {
-            console.log(`Getting raw events for session: ${sessionName}`);
-            
-            // Simplified query that works across SQL Server versions
             const sql = `
                 SELECT 
                     CAST(st.target_data AS XML) AS event_xml,
@@ -158,10 +140,7 @@ WITH (
 
         } catch (error) {
             console.error('Error getting raw events:', error);
-            return {
-                success: false,
-                message: `Failed to get raw events: ${error.message}`
-            };
+            throw error;
         }
     }
 
@@ -236,31 +215,16 @@ WITH (
             throw new Error('No active connection');
         }
 
-        try {
-            if (!this._isValidSessionName(sessionName)) {
-                throw new Error('Invalid session name');
-            }
+        if (!this._isValidSessionName(sessionName)) throw new Error('Invalid session name');
 
-            const sql = `ALTER EVENT SESSION [${sessionName}] ON SERVER STATE = START;`;
-            await this._connectionManager.executeQuery(sql);
-            
-            // Update tracking
-            if (this.activeSessions.has(sessionName)) {
-                this.activeSessions.get(sessionName).status = 'running';
-                this.activeSessions.get(sessionName).started = new Date();
-            }
+        await this._connectionManager.executeQuery(`ALTER EVENT SESSION [${sessionName}] ON SERVER STATE = START;`);
 
-            return {
-                success: true,
-                message: `Session '${sessionName}' started successfully`
-            };
-
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to start session: ${error.message}`
-            };
+        if (this.activeSessions.has(sessionName)) {
+            this.activeSessions.get(sessionName).status = 'running';
+            this.activeSessions.get(sessionName).started = new Date();
         }
+
+        return { success: true, message: `Session '${sessionName}' started successfully` };
     }
 
     /**
@@ -273,31 +237,16 @@ WITH (
             throw new Error('No active connection');
         }
 
-        try {
-            if (!this._isValidSessionName(sessionName)) {
-                throw new Error('Invalid session name');
-            }
+        if (!this._isValidSessionName(sessionName)) throw new Error('Invalid session name');
 
-            const sql = `ALTER EVENT SESSION [${sessionName}] ON SERVER STATE = STOP;`;
-            await this._connectionManager.executeQuery(sql);
-            
-            // Update tracking
-            if (this.activeSessions.has(sessionName)) {
-                this.activeSessions.get(sessionName).status = 'stopped';
-                this.activeSessions.get(sessionName).stopped = new Date();
-            }
+        await this._connectionManager.executeQuery(`ALTER EVENT SESSION [${sessionName}] ON SERVER STATE = STOP;`);
 
-            return {
-                success: true,
-                message: `Session '${sessionName}' stopped successfully`
-            };
-
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to stop session: ${error.message}`
-            };
+        if (this.activeSessions.has(sessionName)) {
+            this.activeSessions.get(sessionName).status = 'stopped';
+            this.activeSessions.get(sessionName).stopped = new Date();
         }
+
+        return { success: true, message: `Session '${sessionName}' stopped successfully` };
     }
 
     /**
@@ -310,32 +259,13 @@ WITH (
             throw new Error('No active connection');
         }
 
-        try {
-            if (!this._isValidSessionName(sessionName)) {
-                throw new Error('Invalid session name');
-            }
+        if (!this._isValidSessionName(sessionName)) throw new Error('Invalid session name');
 
-            // Stop session first if it's running
-            await this.stopSession(sessionName);
-            
-            // Delete the session
-            const sql = `DROP EVENT SESSION [${sessionName}] ON SERVER;`;
-            await this._connectionManager.executeQuery(sql);
-            
-            // Remove from tracking
-            this.activeSessions.delete(sessionName);
+        await this.stopSession(sessionName);
+        await this._connectionManager.executeQuery(`DROP EVENT SESSION [${sessionName}] ON SERVER;`);
+        this.activeSessions.delete(sessionName);
 
-            return {
-                success: true,
-                message: `Session '${sessionName}' deleted successfully`
-            };
-
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to delete session: ${error.message}`
-            };
-        }
+        return { success: true, message: `Session '${sessionName}' deleted successfully` };
     }
 
     /**
