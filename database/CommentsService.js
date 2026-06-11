@@ -1,17 +1,7 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
 const parseObjectName = require('./parseObjectName');
 
-/**
- * CommentsService - Manages MS_Description extended properties on SQL Server objects
- */
 class CommentsService {
     constructor(connectionManager) {
         this._connectionManager = connectionManager;
@@ -131,7 +121,6 @@ class CommentsService {
     // PRIVATE HELPERS
 
     async _upsertOrDeleteExtendedProperty(database, schema, objectName, level1type, columnName, description) {
-        const escaped = (description || '').replace(/'/g, "''");
         const hasDescription = description && description.trim() !== '';
 
         const existsCheck = columnName
@@ -168,9 +157,9 @@ class CommentsService {
             sql = `
                 USE [${database}];
                 IF ${existsCheck}
-                    EXEC sp_updateextendedproperty ${commonParams}, @value = N'${escaped}'
+                    EXEC sp_updateextendedproperty ${commonParams}, @value = @descValue
                 ELSE
-                    EXEC sp_addextendedproperty ${commonParams}, @value = N'${escaped}'
+                    EXEC sp_addextendedproperty ${commonParams}, @value = @descValue
             `;
         } else {
             sql = `
@@ -180,7 +169,7 @@ class CommentsService {
             `;
         }
 
-        await this._connectionManager.executeQuery(sql);
+        await this._connectionManager.executeQuery(sql, hasDescription ? { descValue: description } : null);
     }
 
     _mapObjectTypeToLevel1(objectType) {
@@ -191,7 +180,8 @@ class CommentsService {
             'Function':  'FUNCTION',
             'Trigger':   'TRIGGER'
         };
-        return map[objectType] || 'PROCEDURE';
+        if (!map[objectType]) throw new Error(`Unknown object type for extended properties: '${objectType}'`);
+        return map[objectType];
     }
 }
 

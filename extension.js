@@ -1,80 +1,40 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
 const vscode = require('vscode');
 const SqlWayfarerPanel = require('./panels/SqlWayfarerPanel');
-const connectionManager = require('./database/ConnectionManager.js');
 
-/**
- * Provider minimal pour que l'icône apparaisse
- */
+// Minimal tree view provider — single entry point to open the panel
 class SqlWayfarerViewProvider {
-    getTreeItem(element) {
-        return element;
-    }
+    getTreeItem(element) { return element; }
 
     getChildren(element) {
         if (!element) {
-            // Retourne un élément simple avec une action
             const item = new vscode.TreeItem('SQL Wayfarer', vscode.TreeItemCollapsibleState.None);
             item.iconPath = new vscode.ThemeIcon('compass');
             item.description = 'Click to open';
-            item.command = {
-                command: 'sqlwayfarer.sqlwayfarer',
-                title: 'Open SQL Wayfarer'
-            };
+            item.command = { command: 'sqlwayfarer.sqlwayfarer', title: 'Open SQL Wayfarer' };
             return [item];
         }
         return [];
     }
 }
 
-/**
- * @param {vscode.ExtensionContext} context
- */
 function activate(context) {
-    console.log('SQL Wayfarer extension is now active!');
+    vscode.window.registerTreeDataProvider('sqlWayfarerView', new SqlWayfarerViewProvider());
 
-    // Enregistrer le provider pour que l'icône apparaisse
-    const viewProvider = new SqlWayfarerViewProvider();
-    vscode.window.registerTreeDataProvider('sqlWayfarerView', viewProvider);
-
-    // Commande principale SQL Wayfarer avec fermeture automatique
     const sqlWayfarerDisposable = vscode.commands.registerCommand('sqlwayfarer.sqlwayfarer', function () {
-        console.log('Opening SQL Wayfarer...');
-        
-        // Ouvrir SQL Wayfarer
         SqlWayfarerPanel.createOrShow(context.extensionUri, context);
-        
-        // Fermer automatiquement la sidebar après un court délai
-        setTimeout(() => {
-            vscode.commands.executeCommand('workbench.action.closeSidebar');
-        }, 200);
+        // Small delay lets the panel open before the sidebar closes, avoiding focus issues
+        setTimeout(() => vscode.commands.executeCommand('workbench.action.closeSidebar'), 200);
     });
 
-    // Original Hello World command (garder pour compatibilité si nécessaire)
     const helloWorldDisposable = vscode.commands.registerCommand('sqlwayfarer.helloWorld', function () {
         vscode.window.showInformationMessage('Hello World from SQL Wayfarer!');
     });
 
-    // Enregistrer les commandes
-    context.subscriptions.push(sqlWayfarerDisposable);
-    context.subscriptions.push(helloWorldDisposable);
-
-    console.log('SQL Wayfarer extension activated successfully');
+    context.subscriptions.push(sqlWayfarerDisposable, helloWorldDisposable);
 }
 
-function deactivate() {
-    console.log('SQL Wayfarer extension deactivated');
-}
+function deactivate() {}
 
-module.exports = {
-    activate,
-    deactivate
-};
+module.exports = { activate, deactivate };

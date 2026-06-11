@@ -1,10 +1,3 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
 const vscode = require('vscode');
@@ -17,7 +10,6 @@ const DatabaseService = require('../database/DatabaseService');
 const DependencyService = require('../database/DependencyService');
 const ExtendedEventsService = require('../database/ExtendedEventsService');
 const IndexService = require('../database/IndexServices');
-
 const CommentsService = require('../database/CommentsService');
 
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
@@ -26,9 +18,6 @@ const CommentsHandlers = require('./handlers/CommentsHandlers');
 const ExtendedEventsHandlers = require('./handlers/ExtendedEventsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
 
-/**
- * SqlWayfarerPanel - webview lifecycle + message router
- */
 class SqlWayfarerPanel {
     constructor(panel, extensionUri, context) {
         this._panel = panel;
@@ -41,7 +30,7 @@ class SqlWayfarerPanel {
         this._connectionManager = new ConnectionManager(this._connectionStorage);
         this._databaseService = new DatabaseService(this._connectionManager);
         this._indexService = new IndexService(this._connectionManager, this._databaseService);
-        this._dependencyService = new DependencyService(this._connectionManager, this._databaseService);
+        this._dependencyService = new DependencyService();
         this._commentsService = new CommentsService(this._connectionManager);
         this._extendedEventsService = new ExtendedEventsService(this._connectionManager);
 

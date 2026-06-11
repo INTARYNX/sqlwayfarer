@@ -1,59 +1,32 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
 const parseObjectName = require('./parseObjectName');
 
-/**
- * Provides database-related services and queries
- * Handles retrieval of databases, objects, and their details
- * ENHANCED: Better schema support and qualified names
- */
 class DatabaseService {
     constructor(connectionManager) {
         this._connectionManager = connectionManager;
     }
 
-    /**
-     * Get list of user databases (excludes system databases)
-     * @returns {Promise<Array<string>>} Array of database names
-     */
     async getDatabases() {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const result = await this._connectionManager.executeQuery(`
-            SELECT name FROM sys.databases 
+            SELECT name FROM sys.databases
             WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')
             ORDER BY name
         `);
-
         return result.recordset.map(row => row.name);
     }
 
-    /**
-     * Get database objects (tables, views, procedures, functions) with schema information
-     * ENHANCED: Better schema handling and qualified names
-     * @param {string} database - Database name
-     * @returns {Promise<Array<Object>>} Array of database objects with schema info
-     */
     async getObjects(database) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const result = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT 
+            SELECT
                 o.name as object_name,
                 o.type_desc,
-                CASE 
+                CASE
                     WHEN o.type = 'U' THEN 'Table'
                     WHEN o.type = 'V' THEN 'View'
                     WHEN o.type = 'P' THEN 'Procedure'
@@ -61,19 +34,12 @@ class DatabaseService {
                     ELSE o.type_desc
                 END as object_type,
                 s.name as schema_name,
-                -- Create display name with schema when not dbo
-                CASE 
-                    WHEN s.name = 'dbo' THEN o.name
-                    ELSE s.name + '.' + o.name
-                END as display_name,
-                -- Always create qualified name for backend operations
+                CASE WHEN s.name = 'dbo' THEN o.name ELSE s.name + '.' + o.name END as display_name,
                 s.name + '.' + o.name as qualified_name,
-                -- Object creation info
                 o.create_date,
                 o.modify_date,
-                -- Check if object is encrypted (for procedures/functions)
-                CASE 
-                    WHEN o.type IN ('P', 'FN', 'IF', 'TF') THEN 
+                CASE
+                    WHEN o.type IN ('P', 'FN', 'IF', 'TF') THEN
                         CASE WHEN OBJECTPROPERTY(o.object_id, 'IsEncrypted') = 1 THEN 1 ELSE 0 END
                     ELSE 0
                 END as is_encrypted
@@ -84,9 +50,9 @@ class DatabaseService {
         `);
 
         return result.recordset.map(row => ({
-            name: row.display_name,           // What user sees in UI
-            object_name: row.object_name,     // Object name without schema
-            qualified_name: row.qualified_name, // Always schema.object for backend
+            name: row.display_name,             // shown in UI
+            object_name: row.object_name,       // bare name without schema
+            qualified_name: row.qualified_name, // schema.object used for backend queries
             object_type: row.object_type,
             schema_name: row.schema_name,
             create_date: row.create_date,
@@ -95,27 +61,15 @@ class DatabaseService {
         }));
     }
 
-    /**
-     * Get detailed information about a table with enhanced schema support
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name (can be qualified with schema)
-     * @returns {Promise<Object>} Table details including columns, indexes, and foreign keys
-     */
     async getTableDetails(database, tableName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
-        // Parse table name to handle schema
         const { schema, objectName } = this._parseObjectName(tableName);
         const qualifiedTableName = `${schema}.${objectName}`;
 
-        console.log(`Getting table details for: ${qualifiedTableName} (schema: ${schema}, object: ${objectName})`);
-
-        // Get columns with enhanced schema handling - FIXED VERSION
         const columnsResult = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT 
+            SELECT
                 c.COLUMN_NAME,
                 c.DATA_TYPE,
                 c.IS_NULLABLE,
@@ -124,26 +78,20 @@ class DatabaseService {
                 c.ORDINAL_POSITION,
                 c.NUMERIC_PRECISION,
                 c.NUMERIC_SCALE,
-                -- Check for identity columns using sys.identity_columns instead
                 CASE WHEN ic.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_IDENTITY,
-                -- Check for computed columns
                 CASE WHEN cc.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_COMPUTED
             FROM INFORMATION_SCHEMA.COLUMNS c
-            LEFT JOIN sys.identity_columns ic 
-                ON ic.object_id = OBJECT_ID('${qualifiedTableName}')
-                AND ic.name = c.COLUMN_NAME
-            LEFT JOIN sys.computed_columns cc 
-                ON cc.object_id = OBJECT_ID('${qualifiedTableName}')
-                AND cc.name = c.COLUMN_NAME
-            WHERE c.TABLE_SCHEMA = '${schema}' 
-            AND c.TABLE_NAME = '${objectName}'
+            LEFT JOIN sys.identity_columns ic
+                ON ic.object_id = OBJECT_ID('${qualifiedTableName}') AND ic.name = c.COLUMN_NAME
+            LEFT JOIN sys.computed_columns cc
+                ON cc.object_id = OBJECT_ID('${qualifiedTableName}') AND cc.name = c.COLUMN_NAME
+            WHERE c.TABLE_SCHEMA = '${schema}' AND c.TABLE_NAME = '${objectName}'
             ORDER BY c.ORDINAL_POSITION
         `);
 
-        // Get indexes with enhanced schema handling
         const indexesResult = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT 
+            SELECT
                 i.name as index_name,
                 i.type_desc,
                 i.is_unique,
@@ -157,16 +105,15 @@ class DatabaseService {
             JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
             JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
             WHERE i.object_id = OBJECT_ID('${qualifiedTableName}')
-            AND i.type > 0  -- Exclude heaps
-            GROUP BY i.name, i.type_desc, i.is_unique, i.is_primary_key, i.is_unique_constraint, 
+            AND i.type > 0  -- exclude heaps
+            GROUP BY i.name, i.type_desc, i.is_unique, i.is_primary_key, i.is_unique_constraint,
                     i.fill_factor, i.has_filter, i.filter_definition
             ORDER BY i.is_primary_key DESC, i.is_unique DESC, i.name
         `);
 
-        // Get foreign keys with enhanced schema handling
         const fkResult = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT 
+            SELECT
                 fk.name as fk_name,
                 SCHEMA_NAME(fk.schema_id) + '.' + OBJECT_NAME(fk.parent_object_id) as table_name,
                 c1.name as column_name,
@@ -184,95 +131,61 @@ class DatabaseService {
         `);
 
         return {
-            tableName: tableName,
-            qualifiedName: qualifiedTableName,
-            schema: schema,
-            objectName: objectName,
+            tableName, qualifiedName: qualifiedTableName, schema, objectName,
             columns: columnsResult.recordset,
             indexes: indexesResult.recordset,
             foreignKeys: fkResult.recordset
         };
     }
 
-    /**
-     * Get object definition with enhanced schema awareness
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name (can be qualified with schema)
-     * @returns {Promise<string|null>} Object definition or null if not available
-     */
     async getObjectDefinition(database, objectName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         try {
-            // Parse object name to handle schema
-            const { schema, objectName: parsedObjectName } = this._parseObjectName(objectName);
-            const qualifiedObjectName = `${schema}.${parsedObjectName}`;
+            const { schema, objectName: parsedName } = this._parseObjectName(objectName);
+            const qualified = `${schema}.${parsedName}`;
 
-            console.log(`Getting definition for: ${qualifiedObjectName}`);
-
-            // Try with the qualified name first
             let result = await this._connectionManager.executeQuery(`
                 USE [${database}];
-                SELECT OBJECT_DEFINITION(OBJECT_ID('${qualifiedObjectName}')) as definition
+                SELECT OBJECT_DEFINITION(OBJECT_ID('${qualified}')) as definition
             `);
 
             let definition = result.recordset[0]?.definition;
-            if (definition && definition.trim() !== '') {
-                return definition;
-            }
+            if (definition && definition.trim()) return definition;
 
-            // If no schema was provided in original name, try common schemas
+            // Fall back to probing common schemas when no schema was specified
             if (!objectName.includes('.')) {
-                const schemasToTry = ['dbo', 'hr', 'sales', 'production', 'purchasing', 'person'];
-                
-                for (const schema of schemasToTry) {
+                for (const s of ['dbo', 'hr', 'sales', 'production', 'purchasing', 'person']) {
                     try {
                         result = await this._connectionManager.executeQuery(`
                             USE [${database}];
-                            SELECT OBJECT_DEFINITION(OBJECT_ID('${schema}.${parsedObjectName}')) as definition
+                            SELECT OBJECT_DEFINITION(OBJECT_ID('${s}.${parsedName}')) as definition
                         `);
-                        
                         definition = result.recordset[0]?.definition;
-                        if (definition && definition.trim() !== '') {
-                            console.log(`Found ${parsedObjectName} in schema ${schema}`);
-                            return definition;
-                        }
-                    } catch (error) {
-                        continue; // Try next schema
-                    }
+                        if (definition && definition.trim()) return definition;
+                    } catch { continue; }
                 }
             }
 
             return null;
-            
         } catch (error) {
             console.error(`Error getting definition for ${objectName}:`, error);
             return null;
         }
     }
 
-    /**
-     * Get basic information about any database object with schema support
-     * @param {string} database - Database name
-     * @param {string} objectName - Object name (can be qualified with schema)
-     * @returns {Promise<Object|null>} Object information or null if not found
-     */
     async getObjectInfo(database, objectName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
-        const { schema, objectName: parsedObjectName } = this._parseObjectName(objectName);
-        const qualifiedObjectName = `${schema}.${parsedObjectName}`;
+        const { schema, objectName: parsedName } = this._parseObjectName(objectName);
+        const qualified = `${schema}.${parsedName}`;
 
         const result = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT 
+            SELECT
                 o.name,
                 o.type_desc,
-                CASE 
+                CASE
                     WHEN o.type = 'U' THEN 'Table'
                     WHEN o.type = 'V' THEN 'View'
                     WHEN o.type = 'P' THEN 'Procedure'
@@ -284,33 +197,24 @@ class DatabaseService {
                 SCHEMA_NAME(o.schema_id) as schema_name,
                 CASE WHEN OBJECTPROPERTY(o.object_id, 'IsEncrypted') = 1 THEN 1 ELSE 0 END as is_encrypted
             FROM sys.objects o
-            WHERE o.object_id = OBJECT_ID('${qualifiedObjectName}')
-               OR (SCHEMA_NAME(o.schema_id) = '${schema}' AND o.name = '${parsedObjectName}')
+            WHERE o.object_id = OBJECT_ID('${qualified}')
+               OR (SCHEMA_NAME(o.schema_id) = '${schema}' AND o.name = '${parsedName}')
         `);
 
         return result.recordset[0] || null;
     }
 
-    /**
-     * Search for objects by name pattern with schema support
-     * @param {string} database - Database name
-     * @param {string} searchPattern - Search pattern (supports SQL LIKE wildcards)
-     * @param {Array<string>} objectTypes - Object types to include (optional)
-     * @returns {Promise<Array<Object>>} Array of matching objects
-     */
     async searchObjects(database, searchPattern, objectTypes = ['U', 'V', 'P', 'FN']) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const typeFilter = objectTypes.map(t => `'${t}'`).join(',');
-        
+
         const result = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT 
+            SELECT
                 o.name as object_name,
                 o.type_desc,
-                CASE 
+                CASE
                     WHEN o.type = 'U' THEN 'Table'
                     WHEN o.type = 'V' THEN 'View'
                     WHEN o.type = 'P' THEN 'Procedure'
@@ -318,18 +222,14 @@ class DatabaseService {
                     ELSE o.type_desc
                 END as object_type,
                 s.name as schema_name,
-                CASE 
-                    WHEN s.name = 'dbo' THEN o.name
-                    ELSE s.name + '.' + o.name
-                END as display_name,
+                CASE WHEN s.name = 'dbo' THEN o.name ELSE s.name + '.' + o.name END as display_name,
                 s.name + '.' + o.name as qualified_name
             FROM sys.objects o
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
-            WHERE (o.name LIKE '${searchPattern}' 
-                   OR (s.name + '.' + o.name) LIKE '${searchPattern}')
+            WHERE (o.name LIKE @pattern OR (s.name + '.' + o.name) LIKE @pattern)
             AND o.type IN (${typeFilter})
             ORDER BY s.name, o.type, o.name
-        `);
+        `, { pattern: searchPattern });
 
         return result.recordset.map(row => ({
             name: row.display_name,
@@ -340,81 +240,29 @@ class DatabaseService {
         }));
     }
 
-    /**
-     * Get table row count with schema support
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name (can be qualified with schema)
-     * @returns {Promise<number>} Row count
-     */
     async getTableRowCount(database, tableName) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = this._parseObjectName(tableName);
-        const qualifiedTableName = `[${schema}].[${objectName}]`;
-
         const result = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT COUNT(*) as row_count FROM ${qualifiedTableName}
+            SELECT COUNT(*) as row_count FROM [${schema}].[${objectName}]
         `);
-
         return result.recordset[0]?.row_count || 0;
     }
 
-    /**
-     * Get table sample data with schema support
-     * @param {string} database - Database name
-     * @param {string} tableName - Table name (can be qualified with schema)
-     * @param {number} limit - Number of rows to return (default: 100)
-     * @returns {Promise<Array<Object>>} Array of sample rows
-     */
     async getTableSampleData(database, tableName, limit = 100) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = this._parseObjectName(tableName);
-        const qualifiedTableName = `[${schema}].[${objectName}]`;
-
         const result = await this._connectionManager.executeQuery(`
             USE [${database}];
-            SELECT TOP ${limit} * FROM ${qualifiedTableName}
+            SELECT TOP ${limit} * FROM [${schema}].[${objectName}]
         `);
-
         return result.recordset;
     }
 
     _parseObjectName(objectName) { return parseObjectName(objectName); }
-
-    /**
-     * Get all schemas in the database
-     * @param {string} database - Database name
-     * @returns {Promise<Array<string>>} Array of schema names
-     */
-    async getSchemas(database) {
-        if (!this._connectionManager.isConnected()) {
-            throw new Error('No active connection');
-        }
-
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
-            SELECT 
-                s.name as schema_name,
-                p.name as principal_name,
-                s.schema_id
-            FROM sys.schemas s
-            LEFT JOIN sys.database_principals p ON s.principal_id = p.principal_id
-            WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA')
-            ORDER BY s.name
-        `);
-
-        return result.recordset.map(row => ({
-            name: row.schema_name,
-            principal: row.principal_name,
-            schema_id: row.schema_id
-        }));
-    }
 }
 
 module.exports = DatabaseService;
