@@ -106,7 +106,7 @@ class IndexService {
 
         result.objects.forEach(obj => {
             const key = this._removeBrackets(obj.qualified_name);
-            index.objects[key] = {
+index.objects[key] = {
                 name: obj.name,
                 schema: obj.schema_name,
                 qualifiedName: this._removeBrackets(obj.qualified_name),
@@ -148,7 +148,7 @@ class IndexService {
                 o.object_id, o.name,
                 s.name AS schema_name,
                 s.name + '.' + o.name AS qualified_name,
-                o.type, o.type_desc, o.create_date, o.modify_date,
+                RTRIM(o.type) AS type, o.type_desc, o.create_date, o.modify_date,
                 DB_NAME() as database_name
             FROM sys.objects o
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
@@ -161,7 +161,7 @@ class IndexService {
             CREATE TABLE #Dependencies (object_name SYSNAME, dependency SYSNAME, type SYSNAME, dependency_database SYSNAME);
             DECLARE @schema_name SYSNAME, @object_name SYSNAME, @type SYSNAME, @qualified_name NVARCHAR(512), @sql NVARCHAR(MAX);
             DECLARE object_cursor CURSOR FOR
-                SELECT s.name, o.name, o.type FROM sys.objects o
+                SELECT s.name, o.name, RTRIM(o.type) FROM sys.objects o
                 JOIN sys.schemas s ON o.schema_id = s.schema_id
                 WHERE o.is_ms_shipped = 0 AND o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR', 'V');
             OPEN object_cursor;
@@ -198,7 +198,7 @@ class IndexService {
             })),
             dependencies: dependenciesResult.recordset.map(row => ({
                 object_name: row.object_name, dependency: row.dependency,
-                type: row.type, dependency_database: row.dependency_database
+                type: (row.type || '').trim(), dependency_database: row.dependency_database
             }))
         };
     }
@@ -228,6 +228,14 @@ class IndexService {
     async _loadIndex(indexFile) {
         try {
             const data = JSON.parse(await fs.readFile(indexFile, 'utf8'));
+            let dirty = false;
+            for (const obj of Object.values(data.objects || {})) {
+                if (obj.type && obj.type !== obj.type.trim()) {
+                    obj.type = obj.type.trim();
+                    dirty = true;
+                }
+            }
+            if (dirty) await this._saveIndex(indexFile, data);
             console.log(`Loaded existing index for ${data.database}: ${Object.keys(data.objects || {}).length} objects`);
             return data;
         } catch (error) {

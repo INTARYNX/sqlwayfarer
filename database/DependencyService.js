@@ -31,10 +31,9 @@ class DependencyService {
 
             if (!objectData) return { dependsOn: [], referencedBy: [] };
 
-            // referenced_object_type is always 'Table' for now — not resolved from the index
             const dependsOn = (objectData.dependencies || []).map(dep => ({
                 referenced_object: dep,
-                referenced_object_type: 'Table',
+                referenced_object_type: this._getTypeFromCode(index.objects[dep]?.type),
                 dependency_type: 'REFERENCE',
                 operations: ['REFERENCE'],
                 is_selected: 1,
@@ -102,7 +101,7 @@ class DependencyService {
 
     _getTypeFromCode(typeCode) {
         const types = { 'U': 'Table', 'V': 'View', 'P': 'Procedure', 'FN': 'Function', 'IF': 'Function', 'TF': 'Function', 'TR': 'Trigger' };
-        return types[typeCode] || 'Object';
+        return types[(typeCode || '').trim()] || 'Object';
     }
 
     dispose() {}
