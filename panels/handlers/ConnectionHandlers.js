@@ -1,15 +1,5 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
-/**
- * Connection Handlers - save, load, delete, test connections
- */
 class ConnectionHandlers {
     constructor(postMessage, connectionManager, connectionStorage) {
         this._post = postMessage;
@@ -19,9 +9,9 @@ class ConnectionHandlers {
 
     async handleConnect(connectionConfig) {
         try {
-            const result = await this._connectionManager.connect(connectionConfig);
-            this._post({ command: 'connectionStatus', success: result.success, message: result.message });
-            return result.success;
+            await this._connectionManager.connect(connectionConfig);
+            this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
+            return true;
         } catch (error) {
             this._post({ command: 'connectionStatus', success: false, message: `Connection failed: ${error.message}` });
             return false;
@@ -39,11 +29,11 @@ class ConnectionHandlers {
 
     async handleConnectWithSaved(connectionName) {
         try {
-            const result = await this._connectionManager.connectWithSaved(connectionName);
-            this._post({ command: 'connectionStatus', success: result.success, message: result.message });
-            return result.success;
+            await this._connectionManager.connectWithSaved(connectionName);
+            this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
+            return true;
         } catch (error) {
-            this._post({ command: 'error', message: `Failed to connect with saved connection: ${error.message}` });
+            this._post({ command: 'connectionStatus', success: false, message: `Failed to connect: ${error.message}` });
             return false;
         }
     }
@@ -82,8 +72,8 @@ class ConnectionHandlers {
 
     async handleTestConnection(connectionConfig) {
         try {
-            const result = await this._connectionManager.testConnection(connectionConfig);
-            this._post({ command: 'testConnectionResult', success: result.success, message: result.message });
+            await this._connectionManager.testConnection(connectionConfig);
+            this._post({ command: 'testConnectionResult', success: true, message: 'Connection test successful!' });
         } catch (error) {
             this._post({ command: 'testConnectionResult', success: false, message: `Connection test failed: ${error.message}` });
         }

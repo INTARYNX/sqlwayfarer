@@ -1,15 +1,5 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
-/**
- * Database Handlers - objects, tables, search, dependencies
- */
 class DatabaseHandlers {
     constructor(postMessage, databaseService, dependencyService, indexService, getCurrentDatabase) {
         this._post = postMessage;

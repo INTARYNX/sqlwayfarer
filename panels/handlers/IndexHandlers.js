@@ -1,17 +1,7 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
 const vscode = require('vscode');
 
-/**
- * Index Handlers - background indexing, force reindex, stats
- */
 class IndexHandlers {
     constructor(postMessage, indexService, dependencyService, getCurrentDatabase) {
         this._post = postMessage;
@@ -124,10 +114,9 @@ class IndexHandlers {
             this._indexingInProgress = false;
 
             const currentDb = this._getCurrentDatabase();
-            if (currentDb && typeof this._dependencyService.clearIndex === 'function') {
+            if (currentDb) {
                 try {
-                    await this._dependencyService.clearIndex(currentDb);
-                    console.log('Index cleared during cancellation');
+                    await this._indexService.clearIndex(currentDb);
                 } catch (clearError) {
                     console.warn('Error clearing index during cancellation:', clearError);
                 }
@@ -148,22 +137,8 @@ class IndexHandlers {
                 return;
             }
 
-            const stats = {
-                exists: false,
-                objectCount: 0,
-                lastIndexed: null,
-                indexingInProgress: this._indexingInProgress
-            };
-
-            if (this._dependencyService && typeof this._dependencyService.getIndex === 'function') {
-                try {
-                    stats.exists = true;
-                    stats.lastIndexed = new Date().toISOString();
-                } catch (indexError) {
-                    console.warn('Index not accessible:', indexError);
-                }
-            }
-
+            const stats = await this._indexService.getIndexStats(targetDatabase);
+            stats.indexingInProgress = this._indexingInProgress;
             this._post({ command: 'indexStatsResult', database: targetDatabase, stats });
         } catch (error) {
             console.error('Error getting index stats:', error);

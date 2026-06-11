@@ -1,18 +1,6 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
-/**
- * Parse a potentially qualified SQL object name into schema + object parts.
- * Handles brackets, multi-part names (db.schema.object), defaults schema to 'dbo'.
- * @param {string} objectName
- * @returns {{ schema: string, objectName: string }}
- */
+// Splits a potentially qualified SQL name (e.g. [dbo].[MyTable]) into schema + object parts
 function parseObjectName(objectName) {
     if (!objectName) return { schema: 'dbo', objectName: '' };
     const clean = objectName.replace(/[\[\]]/g, '');

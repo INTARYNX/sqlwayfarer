@@ -1,15 +1,5 @@
-/**
- * VS Code Extension – Keep this header in every file.
- *
- * ✱ Comments in English only.
- * ✱ Each section must have a name + brief description.
- * ✱ Keep it simple – follow the KISS principle.
- */
 'use strict';
 
-/**
- * Extended Events Handlers - create, start, stop, delete, list XE sessions
- */
 class ExtendedEventsHandlers {
     constructor(postMessage, extendedEventsService, getCurrentDatabase) {
         this._post = postMessage;
