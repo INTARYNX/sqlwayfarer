@@ -316,6 +316,7 @@ class CommentsManager {
                         command: 'updateObjectDescription',
                         database: this.currentDatabase,
                         objectName: this.currentObject,
+                        objectType: this.currentObjectType,
                         description: newDescription
                     });
                 }

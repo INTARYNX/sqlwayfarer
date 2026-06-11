@@ -242,7 +242,7 @@ class IndexService {
                   name: row.name,
                   schema_name: row.schema_name,
                   qualified_name: row.qualified_name,
-                  type: row.type,
+                  type: (row.type || '').trim(),
                   type_desc: row.type_desc,
                   create_date: row.create_date,
                   modify_date: row.modify_date,

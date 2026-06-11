@@ -7,6 +7,8 @@
  */
 'use strict';
 
+const parseObjectName = require('./parseObjectName');
+
 /**
  * Provides database-related services and queries
  * Handles retrieval of databases, objects, and their details
@@ -383,33 +385,7 @@ class DatabaseService {
         return result.recordset;
     }
 
-    /**
-     * Parse object name to extract schema and object name
-     * @param {string} objectName - Object name (can be qualified with schema)
-     * @returns {Object} Object with schema and objectName properties
-     * @private
-     */
-    _parseObjectName(objectName) {
-        if (!objectName) {
-            return { schema: 'dbo', objectName: '' };
-        }
-
-        // Remove brackets if present
-        let cleanName = objectName.replace(/[\[\]]/g, '');
-        
-        // Split on the last dot to handle cases like [database].[schema].[object]
-        const parts = cleanName.split('.');
-        
-        if (parts.length >= 2) {
-            // Take the last part as object name and second-to-last as schema
-            const objName = parts[parts.length - 1];
-            const schema = parts[parts.length - 2];
-            return { schema: schema || 'dbo', objectName: objName };
-        } else {
-            // No schema specified, default to dbo
-            return { schema: 'dbo', objectName: cleanName };
-        }
-    }
+    _parseObjectName(objectName) { return parseObjectName(objectName); }
 
     /**
      * Get all schemas in the database
