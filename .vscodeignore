@@ -1,64 +1,46 @@
-# Development files
-.vscode/**
-.git/**
-.gitignore
-.github/**
+# Everything excluded by default — only what's needed for the packaged extension is kept
 
-# Ignore raw sources - keep only dist
+# Source files (bundled into dist/)
 database/**
 panels/**
 storage/**
 webview/**
 src/**
-!dist/**
+extension.js
 
-# Tests
-test/**
-src/test/**
-out/test/**
-coverage/
-.nyc_output/
-test-results/
+# Dependencies (bundled into dist/)
+node_modules/**
 
-# Build tools and configs
-.eslintrc*
-tsconfig.json
+# Build tooling
 webpack.config.js
 package-lock.json
-build.cmd
-*.log
+deploy.ps1
+.vscode-test.mjs
+eslint.config.mjs
+jsconfig.json
+tsconfig.json
+.eslintrc*
 
-# Temporary files
+# Dev/CI
+.vscode/**
+.git/**
+.gitignore
+.github/**
+.claude/**
+test/**
+coverage/
+.nyc_output/
+*.log
 *.tmp
 .cache/
-
-# OS files
+.env
+.env.local
 .DS_Store
 Thumbs.db
 
-# Environment
-.env
-.env.local
-
-# Don't exclude node_modules entirely - we need runtime dependencies!
-# Remove dev-only modules
-node_modules/@types/**
-node_modules/@vscode/**
-node_modules/eslint/**
-node_modules/mocha/**
-
-# Remove extra files from node_modules
-**/test/
-**/tests/
-**/doc/
-**/docs/
-**/example/
-**/examples/
-**/*.md
-**/*.markdown
-**/CHANGELOG*
-**/CHANGES*
-dist/**/*.map
-
-# Keep dist at all costs
-!dist/**
+# Keep these
+!dist/extension.js
+!icon.png
+!package.json
+!readme.md
+!LICENSE.txt
