@@ -1,60 +1,88 @@
 # SQL Wayfarer
 
-➡️ [GitHub — Repository](https://github.com/intarynx/sqlwayfarer) • 🧭 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
+**Navigate, analyze, and document your SQL Server databases — directly inside VS Code.**
 
-> ⚠️ **Early Development** — Features may be incomplete or unstable. Feedback welcome!
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/intarynx.sqlwayfarer?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/intarynx/sqlwayfarer)
 
-A lightweight SQL Server explorer and analyzer for Visual Studio Code. Browse schemas, view object code, analyze dependencies, and manage documentation — all inside VS Code.
+> **Early Access** — Core features are stable and actively developed. Feedback and bug reports are welcome via [GitHub Issues](https://github.com/intarynx/sqlwayfarer/issues).
+
+---
+
+## Overview
+
+SQL Wayfarer is a VS Code extension that turns your editor into a full SQL Server workspace. Connect to any SQL Server or Azure SQL database, browse your schema, inspect object code and structure, trace dependencies, and manage documentation — without leaving VS Code.
 
 ---
 
 ## Features
 
-- **Connection Management**: Save and test multiple SQL Server connections securely.
-- **Database Explorer**: Browse tables, views, procedures, and functions by schema.
-- **Object Details**:
-  - Structure: Columns, keys, indexes.
-  - Code: Syntax-highlighted SQL with formatting and copy tools.
-  - Comments: Edit documentation and extended properties.
-- **Dependency Analysis**: Visualize object relationships and impact.
-- **Documentation**: Manage descriptions and comments with markdown-style editing.
+### Connection Management
+- Save and switch between multiple SQL Server connections
+- Secure credential storage integrated with VS Code
+- Connection testing with live feedback
 
----
+### Schema Explorer
+- Browse databases, schemas, tables, views, stored procedures, and functions
+- Filterable tree view organized by schema
 
-## Usage
+### Object Inspector
+| Tab | What you see |
+|-----|-------------|
+| **Structure** | Columns, data types, primary keys, foreign keys, indexes |
+| **Code** | Syntax-highlighted T-SQL with line metrics and one-click copy |
+| **Comments** | Editable extended properties and inline documentation |
 
-1. Install [**SQL Wayfarer** from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer).  
-2. Open via activity bar or `Ctrl+Shift+P` → “SQL Wayfarer: Open”.  
-3. Add your SQL Server connection and select a database.  
-4. Browse objects and switch tabs for code, structure, and docs.  
-5. Use dependency graphs to understand object relations.
+### Dependency Analysis
+- Visualize which objects depend on a given object and which objects it depends on
+- Understand the full impact of a change before making it
+
+### Documentation
+- Read and write MS_Description extended properties directly from the panel
+- Keep your database self-documented without external tools
+
+## Getting Started
+
+1. Install [**SQL Wayfarer**](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer) from the VS Code Marketplace.
+2. Click the compass icon in the Activity Bar to open the panel.
+3. Add a connection using your SQL Server credentials.
+4. Select a database and start exploring.
+
+You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 
 ---
 
 ## Requirements
 
-- VS Code 1.74+  
-- SQL Server 2008 R2+ or Azure SQL  
-- `db_datareader` permissions for full access
+| Requirement | Minimum version |
+|-------------|----------------|
+| VS Code | 1.100+ |
+| SQL Server | 2008 R2+ |
+| Azure SQL | Any tier |
+| Permissions | `db_datareader` (read-only access is sufficient) |
 
 ---
 
-## Notes
+## Known Limitations
 
-- Large databases may load slowly initially.  
-- Encrypted objects’ code won’t display.  
-- Basic SQL highlighting; advanced T-SQL may not be fully supported.
-
----
-
-## Release Highlights
-
-- Code view with syntax highlighting and metrics  
-- Secure connection management  
-- Dependency visualization  
-- Documentation editing  
+- Encrypted object definitions cannot be retrieved by design (SQL Server restriction).
+- Very large databases may experience slower initial load times.
+- T-SQL syntax highlighting covers standard cases; complex dialect features may not be fully highlighted.
 
 ---
 
-Enjoy exploring your SQL Server databases with SQL Wayfarer! 🧭  
-*Built with ❤️ for the SQL Server community*  
+## Roadmap
+
+- [ ] Query builder with schema-aware autocomplete
+- [ ] Export schema to markdown / PDF
+- [ ] Multi-database comparison view
+
+---
+
+## Contributing
+
+Bug reports and feature requests are tracked on [GitHub Issues](https://github.com/intarynx/sqlwayfarer/issues). Pull requests are welcome.
+
+---
+
+*SQL Wayfarer — built for developers who spend their days navigating complex databases.*
