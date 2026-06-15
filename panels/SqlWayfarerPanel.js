@@ -185,7 +185,6 @@ class SqlWayfarerPanel {
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
         html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', u('webview', 'extendedEvents.css'));
-        html = html.replace('{{TABLE_USAGE_STYLES_URI}}',   u('webview', 'tableUsage.css'));
         html = html.replace('{{CODE_VIEW_STYLES_URI}}',     u('webview', 'codeView.css'));
         html = html.replace('{{TAB_MANAGER_URI}}',          u('webview', 'tabManager.js'));
         html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));

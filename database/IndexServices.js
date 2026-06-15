@@ -20,9 +20,11 @@ class IndexService {
         await this._ensureIndexDir();
 
         const indexFile = this._getIndexFilePath(database);
+        const liveChecksum = await this._computeSchemaChecksum(database);
         let index = await this._loadIndex(indexFile);
-        if (!index) {
-            index = await this._buildCompleteIndex(database);
+
+        if (!index || index.schemaChecksum !== liveChecksum) {
+            index = await this._buildCompleteIndex(database, liveChecksum);
             await this._saveIndex(indexFile, index);
         }
         return index;
@@ -37,7 +39,8 @@ class IndexService {
         const indexFile = this._getIndexFilePath(database);
         try { await fs.unlink(indexFile); } catch { /* file may not exist yet */ }
 
-        const index = await this._buildCompleteIndex(database);
+        const schemaChecksum = await this._computeSchemaChecksum(database);
+        const index = await this._buildCompleteIndex(database, schemaChecksum);
         await this._saveIndex(indexFile, index);
         console.log(`Force reindex complete for ${database}`);
         return index;
@@ -92,12 +95,25 @@ class IndexService {
         return dependents;
     }
 
-    async _buildCompleteIndex(database) {
+    async _computeSchemaChecksum(database) {
+        const result = await this._connectionManager.executeQuery(`
+            USE [${database}];
+            SELECT o.object_id, o.modify_date
+            FROM sys.objects o
+            WHERE o.is_ms_shipped = 0 AND o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR', 'V')
+            ORDER BY o.object_id;
+        `);
+        const raw = result.recordset.map(r => `${r.object_id}:${r.modify_date}`).join('|');
+        return crypto.createHash('md5').update(raw).digest('hex');
+    }
+
+    async _buildCompleteIndex(database, schemaChecksum) {
         console.log(`Building index for database: ${database}`);
 
         const index = {
             database, server: this._currentServer,
             lastFullIndex: new Date().toISOString(),
+            schemaChecksum,
             totalObjects: 0, objectsByType: {}, objects: {}
         };
 
