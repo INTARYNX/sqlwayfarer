@@ -21,28 +21,18 @@ switch ($Bump) {
 $newVersion = $parts -join '.'
 Write-Host "Bumping version: $($pkg.version) -> $newVersion"
 
-# Switch main to dist for packaging
 $content = Get-Content $pkgFile -Raw
-$content = $content -replace '"main": "./extension.js"', '"main": "./dist/extension.js"'
 $content = $content -replace "`"version`": `"$($pkg.version)`"", "`"version`": `"$newVersion`""
 [System.IO.File]::WriteAllText($pkgFile, $content, [System.Text.UTF8Encoding]::new($false))
 
-try {
-    # Build
-    Write-Host "Building..."
-    & npm run build
-    if (-not $?) { Fail "Build failed" }
+# Build
+Write-Host "Building..."
+& npm run build
+if (-not $?) { Fail "Build failed" }
 
-    # Publish
-    Write-Host "Publishing v$newVersion..."
-    & $vsce publish
-    if (-not $?) { Fail "Publish failed" }
+# Publish
+Write-Host "Publishing v$newVersion..."
+& $vsce publish
+if (-not $?) { Fail "Publish failed" }
 
-    Write-Host "Published v$newVersion successfully."
-} finally {
-    # Always restore main to source for development
-    $content = Get-Content $pkgFile -Raw
-    $content = $content -replace '"main": "./dist/extension.js"', '"main": "./extension.js"'
-    [System.IO.File]::WriteAllText($pkgFile, $content, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "Restored main to ./extension.js"
-}
+Write-Host "Published v$newVersion successfully."
