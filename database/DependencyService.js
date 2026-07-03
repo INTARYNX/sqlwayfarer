@@ -1,12 +1,26 @@
 'use strict';
 
+const BabelfishSqlParser = require('./BabelfishSqlParser');
+
 class DependencyService {
     constructor() {
         this._indexService = null;
+        this._connectionManager = null;
+        this._sqlParser = new BabelfishSqlParser();
     }
 
     setIndexService(indexService) {
         this._indexService = indexService;
+    }
+
+    setConnectionManager(connectionManager) {
+        this._connectionManager = connectionManager;
+        // Active le parsing SQL dès qu'une connexion est dispo
+        this._sqlParser.setEnabled(!!connectionManager);
+    }
+
+    setSqlParsingEnabled(enabled) {
+        this._sqlParser.setEnabled(enabled);
     }
 
     async getDependencies(database, objectName) {
@@ -31,16 +45,26 @@ class DependencyService {
 
             if (!objectData) return { dependsOn: [], referencedBy: [] };
 
-            const dependsOn = (objectData.dependencies || []).map(dep => ({
-                referenced_object: dep,
-                referenced_object_type: this._getTypeFromCode(index.objects[dep]?.type),
-                dependency_type: 'REFERENCE',
-                operations: ['REFERENCE'],
-                is_selected: 1,
-                is_updated: 0,
-                is_insert_all: 0,
-                is_delete: 0
-            }));
+            // Analyse SQL optionnelle : si activée, on parse le code pour avoir les vraies opérations
+            let opsMap = null;
+            if (this._sqlParser.isEnabled() && this._connectionManager) {
+                opsMap = await this._getOperationsFromSql(database, cleanName, objectData.type);
+            }
+
+            const dependsOn = (objectData.dependencies || []).map(dep => {
+                const depClean = dep.replace(/[\[\]]/g, '').toLowerCase();
+                const operations = opsMap?.[depClean] || ['REFERENCE'];
+                return {
+                    referenced_object: dep,
+                    referenced_object_type: this._getTypeFromCode(index.objects[dep]?.type),
+                    dependency_type: 'REFERENCE',
+                    operations: operations,
+                    is_selected: operations.includes('SELECT') || operations.includes('MERGE') ? 1 : 0,
+                    is_updated: operations.includes('UPDATE') || operations.includes('MERGE') ? 1 : 0,
+                    is_insert_all: operations.includes('INSERT') || operations.includes('MERGE') ? 1 : 0,
+                    is_delete: operations.includes('DELETE') || operations.includes('MERGE') ? 1 : 0
+                };
+            });
 
             const referencedBy = [];
             for (const [key, obj] of Object.entries(index.objects)) {
@@ -63,6 +87,28 @@ class DependencyService {
         } catch (error) {
             console.error('Error getting dependencies:', error);
             return { dependsOn: [], referencedBy: [] };
+        }
+    }
+
+    /**
+     * Récupère la définition SQL de l'objet et extrait les opérations par table.
+     */
+    async _getOperationsFromSql(database, objectName, objectType) {
+        try {
+            // Tables n'ont pas de "définition" utile pour le parsing — toujours SELECT/INSERT/UPDATE/DELETE possibles
+            if (objectType === 'U') return null;
+
+            const result = await this._connectionManager.executeQuery(`
+                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME('${database.replace(/'/g, "''")}') + '.' + QUOTENAME('${objectName.replace(/'/g, "''")}'))) AS definition;
+            `);
+
+            const definition = result.recordset?.[0]?.definition;
+            if (!definition) return null;
+
+            return this._sqlParser.analyzeOperations(definition);
+        } catch (err) {
+            console.warn(`[DependencyService] Failed to fetch SQL definition for ${objectName}: ${err.message}`);
+            return null;
         }
     }
 

@@ -68,6 +68,7 @@ class SqlWayfarerPanel {
         try {
             await this._connectionStorage.initialize();
             this._dependencyService.setIndexService(this._indexService);
+            this._dependencyService.setConnectionManager(this._connectionManager);
             console.log('IndexService connected to DependencyService');
             this._update();
             this._setupEventHandlers();

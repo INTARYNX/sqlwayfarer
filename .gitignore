@@ -15,3 +15,6 @@ out/
 .vscode/
 .vscode-test/
 .env
+
+# ANTLR dev tools (jar requis seulement pour régénérer les sources du parser)
+database/tsql-grammar/antlr.jar
