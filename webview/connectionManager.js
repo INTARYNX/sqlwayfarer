@@ -163,13 +163,18 @@ class ConnectionManager {
             this.showStatus('Please enter a connection name.', 'error');
             return;
         }
-        
+
         const connectionConfig = this.buildConnectionConfig();
         connectionConfig.name = connectionName;
-        
+
+        // When editing under a new name, the backend needs the old name to clean up
+        // the previous entry and its stored secret instead of leaving them orphaned.
+        const originalName = this.settingsMode === 'edit' ? this.currentEditingConnection : null;
+
         vscode.postMessage({
             command: 'saveConnection',
-            connectionConfig: connectionConfig
+            connectionConfig: connectionConfig,
+            originalName: originalName
         });
     }
 

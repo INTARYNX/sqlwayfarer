@@ -21,8 +21,7 @@ class DatabaseService {
     async getObjects(database) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 o.name as object_name,
                 o.type_desc,
@@ -67,8 +66,7 @@ class DatabaseService {
         const { schema, objectName } = this._parseObjectName(tableName);
         const qualifiedTableName = `${schema}.${objectName}`;
 
-        const columnsResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const columnsResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 c.COLUMN_NAME,
                 c.DATA_TYPE,
@@ -89,8 +87,7 @@ class DatabaseService {
             ORDER BY c.ORDINAL_POSITION
         `);
 
-        const indexesResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const indexesResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 i.name as index_name,
                 i.type_desc,
@@ -111,8 +108,7 @@ class DatabaseService {
             ORDER BY i.is_primary_key DESC, i.is_unique DESC, i.name
         `);
 
-        const fkResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const fkResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 fk.name as fk_name,
                 SCHEMA_NAME(fk.schema_id) + '.' + OBJECT_NAME(fk.parent_object_id) as table_name,
@@ -145,8 +141,7 @@ class DatabaseService {
             const { schema, objectName: parsedName } = this._parseObjectName(objectName);
             const qualified = `${schema}.${parsedName}`;
 
-            let result = await this._connectionManager.executeQuery(`
-                USE [${database}];
+            let result = await this._connectionManager.executeQueryInDatabase(database, `
                 SELECT OBJECT_DEFINITION(OBJECT_ID('${qualified}')) as definition
             `);
 
@@ -157,8 +152,7 @@ class DatabaseService {
             if (!objectName.includes('.')) {
                 for (const s of ['dbo', 'hr', 'sales', 'production', 'purchasing', 'person']) {
                     try {
-                        result = await this._connectionManager.executeQuery(`
-                            USE [${database}];
+                        result = await this._connectionManager.executeQueryInDatabase(database, `
                             SELECT OBJECT_DEFINITION(OBJECT_ID('${s}.${parsedName}')) as definition
                         `);
                         definition = result.recordset[0]?.definition;
@@ -180,8 +174,7 @@ class DatabaseService {
         const { schema, objectName: parsedName } = this._parseObjectName(objectName);
         const qualified = `${schema}.${parsedName}`;
 
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 o.name,
                 o.type_desc,
@@ -209,8 +202,7 @@ class DatabaseService {
 
         const typeFilter = objectTypes.map(t => `'${t}'`).join(',');
 
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 o.name as object_name,
                 o.type_desc,
@@ -244,8 +236,7 @@ class DatabaseService {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = this._parseObjectName(tableName);
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT COUNT(*) as row_count FROM [${schema}].[${objectName}]
         `);
         return result.recordset[0]?.row_count || 0;
@@ -255,8 +246,7 @@ class DatabaseService {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = this._parseObjectName(tableName);
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT TOP ${limit} * FROM [${schema}].[${objectName}]
         `);
         return result.recordset;

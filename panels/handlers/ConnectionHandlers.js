@@ -38,9 +38,9 @@ class ConnectionHandlers {
         }
     }
 
-    async handleSaveConnection(connectionConfig) {
+    async handleSaveConnection(connectionConfig, originalName = null) {
         try {
-            const result = await this._connectionStorage.saveConnection(connectionConfig);
+            const result = await this._connectionStorage.saveConnection(connectionConfig, originalName);
             this._post({ command: 'connectionSaved', success: result.success, message: result.message });
             return result.success;
         } catch (error) {

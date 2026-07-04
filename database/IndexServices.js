@@ -96,8 +96,7 @@ class IndexService {
     }
 
     async _computeSchemaChecksum(database) {
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT o.object_id, o.modify_date
             FROM sys.objects o
             WHERE o.is_ms_shipped = 0 AND o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR', 'V')
@@ -158,8 +157,7 @@ index.objects[key] = {
     }
 
     async _getObjectsAndDependencies(database) {
-        const objectsResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const objectsResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 o.object_id, o.name,
                 s.name AS schema_name,
@@ -172,8 +170,7 @@ index.objects[key] = {
             ORDER BY o.type, s.name, o.name;
         `);
 
-        const dependenciesResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const dependenciesResult = await this._connectionManager.executeQueryInDatabase(database, `
             CREATE TABLE #Dependencies (object_name SYSNAME, dependency SYSNAME, type SYSNAME, dependency_database SYSNAME);
             DECLARE @schema_name SYSNAME, @object_name SYSNAME, @type SYSNAME, @qualified_name NVARCHAR(512), @sql NVARCHAR(MAX);
             DECLARE object_cursor CURSOR FOR
@@ -232,7 +229,8 @@ index.objects[key] = {
     _getCurrentServerName() { return this._connectionManager.getServerName(); }
 
     _getIndexFilePath(database) {
-        return path.join(this._indexDir, `${this._currentServer}_${database}.json`);
+        const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
+        return path.join(this._indexDir, `${slug(this._currentServer)}_${slug(database)}.json`);
     }
 
     async _ensureIndexDir() {

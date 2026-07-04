@@ -68,6 +68,7 @@
   },
   "scripts": {
     "build": "webpack",
+    "test": "vscode-test",
     "package": "npm run build && vsce package",
     "publish": "npm run build && vsce publish"
   },

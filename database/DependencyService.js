@@ -1,6 +1,7 @@
 'use strict';
 
 const BabelfishSqlParser = require('./BabelfishSqlParser');
+const parseObjectName = require('./parseObjectName');
 
 class DependencyService {
     constructor() {
@@ -103,16 +104,15 @@ class DependencyService {
             // Tables n'ont pas de "définition" utile pour le parsing — toujours SELECT/INSERT/UPDATE/DELETE possibles
             if (objectType === 'U') return null;
 
-            // objectName est "schema.object" — il faut quoter chaque partie séparément,
-            // sinon QUOTENAME() sur le nom complet produit un seul identifiant avec un
-            // point littéral (ex: [schema.object]) que OBJECT_ID ne peut jamais résoudre.
-            const parts = objectName.split('.');
-            const namePart = parts.pop().replace(/'/g, "''");
-            const schemaPart = (parts.join('.') || 'dbo').replace(/'/g, "''");
+            // Il faut quoter schéma et nom séparément, sinon QUOTENAME() sur le nom complet
+            // produit un seul identifiant avec un point littéral (ex: [schema.object]) que
+            // OBJECT_ID ne peut jamais résoudre.
+            const { schema, objectName: namePart } = parseObjectName(objectName);
+            const schemaPart = schema.replace(/'/g, "''");
+            const namePartEscaped = namePart.replace(/'/g, "''");
 
-            const result = await this._connectionManager.executeQuery(`
-                USE [${database}];
-                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME('${schemaPart}') + '.' + QUOTENAME('${namePart}'))) AS definition;
+            const result = await this._connectionManager.executeQueryInDatabase(database, `
+                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME('${schemaPart}') + '.' + QUOTENAME('${namePartEscaped}'))) AS definition;
             `);
 
             const definition = result.recordset?.[0]?.definition;

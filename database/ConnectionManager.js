@@ -9,7 +9,9 @@ class ConnectionManager {
         this._activeConfig = null;
     }
 
-    async buildConnectionString(connectionConfig) {
+    // Objet de config natif mssql plutôt qu'une connection string concaténée à la main —
+    // un mot de passe contenant ';' ou '=' pourrait sinon injecter des paramètres de connexion.
+    async buildConnectionConfig(connectionConfig) {
         let password = connectionConfig.password;
         if (!password && connectionConfig.name) {
             password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
@@ -18,17 +20,19 @@ class ConnectionManager {
             }
         }
 
-        let cs = `Server=${connectionConfig.server}`;
-        if (connectionConfig.port)               cs += `,${connectionConfig.port}`;
-        if (connectionConfig.database)           cs += `;Database=${connectionConfig.database}`;
-        if (connectionConfig.username && password)
-            cs += `;User Id=${connectionConfig.username};Password=${password}`;
-        else
-            cs += ';Integrated Security=true';
-        if (connectionConfig.encrypt !== undefined)               cs += `;Encrypt=${connectionConfig.encrypt}`;
-        if (connectionConfig.trustServerCertificate !== undefined) cs += `;TrustServerCertificate=${connectionConfig.trustServerCertificate}`;
+        const options = {};
+        if (connectionConfig.encrypt !== undefined) options.encrypt = connectionConfig.encrypt;
+        if (connectionConfig.trustServerCertificate !== undefined) options.trustServerCertificate = connectionConfig.trustServerCertificate;
 
-        return cs;
+        const config = { server: connectionConfig.server, options };
+        if (connectionConfig.port) config.port = Number(connectionConfig.port);
+        if (connectionConfig.database) config.database = connectionConfig.database;
+        if (connectionConfig.username && password) {
+            config.user = connectionConfig.username;
+            config.password = password;
+        }
+
+        return config;
     }
 
     async getConnectionForDisplay(connectionName) {
@@ -45,7 +49,7 @@ class ConnectionManager {
     }
 
     async testConnection(connectionConfig) {
-        const conn = await sql.connect(await this.buildConnectionString(connectionConfig));
+        const conn = await sql.connect(await this.buildConnectionConfig(connectionConfig));
         await conn.close();
     }
 
@@ -54,7 +58,7 @@ class ConnectionManager {
             await this._activeConnection.close();
             this._activeConnection = null;
         }
-        this._activeConnection = await sql.connect(await this.buildConnectionString(connectionConfig));
+        this._activeConnection = await sql.connect(await this.buildConnectionConfig(connectionConfig));
         this._activeConfig = connectionConfig;
     }
 
@@ -85,6 +89,12 @@ class ConnectionManager {
             }
         }
         return await request.query(query);
+    }
+
+    // Centralise le `USE [database];` répété identiquement dans presque tous les services
+    // pour éviter qu'une requête l'oublie et interroge la mauvaise base.
+    async executeQueryInDatabase(database, query, params = null) {
+        return this.executeQuery(`USE [${database}];\n${query}`, params);
     }
 
     async dispose() {

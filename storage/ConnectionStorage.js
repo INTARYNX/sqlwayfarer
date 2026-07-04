@@ -11,16 +11,30 @@ class ConnectionStorage {
         await this._loadSavedConnections();
     }
 
-    async saveConnection(connectionConfig) {
+    async saveConnection(connectionConfig, originalName = null) {
         try {
             const { name, password } = connectionConfig;
             if (!name) throw new Error('Connection name is required');
 
-            if (password) {
-                await this._context.secrets.store(`sqlwayfarer.password.${name}`, password);
+            const isRename = !!originalName && originalName !== name;
+
+            // On a rename without a newly typed password, carry over the existing secret
+            // instead of leaving the new entry without one and the old secret orphaned.
+            let secretToStore = password;
+            if (!secretToStore && isRename) {
+                secretToStore = await this.getConnectionPassword(originalName);
+            }
+            if (secretToStore) {
+                await this._context.secrets.store(`sqlwayfarer.password.${name}`, secretToStore);
             }
 
             this._savedConnections.set(name, { ...connectionConfig, password: undefined });
+
+            if (isRename) {
+                await this._context.secrets.delete(`sqlwayfarer.password.${originalName}`);
+                this._savedConnections.delete(originalName);
+            }
+
             await this._persistConnections();
             return { success: true, message: `Connection '${name}' saved successfully!` };
         } catch (error) {

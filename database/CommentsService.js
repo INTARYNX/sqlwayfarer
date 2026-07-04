@@ -13,8 +13,7 @@ class CommentsService {
         const { schema, objectName } = parseObjectName(tableName);
         const qualifiedTableName = `${schema}.${objectName}`;
 
-        const tableDescResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const tableDescResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT ep.value as table_description
             FROM sys.extended_properties ep
             INNER JOIN sys.objects o ON ep.major_id = o.object_id
@@ -23,8 +22,7 @@ class CommentsService {
             AND s.name = '${schema}' AND o.name = '${objectName}'
         `);
 
-        const columnsResult = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const columnsResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 c.COLUMN_NAME as columnName,
                 c.DATA_TYPE as dataType,
@@ -71,8 +69,7 @@ class CommentsService {
 
         const { schema, objectName: parsedName } = parseObjectName(objectName);
 
-        const result = await this._connectionManager.executeQuery(`
-            USE [${database}];
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT ep.value as description
             FROM sys.extended_properties ep
             INNER JOIN sys.objects o ON ep.major_id = o.object_id
@@ -155,7 +152,6 @@ class CommentsService {
         let sql;
         if (hasDescription) {
             sql = `
-                USE [${database}];
                 IF ${existsCheck}
                     EXEC sp_updateextendedproperty ${commonParams}, @value = @descValue
                 ELSE
@@ -163,13 +159,12 @@ class CommentsService {
             `;
         } else {
             sql = `
-                USE [${database}];
                 IF ${existsCheck}
                     EXEC sp_dropextendedproperty ${commonParams}
             `;
         }
 
-        await this._connectionManager.executeQuery(sql, hasDescription ? { descValue: description } : null);
+        await this._connectionManager.executeQueryInDatabase(database, sql, hasDescription ? { descValue: description } : null);
     }
 
     _mapObjectTypeToLevel1(objectType) {

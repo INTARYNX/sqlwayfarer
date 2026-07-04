@@ -646,10 +646,6 @@ class ExplorerManager {
 
             window.commentsManager.onDatabaseChanged();
 
-            if (window.extendedEventsManager) {
-                window.extendedEventsManager.onDatabaseChanged(database);
-            }
-
             // NEW: Notify Objects tab about database change
             if (window.objectsTabManager) {
                 window.objectsTabManager.onDatabaseChanged(database);
@@ -667,9 +663,6 @@ class ExplorerManager {
             this.filterManager.disableFilters();
             this.filterManager.updateObjectCount();
             window.commentsManager.onDatabaseChanged();
-            if (window.extendedEventsManager) {
-                window.extendedEventsManager.onDatabaseChanged(null);
-            }
             if (window.objectsTabManager) {
                 window.objectsTabManager.onDatabaseChanged(null);
             }
@@ -1179,12 +1172,11 @@ class ExplorerManager {
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, commentsManager, extendedEventsManager, detailsTabManager, codeViewManager, objectsTabManager) {
+    constructor(connectionManager, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
         this.commentsManager = commentsManager;
-        this.extendedEventsManager = extendedEventsManager;
         this.detailsTabManager = detailsTabManager;
         this.codeViewManager = codeViewManager;
         this.objectsTabManager = objectsTabManager;
@@ -1238,9 +1230,6 @@ class MessageHandler {
 
             case 'objectsLoaded':
                 this.explorerManager.onObjectsLoaded(message.objects);
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onObjectsLoaded(message.objects);
-                }
                 break;
 
             case 'tableDetailsLoaded':
@@ -1298,59 +1287,6 @@ class MessageHandler {
                 this.commentsManager.onDeleteDescriptionResult(message);
                 break;
 
-            // Extended Events Messages
-            case 'executionFlowSessionCreated':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionCreated(message);
-                }
-                break;
-
-            case 'executionFlowSessionStarted':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionStarted(message);
-                }
-                break;
-
-            case 'executionFlowSessionStopped':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionStopped(message);
-                }
-                break;
-
-            case 'executionFlowSessionDeleted':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionDeleted(message);
-                }
-                break;
-
-            case 'executionFlowSessionInfo':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onSessionInfoReceived(message.sessionName, message.info);
-                }
-                break;
-
-            case 'rawSessionEventsResult':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onRawEventsReceived(
-                        message.sessionName,
-                        message.rawXml,
-                        message.message
-                    );
-                }
-                break;
-
-            case 'executionFlowSessionsList':
-                if (this.extendedEventsManager) {
-                    console.log('Available sessions:', message.sessions);
-                }
-                break;
-
-            case 'extendedEventsReceived':
-                if (this.extendedEventsManager) {
-                    this.extendedEventsManager.onEventsReceived(message.events);
-                }
-                break;
-
             case 'error':
                 this.handleError(message.message);
                 break;
@@ -1385,8 +1321,6 @@ class MessageHandler {
         console.error('SQL Wayfarer Error:', message);
         if (appState.activeTab === 'configuration') {
             this.connectionManager.showStatus(message, 'error');
-        } else if (appState.activeTab === 'extendedEvents' && this.extendedEventsManager) {
-            this.extendedEventsManager.showStatus(message, 'error');
         } else {
             this.tabManager.showStatus(message, 'error');
         }
@@ -1405,17 +1339,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const detailsTabManager = new DetailsTabManager();
     const objectsTabManager = new ObjectsTabManager();
 
-    let extendedEventsManager = null;
-    if (typeof ExtendedEventsManager !== 'undefined') {
-        extendedEventsManager = new ExtendedEventsManager();
-    }
-
     const messageHandler = new MessageHandler(
         connectionManager,
         explorerManager,
         tabManager,
         commentsManager,
-        extendedEventsManager,
         detailsTabManager,
         codeViewManager,
         objectsTabManager
@@ -1427,9 +1355,6 @@ document.addEventListener('DOMContentLoaded', function () {
     window.codeViewManager = codeViewManager;
     window.detailsTabManager = detailsTabManager;
     window.objectsTabManager = objectsTabManager;
-    if (extendedEventsManager) {
-        window.extendedEventsManager = extendedEventsManager;
-    }
 
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
 

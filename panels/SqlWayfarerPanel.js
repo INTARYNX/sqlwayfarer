@@ -8,14 +8,12 @@ const ConnectionStorage = require('../storage/ConnectionStorage');
 const ConnectionManager = require('../database/ConnectionManager');
 const DatabaseService = require('../database/DatabaseService');
 const DependencyService = require('../database/DependencyService');
-const ExtendedEventsService = require('../database/ExtendedEventsService');
 const IndexService = require('../database/IndexServices');
 const CommentsService = require('../database/CommentsService');
 
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
-const ExtendedEventsHandlers = require('./handlers/ExtendedEventsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
 
 class SqlWayfarerPanel {
@@ -32,7 +30,6 @@ class SqlWayfarerPanel {
         this._indexService = new IndexService(this._connectionManager, this._databaseService);
         this._dependencyService = new DependencyService();
         this._commentsService = new CommentsService(this._connectionManager);
-        this._extendedEventsService = new ExtendedEventsService(this._connectionManager);
 
         const post = msg => this._panel.webview.postMessage(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -40,7 +37,6 @@ class SqlWayfarerPanel {
         this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage);
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
-        this._ee = new ExtendedEventsHandlers(post, this._extendedEventsService, getDb);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
 
         this._initialize();
@@ -96,8 +92,8 @@ class SqlWayfarerPanel {
     }
 
     async _handleMessage(message) {
-        const { conn: c, db: d, comments: cm, ee, idx: ix } = {
-            conn: this._conn, db: this._db, comments: this._comments, ee: this._ee, idx: this._idx
+        const { conn: c, db: d, comments: cm, idx: ix } = {
+            conn: this._conn, db: this._db, comments: this._comments, idx: this._idx
         };
 
         switch (message.command) {
@@ -113,7 +109,7 @@ class SqlWayfarerPanel {
                 break;
             }
             case 'saveConnection': {
-                const ok = await c.handleSaveConnection(message.connectionConfig);
+                const ok = await c.handleSaveConnection(message.connectionConfig, message.originalName);
                 if (ok) await c.handleLoadConnections();
                 break;
             }
@@ -149,15 +145,6 @@ class SqlWayfarerPanel {
             case 'updateObjectDescription':     await cm.handleUpdateObjectDescription(message.database, message.objectName, message.objectType, message.description); break;
             case 'deleteTableDescription':      await cm.handleDeleteTableDescription(message.database, message.tableName); break;
             case 'deleteColumnDescription':     await cm.handleDeleteColumnDescription(message.database, message.tableName, message.columnName); break;
-
-            // Extended Events
-            case 'createExecutionFlowSession':  await ee.handleCreateExecutionFlowSession(message.database, message.sessionName, message.config); break;
-            case 'startExecutionFlowSession':   await ee.handleStartExecutionFlowSession(message.sessionName); break;
-            case 'stopExecutionFlowSession':    await ee.handleStopExecutionFlowSession(message.sessionName); break;
-            case 'deleteExecutionFlowSession':  await ee.handleDeleteExecutionFlowSession(message.sessionName); break;
-            case 'getExecutionFlowSessionInfo': await ee.handleGetExecutionFlowSessionInfo(message.sessionName); break;
-            case 'listExecutionFlowSessions':   await ee.handleListExecutionFlowSessions(); break;
-            case 'getRawSessionEvents':         await ee.handleGetRawSessionEvents(message.sessionName); break;
 
             // Indexing
             case 'forceReindex':                await ix.handleForceReindex(message.database); break;
@@ -196,12 +183,10 @@ class SqlWayfarerPanel {
 
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
-        html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', u('webview', 'extendedEvents.css'));
         html = html.replace('{{CODE_VIEW_STYLES_URI}}',     u('webview', 'codeView.css'));
         html = html.replace('{{TAB_MANAGER_URI}}',          u('webview', 'tabManager.js'));
         html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
-        html = html.replace('{{EXTENDED_EVENTS_MANAGER_URI}}', u('webview', 'extendedEventsManager.js'));
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 
@@ -221,9 +206,6 @@ class SqlWayfarerPanel {
             }
         }
 
-        if (this._extendedEventsService) {
-            try { await this._extendedEventsService.dispose(); } catch (error) { console.warn('Error disposing extended events service:', error); }
-        }
         if (this._connectionManager) {
             try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error disposing connection manager:', error); }
         }
