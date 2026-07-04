@@ -6723,7 +6723,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -6778,7 +6778,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -7843,10 +7843,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.SEMI);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -7907,7 +7907,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -8940,7 +8940,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -8995,7 +8995,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -9018,7 +9018,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1493;
 	        this.restore_database();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -9115,7 +9115,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -9169,7 +9169,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -9200,7 +9200,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -9231,7 +9231,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10199,10 +10199,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10241,7 +10241,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10286,7 +10286,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10334,7 +10334,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10365,7 +10365,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10398,10 +10398,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10432,7 +10432,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10465,7 +10465,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10507,7 +10507,7 @@ class TSqlParser extends antlr4.Parser {
 	        		localctx.try_clauses = this.sql_clauses();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 1593; 
 	        	this._errHandler.sync(this);
@@ -10518,7 +10518,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1596;
 	        this.match(TSqlParser.TRY);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10568,7 +10568,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1610;
 	        this.match(TSqlParser.CATCH);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10611,7 +10611,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10672,7 +10672,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10731,7 +10731,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10812,7 +10812,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10850,10 +10850,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.local_id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10884,7 +10884,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -10993,7 +10993,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11085,7 +11085,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11157,7 +11157,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11217,7 +11217,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11263,7 +11263,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1777;
 	        localctx.aggregate_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11292,7 +11292,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1782;
 	        localctx.rolename = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11321,7 +11321,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1787;
 	        this.alter_assembly_clause();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -11391,7 +11391,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -13263,7 +13263,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.id();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 1823;
 	            this._errHandler.sync(this);
@@ -14198,7 +14198,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.id();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 1825;
 	                this._errHandler.sync(this);
@@ -14210,10 +14210,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -14255,7 +14255,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -15224,12 +15224,12 @@ class TSqlParser extends antlr4.Parser {
 	                this.char_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -15292,10 +15292,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DATA);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -15322,7 +15322,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1863;
 	        this.file_path();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16272,10 +16272,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16300,7 +16300,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1871;
 	        this.file_path();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16323,7 +16323,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1873;
 	        this.match(TSqlParser.DISK_DRIVE);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16386,7 +16386,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.hex_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 1892;
 	            this._errHandler.sync(this);
@@ -16424,7 +16424,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16475,7 +16475,7 @@ class TSqlParser extends antlr4.Parser {
 	        		localctx.assembly_name = this.id();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 1915; 
 	        	this._errHandler.sync(this);
@@ -16494,7 +16494,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16538,10 +16538,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.KEY);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16585,7 +16585,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1941;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16624,7 +16624,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 1947;
 	        this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16701,7 +16701,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.Provider_Name = this.id();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -16753,7 +16753,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 
 	        }
@@ -16774,7 +16774,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16815,7 +16815,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16870,7 +16870,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 2020;
 	        this._errHandler.sync(this);
@@ -16889,7 +16889,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2024;
 	        this.select_statement_standalone();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16928,7 +16928,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -16971,7 +16971,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2042;
 	        this.authorization_grantee();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -17921,10 +17921,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.OWNER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -17949,7 +17949,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2050;
 	        this.match(TSqlParser.COLON);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -17989,7 +17989,7 @@ class TSqlParser extends antlr4.Parser {
 	        		this.matchWildcard();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 2060; 
 	        	this._errHandler.sync(this);
@@ -17998,7 +17998,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2062;
 	        this.match(TSqlParser.EOF);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -18027,7 +18027,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2067;
 	        localctx.group_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -18058,7 +18058,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2073;
 	        this.alter_availability_group_options();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -18147,7 +18147,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 2094;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -18405,7 +18405,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.RR_BRACKET);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -18471,7 +18471,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.NONE);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 2201;
 	                this.match(TSqlParser.RR_BRACKET);
@@ -18485,7 +18485,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.session_timeout = this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -18572,7 +18572,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DECIMAL);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 849:
@@ -18613,7 +18613,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.RR_BRACKET);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 710:
@@ -18677,7 +18677,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.match(TSqlParser.NONE);
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    }
 	                    this.state = 2263;
 	                    this.match(TSqlParser.RR_BRACKET);
@@ -18691,11 +18691,11 @@ class TSqlParser extends antlr4.Parser {
 	                    localctx.session_timeout = this.match(TSqlParser.DECIMAL);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 2271;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -19100,7 +19100,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -19148,7 +19148,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -19171,7 +19171,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2438;
 	        this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -19194,7 +19194,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2440;
 	        this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -20173,7 +20173,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.ANY);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 2457;
 	            this._errHandler.sync(this);
@@ -21129,7 +21129,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.ANY);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 2471;
 	            this._errHandler.sync(this);
@@ -21161,7 +21161,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.ANY);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 2482;
 	            this._errHandler.sync(this);
@@ -21193,14 +21193,14 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DEFAULT);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
 	        this.state = 2494;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21229,7 +21229,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2499;
 	        localctx.ConversationPriorityName = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21340,7 +21340,7 @@ class TSqlParser extends antlr4.Parser {
 
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 2534; 
 	                this._errHandler.sync(this);
@@ -21374,7 +21374,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21449,7 +21449,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2568;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21534,14 +21534,14 @@ class TSqlParser extends antlr4.Parser {
 
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 2598; 
 	        	this._errHandler.sync(this);
 	        	_alt = this._interp.adaptivePredict(this._input,163, this._ctx);
 	        } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21568,7 +21568,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2602;
 	        localctx.certificate_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21599,7 +21599,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2608;
 	        localctx.key_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21630,7 +21630,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2614;
 	        localctx.key_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21657,7 +21657,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2618;
 	        localctx.dropped_contract_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21684,7 +21684,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2622;
 	        localctx.credential_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21713,7 +21713,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2627;
 	        localctx.provider_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21761,7 +21761,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21792,7 +21792,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2646;
 	        localctx.audit_specification_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21821,7 +21821,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2651;
 	        this.match(TSqlParser.KEY);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21852,7 +21852,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2657;
 	        localctx.credential_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21900,7 +21900,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21931,7 +21931,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2676;
 	        this.match(TSqlParser.SEMI);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21958,7 +21958,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2680;
 	        localctx.endPointName = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -21989,7 +21989,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2686;
 	        localctx.external_data_source_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22020,7 +22020,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2692;
 	        localctx.external_file_format_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22060,7 +22060,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22091,7 +22091,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2706;
 	        localctx.pool_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22178,7 +22178,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22205,7 +22205,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2741;
 	        this.expression(0);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22242,7 +22242,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22307,10 +22307,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.queue_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22343,7 +22343,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2773;
 	        this.match(TSqlParser.SERVER);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22372,7 +22372,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2778;
 	        localctx.catalog_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22403,7 +22403,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2784;
 	        this.table_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22432,7 +22432,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2789;
 	        localctx.stoplist_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22459,7 +22459,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2793;
 	        localctx.login_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22486,7 +22486,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2797;
 	        this.match(TSqlParser.KEY);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22515,7 +22515,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2802;
 	        localctx.message_type_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22544,7 +22544,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2807;
 	        localctx.partition_function_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22573,7 +22573,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2812;
 	        localctx.partition_scheme_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22620,7 +22620,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2826;
 	        localctx.queue_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22651,7 +22651,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2832;
 	        localctx.binding_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22680,7 +22680,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2837;
 	        localctx.pool_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22716,7 +22716,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2844;
 	        localctx.role_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22743,7 +22743,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2848;
 	        localctx.route_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22791,7 +22791,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22827,7 +22827,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2868;
 	        localctx.schema_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22858,7 +22858,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2874;
 	        localctx.property_list_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22906,7 +22906,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2887;
 	        localctx.security_policy_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22954,7 +22954,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -22983,7 +22983,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2905;
 	        localctx.audit_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23014,7 +23014,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2911;
 	        localctx.audit_specification_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23043,7 +23043,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2916;
 	        localctx.role_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23070,7 +23070,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 2920;
 	        localctx.dropped_service_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23142,7 +23142,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23176,7 +23176,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.KEY);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 2951;
 	        localctx.name = this.id();
@@ -23205,7 +23205,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23299,7 +23299,7 @@ class TSqlParser extends antlr4.Parser {
 	        		}
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 2988; 
 	        	this._errHandler.sync(this);
@@ -23314,7 +23314,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23355,7 +23355,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23391,7 +23391,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3007;
 	        this.simple_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23427,7 +23427,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3014;
 	        localctx.user_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23456,7 +23456,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3019;
 	        localctx.group_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -23487,7 +23487,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3025;
 	        this.simple_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -24456,7 +24456,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 3040;
 	        this.match(TSqlParser.ON);
@@ -25394,10 +25394,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.SERVER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -26366,7 +26366,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 3060;
 	        this.match(TSqlParser.ON);
@@ -27304,10 +27304,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.SERVER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27409,7 +27409,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27460,7 +27460,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3105;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27510,7 +27510,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27574,7 +27574,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27633,7 +27633,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27670,7 +27670,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3159;
 	        localctx.path_of_DLL = this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -27719,7 +27719,7 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.queue_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 3174;
 	        this._errHandler.sync(this);
@@ -27762,7 +27762,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3189;
 	        localctx.broker_service_specifier_or_current_database = this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -28064,7 +28064,7 @@ class TSqlParser extends antlr4.Parser {
 	                                this.char_string();
 	                                break;
 	                            default:
-	                                throw new antlr4.error.NoViableAltException(this);
+	                                throw new antlr4.NoViableAltException(this);
 	                            }
 	                            this.state = 3316; 
 	                            this._errHandler.sync(this);
@@ -28209,7 +28209,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.INFINITE);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
@@ -28347,7 +28347,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -28427,7 +28427,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        } while((((_la) & ~0x1f) === 0 && ((1 << _la) & 3217029118) !== 0) || ((((_la - 32)) & ~0x1f) === 0 && ((1 << (_la - 32)) & 4160552447) !== 0) || ((((_la - 64)) & ~0x1f) === 0 && ((1 << (_la - 64)) & 3220889599) !== 0) || ((((_la - 96)) & ~0x1f) === 0 && ((1 << (_la - 96)) & 3875530669) !== 0) || ((((_la - 128)) & ~0x1f) === 0 && ((1 << (_la - 128)) & 4259272191) !== 0) || ((((_la - 161)) & ~0x1f) === 0 && ((1 << (_la - 161)) & 125300659) !== 0) || ((((_la - 194)) & ~0x1f) === 0 && ((1 << (_la - 194)) & 2080374719) !== 0) || ((((_la - 227)) & ~0x1f) === 0 && ((1 << (_la - 227)) & 1073667069) !== 0) || ((((_la - 259)) & ~0x1f) === 0 && ((1 << (_la - 259)) & 3220660807) !== 0) || ((((_la - 291)) & ~0x1f) === 0 && ((1 << (_la - 291)) & 4286378733) !== 0) || ((((_la - 323)) & ~0x1f) === 0 && ((1 << (_la - 323)) & 3187670719) !== 0) || ((((_la - 355)) & ~0x1f) === 0 && ((1 << (_la - 355)) & 4294886395) !== 0) || ((((_la - 388)) & ~0x1f) === 0 && ((1 << (_la - 388)) & 3219120629) !== 0) || ((((_la - 420)) & ~0x1f) === 0 && ((1 << (_la - 420)) & 3706683071) !== 0) || ((((_la - 452)) & ~0x1f) === 0 && ((1 << (_la - 452)) & 4158642029) !== 0) || ((((_la - 484)) & ~0x1f) === 0 && ((1 << (_la - 484)) & 4294965759) !== 0) || ((((_la - 516)) & ~0x1f) === 0 && ((1 << (_la - 516)) & 4294967295) !== 0) || ((((_la - 548)) & ~0x1f) === 0 && ((1 << (_la - 548)) & 4294966271) !== 0) || ((((_la - 580)) & ~0x1f) === 0 && ((1 << (_la - 580)) & 4154454007) !== 0) || ((((_la - 612)) & ~0x1f) === 0 && ((1 << (_la - 612)) & 2003296255) !== 0) || ((((_la - 645)) & ~0x1f) === 0 && ((1 << (_la - 645)) & 4278037481) !== 0) || ((((_la - 677)) & ~0x1f) === 0 && ((1 << (_la - 677)) & 4294180831) !== 0) || ((((_la - 710)) & ~0x1f) === 0 && ((1 << (_la - 710)) & 3220698619) !== 0) || ((((_la - 742)) & ~0x1f) === 0 && ((1 << (_la - 742)) & 4156547647) !== 0) || ((((_la - 774)) & ~0x1f) === 0 && ((1 << (_la - 774)) & 2097019839) !== 0) || ((((_la - 806)) & ~0x1f) === 0 && ((1 << (_la - 806)) & 3741212537) !== 0) || ((((_la - 839)) & ~0x1f) === 0 && ((1 << (_la - 839)) & 4279992319) !== 0) || ((((_la - 871)) & ~0x1f) === 0 && ((1 << (_la - 871)) & 4293918159) !== 0) || ((((_la - 904)) & ~0x1f) === 0 && ((1 << (_la - 904)) & 3758096323) !== 0) || ((((_la - 936)) & ~0x1f) === 0 && ((1 << (_la - 936)) & 4294967295) !== 0) || ((((_la - 968)) & ~0x1f) === 0 && ((1 << (_la - 968)) & 2682879999) !== 0) || ((((_la - 1000)) & ~0x1f) === 0 && ((1 << (_la - 1000)) & 3186097983) !== 0) || ((((_la - 1032)) & ~0x1f) === 0 && ((1 << (_la - 1032)) & 1768898523) !== 0) || ((((_la - 1064)) & ~0x1f) === 0 && ((1 << (_la - 1064)) & 2547958239) !== 0) || ((((_la - 1098)) & ~0x1f) === 0 && ((1 << (_la - 1098)) & 67108703) !== 0) || ((((_la - 1134)) & ~0x1f) === 0 && ((1 << (_la - 1134)) & 73) !== 0) || _la===1169 || _la===1173);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29379,10 +29379,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29572,7 +29572,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29634,11 +29634,11 @@ class TSqlParser extends antlr4.Parser {
 	            		    localctx.credential_name = this.id();
 	            		    break;
 	            		default:
-	            		    throw new antlr4.error.NoViableAltException(this);
+	            		    throw new antlr4.NoViableAltException(this);
 	            		}
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 3520; 
 	            	this._errHandler.sync(this);
@@ -29696,7 +29696,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29744,7 +29744,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3559;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29819,10 +29819,10 @@ class TSqlParser extends antlr4.Parser {
 
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29910,7 +29910,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3613;
 	        this.match(TSqlParser.SEMI);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -29995,10 +29995,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -30069,7 +30069,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.NONE);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 
 	        this.state = 3652;
@@ -30137,7 +30137,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.external_data_source_name = this.id();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 3672; 
 	            this._errHandler.sync(this);
@@ -30146,7 +30146,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3674;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -30230,7 +30230,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.NONE);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 3707;
 	        this._errHandler.sync(this);
@@ -30307,7 +30307,7 @@ class TSqlParser extends antlr4.Parser {
 	                    localctx.external_data_source_name = this.id();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 3721; 
 	                this._errHandler.sync(this);
@@ -30318,7 +30318,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -30437,7 +30437,7 @@ class TSqlParser extends antlr4.Parser {
 	                		}
 	                		break;
 	                	default:
-	                		throw new antlr4.error.NoViableAltException(this);
+	                		throw new antlr4.NoViableAltException(this);
 	                	}
 	                	this.state = 3756; 
 	                	this._errHandler.sync(this);
@@ -30445,7 +30445,7 @@ class TSqlParser extends antlr4.Parser {
 	                } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 627:
@@ -30496,7 +30496,7 @@ class TSqlParser extends antlr4.Parser {
 	            		}
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 3774; 
 	            	this._errHandler.sync(this);
@@ -30504,7 +30504,7 @@ class TSqlParser extends antlr4.Parser {
 	            } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 3784;
 	        this._errHandler.sync(this);
@@ -30549,7 +30549,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3794;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -30655,7 +30655,7 @@ class TSqlParser extends antlr4.Parser {
 	                		}
 	                		break;
 	                	default:
-	                		throw new antlr4.error.NoViableAltException(this);
+	                		throw new antlr4.NoViableAltException(this);
 	                	}
 	                	this.state = 3823; 
 	                	this._errHandler.sync(this);
@@ -30663,7 +30663,7 @@ class TSqlParser extends antlr4.Parser {
 	                } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 627:
@@ -30714,7 +30714,7 @@ class TSqlParser extends antlr4.Parser {
 	            		}
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 3841; 
 	            	this._errHandler.sync(this);
@@ -30722,7 +30722,7 @@ class TSqlParser extends antlr4.Parser {
 	            } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 3851;
 	        this._errHandler.sync(this);
@@ -30767,7 +30767,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 3861;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -30835,10 +30835,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DEFAULT);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -30933,7 +30933,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -31027,7 +31027,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -31084,7 +31084,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.hex_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -31097,7 +31097,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -31169,7 +31169,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -31253,7 +31253,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 954:
@@ -31309,10 +31309,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.property_list_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -31345,7 +31345,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4026;
 	        this.alter_fulltext_index_option();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -32511,7 +32511,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.property_list_name = this.id();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 4099;
 	            this._errHandler.sync(this);
@@ -32523,10 +32523,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -32553,7 +32553,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4105;
 	        this.match(TSqlParser.POPULATION);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -32607,7 +32607,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.hex_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 271:
@@ -32638,7 +32638,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.hex_string();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 
@@ -32661,7 +32661,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.hex_string();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 
@@ -32673,10 +32673,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -32751,7 +32751,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -32828,10 +32828,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.credential_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -32874,7 +32874,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.HASHED);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 4193;
 	            this._errHandler.sync(this);
@@ -32897,7 +32897,7 @@ class TSqlParser extends antlr4.Parser {
 	                		}
 	                		break;
 	                	default:
-	                		throw new antlr4.error.NoViableAltException(this);
+	                		throw new antlr4.NoViableAltException(this);
 	                	}
 	                	this.state = 4188; 
 	                	this._errHandler.sync(this);
@@ -33860,7 +33860,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 582:
@@ -33921,10 +33921,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.CREDENTIAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -33975,7 +33975,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.HASHED);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 4234;
 	            this._errHandler.sync(this);
@@ -34045,14 +34045,14 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.asym_key_name = this.id();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -35030,7 +35030,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 128:
@@ -35075,10 +35075,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.credential_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36046,14 +36046,14 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36143,14 +36143,14 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.encryption_password = this.char_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36187,7 +36187,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4334;
 	        localctx.password = this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36247,10 +36247,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.schema_collection_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36301,7 +36301,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4362;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36380,7 +36380,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4385;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36421,7 +36421,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36485,7 +36485,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4416;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36528,7 +36528,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36595,7 +36595,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36678,7 +36678,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -36887,7 +36887,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.RR_BRACKET);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
@@ -36976,7 +36976,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -37959,7 +37959,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.NULL_P);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 4587;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -37989,7 +37989,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38046,10 +38046,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.new_role_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38087,7 +38087,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38184,18 +38184,18 @@ class TSqlParser extends antlr4.Parser {
 	        		    this.expression(0);
 	        		    break;
 	        		default:
-	        		    throw new antlr4.error.NoViableAltException(this);
+	        		    throw new antlr4.NoViableAltException(this);
 	        		}
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 4647; 
 	        	this._errHandler.sync(this);
 	        	_alt = this._interp.adaptivePredict(this._input,455, this._ctx);
 	        } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38236,7 +38236,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4658;
 	        this.search_condition();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38277,7 +38277,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 4669;
 	        this.expression(0);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38330,7 +38330,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.COLLECTION);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 4682;
 	            this.colon_colon();
@@ -38349,7 +38349,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38441,7 +38441,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38503,7 +38503,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38673,7 +38673,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 4780; 
 	        	this._errHandler.sync(this);
@@ -38730,7 +38730,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -38898,7 +38898,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -39082,7 +39082,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -39190,7 +39190,7 @@ class TSqlParser extends antlr4.Parser {
 	                                this.match(TSqlParser.UNLIMITED);
 	                                break;
 	                            default:
-	                                throw new antlr4.error.NoViableAltException(this);
+	                                throw new antlr4.NoViableAltException(this);
 	                            }
 	                            break;
 
@@ -39277,7 +39277,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.SECURITY_LOG);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	            }
 
@@ -39460,7 +39460,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.char_string();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    }
 	                    break;
 
@@ -39550,7 +39550,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.char_string();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    }
 	                    break;
 
@@ -39579,7 +39579,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -39687,7 +39687,7 @@ class TSqlParser extends antlr4.Parser {
 	                                this.match(TSqlParser.UNLIMITED);
 	                                break;
 	                            default:
-	                                throw new antlr4.error.NoViableAltException(this);
+	                                throw new antlr4.NoViableAltException(this);
 	                            }
 	                            break;
 
@@ -39774,7 +39774,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.SECURITY_LOG);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	            }
 
@@ -39974,7 +39974,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.char_string();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    }
 	                    break;
 
@@ -40064,7 +40064,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.char_string();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    }
 	                    break;
 
@@ -40093,7 +40093,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -40190,7 +40190,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -40280,7 +40280,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -40380,7 +40380,7 @@ class TSqlParser extends antlr4.Parser {
 	                    } while(_la===1139 || _la===1173);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 627:
@@ -40433,7 +40433,7 @@ class TSqlParser extends antlr4.Parser {
 	                } while(_la===1139 || _la===1173);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 248:
@@ -40469,7 +40469,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 548:
@@ -40491,7 +40491,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 538:
@@ -40510,7 +40510,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 318:
@@ -40540,7 +40540,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 915:
@@ -40560,7 +40560,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 916:
@@ -40580,7 +40580,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 917:
@@ -40598,7 +40598,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 321:
@@ -40618,7 +40618,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 410:
@@ -40637,7 +40637,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 396:
@@ -40661,7 +40661,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 98:
@@ -40710,7 +40710,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.OFF);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 876:
@@ -40729,10 +40729,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -40791,10 +40791,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.new_server_role_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -40834,7 +40834,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -40909,7 +40909,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -41907,7 +41907,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 5466; 
 	                this._errHandler.sync(this);
@@ -41918,7 +41918,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -42004,10 +42004,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -42084,10 +42084,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.Asym_key_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -42166,7 +42166,7 @@ class TSqlParser extends antlr4.Parser {
 	        		    this.encryption_mechanism();
 	        		    break;
 	        		default:
-	        		    throw new antlr4.error.NoViableAltException(this);
+	        		    throw new antlr4.NoViableAltException(this);
 	        		}
 	        		this.state = 5541;
 	        		this._errHandler.sync(this);
@@ -42178,14 +42178,14 @@ class TSqlParser extends antlr4.Parser {
 
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 5545; 
 	        	this._errHandler.sync(this);
 	        	_alt = this._interp.adaptivePredict(this._input,610, this._ctx);
 	        } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -42226,7 +42226,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 5556;
 	        this.full_object_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -43222,7 +43222,7 @@ class TSqlParser extends antlr4.Parser {
 	        		        this.match(TSqlParser.NULL_P);
 	        		        break;
 	        		    default:
-	        		        throw new antlr4.error.NoViableAltException(this);
+	        		        throw new antlr4.NoViableAltException(this);
 	        		    }
 	        		    break;
 
@@ -43272,7 +43272,7 @@ class TSqlParser extends antlr4.Parser {
 	        		    		this.char_string();
 	        		    		break;
 	        		    	default:
-	        		    		throw new antlr4.error.NoViableAltException(this);
+	        		    		throw new antlr4.NoViableAltException(this);
 	        		    	}
 	        		    	this.state = 5594; 
 	        		    	this._errHandler.sync(this);
@@ -43342,14 +43342,14 @@ class TSqlParser extends antlr4.Parser {
 	        		}
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 5614; 
 	        	this._errHandler.sync(this);
 	        	_alt = this._interp.adaptivePredict(this._input,622, this._ctx);
 	        } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -43860,7 +43860,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -43965,7 +43965,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -44133,7 +44133,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -44307,7 +44307,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -44355,7 +44355,7 @@ class TSqlParser extends antlr4.Parser {
 	        		this.matchWildcard();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 5904; 
 	        	this._errHandler.sync(this);
@@ -44366,7 +44366,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 5907;
 	        this.match(TSqlParser.EOF);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -44395,7 +44395,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 5912;
 	        this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -45358,10 +45358,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -45396,7 +45396,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 5931;
 	        this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -46431,7 +46431,7 @@ class TSqlParser extends antlr4.Parser {
 	        	break;
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -46593,7 +46593,7 @@ class TSqlParser extends antlr4.Parser {
 	        		                    this.match(TSqlParser.OWNER);
 	        		                    break;
 	        		                default:
-	        		                    throw new antlr4.error.NoViableAltException(this);
+	        		                    throw new antlr4.NoViableAltException(this);
 	        		                }
 	        		                this.state = 5988;
 	        		                this._errHandler.sync(this);
@@ -46605,7 +46605,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        		                break;
 	        		            default:
-	        		                throw new antlr4.error.NoViableAltException(this);
+	        		                throw new antlr4.NoViableAltException(this);
 	        		            }
 	        		            this.state = 5994;
 	        		            this._errHandler.sync(this);
@@ -46617,7 +46617,7 @@ class TSqlParser extends antlr4.Parser {
 	        		        this.match(TSqlParser.DROP);
 	        		        break;
 	        		    default:
-	        		        throw new antlr4.error.NoViableAltException(this);
+	        		        throw new antlr4.NoViableAltException(this);
 	        		    }
 	        		    this.state = 5998;
 	        		    this.match(TSqlParser.RR_BRACKET);
@@ -46653,18 +46653,18 @@ class TSqlParser extends antlr4.Parser {
 
 	        		    break;
 	        		default:
-	        		    throw new antlr4.error.NoViableAltException(this);
+	        		    throw new antlr4.NoViableAltException(this);
 	        		}
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 6014; 
 	        	this._errHandler.sync(this);
 	        	_alt = this._interp.adaptivePredict(this._input,691, this._ctx);
 	        } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -46717,10 +46717,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.queue_action();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -47713,14 +47713,14 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DEFAULT);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -47743,7 +47743,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6049;
 	        this.maxdop_option();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -48713,7 +48713,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DEFAULT);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 6063;
 	            this.match(TSqlParser.SENT);
@@ -48743,7 +48743,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6073;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -48816,7 +48816,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -48887,10 +48887,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.schema_collection_name = this.id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -49014,7 +49014,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -49124,7 +49124,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -49174,10 +49174,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DELETE);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -49226,10 +49226,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.VALUES);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50316,7 +50316,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -50337,7 +50337,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50386,7 +50386,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50509,7 +50509,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50552,10 +50552,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.VALUES);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50629,7 +50629,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50666,7 +50666,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -50830,10 +50830,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -51810,10 +51810,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -51845,7 +51845,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6421;
 	        this.select_statement();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -51900,7 +51900,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -51940,10 +51940,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.constant();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -53051,7 +53051,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -53072,7 +53072,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -54043,7 +54043,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.table_name();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 6515;
 	            this._errHandler.sync(this);
@@ -54068,7 +54068,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -54112,7 +54112,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56001,7 +56001,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.id();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 262:
@@ -56010,10 +56010,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DOLLAR_ACTION);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56050,7 +56050,7 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.text_ptr_hex = this.hex_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 6548;
 	        localctx.offset = this._input.LT(1);
@@ -56081,7 +56081,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56126,7 +56126,7 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.text_ptr_hex = this.hex_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 6564;
 	        this._errHandler.sync(this);
@@ -56150,10 +56150,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56198,7 +56198,7 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.text_ptr_hex = this.hex_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 6579;
 	        _la = this._input.LA(1);
@@ -56244,7 +56244,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.char_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 
 	        } else if(la_===2) {
@@ -56262,12 +56262,12 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.text_ptr_hex = this.hex_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56400,7 +56400,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56636,7 +56636,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -56667,7 +56667,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -57618,7 +57618,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 6740;
 	        this.match(TSqlParser.ON);
@@ -57635,7 +57635,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -57690,7 +57690,7 @@ class TSqlParser extends antlr4.Parser {
 	                    }
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
@@ -57796,10 +57796,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ABORT);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -57900,7 +57900,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58014,7 +58014,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58061,7 +58061,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.SQL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 6889;
 	            this._errHandler.sync(this);
@@ -58082,7 +58082,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58156,7 +58156,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58189,7 +58189,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58231,7 +58231,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6931;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58295,7 +58295,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58378,7 +58378,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6972;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58413,7 +58413,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58457,7 +58457,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6989;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58498,7 +58498,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58521,7 +58521,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 6998;
 	        this.index_option();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58564,7 +58564,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALTER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7008;
 	        localctx.proc = this._input.LT(1);
@@ -58688,7 +58688,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58744,7 +58744,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58767,7 +58767,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7071;
 	        this.match(TSqlParser.ATOMIC);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58803,7 +58803,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58862,7 +58862,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.SERIALIZABLE);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 211:
@@ -58893,10 +58893,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.on_off();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58933,7 +58933,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -58976,7 +58976,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALTER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7117;
 	        this.match(TSqlParser.TRIGGER);
@@ -59026,7 +59026,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.OF);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7138;
 	        this.dml_trigger_operation();
@@ -60043,7 +60043,7 @@ class TSqlParser extends antlr4.Parser {
 	            		this.sql_clauses();
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 7157; 
 	            	this._errHandler.sync(this);
@@ -60055,10 +60055,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.external_name();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -60089,7 +60089,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -60132,7 +60132,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALTER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7172;
 	        this.match(TSqlParser.TRIGGER);
@@ -60154,7 +60154,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DATABASE);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7189;
 	        this._errHandler.sync(this);
@@ -61186,7 +61186,7 @@ class TSqlParser extends antlr4.Parser {
 	            		this.sql_clauses();
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 7204; 
 	            	this._errHandler.sync(this);
@@ -61198,10 +61198,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.external_name();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61245,10 +61245,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.execute_as_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61291,7 +61291,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALTER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7223;
 	        this.match(TSqlParser.FUNCTION);
@@ -61364,7 +61364,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61422,7 +61422,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7265;
 	        this.func_body_return_select_body();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61464,7 +61464,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61547,7 +61547,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7302;
 	        this.match(TSqlParser.END);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61619,7 +61619,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7327;
 	        this.external_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61717,10 +61717,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.external_name();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61751,7 +61751,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7366;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61835,7 +61835,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61867,7 +61867,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7392;
 	        this.data_type();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61916,10 +61916,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.execute_as_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -61992,10 +61992,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.inline_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62065,7 +62065,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.STATS_STREAM);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 7435;
 	            this._errHandler.sync(this);
@@ -62102,7 +62102,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62181,7 +62181,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62422,10 +62422,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.maxdop_option();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62452,7 +62452,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7532;
 	        this.on_off();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62502,10 +62502,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DECIMAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62532,7 +62532,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7547;
 	        this.match(TSqlParser.DECIMAL);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62598,7 +62598,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.inline_index();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    } 
 	                }
 	                this.state = 7565;
@@ -62773,7 +62773,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62829,10 +62829,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.storage_partition_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -62865,7 +62865,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -63833,10 +63833,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.index_option_list();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -63863,7 +63863,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7667;
 	        this.expression(0);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -63918,7 +63918,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -63961,7 +63961,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ALTER);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 7688;
 	        this.match(TSqlParser.VIEW);
@@ -64026,7 +64026,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -64057,7 +64057,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -65153,7 +65153,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -66108,7 +66108,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -66311,7 +66311,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66360,7 +66360,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66425,7 +66425,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66490,7 +66490,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66540,7 +66540,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66582,10 +66582,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.storage_partition_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66625,7 +66625,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -66682,7 +66682,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 7951;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -67634,7 +67634,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.CURRENT);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 8033;
 	        this._errHandler.sync(this);
@@ -67831,7 +67831,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.AUTOGROW_ALL_FILES);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -67845,7 +67845,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -67876,7 +67876,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68058,10 +68058,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.termination();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68140,7 +68140,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -68164,7 +68164,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68226,7 +68226,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 69:
@@ -68258,10 +68258,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68304,7 +68304,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68368,10 +68368,10 @@ class TSqlParser extends antlr4.Parser {
 
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68420,10 +68420,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68458,7 +68458,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68503,10 +68503,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68606,7 +68606,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68665,10 +68665,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.audit_action_specification();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68722,7 +68722,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8216;
 	        this.principals();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68757,7 +68757,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8224;
 	        this.match(TSqlParser.SEMI);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -68825,7 +68825,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.state_ = this.match(TSqlParser.DISABLED);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -68971,7 +68971,7 @@ class TSqlParser extends antlr4.Parser {
 
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 8308;
 	            this._errHandler.sync(this);
@@ -69161,7 +69161,7 @@ class TSqlParser extends antlr4.Parser {
 
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 8367;
 	            this._errHandler.sync(this);
@@ -69254,7 +69254,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69277,7 +69277,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8378;
 	        this.mirroring_set_option();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69314,10 +69314,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.witness_option();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69340,7 +69340,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8388;
 	        this.match(TSqlParser.PARTNER);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69363,7 +69363,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8390;
 	        this.match(TSqlParser.WITNESS);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69386,7 +69386,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8392;
 	        this.match(TSqlParser.EQUAL);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69463,10 +69463,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DECIMAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69501,10 +69501,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.OFF);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69527,7 +69527,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8414;
 	        this.partner_server();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69556,7 +69556,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8419;
 	        this.port_number();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69579,7 +69579,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8421;
 	        this.match(TSqlParser.COLON);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69606,7 +69606,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8425;
 	        this.match(TSqlParser.DOUBLE_FORWARD_SLASH);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69629,7 +69629,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8427;
 	        localctx.port = this.match(TSqlParser.DECIMAL);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69669,7 +69669,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69694,7 +69694,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8437;
 	        this.on_off();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69719,7 +69719,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8440;
 	        this.on_off();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69750,7 +69750,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69781,7 +69781,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69812,7 +69812,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -69847,7 +69847,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -70820,7 +70820,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 231:
@@ -71760,7 +71760,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 586:
@@ -71791,10 +71791,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DECIMAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -71840,7 +71840,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.OFF);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 802:
@@ -71856,10 +71856,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -71884,7 +71884,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8493;
 	        this.on_off();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -71917,7 +71917,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72021,7 +72021,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72189,10 +72189,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.on_off();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72261,10 +72261,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DECIMAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72323,10 +72323,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72376,10 +72376,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.on_off();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72438,10 +72438,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72543,10 +72543,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.on_off();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72583,7 +72583,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72632,7 +72632,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72721,7 +72721,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72748,7 +72748,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8687;
 	        this.full_object_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72785,7 +72785,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8696;
 	        localctx.index_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72924,7 +72924,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -72991,7 +72991,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.SERVER);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -73004,7 +73004,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73127,7 +73127,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73175,7 +73175,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73231,7 +73231,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73287,7 +73287,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73383,7 +73383,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73419,7 +73419,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8888;
 	        this.simple_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -73477,10 +73477,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.predict_function();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74461,12 +74461,12 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.RR_BRACKET);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74504,7 +74504,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74558,7 +74558,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74596,7 +74596,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74630,7 +74630,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74663,7 +74663,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 8960;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74707,14 +74707,14 @@ class TSqlParser extends antlr4.Parser {
 	        		this.id();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 8972; 
 	        	this._errHandler.sync(this);
 	        	_alt = this._interp.adaptivePredict(this._input,1167, this._ctx);
 	        } while ( _alt!=2 && _alt!=antlr4.ATN.INVALID_ALT_NUMBER );
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74803,7 +74803,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74840,7 +74840,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.change_table_version();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9011;
 	        this._errHandler.sync(this);
@@ -74855,7 +74855,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9013;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74893,7 +74893,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -74934,7 +74934,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9029;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -75025,7 +75025,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9061;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -75107,7 +75107,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -75185,7 +75185,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -75224,10 +75224,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -75338,10 +75338,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -75373,7 +75373,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -76325,7 +76325,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9165;
 	        this._errHandler.sync(this);
@@ -76367,7 +76367,7 @@ class TSqlParser extends antlr4.Parser {
 	        		this.backup_device();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 9174; 
 	        	this._errHandler.sync(this);
@@ -76405,7 +76405,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -76459,14 +76459,14 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -77418,7 +77418,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9212;
 	        this._errHandler.sync(this);
@@ -77460,7 +77460,7 @@ class TSqlParser extends antlr4.Parser {
 	        		this.backup_device();
 	        		break;
 	        	default:
-	        		throw new antlr4.error.NoViableAltException(this);
+	        		throw new antlr4.NoViableAltException(this);
 	        	}
 	        	this.state = 9221; 
 	        	this._errHandler.sync(this);
@@ -77492,7 +77492,7 @@ class TSqlParser extends antlr4.Parser {
 	            		this.backup_device();
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 9231; 
 	            	this._errHandler.sync(this);
@@ -77523,7 +77523,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -78475,7 +78475,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9261;
 	        this._errHandler.sync(this);
@@ -78501,7 +78501,7 @@ class TSqlParser extends antlr4.Parser {
 	            		this.backup_device();
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 9259; 
 	            	this._errHandler.sync(this);
@@ -78535,7 +78535,7 @@ class TSqlParser extends antlr4.Parser {
 	            		this.backup_device();
 	            		break;
 	            	default:
-	            		throw new antlr4.error.NoViableAltException(this);
+	            		throw new antlr4.NoViableAltException(this);
 	            	}
 	            	this.state = 9271; 
 	            	this._errHandler.sync(this);
@@ -78566,7 +78566,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -78615,7 +78615,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -78633,7 +78633,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -78700,10 +78700,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.backup_restore_option();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -78767,10 +78767,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.backup_restore_option();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -79753,7 +79753,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 582:
@@ -80689,7 +80689,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 183:
@@ -81644,7 +81644,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.LOCAL_ID);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            case 803:
@@ -82583,11 +82583,11 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.LOCAL_ID);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 442:
@@ -82714,11 +82714,11 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.LOCAL_ID);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 621:
@@ -82732,10 +82732,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.NO_LOG);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -82785,7 +82785,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 579:
@@ -82804,7 +82804,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 9385;
 	            this.match(TSqlParser.TO);
@@ -82820,7 +82820,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 781:
@@ -82861,7 +82861,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 679:
@@ -82882,7 +82882,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 471:
@@ -82917,7 +82917,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 9416;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -82955,7 +82955,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 952:
@@ -82985,7 +82985,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.LOCAL_ID);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
@@ -83017,16 +83017,16 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.LOCAL_ID);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -83986,7 +83986,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 553:
@@ -84007,7 +84007,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 92:
@@ -84947,7 +84947,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 99:
@@ -85887,7 +85887,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 531:
@@ -86827,7 +86827,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 125:
@@ -86905,10 +86905,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87032,7 +87032,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87077,7 +87077,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9545;
 	        localctx.encryption_password = this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87124,7 +87124,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9559;
 	        localctx.encryption_password = this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87164,10 +87164,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.kill_stats_job();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87204,7 +87204,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.char_string();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 1054:
@@ -87212,7 +87212,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.UOW);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9576;
 	        this._errHandler.sync(this);
@@ -87225,7 +87225,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87263,10 +87263,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.subscription_id = this.match(TSqlParser.DECIMAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87293,7 +87293,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9587;
 	        localctx.job_id = this.match(TSqlParser.DECIMAL);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87334,7 +87334,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -87396,7 +87396,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -89288,7 +89288,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.proc_var = this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 9625;
 	            this._errHandler.sync(this);
@@ -89363,10 +89363,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -89429,7 +89429,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -89489,7 +89489,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -89516,7 +89516,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9688;
 	        localctx.value = this.execute_parameter();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -89539,7 +89539,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 9690;
 	        localctx.value = this.execute_parameter();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -90521,10 +90521,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DEFAULT);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -90557,10 +90557,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -90667,7 +90667,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.XML);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	            }
 
@@ -90675,7 +90675,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -90732,7 +90732,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.create_certificate();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9748;
 	        this._errHandler.sync(this);
@@ -90743,7 +90743,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -90812,7 +90812,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.permissions();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9760;
 	        this._errHandler.sync(this);
@@ -90851,7 +90851,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -90932,7 +90932,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.permissions();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9788;
 	        this._errHandler.sync(this);
@@ -90974,7 +90974,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91043,7 +91043,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.permissions();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 9809;
 	        this._errHandler.sync(this);
@@ -91078,7 +91078,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91124,7 +91124,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91162,7 +91162,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91198,7 +91198,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91234,7 +91234,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91586,7 +91586,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -91774,10 +91774,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.COLLECTION);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -92012,7 +92012,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LIBRARY);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -92241,7 +92241,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93189,10 +93189,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.PUBLIC);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93244,7 +93244,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.generate_new_keys();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 10102;
 	        this._errHandler.sync(this);
@@ -93272,7 +93272,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93339,10 +93339,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93375,7 +93375,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.hex_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 10127;
 	        this.match(TSqlParser.EQUAL);
@@ -93407,7 +93407,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93465,7 +93465,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93500,7 +93500,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10157;
 	        this.char_string();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93563,7 +93563,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93622,7 +93622,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93698,10 +93698,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93732,7 +93732,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93789,10 +93789,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -93877,10 +93877,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -94008,7 +94008,7 @@ class TSqlParser extends antlr4.Parser {
 
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	            }
 
@@ -94038,7 +94038,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -95043,7 +95043,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.local_id();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 10317;
 	                this._errHandler.sync(this);
@@ -95261,7 +95261,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -95294,7 +95294,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -95326,7 +95326,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -95359,7 +95359,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -95392,7 +95392,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -96478,7 +96478,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.DEFAULT);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 10450;
 	                this._errHandler.sync(this);
@@ -96521,7 +96521,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -96552,7 +96552,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -96586,7 +96586,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97539,10 +97539,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.local_id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97580,10 +97580,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.local_id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97635,10 +97635,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97665,7 +97665,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10491;
 	        this.on_off();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97743,16 +97743,16 @@ class TSqlParser extends antlr4.Parser {
 	                    this.match(TSqlParser.LOCAL_ID);
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97793,7 +97793,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97837,7 +97837,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97885,7 +97885,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10541;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -97925,7 +97925,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.UNIQUE);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10549;
 	            this._errHandler.sync(this);
@@ -97959,10 +97959,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -98027,7 +98027,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -98061,7 +98061,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -98106,7 +98106,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -98149,7 +98149,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -99126,7 +99126,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10614;
 	            this._errHandler.sync(this);
@@ -99272,7 +99272,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -100244,7 +100244,7 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 10684;
 	        this._errHandler.sync(this);
@@ -101190,7 +101190,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.match(TSqlParser.DEFAULT);
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    }
 	                    break;
 
@@ -101294,7 +101294,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101394,7 +101394,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101476,10 +101476,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.for_replication();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101523,7 +101523,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10786;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101581,10 +101581,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101638,7 +101638,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101681,7 +101681,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101721,7 +101721,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10827;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101806,7 +101806,7 @@ class TSqlParser extends antlr4.Parser {
 	                }
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 417:
@@ -101816,10 +101816,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.history_table_option();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101860,10 +101860,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101890,7 +101890,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10862;
 	        this.for_system_time_range();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -101935,7 +101935,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 82:
@@ -101954,7 +101954,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10876;
 	            this.match(TSqlParser.AND);
@@ -101970,7 +101970,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 161:
@@ -101993,7 +101993,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10888;
 	            this.match(TSqlParser.COMMA);
@@ -102009,7 +102009,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10893;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -102030,7 +102030,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10899;
 	            this.match(TSqlParser.TO);
@@ -102046,14 +102046,14 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102087,7 +102087,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 10910;
 	        this.match(TSqlParser.REPLICATION);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102137,7 +102137,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.UNIQUE);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10922;
 	            this._errHandler.sync(this);
@@ -102282,10 +102282,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102335,7 +102335,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.UNIQUE);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 10991;
 	            this._errHandler.sync(this);
@@ -102456,7 +102456,7 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 11040;
 	        this._errHandler.sync(this);
@@ -102467,7 +102467,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102523,7 +102523,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102579,7 +102579,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102624,7 +102624,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -102662,7 +102662,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -103623,7 +103623,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
@@ -103636,7 +103636,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -103695,7 +103695,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11107;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -103745,7 +103745,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -103832,12 +103832,12 @@ class TSqlParser extends antlr4.Parser {
 
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -103921,10 +103921,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.TYPE_WARNING);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -104034,7 +104034,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105085,7 +105085,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.on_off();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -105203,7 +105203,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105234,7 +105234,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105265,7 +105265,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105296,7 +105296,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105376,10 +105376,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105420,10 +105420,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.local_id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105557,7 +105557,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_expression);
 	                    this.state = 11297;
 	                    if (!( this.precpred(this._ctx, 12))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 12)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 12)");
 	                    }
 	                    this.state = 11298;
 	                    this.match(TSqlParser.AT_KEYWORD);
@@ -105574,7 +105574,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_expression);
 	                    this.state = 11302;
 	                    if (!( this.precpred(this._ctx, 10))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 10)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 10)");
 	                    }
 	                    this.state = 11303;
 	                    localctx.op = this._input.LT(1);
@@ -105595,7 +105595,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_expression);
 	                    this.state = 11305;
 	                    if (!( this.precpred(this._ctx, 9))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 9)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 9)");
 	                    }
 	                    this.state = 11306;
 	                    localctx.op = this._input.LT(1);
@@ -105616,7 +105616,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_expression);
 	                    this.state = 11308;
 	                    if (!( this.precpred(this._ctx, 1))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 1)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 1)");
 	                    }
 	                    this.state = 11309;
 	                    this.vector_operator();
@@ -105629,7 +105629,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_expression);
 	                    this.state = 11312;
 	                    if (!( this.precpred(this._ctx, 13))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 13)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 13)");
 	                    }
 	                    this.state = 11313;
 	                    this.collation();
@@ -105643,7 +105643,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch( error) {
-	        if(error instanceof antlr4.error.RecognitionException) {
+	        if(error instanceof antlr4.RecognitionException) {
 		        localctx.exception = error;
 		        this._errHandler.reportError(this, error);
 		        this._errHandler.recover(this, error);
@@ -105782,7 +105782,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105856,7 +105856,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105940,7 +105940,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -105990,10 +105990,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -106020,7 +106020,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11414;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -106102,7 +106102,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -106146,7 +106146,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11453;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -106196,7 +106196,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.assignment_operator();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 11462;
 	            this.expression(0);
@@ -107132,7 +107132,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 11470;
 	            this._errHandler.sync(this);
@@ -107153,7 +107153,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.assignment_operator();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 11472;
 	            this.expression(0);
@@ -107177,7 +107177,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108130,7 +108130,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 11488;
 	            this._errHandler.sync(this);
@@ -108151,7 +108151,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.assignment_operator();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 11490;
 	            this.expression(0);
@@ -108175,7 +108175,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108224,7 +108224,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108286,7 +108286,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108461,7 +108461,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108514,7 +108514,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 11597;
 	        this._errHandler.sync(this);
@@ -108530,7 +108530,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108585,10 +108585,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108633,10 +108633,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.INTERSECT);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108769,7 +108769,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108818,7 +108818,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108870,10 +108870,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.PERCENT);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -108920,7 +108920,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109017,7 +109017,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109079,7 +109079,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.AUTO);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 11746;
 	            this._errHandler.sync(this);
@@ -109122,7 +109122,7 @@ class TSqlParser extends antlr4.Parser {
 	                            }
 	                            break;
 	                        default:
-	                            throw new antlr4.error.NoViableAltException(this);
+	                            throw new antlr4.NoViableAltException(this);
 	                        }
 	                        break;
 
@@ -109328,7 +109328,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109380,10 +109380,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109418,7 +109418,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109481,7 +109481,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109510,7 +109510,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11833;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109539,7 +109539,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11838;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109570,7 +109570,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11844;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109641,7 +109641,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109690,7 +109690,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109715,7 +109715,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11873;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109748,7 +109748,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109777,7 +109777,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11881;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -109821,7 +109821,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 11893;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110148,7 +110148,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110184,10 +110184,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.constant();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110227,7 +110227,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110261,7 +110261,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12000;
 	        this.match(TSqlParser.STAR);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110310,7 +110310,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110368,7 +110368,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.EQUAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 12019;
 	            this.expression(0);
@@ -110376,7 +110376,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110440,7 +110440,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -110495,7 +110495,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -111464,7 +111464,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.with_table_hints();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    } 
 	                }
 	                this.state = 12058;
@@ -112412,7 +112412,7 @@ class TSqlParser extends antlr4.Parser {
 	                        this.with_table_hints();
 	                        break;
 	                    default:
-	                        throw new antlr4.error.NoViableAltException(this);
+	                        throw new antlr4.NoViableAltException(this);
 	                    } 
 	                }
 	                this.state = 12066;
@@ -112570,7 +112570,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12112;
 	                    if (!( this.precpred(this._ctx, 15))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 15)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 15)");
 	                    }
 	                    this.state = 12113;
 	                    localctx.cj = this.match(TSqlParser.CROSS);
@@ -112585,7 +112585,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12116;
 	                    if (!( this.precpred(this._ctx, 14))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 14)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 14)");
 	                    }
 	                    this.state = 12117;
 	                    localctx.lj = this._input.LT(1);
@@ -112608,7 +112608,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12120;
 	                    if (!( this.precpred(this._ctx, 17))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 17)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 17)");
 	                    }
 	                    this.state = 12125;
 	                    this._errHandler.sync(this);
@@ -112641,7 +112641,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12132;
 	                    if (!( this.precpred(this._ctx, 16))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 16)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 16)");
 	                    }
 	                    this.state = 12133;
 	                    localctx.oj = this._input.LT(1);
@@ -112684,7 +112684,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12145;
 	                    if (!( this.precpred(this._ctx, 13))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 13)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 13)");
 	                    }
 	                    this.state = 12146;
 	                    this.match(TSqlParser.PIVOT);
@@ -112705,7 +112705,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12151;
 	                    if (!( this.precpred(this._ctx, 12))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 12)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 12)");
 	                    }
 	                    this.state = 12152;
 	                    this.match(TSqlParser.UNPIVOT);
@@ -112726,7 +112726,7 @@ class TSqlParser extends antlr4.Parser {
 	                    this.pushNewRecursionContext(localctx, _startState, TSqlParser.RULE_table_source_item);
 	                    this.state = 12157;
 	                    if (!( this.precpred(this._ctx, 11))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 11)");
+	                        throw new antlr4.FailedPredicateException(this, "this.precpred(this._ctx, 11)");
 	                    }
 	                    this.state = 12158;
 	                    this.for_system_time();
@@ -112748,7 +112748,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch( error) {
-	        if(error instanceof antlr4.error.RecognitionException) {
+	        if(error instanceof antlr4.RecognitionException) {
 		        localctx.exception = error;
 		        this._errHandler.reportError(this, error);
 		        this._errHandler.recover(this, error);
@@ -112779,7 +112779,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -112814,7 +112814,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12175;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -112853,7 +112853,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12185;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -112895,7 +112895,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.null_notnull();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 12195;
 	            this._errHandler.sync(this);
@@ -112910,7 +112910,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -112948,7 +112948,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -112980,7 +112980,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113016,10 +113016,10 @@ class TSqlParser extends antlr4.Parser {
 	            localctx.bulk_option_str = this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113082,7 +113082,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113232,7 +113232,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113276,7 +113276,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12277;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113491,10 +113491,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113663,10 +113663,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113728,10 +113728,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113773,7 +113773,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12436;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113825,7 +113825,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12447;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113922,10 +113922,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -113954,7 +113954,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12487;
 	        this.match(TSqlParser.R_CURLY);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114153,7 +114153,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114255,7 +114255,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114319,7 +114319,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12606;
 	        this.match(TSqlParser.R_CURLY);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114348,7 +114348,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12611;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114421,7 +114421,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.geospatial_func_arg();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 12623;
 	        this._errHandler.sync(this);
@@ -114442,7 +114442,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114473,7 +114473,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114504,7 +114504,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114535,7 +114535,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114566,7 +114566,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114610,7 +114610,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12638;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114641,7 +114641,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114677,10 +114677,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.geospatial_static_method();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114731,7 +114731,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114789,7 +114789,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114825,7 +114825,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12676;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -114856,7 +114856,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -115807,14 +115807,14 @@ class TSqlParser extends antlr4.Parser {
 	            this.subquery();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 12685;
 	        this.match(TSqlParser.DOT);
 	        this.state = 12686;
 	        localctx.call = this.xml_modify_call();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -115843,7 +115843,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12691;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -116794,7 +116794,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.subquery();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 12698;
 	        this.match(TSqlParser.DOT);
@@ -116807,7 +116807,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12702;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -116836,7 +116836,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12707;
 	        this.expression(0);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -116865,7 +116865,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12712;
 	        this.expression(0);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -116897,7 +116897,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12717;
 	        this.column_alias();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -116929,7 +116929,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12722;
 	        this.table_alias();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -116960,7 +116960,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -117030,10 +117030,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.sample_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -117102,7 +117102,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -118097,7 +118097,7 @@ class TSqlParser extends antlr4.Parser {
 
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 
@@ -118273,7 +118273,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -119221,10 +119221,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DECIMAL);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -119266,7 +119266,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12848;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -120214,10 +120214,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -120267,7 +120267,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -121250,7 +121250,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.expression(0);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 12876;
 	        this._errHandler.sync(this);
@@ -121266,7 +121266,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -121304,7 +121304,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -121362,10 +121362,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.over_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122401,7 +122401,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.all_distinct_expression();
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 12912;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -122448,10 +122448,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122628,10 +122628,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.over_clause();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122670,7 +122670,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 12987;
 	        this.expression(0);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122726,7 +122726,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13002;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122759,7 +122759,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13005;
 	        this.window_frame_extent();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122800,10 +122800,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.window_frame_bound();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122840,7 +122840,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122884,10 +122884,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.ROW);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -122924,10 +122924,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.FOLLOWING);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -123909,7 +123909,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 231:
@@ -124849,7 +124849,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.DECIMAL);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            break;
 	        case 586:
@@ -124922,10 +124922,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.RR_BRACKET);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -124975,12 +124975,12 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 13091;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -125013,10 +125013,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.file_spec();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -125087,7 +125087,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126041,7 +126041,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.char_string();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 13126;
 	        this._errHandler.sync(this);
@@ -126111,7 +126111,7 @@ class TSqlParser extends antlr4.Parser {
 	                this.match(TSqlParser.UNLIMITED);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 13151;
 	            this._errHandler.sync(this);
@@ -126146,7 +126146,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13163;
 	        this.match(TSqlParser.RR_BRACKET);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126171,7 +126171,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13166;
 	        this.match(TSqlParser.EXISTS);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126194,7 +126194,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13168;
 	        this.match(TSqlParser.FROM);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126225,7 +126225,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126266,10 +126266,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126301,7 +126301,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13182;
 	        this.match(TSqlParser.NULL_P);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126348,7 +126348,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126501,7 +126501,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126537,7 +126537,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126573,7 +126573,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126633,7 +126633,7 @@ class TSqlParser extends antlr4.Parser {
 	                    localctx.failure_code_s = this.char_string();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 	                this.state = 13263;
 	                this.match(TSqlParser.DESCRIPTION);
@@ -126651,7 +126651,7 @@ class TSqlParser extends antlr4.Parser {
 	                    localctx.failure_text_s = this.char_string();
 	                    break;
 	                default:
-	                    throw new antlr4.error.NoViableAltException(this);
+	                    throw new antlr4.NoViableAltException(this);
 	                }
 
 	            }
@@ -126666,7 +126666,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126728,7 +126728,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126766,7 +126766,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 13299;
 	        this.match(TSqlParser.FROM);
@@ -126781,7 +126781,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -126833,7 +126833,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -127914,10 +127914,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -127955,7 +127955,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -127993,7 +127993,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	        this.state = 13372;
 	        this.match(TSqlParser.MESSAGE);
@@ -128019,7 +128019,7 @@ class TSqlParser extends antlr4.Parser {
 	                localctx.message_body_v = this.match(TSqlParser.LOCAL_ID);
 	                break;
 	            default:
-	                throw new antlr4.error.NoViableAltException(this);
+	                throw new antlr4.NoViableAltException(this);
 	            }
 	            this.state = 13380;
 	            this.match(TSqlParser.RR_BRACKET);
@@ -128034,7 +128034,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128200,7 +128200,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128264,10 +128264,10 @@ class TSqlParser extends antlr4.Parser {
 	            }
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128290,7 +128290,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13443;
 	        this.match(TSqlParser.BINARY);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128313,7 +128313,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13445;
 	        this.match(TSqlParser.STRING);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128344,7 +128344,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128375,7 +128375,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128446,7 +128446,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13470;
 	        localctx.table = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128518,7 +128518,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13490;
 	        localctx.object_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128574,7 +128574,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13504;
 	        localctx.table = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128622,7 +128622,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13515;
 	        localctx.name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128655,7 +128655,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13522;
 	        localctx.trigger_name = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128703,7 +128703,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13533;
 	        localctx.procedure = this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128785,7 +128785,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128864,10 +128864,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.geospatial_func_arg();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -128911,7 +128911,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13582;
 	        this.xml_func_arg();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -129009,7 +129009,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -129958,10 +129958,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.local_id();
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -129988,7 +129988,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13617;
 	        this.full_object_name();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130013,7 +130013,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13620;
 	        this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130154,7 +130154,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130220,7 +130220,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130302,7 +130302,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130333,7 +130333,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130371,7 +130371,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130417,7 +130417,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13725;
 	        this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -130455,7 +130455,7 @@ class TSqlParser extends antlr4.Parser {
 	            _la = this._input.LA(1);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -131403,10 +131403,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.LOCAL_ID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -131429,7 +131429,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13739;
 	        this.id();
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -132392,10 +132392,10 @@ class TSqlParser extends antlr4.Parser {
 	            this.match(TSqlParser.DOLLAR_ROWGUID);
 	            break;
 	        default:
-	            throw new antlr4.error.NoViableAltException(this);
+	            throw new antlr4.NoViableAltException(this);
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -132418,7 +132418,7 @@ class TSqlParser extends antlr4.Parser {
 	        this.state = 13749;
 	        this.match(TSqlParser.LOCAL_ID);
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -132527,7 +132527,7 @@ class TSqlParser extends antlr4.Parser {
 
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -132558,7 +132558,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -132589,7 +132589,7 @@ class TSqlParser extends antlr4.Parser {
 	            this.consume();
 	        }
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);
@@ -132628,7 +132628,7 @@ class TSqlParser extends antlr4.Parser {
 	        }
 
 	    } catch (re) {
-	    	if(re instanceof antlr4.error.RecognitionException) {
+	    	if(re instanceof antlr4.RecognitionException) {
 		        localctx.exception = re;
 		        this._errHandler.reportError(this, re);
 		        this._errHandler.recover(this, re);

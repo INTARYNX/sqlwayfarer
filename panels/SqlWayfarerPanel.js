@@ -183,6 +183,17 @@ class SqlWayfarerPanel {
         const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
         let html = fs.readFileSync(htmlPath, 'utf8');
 
+        // mtime du bundle réellement chargé (dist/extension.js) — permet de vérifier
+        // qu'on teste bien le dernier build et pas une session restée sur l'ancien code.
+        let buildTime = 'unknown';
+        try {
+            const bundlePath = path.join(this._extensionUri.fsPath, 'dist', 'extension.js');
+            buildTime = fs.statSync(bundlePath).mtime.toLocaleString();
+        } catch (error) {
+            console.warn('Could not read build time:', error);
+        }
+        html = html.replace('{{BUILD_TIME}}', buildTime);
+
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
         html = html.replace('{{EXTENDED_EVENTS_STYLES_URI}}', u('webview', 'extendedEvents.css'));

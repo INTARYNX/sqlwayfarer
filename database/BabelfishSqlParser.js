@@ -33,16 +33,20 @@ class OpsVisitor extends TSqlParserVisitor {
 
     _addOp(tableName, operation) {
         if (!tableName) return;
-        const t = tableName.toLowerCase();
+        // Aligné avec DependencyService qui nettoie les crochets ([dbo].[Table]) avant lookup
+        const t = tableName.replace(/[\[\]]/g, '').toLowerCase();
         if (!this._ops.has(t)) this._ops.set(t, new Set());
         this._ops.get(t).add(operation);
     }
 
+    // Conserve le schéma (voire la DB) quand il est explicite dans le SQL, pour ne pas
+    // confondre p.ex. dbo.Orders et sales.Orders sous une même clé "orders".
     _extractFromFullObjectName(fonCtx) {
-        if (!fonCtx) return null;
-        const ids = fonCtx.id ? fonCtx.id() : [];
-        if (ids.length === 0) return null;
-        return ids[ids.length - 1].getText();
+        if (!fonCtx || !fonCtx.object_name) return null;
+        const parts = [fonCtx.database, fonCtx.schema, fonCtx.object_name]
+            .filter(Boolean)
+            .map(idCtx => idCtx.getText());
+        return parts.join('.');
     }
 
     _extractFromDdlObject(ddlCtx) {
@@ -52,11 +56,35 @@ class OpsVisitor extends TSqlParserVisitor {
         return null;
     }
 
+    // table_source_item est une règle récursive à gauche (JOIN, CROSS APPLY, PIVOT, ...) :
+    // un FROM avec JOIN ne donne qu'un seul item de haut niveau, il faut descendre
+    // dans l'arbre pour retrouver chaque full_object_name référencé.
+    _walkTableSourceItem(item, operation) {
+        if (!item) return;
+        const fon = item.full_object_name ? item.full_object_name() : null;
+        if (fon) this._addOp(this._extractFromFullObjectName(fon), operation);
+
+        const nested = item.table_source_item ? item.table_source_item() : [];
+        for (const child of nested) {
+            this._walkTableSourceItem(child, operation);
+        }
+    }
+
+    _collectFromTableSources(tableSources, operation) {
+        if (!tableSources) return;
+        const items = tableSources.table_source_item ? tableSources.table_source_item() : [];
+        for (const item of items) {
+            this._walkTableSourceItem(item, operation);
+        }
+    }
+
     // === UPDATE ===
     visitUpdate_statement(ctx) {
         const ddl = ctx.ddl_object ? ctx.ddl_object() : null;
         const table = this._extractFromDdlObject(ddl);
         this._addOp(table, 'UPDATE');
+        // La clause FROM optionnelle (UPDATE ... FROM a JOIN b ON ...) est lue, pas écrite
+        this._collectFromTableSources(ctx.table_sources ? ctx.table_sources() : null, 'SELECT');
         // Visite les sous-requêtes (SELECT dans SET, WHERE, etc.)
         this.visitChildren(ctx);
     }
@@ -75,29 +103,25 @@ class OpsVisitor extends TSqlParserVisitor {
         const ddl = from && from.ddl_object ? from.ddl_object() : null;
         const table = this._extractFromDdlObject(ddl);
         this._addOp(table, 'DELETE');
+        // La clause FROM optionnelle (DELETE ... FROM a JOIN b ON ...) est lue, pas écrite
+        this._collectFromTableSources(ctx.table_sources ? ctx.table_sources() : null, 'SELECT');
         this.visitChildren(ctx);
     }
 
     // === SELECT — capturé via table_sources dans la query ===
     visitQuery_specification(ctx) {
-        const tableSources = ctx.table_sources ? ctx.table_sources() : null;
-        if (tableSources) {
-            const items = tableSources.table_source_item ? tableSources.table_source_item() : [];
-            for (const item of items) {
-                const fon = item.full_object_name ? item.full_object_name() : null;
-                const table = this._extractFromFullObjectName(fon);
-                this._addOp(table, 'SELECT');
-            }
-        }
-        // Aussi explorer les JOINs, etc.
+        this._collectFromTableSources(ctx.table_sources ? ctx.table_sources() : null, 'SELECT');
+        // Aussi explorer les sous-requêtes, etc.
         this.visitChildren(ctx);
     }
 
     // === MERGE — conservateur : on note MERGE, sans détailler WHEN clauses ===
     visitMerge_statement(ctx) {
-        const target = ctx.dml_object ? ctx.dml_object() : (ctx.ddl_object ? ctx.ddl_object() : null);
+        const target = ctx.ddl_object ? ctx.ddl_object() : null;
         const table = this._extractFromDdlObject(target);
         if (table) this._addOp(table, 'MERGE');
+        // USING table_sources : source lue par le MERGE
+        this._collectFromTableSources(ctx.table_sources ? ctx.table_sources() : null, 'SELECT');
         this.visitChildren(ctx);
     }
 }

@@ -35,6 +35,7 @@ SQL Wayfarer is a VS Code extension that turns your editor into a full SQL Serve
 
 ### Dependency Analysis
 - Visualize which objects depend on a given object and which objects it depends on
+- See the actual operation performed on each dependency (SELECT, INSERT, UPDATE, DELETE, MERGE), extracted by parsing the object's T-SQL definition — not just a generic "referenced" flag
 - Understand the full impact of a change before making it
 
 ### Documentation
@@ -68,6 +69,7 @@ You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 - Encrypted object definitions cannot be retrieved by design (SQL Server restriction).
 - Very large databases may experience slower initial load times.
 - T-SQL syntax highlighting covers standard cases; complex dialect features may not be fully highlighted.
+- Dependency operations are detected via static analysis of T-SQL; calls made through dynamic SQL, `EXECUTE` of another procedure, or references used only as a parameter type are shown without a specific operation.
 
 ---
 

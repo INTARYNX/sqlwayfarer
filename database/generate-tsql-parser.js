@@ -43,8 +43,8 @@ function patchToCommonJS(filePath) {
         '\n// patched: removed "extern bool pltsql_quoted_identifier;" (Babelfish grammar C++ artifact)\n'
     );
 
-    // Patch antlr4.{atn,dfa,tree}.* references — runtime exposes classes at top level, not nested
-    content = content.replace(/antlr4\.(atn|dfa|tree)\./g, 'antlr4.');
+    // Patch antlr4.{atn,dfa,tree,error}.* references — runtime exposes classes at top level, not nested
+    content = content.replace(/antlr4\.(atn|dfa|tree|error)\./g, 'antlr4.');
 
     // Convert all ESM "import" to CommonJS "require"
     content = content.replace(

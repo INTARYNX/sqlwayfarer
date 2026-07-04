@@ -1136,13 +1136,12 @@ class ExplorerManager {
 
         html += '<h4>Dependencies (objects this depends on):</h4>';
         if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
-            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+            html += '<table><tr><th>Object Name</th><th>Type</th><th>Operations</th></tr>';
             dependencies.dependsOn.forEach(dep => {
                 const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
                 html += `<tr>
               <td>${this.escapeHtml(dep.referenced_object)}</td>
               <td>${this.escapeHtml(dep.referenced_object_type)}</td>
-              <td>${this.escapeHtml(dep.dependency_type || 'Unknown')}</td>
               <td><small>${this.escapeHtml(operations)}</small></td>
           </tr>`;
             });
@@ -1153,13 +1152,12 @@ class ExplorerManager {
 
         html += '<h4>Referenced by (objects that depend on this):</h4>';
         if (dependencies.referencedBy && dependencies.referencedBy.length > 0) {
-            html += '<table><tr><th>Object Name</th><th>Type</th><th>Dependency Type</th><th>Operations</th></tr>';
+            html += '<table><tr><th>Object Name</th><th>Type</th><th>Operations</th></tr>';
             dependencies.referencedBy.forEach(ref => {
                 const operations = ref.operations ? ref.operations.join(', ') : (ref.dependency_type || 'Unknown');
                 html += `<tr>
               <td>${this.escapeHtml(ref.referencing_object)}</td>
               <td>${this.escapeHtml(ref.referencing_object_type)}</td>
-              <td>${this.escapeHtml(ref.dependency_type || 'Unknown')}</td>
               <td><small>${this.escapeHtml(operations)}</small></td>
           </tr>`;
             });

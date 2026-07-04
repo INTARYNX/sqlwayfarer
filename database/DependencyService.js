@@ -53,7 +53,12 @@ class DependencyService {
 
             const dependsOn = (objectData.dependencies || []).map(dep => {
                 const depClean = dep.replace(/[\[\]]/g, '').toLowerCase();
-                const operations = opsMap?.[depClean] || ['REFERENCE'];
+                // Le parser SQL qualifie ses clés (schema.table, voire db.schema.table) quand le SQL
+                // source précise le schéma — on matche donc d'abord sur le nom complet pour ne pas
+                // confondre p.ex. dbo.Orders et sales.Orders. Si le SQL source référence la table
+                // sans schéma (résolution implicite), le parser n'a que le nom nu : on retombe alors
+                // sur un match par dernier segment, avec le risque de collision inter-schéma que ça implique.
+                const operations = opsMap?.[depClean] || opsMap?.[depClean.split('.').pop()] || ['REFERENCE'];
                 return {
                     referenced_object: dep,
                     referenced_object_type: this._getTypeFromCode(index.objects[dep]?.type),
@@ -98,8 +103,16 @@ class DependencyService {
             // Tables n'ont pas de "définition" utile pour le parsing — toujours SELECT/INSERT/UPDATE/DELETE possibles
             if (objectType === 'U') return null;
 
+            // objectName est "schema.object" — il faut quoter chaque partie séparément,
+            // sinon QUOTENAME() sur le nom complet produit un seul identifiant avec un
+            // point littéral (ex: [schema.object]) que OBJECT_ID ne peut jamais résoudre.
+            const parts = objectName.split('.');
+            const namePart = parts.pop().replace(/'/g, "''");
+            const schemaPart = (parts.join('.') || 'dbo').replace(/'/g, "''");
+
             const result = await this._connectionManager.executeQuery(`
-                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME('${database.replace(/'/g, "''")}') + '.' + QUOTENAME('${objectName.replace(/'/g, "''")}'))) AS definition;
+                USE [${database}];
+                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME('${schemaPart}') + '.' + QUOTENAME('${namePart}'))) AS definition;
             `);
 
             const definition = result.recordset?.[0]?.definition;
