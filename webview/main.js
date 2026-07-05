@@ -688,12 +688,27 @@ class ExplorerManager {
             databaseSelect: document.getElementById('databaseSelect'),
             objectList: document.getElementById('objectList'),
             detailsContent: document.getElementById('detailsContent'),
-            explorerSection: document.querySelector('.explorer-section')
+            explorerSection: document.querySelector('.explorer-section'),
+            exportDictionaryBtn: document.getElementById('exportDictionaryBtn')
         };
     }
 
     initEventListeners() {
         this.elements.databaseSelect.addEventListener('change', () => this.handleDatabaseChange());
+        this.elements.exportDictionaryBtn.addEventListener('click', () => this.handleExportDictionary());
+    }
+
+    // Generate and save the Markdown data dictionary for the selected database
+    handleExportDictionary() {
+        if (!appState.currentDatabase) return;
+        this.elements.exportDictionaryBtn.disabled = true;
+        this.elements.exportDictionaryBtn.textContent = '📖 Exporting…';
+        vscode.postMessage({ command: 'exportDataDictionary', database: appState.currentDatabase });
+    }
+
+    onDictionaryExported() {
+        this.elements.exportDictionaryBtn.disabled = !appState.currentDatabase;
+        this.elements.exportDictionaryBtn.textContent = '📖 Dictionary';
     }
 
     // Grey out / re-enable the explorer panels
@@ -722,6 +737,7 @@ class ExplorerManager {
     handleDatabaseChange() {
         const database = this.elements.databaseSelect.value;
         appState.currentDatabase = database;
+        this.elements.exportDictionaryBtn.disabled = !database;
 
         // Panels stay greyed out until this database finishes (re)indexing.
         this.setPanelsLocked(true);
@@ -1482,6 +1498,10 @@ class MessageHandler {
                 if (this.queryManager) {
                     this.queryManager.onObjectColumnsLoaded(message);
                 }
+                break;
+
+            case 'dataDictionaryExported':
+                this.explorerManager.onDictionaryExported();
                 break;
 
             default:

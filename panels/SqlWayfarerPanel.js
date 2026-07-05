@@ -10,12 +10,14 @@ const DatabaseService = require('../database/DatabaseService');
 const DependencyService = require('../database/DependencyService');
 const IndexService = require('../database/IndexServices');
 const CommentsService = require('../database/CommentsService');
+const DataDictionaryService = require('../database/DataDictionaryService');
 
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
 const QueryHandlers = require('./handlers/QueryHandlers');
+const ExportHandlers = require('./handlers/ExportHandlers');
 
 class SqlWayfarerPanel {
     constructor(panel, extensionUri, context) {
@@ -31,6 +33,7 @@ class SqlWayfarerPanel {
         this._indexService = new IndexService(this._connectionManager, this._databaseService);
         this._dependencyService = new DependencyService();
         this._commentsService = new CommentsService(this._connectionManager);
+        this._dataDictionaryService = new DataDictionaryService(this._connectionManager, this._indexService);
 
         const post = msg => this._panel.webview.postMessage(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -40,6 +43,7 @@ class SqlWayfarerPanel {
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
         this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState);
+        this._export = new ExportHandlers(post, this._dataDictionaryService);
 
         this._initialize();
     }
@@ -161,6 +165,9 @@ class SqlWayfarerPanel {
             case 'cancelQuery':                 q.handleCancelQuery(); break;
             case 'getQueryHistory':             await q.handleGetQueryHistory(); break;
             case 'clearQueryHistory':           await q.handleClearQueryHistory(); break;
+
+            // Export
+            case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database); break;
 
             default:
                 console.warn(`Unknown command: ${message.command}`);

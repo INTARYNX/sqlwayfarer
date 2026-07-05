@@ -1018,14 +1018,33 @@ th {
     display: flex;
 }
 
-.modal-dialog-wide {
+/* Doubled class for specificity: comments.css (loaded after this sheet) sets
+   .modal-dialog { max-width: 500px } which would otherwise win the cascade. */
+.modal-dialog.modal-dialog-wide {
     width: 95vw;
     max-width: 1400px;
     max-height: 90vh;
 }
 
-.modal-dialog-small {
+.modal-dialog.modal-dialog-small {
     max-width: 420px;
+}
+
+/* Objects modal: a single scrollbar, owned by the JSON block itself.
+   The .modal-body default overflow-y:auto would nest a second one around it. */
+.objects-modal-overlay .modal-body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.objects-modal-overlay .objects-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
 }
 
 .progress-bar-track {
@@ -1083,14 +1102,15 @@ th {
     border: 1px solid var(--vscode-input-border);
     border-radius: 4px;
     padding: 15px;
-    max-height: 70vh;
+    flex: 1;
+    min-height: 0;
     overflow: auto;
     font-family: var(--vscode-editor-font-family);
     font-size: var(--vscode-editor-font-size, 13px);
     line-height: 1.5;
     color: var(--vscode-editor-foreground);
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    /* pre (not pre-wrap): JSON lines stay intact, long ones scroll horizontally */
+    white-space: pre;
 }
 
 /* === PLACEHOLDER TEXT === */
