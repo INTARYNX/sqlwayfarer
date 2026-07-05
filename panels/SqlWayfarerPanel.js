@@ -64,7 +64,9 @@ class SqlWayfarerPanel {
             'sqlwayfarer-sqlwayfarer',
             'SQL Wayfarer',
             column || vscode.ViewColumn.One,
-            { enableScripts: true, localResourceRoots: [extensionUri] }
+            // enableFindWidget: native Ctrl+F over all rendered content
+            // (code definitions, query results, object lists).
+            { enableScripts: true, localResourceRoots: [extensionUri], enableFindWidget: true }
         );
 
         SqlWayfarerPanel.currentPanel = new SqlWayfarerPanel(panel, extensionUri, context);

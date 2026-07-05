@@ -14,7 +14,6 @@ class CodeViewManager {
         this.currentObject = null;
         this.currentObjectType = null;
         this.currentDefinition = null;
-        this.isExpanded = false;
         this.showLineNumbers = false;
     }
 
@@ -75,13 +74,10 @@ class CodeViewManager {
                         <button class="code-action-btn" onclick="window.codeViewManager.toggleLineNumbers()" title="Toggle line numbers">
                             ${this.showLineNumbers ? 'Hide Lines' : 'Show Lines'}
                         </button>
-                        <button class="code-action-btn expand-btn" onclick="window.codeViewManager.toggleExpand()" title="Expand/Collapse">
-                            ${this.isExpanded ? 'Collapse' : 'Expand'}
-                        </button>
                     </div>
                 </div>
                 
-                <div class="code-content ${this.isExpanded ? 'expanded' : ''}">
+                <div class="code-content">
                     ${this.renderCodeContent(definition)}
                 </div>
                 
@@ -221,13 +217,6 @@ class CodeViewManager {
         }
     }
 
-    toggleExpand() {
-        this.isExpanded = !this.isExpanded;
-        if (this.currentDefinition) {
-            this.displayCode(this.currentDefinition);
-        }
-    }
-
     // Basic SQL formatting
     basicSQLFormat(sql) {
         if (!sql) return sql;
@@ -332,7 +321,6 @@ class CodeViewManager {
         this.currentObject = null;
         this.currentObjectType = null;
         this.currentDefinition = null;
-        this.isExpanded = false;
         this.showLineNumbers = false;
         this.showPlaceholder();
     }

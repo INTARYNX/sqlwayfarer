@@ -86,18 +86,15 @@
     background: var(--vscode-button-secondaryHoverBackground);
 }
 
+/* flex:1 fills the whole tab height - no max-height cap, which also made
+   the old Expand/Collapse button redundant (removed). */
 .code-content {
     position: relative;
     background: var(--vscode-textCodeBlock-background);
     flex: 1;
     min-height: 0;
-    max-height: 60vh;
     overflow: auto;
     border-radius: 0 0 4px 4px;
-}
-
-.code-content.expanded {
-    max-height: 85vh;
 }
 
 .code-editor {
@@ -292,10 +289,6 @@
    
    .code-content {
        max-height: 45vh;
-   }
-
-   .code-content.expanded {
-       max-height: 70vh;
    }
    
    .code-metrics {

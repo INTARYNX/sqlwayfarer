@@ -683,12 +683,29 @@ class FilterManager {
             item.classList.add('hidden');
         });
 
+        const visibleBySchema = {};
         appState.filteredObjects.forEach(obj => {
             const item = objectList.querySelector(`[data-name="${obj.name}"]`);
             if (item) {
                 item.classList.remove('hidden');
             }
+            const schema = obj.schema_name || 'dbo';
+            visibleBySchema[schema] = (visibleBySchema[schema] || 0) + 1;
         });
+
+        // Schema badges reflect the filter ("3 of 15") and empty schemas disappear
+        objectList.querySelectorAll('.schema-header').forEach(header => {
+            const total = Number(header.dataset.total);
+            const visible = visibleBySchema[header.dataset.schema] || 0;
+            header.classList.toggle('hidden', visible === 0);
+            header.querySelector('.schema-count').textContent =
+                visible === total ? `(${total})` : `(${visible} of ${total})`;
+        });
+
+        const noMatches = document.getElementById('noMatchesMessage');
+        if (noMatches) {
+            noMatches.classList.toggle('hidden', appState.filteredObjects.length > 0 || appState.allObjects.length === 0);
+        }
 
         this.updateObjectCount();
     }
@@ -989,6 +1006,9 @@ class ExplorerManager {
             if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
                 const schemaHeader = document.createElement('div');
                 schemaHeader.className = 'schema-header';
+                // dataset lets the filter update the badge and hide empty schemas
+                schemaHeader.dataset.schema = schema;
+                schemaHeader.dataset.total = objectsBySchema[schema].length;
                 schemaHeader.innerHTML = `
                 <span class="schema-name">📁 ${schema}</span>
                 <span class="schema-count">(${objectsBySchema[schema].length})</span>
@@ -1032,6 +1052,13 @@ class ExplorerManager {
                 this.elements.objectList.appendChild(div);
             });
         });
+
+        // Shown by the filter when a search matches nothing
+        const noMatches = document.createElement('p');
+        noMatches.id = 'noMatchesMessage';
+        noMatches.className = 'placeholder-text hidden';
+        noMatches.textContent = 'No objects match the current search.';
+        this.elements.objectList.appendChild(noMatches);
     }
 
     _getObjectTypeIcon(objectType) {

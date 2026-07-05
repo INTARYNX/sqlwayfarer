@@ -4,6 +4,16 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.7.3] - 2026-07-05
+
+### Added
+
+- **Ctrl+F search** in the panel (VS Code's native find widget): searches code definitions, query results and object lists.
+
+### Removed
+
+- Expand/Collapse button in the Code tab: the code area now always fills the available height, making the button pointless.
+
 ## [0.7.2] - 2026-07-05
 
 ### Added

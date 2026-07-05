@@ -568,7 +568,9 @@ label {
     border-left-color: var(--vscode-button-background);
 }
 
-.object-item.hidden {
+.object-item.hidden,
+.schema-header.hidden,
+.placeholder-text.hidden {
     display: none;
 }
 
