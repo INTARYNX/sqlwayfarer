@@ -764,6 +764,8 @@ class ExplorerManager {
         this.initEventListeners();
         this.dependencyVisualizer = new DependencyVisualizer();
         this.filterManager = new FilterManager();
+        // qualified_name -> { row_count, reserved_kb }, filled by tableStatsLoaded
+        this.tableStats = new Map();
     }
 
     initDOMElements() {
@@ -987,9 +989,140 @@ class ExplorerManager {
     onObjectsLoaded(objects) {
         appState.allObjects = objects;
         appState.filteredObjects = objects;
+        // Stats for the new database arrive in a separate follow-up message
+        this.tableStats = new Map();
         this.displayObjects(objects);
         this.filterManager.enableFilters();
         this.filterManager.updateObjectCount();
+    }
+
+    // Stats arrive after the list is rendered - decorate the existing items.
+    // A slow stats query can outlive a database switch: drop stale responses.
+    onTableStatsLoaded(database, stats) {
+        if (database !== appState.currentDatabase) return;
+
+        this.tableStats = new Map((stats || []).map(s => [s.qualified_name, s]));
+
+        this.elements.objectList.querySelectorAll('.object-item[data-type="Table"]').forEach(item => {
+            const oldBadge = item.querySelector('.object-stats');
+            if (oldBadge) oldBadge.remove();
+
+            const badge = this._buildStatsBadge(item.dataset.qualifiedName);
+            if (badge) {
+                // Same slot as displayObjects: right before the buttons
+                const anchor = item.querySelector('.object-script-btn, .object-peek-btn');
+                item.insertBefore(badge, anchor);
+            }
+        });
+    }
+
+    // Script types offered by the 📜 button, per object type
+    _getScriptOptions(objectType) {
+        switch (objectType) {
+            case 'Table': return [
+                { type: 'select', label: 'SELECT (all columns)' },
+                { type: 'insert', label: 'INSERT template' },
+                { type: 'update', label: 'UPDATE template' },
+                { type: 'create', label: 'CREATE TABLE' }
+            ];
+            case 'View': return [
+                { type: 'select', label: 'SELECT (all columns)' },
+                { type: 'create', label: 'CREATE (definition)' }
+            ];
+            case 'Procedure': return [
+                { type: 'exec', label: 'EXEC template' },
+                { type: 'create', label: 'CREATE (definition)' }
+            ];
+            case 'Function': return [
+                { type: 'select', label: 'SELECT (call)' },
+                { type: 'create', label: 'CREATE (definition)' }
+            ];
+            default: return [];
+        }
+    }
+
+    openScriptMenu(anchorBtn, obj) {
+        const items = this._getScriptOptions(obj.object_type).map(opt => ({
+            label: opt.label,
+            onClick: () => vscode.postMessage({
+                command: 'generateScript',
+                database: appState.currentDatabase,
+                objectName: obj.qualified_name || obj.name,
+                objectType: obj.object_type,
+                scriptType: opt.type
+            })
+        }));
+        this._openPopupMenu(anchorBtn, items, { alignRight: true });
+    }
+
+    // Shared popup mechanics for the script and column-usage menus: one menu
+    // open at a time, closed by any outside click.
+    _openPopupMenu(anchorBtn, items, { alignRight = false } = {}) {
+        this.closePopupMenu();
+        if (items.length === 0) return;
+
+        const menu = document.createElement('div');
+        menu.className = 'script-menu';
+        items.forEach(({ label, title, onClick }) => {
+            const item = document.createElement('button');
+            item.className = 'script-menu-item';
+            item.textContent = label;
+            if (title) item.title = title;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.closePopupMenu();
+                onClick();
+            });
+            menu.appendChild(item);
+        });
+
+        document.body.appendChild(menu);
+        const rect = anchorBtn.getBoundingClientRect();
+        menu.style.top = `${Math.min(rect.bottom + 2, window.innerHeight - menu.offsetHeight - 8)}px`;
+        const left = alignRight ? rect.right - menu.offsetWidth : rect.left;
+        menu.style.left = `${Math.min(Math.max(8, left), window.innerWidth - menu.offsetWidth - 8)}px`;
+
+        this._popupMenu = menu;
+        this._popupMenuCloser = (e) => {
+            if (!menu.contains(e.target)) this.closePopupMenu();
+        };
+        // Deferred so the opening click does not immediately close the menu
+        setTimeout(() => document.addEventListener('click', this._popupMenuCloser), 0);
+    }
+
+    closePopupMenu() {
+        if (this._popupMenu) {
+            this._popupMenu.remove();
+            document.removeEventListener('click', this._popupMenuCloser);
+            this._popupMenu = null;
+            this._popupMenuCloser = null;
+        }
+    }
+
+    _buildStatsBadge(qualifiedName) {
+        const stats = this.tableStats.get(qualifiedName);
+        if (!stats) return null;
+
+        const badge = document.createElement('span');
+        badge.className = 'object-stats';
+        badge.textContent = `${this._formatCompactCount(stats.row_count)} · ${this._formatKb(stats.reserved_kb)}`;
+        badge.title = `${Number(stats.row_count).toLocaleString('en-US')} rows · ${this._formatKb(stats.reserved_kb)} reserved`;
+        return badge;
+    }
+
+    _formatCompactCount(n) {
+        n = Number(n) || 0;
+        if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+        if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+        return String(n);
+    }
+
+    _formatKb(kb) {
+        kb = Number(kb) || 0;
+        if (kb >= 1024 * 1024) return (kb / (1024 * 1024)).toFixed(1) + ' GB';
+        if (kb >= 1024) return (kb / 1024).toFixed(1) + ' MB';
+        return `${kb} KB`;
     }
 
     displayObjects(objects) {
@@ -1034,6 +1167,23 @@ class ExplorerManager {
                 div.dataset.qualifiedName = obj.qualified_name || obj.name;
                 div.dataset.type = obj.object_type;
                 div.dataset.schema = obj.schema_name || 'dbo';
+
+                if (obj.object_type === 'Table') {
+                    const badge = this._buildStatsBadge(div.dataset.qualifiedName);
+                    if (badge) div.appendChild(badge);
+                }
+
+                if (this._getScriptOptions(obj.object_type).length > 0) {
+                    const scriptBtn = document.createElement('button');
+                    scriptBtn.className = 'object-script-btn';
+                    scriptBtn.title = 'Generate a SQL script for this object';
+                    scriptBtn.textContent = '📜';
+                    scriptBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.openScriptMenu(scriptBtn, obj);
+                    });
+                    div.appendChild(scriptBtn);
+                }
 
                 if (obj.object_type === 'Table' || obj.object_type === 'View') {
                     const peekBtn = document.createElement('button');
@@ -1100,13 +1250,23 @@ class ExplorerManager {
         return grouped;
     }
 
-    onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies) {
+    onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies, stats) {
         console.log(`Table details loaded for: ${tableName}`);
 
         appState.currentDependencies = dependencies;
+        this._currentDetailsTable = tableName;
+
+        // Column lineage comes from the in-memory index - fetched separately
+        // so the details view never waits on it
+        vscode.postMessage({
+            command: 'getColumnUsage',
+            database: appState.currentDatabase,
+            table: tableName
+        });
 
         const html = [
             `<div class="section-header">Table: ${this.escapeHtml(tableName)}</div>`,
+            this.buildStatsSection(stats),
             this.buildColumnsTable(columns),
             this.buildIndexesTable(indexes),
             this.buildForeignKeysTable(foreignKeys),
@@ -1239,6 +1399,20 @@ class ExplorerManager {
         container.innerHTML = `<pre>${treeText}</pre>`;
     }
 
+    // Row count and disk usage summary line shown under the table header.
+    // stats is null when the backend could not read allocation metadata.
+    buildStatsSection(stats) {
+        if (!stats) return '';
+
+        const parts = [
+            `Rows: <strong>${Number(stats.rowCount).toLocaleString('en-US')}</strong>`,
+            `Data: <strong>${this._formatKb(stats.dataKb)}</strong>`,
+            `Indexes: <strong>${this._formatKb(stats.indexKb)}</strong>`,
+            `Reserved: <strong>${this._formatKb(stats.reservedKb)}</strong>`
+        ];
+        return `<div class="table-stats">${parts.join('<span class="stat-separator">·</span>')}</div>`;
+    }
+
     buildColumnsTable(columns) {
         if (!columns || columns.length === 0) {
             return '<h3>Columns</h3><p>No columns found.</p>';
@@ -1253,6 +1427,7 @@ class ExplorerManager {
                <th>Default</th>
                <th>Length</th>
                <th>Extra</th>
+               <th>Used by</th>
            </tr>`;
 
         columns.forEach(col => {
@@ -1274,11 +1449,64 @@ class ExplorerManager {
                <td>${this.escapeHtml(col.COLUMN_DEFAULT || '')}</td>
                <td>${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
                <td>${extraInfo.join(', ')}</td>
+               <td class="col-usage" data-column="${this.escapeHtml(col.COLUMN_NAME.toLowerCase()).replace(/"/g, '&quot;')}">…</td>
            </tr>`;
         });
 
         html += '</table>';
         return html;
+    }
+
+    // Fill the "Used by" cells once the index-based column lineage arrives.
+    // usage: { columnNameLower: [{ object, type, write, confident }] }
+    onColumnUsageResult(tableName, usage) {
+        if (tableName !== this._currentDetailsTable) return;
+
+        this.elements.detailsContent.querySelectorAll('.col-usage').forEach(cell => {
+            // usage === null: lookup failed (index unreadable) - unlike an
+            // empty object, this is not a confident "no references"
+            if (!usage) {
+                cell.textContent = '';
+                cell.title = 'Column usage unavailable (index could not be read)';
+                return;
+            }
+            const refs = usage[cell.dataset.column] || [];
+            if (refs.length === 0) {
+                cell.textContent = '—';
+                cell.title = 'No indexed object references this column';
+                return;
+            }
+
+            const writes = refs.filter(r => r.write).length;
+            const uncertain = refs.filter(r => !r.confident).length;
+            const label = `${refs.length} object${refs.length > 1 ? 's' : ''}` +
+                (writes ? ` · ${writes}✍` : '') + (uncertain ? ' · ~' : '');
+
+            cell.innerHTML = '';
+            const btn = document.createElement('button');
+            btn.className = 'col-usage-btn';
+            btn.textContent = label;
+            btn.title = 'Objects referencing this column (✍ = writes, ~ = uncertain matches). Click for the list.';
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openColumnUsageMenu(btn, refs);
+            });
+            cell.appendChild(btn);
+        });
+    }
+
+    // List of referencing objects; click reveals the object in the Explorer.
+    openColumnUsageMenu(anchorBtn, refs) {
+        const items = refs.map(ref => ({
+            label: `${ref.object}${ref.write ? ' ✍' : ''}${ref.confident ? '' : ' (?)'}`,
+            title: `${ref.write ? 'Writes to' : 'Reads'} this column${ref.confident ? '' : ' (ambiguous, unqualified reference)'}`,
+            onClick: () => {
+                const obj = (appState.allObjects || []).find(o =>
+                    (o.qualified_name || '').toLowerCase() === ref.object.toLowerCase());
+                if (obj) this.revealObject(obj);
+            }
+        }));
+        this._openPopupMenu(anchorBtn, items);
     }
 
     buildIndexesTable(indexes) {
@@ -1487,13 +1715,29 @@ class MessageHandler {
                 this.explorerManager.onObjectsLoaded(message.objects);
                 break;
 
+            case 'tableStatsLoaded':
+                this.explorerManager.onTableStatsLoaded(message.database, message.stats);
+                break;
+
+            case 'scriptGenerated':
+                if (this.queryManager) {
+                    this.tabManager.switchTab('query');
+                    this.queryManager.setQueryText(message.script);
+                }
+                break;
+
+            case 'columnUsageResult':
+                this.explorerManager.onColumnUsageResult(message.tableName, message.usage);
+                break;
+
             case 'tableDetailsLoaded':
                 this.explorerManager.onTableDetailsLoaded(
                     message.tableName,
                     message.columns,
                     message.indexes,
                     message.foreignKeys,
-                    message.dependencies
+                    message.dependencies,
+                    message.stats
                 );
                 break;
 

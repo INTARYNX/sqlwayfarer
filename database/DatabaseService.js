@@ -129,8 +129,12 @@ class DatabaseService {
                 c.ORDINAL_POSITION,
                 c.NUMERIC_PRECISION,
                 c.NUMERIC_SCALE,
+                c.DATETIME_PRECISION,
                 CASE WHEN ic.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_IDENTITY,
-                CASE WHEN cc.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_COMPUTED
+                CASE WHEN cc.column_id IS NOT NULL THEN 1 ELSE 0 END as IS_COMPUTED,
+                TRY_CONVERT(bigint, ic.seed_value) as IDENTITY_SEED,
+                TRY_CONVERT(bigint, ic.increment_value) as IDENTITY_INCREMENT,
+                cc.definition as COMPUTED_DEFINITION
             FROM INFORMATION_SCHEMA.COLUMNS c
             LEFT JOIN sys.identity_columns ic
                 ON ic.object_id = OBJECT_ID('${qualifiedTableName}') AND ic.name = c.COLUMN_NAME
@@ -283,6 +287,66 @@ class DatabaseService {
             object_type: row.object_type,
             schema_name: row.schema_name
         }));
+    }
+
+    // Row count + reserved size for every table in one query, for the Explorer
+    // list badges. Needs VIEW DATABASE STATE - callers must treat it as
+    // best-effort.
+    async getAllTableStats(database) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT
+                s.name + '.' + o.name AS qualified_name,
+                SUM(CASE WHEN ps.index_id IN (0, 1) THEN ps.row_count ELSE 0 END) AS row_count,
+                SUM(ps.reserved_page_count) * 8 AS reserved_kb
+            FROM sys.dm_db_partition_stats ps
+            INNER JOIN sys.objects o ON o.object_id = ps.object_id
+            INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
+            WHERE o.type = 'U'
+            GROUP BY s.name, o.name
+        `);
+
+        return result.recordset.map(row => ({
+            qualified_name: row.qualified_name,
+            row_count: row.row_count,
+            reserved_kb: row.reserved_kb
+        }));
+    }
+
+    // Row count and disk usage from allocation metadata (same formulas as
+    // sp_spaceused) - instant even on huge tables, unlike COUNT(*) which scans.
+    async getTableStats(database, tableName) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const { schema, objectName } = this._parseObjectName(tableName);
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT
+                (SELECT SUM(p2.rows) FROM sys.partitions p2
+                 WHERE p2.object_id = OBJECT_ID(@objectName) AND p2.index_id IN (0, 1)) AS row_count,
+                SUM(a.total_pages) * 8 AS reserved_kb,
+                SUM(a.used_pages) * 8 AS used_kb,
+                SUM(CASE
+                    WHEN a.type <> 1 THEN a.used_pages          -- LOB / row-overflow
+                    WHEN p.index_id IN (0, 1) THEN a.data_pages -- heap / clustered index
+                    ELSE 0
+                END) * 8 AS data_kb
+            FROM sys.partitions p
+            JOIN sys.allocation_units a ON a.container_id = p.partition_id
+            WHERE p.object_id = OBJECT_ID(@objectName)
+        `, { objectName: `${schema}.${objectName}` });
+
+        const row = result.recordset[0];
+        if (!row || row.row_count === null) return null;
+
+        const usedKb = row.used_kb || 0;
+        const dataKb = row.data_kb || 0;
+        return {
+            rowCount: row.row_count,
+            reservedKb: row.reserved_kb || 0,
+            dataKb,
+            indexKb: Math.max(0, usedKb - dataKb)
+        };
     }
 
     async getTableRowCount(database, tableName) {

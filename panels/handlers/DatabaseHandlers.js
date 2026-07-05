@@ -35,6 +35,15 @@ class DatabaseHandlers {
             const objects = await this._databaseService.getObjects(database);
             this._post({ command: 'objectsLoaded', objects });
             console.log(`Loaded ${objects.length} objects for database: ${database}`);
+
+            // Best-effort follow-up: sys.dm_db_partition_stats needs VIEW
+            // DATABASE STATE - without it the list simply shows no badges.
+            try {
+                const stats = await this._databaseService.getAllTableStats(database);
+                this._post({ command: 'tableStatsLoaded', database, stats });
+            } catch (statsError) {
+                console.warn('Failed to get table stats:', statsError.message);
+            }
         } catch (error) {
             console.error('Error getting objects:', error);
             this._post({ command: 'error', message: `Failed to get objects: ${error.message}` });
@@ -66,15 +75,26 @@ class DatabaseHandlers {
 
     async handleGetTableDetails(database, tableName) {
         try {
-            const tableDetails = await this._databaseService.getTableDetails(database, tableName);
-            const dependencies = await this._dependencyService.getDependencies(database, tableName);
+            // Independent reads run in parallel: the mssql pool serves each
+            // request on its own connection with its own USE prefix. Stats are
+            // best-effort (allocation metadata may need missing permissions).
+            const [tableDetails, dependencies, stats] = await Promise.all([
+                this._databaseService.getTableDetails(database, tableName),
+                this._dependencyService.getDependencies(database, tableName),
+                this._databaseService.getTableStats(database, tableName).catch(statsError => {
+                    console.warn(`Failed to get table stats for ${tableName}:`, statsError.message);
+                    return null;
+                })
+            ]);
+
             this._post({
                 command: 'tableDetailsLoaded',
                 tableName,
                 columns: tableDetails.columns,
                 indexes: tableDetails.indexes,
                 foreignKeys: tableDetails.foreignKeys,
-                dependencies
+                dependencies,
+                stats
             });
         } catch (error) {
             this._post({ command: 'error', message: `Failed to get table details: ${error.message}` });
@@ -119,6 +139,19 @@ class DatabaseHandlers {
             this._post({ command: 'tableSampleDataResult', tableName, sampleData });
         } catch (error) {
             this._post({ command: 'error', message: `Failed to get table sample data: ${error.message}` });
+        }
+    }
+
+    // Column lineage from the in-memory index. If indexing is in flight the
+    // lookup awaits it (getIndex dedups concurrent calls). usage: null means
+    // "unavailable" so the UI can distinguish it from "no references".
+    async handleGetColumnUsage(database, tableName) {
+        try {
+            const usage = await this._indexService.getColumnUsage(database, tableName);
+            this._post({ command: 'columnUsageResult', tableName, usage });
+        } catch (error) {
+            console.warn('Column usage lookup failed:', error.message);
+            this._post({ command: 'columnUsageResult', tableName, usage: null });
         }
     }
 

@@ -11,6 +11,7 @@ const DependencyService = require('../database/DependencyService');
 const IndexService = require('../database/IndexServices');
 const CommentsService = require('../database/CommentsService');
 const DataDictionaryService = require('../database/DataDictionaryService');
+const ScriptGeneratorService = require('../database/ScriptGeneratorService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
@@ -20,6 +21,7 @@ const CommentsHandlers = require('./handlers/CommentsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
 const QueryHandlers = require('./handlers/QueryHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
+const ScriptHandlers = require('./handlers/ScriptHandlers');
 
 class SqlWayfarerPanel {
     constructor(panel, extensionUri, context) {
@@ -48,6 +50,7 @@ class SqlWayfarerPanel {
         riskParser.setEnabled(true);
         this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser));
         this._export = new ExportHandlers(post, this._dataDictionaryService);
+        this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
 
         this._initialize();
     }
@@ -142,6 +145,7 @@ class SqlWayfarerPanel {
                 if (!ix.isIndexing) ix.startBackgroundIndexing(message.database).catch(e => console.error('Background indexing setup failed:', e));
                 break;
             case 'getTableDetails':             await d.handleGetTableDetails(message.database, message.table); break;
+            case 'getColumnUsage':              await d.handleGetColumnUsage(message.database, message.table); break;
             case 'getObjectDetails':            await d.handleGetObjectDetails(message.database, message.objectName, message.objectType); break;
             case 'searchObjects':               await d.handleSearchObjects(message.database, message.searchPattern, message.objectTypes); break;
             case 'getTableRowCount':            await d.handleGetTableRowCount(message.database, message.tableName); break;
@@ -172,6 +176,9 @@ class SqlWayfarerPanel {
             case 'cancelQuery':                 q.handleCancelQuery(); break;
             case 'getQueryHistory':             await q.handleGetQueryHistory(); break;
             case 'clearQueryHistory':           await q.handleClearQueryHistory(); break;
+
+            // Script generator
+            case 'generateScript':              await this._script.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType); break;
 
             // Export
             case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database); break;

@@ -160,6 +160,15 @@ class QueryManager {
         this.runQuery();
     }
 
+    // Fill the editor without running (used by the Explorer script generator)
+    setQueryText(sql) {
+        this.input.value = sql;
+        this.input.focus();
+        this.input.setSelectionRange(0, 0);
+        this.input.scrollTop = 0;
+        this.setStatus('Script inserted - review and run when ready.', '');
+    }
+
     runQuery() {
         const database = appState.currentDatabase;
         const query = this.input.value.trim();

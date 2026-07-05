@@ -261,6 +261,23 @@ label {
     align-items: center;
 }
 
+/* Row count / disk usage line under the table header in the Explorer */
+.table-stats {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    margin: -4px 0 12px 0;
+}
+
+.table-stats strong {
+    color: var(--vscode-foreground);
+    font-weight: 600;
+}
+
+.table-stats .stat-separator {
+    margin: 0 8px;
+    opacity: 0.6;
+}
+
 #connectionSettings .section-header {
     margin-top: 0;
     margin-bottom: 15px;
@@ -572,6 +589,104 @@ label {
 .schema-header.hidden,
 .placeholder-text.hidden {
     display: none;
+}
+
+/* The name grows so badges and buttons align to the right edge */
+.object-item .object-name-with-icon {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Row count / size badge next to table names in the Explorer list */
+.object-stats {
+    margin-right: 8px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Per-object script generator button + popup menu */
+.object-script-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 2px 6px;
+    font-size: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    width: auto;
+    margin: 0 4px 0 0;
+    flex-shrink: 0;
+    opacity: 0;
+}
+
+.object-item:hover .object-script-btn {
+    opacity: 1;
+}
+
+.object-script-btn:hover {
+    background: var(--vscode-button-secondaryBackground);
+    border-color: var(--vscode-input-border);
+}
+
+.script-menu {
+    position: fixed;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    min-width: 170px;
+    background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-menu-border, var(--vscode-input-border));
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    padding: 4px 0;
+}
+
+.script-menu-item {
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    padding: 5px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    width: 100%;
+    margin: 0;
+}
+
+.script-menu-item:hover {
+    background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-menu-selectionForeground, inherit);
+}
+
+/* "Used by" cell in the table details Columns table (column lineage) */
+.col-usage {
+    white-space: nowrap;
+}
+
+.col-usage-btn {
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border: none;
+    padding: 1px 8px;
+    font-size: 11px;
+    border-radius: 10px;
+    cursor: pointer;
+    width: auto;
+    margin: 0;
+}
+
+.col-usage-btn:hover {
+    filter: brightness(1.2);
+}
+
+.object-item.selected .object-stats {
+    color: var(--vscode-list-activeSelectionForeground);
+    opacity: 0.8;
 }
 
 .object-peek-btn {

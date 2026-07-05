@@ -4,11 +4,18 @@ const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const BabelfishSqlParser = require('./BabelfishSqlParser');
+
+// Bumped when the index entry shape changes (2 = columnRefs for column lineage);
+// older cached files trigger a full rebuild.
+const INDEX_FORMAT_VERSION = 2;
 
 class IndexService {
     constructor(connectionManager, databaseService) {
         this._connectionManager = connectionManager;
         this._databaseService = databaseService;
+        this._sqlParser = new BabelfishSqlParser();
+        this._sqlParser.setEnabled(true);
         this._indexDir = path.join(os.homedir(), '.vscode', 'sqlwayfarer', 'indexes');
         this._currentServer = null;
         this._progressCallback = null;
@@ -34,7 +41,26 @@ class IndexService {
         }
     }
 
+    // Concurrent calls for the same database (background indexing + a details
+    // click asking for dependencies or column usage) share one in-flight
+    // promise: without this, a second call would reset _progressCallback /
+    // _cancelRequested mid-build and could run a duplicate full rebuild.
     async getIndex(database, progressCallback = null) {
+        if (this._inFlight && this._inFlightDatabase === database) {
+            return this._inFlight;
+        }
+
+        this._inFlightDatabase = database;
+        this._inFlight = this._getIndexInternal(database, progressCallback);
+        try {
+            return await this._inFlight;
+        } finally {
+            this._inFlight = null;
+            this._inFlightDatabase = null;
+        }
+    }
+
+    async _getIndexInternal(database, progressCallback) {
         this._progressCallback = progressCallback;
         this._cancelRequested = false;
         this._currentServer = this._getCurrentServerName();
@@ -165,7 +191,9 @@ class IndexService {
             createDate: obj.create_date,
             modifyDate: obj.modify_date,
             checksum: this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`),
-            dependencies: []
+            dependencies: [],
+            // { tableKey: { columnName: { write, confident } } } from the parser
+            columnRefs: {}
         };
     }
 
@@ -174,6 +202,7 @@ class IndexService {
 
         const index = {
             database, server: this._currentServer,
+            formatVersion: INDEX_FORMAT_VERSION,
             lastFullIndex: new Date().toISOString(),
             schemaChecksum,
             totalObjects: 0, objectsByType: {}, objects: {}
@@ -184,7 +213,9 @@ class IndexService {
             index.objectsByType[obj.type] = (index.objectsByType[obj.type] || 0) + 1;
         });
 
-        this._attachDependencies(index.objects, await this._analyzeDependencies(database, objects));
+        const columnRefs = {};
+        this._attachDependencies(index.objects, await this._analyzeDependencies(database, objects, columnRefs));
+        this._attachColumnRefs(index.objects, columnRefs);
 
         index.totalObjects = Object.keys(index.objects).length;
         console.log(`Index complete: ${index.totalObjects} objects`);
@@ -215,10 +246,13 @@ class IndexService {
         const removed = Object.keys(cachedIndex.objects).filter(key => !objects[key]).length;
         console.log(`Incremental index update for ${database}: ${changed.length} changed/new, ${removed} removed, ${liveObjects.length - changed.length} reused`);
 
-        this._attachDependencies(objects, await this._analyzeDependencies(database, changed));
+        const columnRefs = {};
+        this._attachDependencies(objects, await this._analyzeDependencies(database, changed, columnRefs));
+        this._attachColumnRefs(objects, columnRefs);
 
         return {
             database, server: this._currentServer,
+            formatVersion: INDEX_FORMAT_VERSION,
             lastFullIndex: cachedIndex.lastFullIndex,
             lastIncrementalUpdate: new Date().toISOString(),
             schemaChecksum: liveChecksum,
@@ -237,10 +271,18 @@ class IndexService {
         }
     }
 
+    _attachColumnRefs(indexObjects, columnRefsByKey) {
+        for (const [key, refs] of Object.entries(columnRefsByKey)) {
+            if (indexObjects[key]) indexObjects[key].columnRefs = refs;
+        }
+    }
+
     // One dm_sql_referenced_entities call per object, driven from Node instead of
     // a single server-side cursor batch: this gives a real per-object progress
     // bar and a cancellation checkpoint between every object.
-    async _analyzeDependencies(database, objects) {
+    // The same batch also returns OBJECT_DEFINITION, parsed into per-column
+    // lineage (columnRefsOut, keyed by clean qualified name) for code objects.
+    async _analyzeDependencies(database, objects, columnRefsOut = null) {
         const dependencies = [];
         const total = objects.length;
         this._lastReportedPct = -1;
@@ -253,6 +295,9 @@ class IndexService {
 
             const obj = objects[i];
             const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
+            // Tables have no SQL module: skip the definition fetch entirely
+            const wantsDefinition = !!columnRefsOut && obj.type !== 'U';
+            let definition = null;
             try {
                 const result = await this._connectionManager.executeQueryInDatabase(database, `
                     SELECT DISTINCT
@@ -261,7 +306,8 @@ class IndexService {
                     FROM sys.dm_sql_referenced_entities(@objectName, N'OBJECT')
                     WHERE referenced_entity_name IS NOT NULL
                       AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''
-                      AND referenced_entity_name != '' AND referenced_minor_id = 0
+                      AND referenced_entity_name != '' AND referenced_minor_id = 0;
+                    ${wantsDefinition ? "SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;" : ''}
                 `, { objectName: qualifiedName });
 
                 for (const row of result.recordset) {
@@ -270,15 +316,66 @@ class IndexService {
                         type: obj.type, dependency_database: row.dependency_database
                     });
                 }
+                definition = result.recordsets?.[1]?.[0]?.definition || null;
             } catch {
                 // Same tolerance as the old server-side BEGIN CATCH: objects with
                 // broken or unresolvable references get no dependencies recorded.
+                // The definition is still worth parsing (dm_sql_referenced_entities
+                // fails on broken references, the parser does not).
+                if (wantsDefinition) {
+                    try {
+                        const fallback = await this._connectionManager.executeQueryInDatabase(database, `
+                            SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;
+                        `, { objectName: qualifiedName });
+                        definition = fallback.recordset?.[0]?.definition || null;
+                    } catch { /* encrypted or gone - no lineage */ }
+                }
+            }
+
+            if (wantsDefinition && definition) {
+                const refs = this._sqlParser.analyzeColumns(definition);
+                if (refs && Object.keys(refs).length > 0) {
+                    columnRefsOut[this._removeBrackets(obj.qualified_name)] = refs;
+                }
             }
 
             this._reportProgress(i + 1, total, `${obj.schema_name}.${obj.name}`);
         }
 
         return dependencies;
+    }
+
+    /**
+     * Column-level impact: which indexed objects reference the columns of a
+     * table? Pure in-memory scan of the parser lineage stored in the index.
+     * Returns { columnName: [{ object, type, write, confident }] } (lowercase keys).
+     */
+    async getColumnUsage(database, tableName) {
+        const index = await this.getIndex(database);
+        const clean = this._removeBrackets(tableName).toLowerCase();
+        const bare = clean.split('.').pop();
+
+        const usage = {};
+        for (const obj of Object.values(index.objects || {})) {
+            if (!obj.columnRefs) continue;
+            for (const [refTable, cols] of Object.entries(obj.columnRefs)) {
+                // Qualified refs must match exactly; bare refs (implicit schema
+                // in the source SQL) match on the last segment, same tradeoff
+                // as the operations lookup in DependencyService.
+                const matches = refTable === clean || (!refTable.includes('.') && refTable === bare);
+                if (!matches) continue;
+                for (const [column, info] of Object.entries(cols)) {
+                    if (!usage[column]) usage[column] = [];
+                    usage[column].push({
+                        object: obj.qualifiedName,
+                        type: obj.type,
+                        write: !!info.write,
+                        confident: !!info.confident
+                    });
+                }
+            }
+        }
+        return usage;
     }
 
     _removeBrackets(name) {
@@ -307,6 +404,12 @@ class IndexService {
     async _loadIndex(indexFile) {
         try {
             const data = JSON.parse(await fs.readFile(indexFile, 'utf8'));
+            // Older formats lack per-object columnRefs: treat as no index so
+            // every read path (getIndex, getIndexStats) triggers/report rebuild
+            if (data.formatVersion !== INDEX_FORMAT_VERSION) {
+                console.log(`Index format ${data.formatVersion || 1} != ${INDEX_FORMAT_VERSION} for ${data.database}, ignoring cached file`);
+                return null;
+            }
             let dirty = false;
             for (const obj of Object.values(data.objects || {})) {
                 if (obj.type && obj.type !== obj.type.trim()) {
