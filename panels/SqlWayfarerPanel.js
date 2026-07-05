@@ -136,6 +136,7 @@ class SqlWayfarerPanel {
             case 'searchObjects':               await d.handleSearchObjects(message.database, message.searchPattern, message.objectTypes); break;
             case 'getTableRowCount':            await d.handleGetTableRowCount(message.database, message.tableName); break;
             case 'getTableSampleData':          await d.handleGetTableSampleData(message.database, message.tableName, message.limit); break;
+            case 'getObjectColumns':            await d.handleGetObjectColumns(message.database, message.objectName); break;
             case 'getDependencyTree':           await d.handleGetDependencyTree(message.database, message.objectName, message.maxDepth); break;
             case 'getImpactAnalysis':           await d.handleGetImpactAnalysis(message.database, message.objectName); break;
 
@@ -196,6 +197,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
+        html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 

@@ -1478,6 +1478,12 @@ class MessageHandler {
                 }
                 break;
 
+            case 'objectColumnsLoaded':
+                if (this.queryManager) {
+                    this.queryManager.onObjectColumnsLoaded(message);
+                }
+                break;
+
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }

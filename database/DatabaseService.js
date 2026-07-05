@@ -60,6 +60,21 @@ class DatabaseService {
         }));
     }
 
+    // Lightweight column list for query autocompletion - getTableDetails is far
+    // too heavy (indexes, FKs, dependencies) to call on every completion request.
+    async getObjectColumns(database, objectName) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT c.name AS column_name, TYPE_NAME(c.user_type_id) AS data_type
+            FROM sys.columns c
+            WHERE c.object_id = OBJECT_ID(@objectName)
+            ORDER BY c.column_id
+        `, { objectName });
+
+        return result.recordset.map(row => ({ name: row.column_name, type: row.data_type }));
+    }
+
     async getTableDetails(database, tableName) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 

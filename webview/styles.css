@@ -781,6 +781,68 @@ th {
     flex-direction: column;
     min-height: 0;
     gap: 12px;
+    /* anchor for the absolutely-positioned autocomplete dropdown */
+    position: relative;
+}
+
+/* === SQL AUTOCOMPLETE === */
+.sql-autocomplete {
+    position: absolute;
+    z-index: 100;
+    list-style: none;
+    margin: 0;
+    padding: 2px;
+    min-width: 240px;
+    max-width: 420px;
+    max-height: 240px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-input-border));
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+}
+
+.sql-autocomplete li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sql-autocomplete li.selected {
+    background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.sql-autocomplete .ac-icon {
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.sql-autocomplete .ac-detail {
+    margin-left: auto;
+    padding-left: 16px;
+    font-size: 11px;
+    opacity: 0.65;
+}
+
+/* Hidden replica of the textarea used to measure the caret pixel position */
+.sql-autocomplete-mirror {
+    position: absolute;
+    top: 0;
+    left: 0;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .query-toolbar {
@@ -839,14 +901,29 @@ th {
 
 .query-input {
     flex-shrink: 0;
-    min-height: 140px;
-    max-height: 40vh;
-    resize: vertical;
+    height: 140px;
+    min-height: 80px;
+    /* resizing is handled by the .query-splitter drag bar below */
+    resize: none;
     font-family: var(--vscode-editor-font-family);
     font-size: var(--vscode-editor-font-size, 13px);
     background: var(--vscode-textCodeBlock-background);
     color: var(--vscode-editor-foreground);
     white-space: pre;
+}
+
+/* Drag bar between the SQL editor and the results grid */
+.query-splitter {
+    flex-shrink: 0;
+    height: 6px;
+    background-color: var(--vscode-input-border);
+    cursor: ns-resize;
+    border-radius: 3px;
+}
+
+.query-splitter:hover,
+.query-splitter.dragging {
+    background-color: var(--vscode-focusBorder, #007ACC);
 }
 
 #queryResultsContainer {

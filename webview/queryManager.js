@@ -20,7 +20,10 @@ class QueryManager {
         this.resultsContainer = document.getElementById('queryResultsContainer');
         this.history = [];
         this.isRunning = false;
+        this.splitter = document.getElementById('querySplitter');
+        this.autocomplete = new SqlAutocomplete(this.input);
         this.initEventListeners();
+        this.initSplitter();
         vscode.postMessage({ command: 'getQueryHistory' });
     }
 
@@ -36,8 +39,49 @@ class QueryManager {
         });
     }
 
+    // Drag the bar between editor and results to resize the SQL input;
+    // double-click resets to the default height.
+    initSplitter() {
+        const DEFAULT_HEIGHT = 140;
+        const MIN_HEIGHT = 80;
+
+        this.splitter.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const startY = e.clientY;
+            const startHeight = this.input.offsetHeight;
+            const section = this.input.parentElement;
+            this.splitter.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+
+            const onMove = (ev) => {
+                // keep at least 100px for the results pane below
+                const maxHeight = section.clientHeight - 100;
+                const height = Math.min(Math.max(startHeight + ev.clientY - startY, MIN_HEIGHT), maxHeight);
+                this.input.style.height = `${height}px`;
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                this.splitter.classList.remove('dragging');
+                document.body.style.userSelect = '';
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        this.splitter.addEventListener('dblclick', () => {
+            this.input.style.height = `${DEFAULT_HEIGHT}px`;
+        });
+    }
+
+    // Cached columns belong to the previous database - drop them on change
+    onObjectColumnsLoaded(message) {
+        this.autocomplete.onColumnsLoaded(message.objectName, message.columns);
+    }
+
     // Called by ExplorerManager whenever the shared database selector changes
     onDatabaseChanged(database) {
+        this.autocomplete.reset();
         this.runBtn.disabled = !database || this.isRunning;
         if (!this.isRunning) {
             this.setStatus(database ? '' : 'Select a database in Explorer to run queries.', '');

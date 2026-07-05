@@ -41,6 +41,18 @@ class DatabaseHandlers {
         }
     }
 
+    // Column list for the query tool autocompletion. Best-effort: on failure we
+    // return an empty list instead of surfacing an error popup mid-typing.
+    async handleGetObjectColumns(database, objectName) {
+        try {
+            const columns = await this._databaseService.getObjectColumns(database, objectName);
+            this._post({ command: 'objectColumnsLoaded', objectName, columns });
+        } catch (error) {
+            console.warn('Failed to get columns for autocomplete:', error.message);
+            this._post({ command: 'objectColumnsLoaded', objectName, columns: [] });
+        }
+    }
+
     async handleGetTableDetails(database, tableName) {
         try {
             const tableDetails = await this._databaseService.getTableDetails(database, tableName);

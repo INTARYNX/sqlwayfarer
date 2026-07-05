@@ -262,6 +262,7 @@
                         <span id="queryStatus" class="query-status">Select a database in Explorer to run queries.</span>
                     </div>
                     <textarea id="queryInput" class="query-input" placeholder="SELECT TOP 100 * FROM ..." spellcheck="false"></textarea>
+                    <div id="querySplitter" class="query-splitter" title="Drag to resize — double-click to reset"></div>
                     <div id="queryResultsContainer">
                         <p class="placeholder-text">Run a query to see results here.</p>
                     </div>
@@ -313,6 +314,7 @@
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
+    <script src="{{SQL_AUTOCOMPLETE_URI}}"></script>
     <script src="{{QUERY_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
