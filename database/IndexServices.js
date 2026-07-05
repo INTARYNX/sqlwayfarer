@@ -12,10 +12,31 @@ class IndexService {
         this._indexDir = path.join(os.homedir(), '.vscode', 'sqlwayfarer', 'indexes');
         this._currentServer = null;
         this._progressCallback = null;
+        this._cancelRequested = false;
+        this._lastReportedPct = -1;
+    }
+
+    // Ask the running indexing loop to stop at the next per-object checkpoint.
+    requestCancel() {
+        this._cancelRequested = true;
+    }
+
+    // Throttled: only posts when the integer percentage actually changes.
+    _reportProgress(current, total, message) {
+        if (!this._progressCallback) return;
+        const progress = total === 0 ? 100 : Math.round((current / total) * 100);
+        if (progress === this._lastReportedPct && current !== total) return;
+        this._lastReportedPct = progress;
+        try {
+            this._progressCallback({ progress, current, total, message });
+        } catch (error) {
+            console.warn('Progress callback failed:', error.message);
+        }
     }
 
     async getIndex(database, progressCallback = null) {
         this._progressCallback = progressCallback;
+        this._cancelRequested = false;
         this._currentServer = this._getCurrentServerName();
         await this._ensureIndexDir();
 
@@ -33,6 +54,7 @@ class IndexService {
     async forceReindex(database, progressCallback = null) {
         console.log(`Force reindexing database: ${database}`);
         this._progressCallback = progressCallback;
+        this._cancelRequested = false;
         this._currentServer = this._getCurrentServerName();
         await this._ensureIndexDir();
 
@@ -170,50 +192,54 @@ index.objects[key] = {
             ORDER BY o.type, s.name, o.name;
         `);
 
-        const dependenciesResult = await this._connectionManager.executeQueryInDatabase(database, `
-            CREATE TABLE #Dependencies (object_name SYSNAME, dependency SYSNAME, type SYSNAME, dependency_database SYSNAME);
-            DECLARE @schema_name SYSNAME, @object_name SYSNAME, @type SYSNAME, @qualified_name NVARCHAR(512), @sql NVARCHAR(MAX);
-            DECLARE object_cursor CURSOR FOR
-                SELECT s.name, o.name, RTRIM(o.type) FROM sys.objects o
-                JOIN sys.schemas s ON o.schema_id = s.schema_id
-                WHERE o.is_ms_shipped = 0 AND o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR', 'V');
-            OPEN object_cursor;
-            FETCH NEXT FROM object_cursor INTO @schema_name, @object_name, @type;
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                SET @qualified_name = QUOTENAME(@schema_name) + '.' + QUOTENAME(@object_name);
-                SET @sql = '
-                INSERT INTO #Dependencies (object_name, dependency, type, dependency_database)
-                SELECT ''' + @qualified_name + ''',
-                       ISNULL(referenced_database_name + ''.'', '''') + referenced_schema_name + ''.'' + referenced_entity_name,
-                       ''' + @type + ''',
-                       ISNULL(referenced_database_name, DB_NAME())
-                FROM sys.dm_sql_referenced_entities(N''' + @qualified_name + ''', N''OBJECT'')
-                WHERE referenced_entity_name IS NOT NULL
-                  AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''''
-                  AND referenced_entity_name != '''' AND referenced_minor_id = 0;';
-                BEGIN TRY EXEC sp_executesql @sql; END TRY
-                BEGIN CATCH END CATCH
-                FETCH NEXT FROM object_cursor INTO @schema_name, @object_name, @type;
-            END
-            CLOSE object_cursor; DEALLOCATE object_cursor;
-            SELECT DISTINCT object_name, type, dependency, dependency_database FROM #Dependencies
-            ORDER BY type, object_name, dependency;
-            DROP TABLE #Dependencies;
-        `);
+        const objects = objectsResult.recordset.map(row => ({
+            object_id: row.object_id, name: row.name, schema_name: row.schema_name,
+            qualified_name: row.qualified_name, type: (row.type || '').trim(),
+            type_desc: row.type_desc, create_date: row.create_date,
+            modify_date: row.modify_date, database_name: row.database_name
+        }));
 
-        return {
-            objects: objectsResult.recordset.map(row => ({
-                object_id: row.object_id, name: row.name, schema_name: row.schema_name,
-                qualified_name: row.qualified_name, type: (row.type || '').trim(),
-                type_desc: row.type_desc, create_date: row.create_date,
-                modify_date: row.modify_date, database_name: row.database_name
-            })),
-            dependencies: dependenciesResult.recordset.map(row => ({
-                object_name: row.object_name, dependency: row.dependency,
-                type: (row.type || '').trim(), dependency_database: row.dependency_database
-            }))
-        };
+        // One dm_sql_referenced_entities call per object, driven from Node instead of
+        // a single server-side cursor batch: this gives a real per-object progress
+        // bar and a cancellation checkpoint between every object.
+        const dependencies = [];
+        const total = objects.length;
+        this._lastReportedPct = -1;
+        this._reportProgress(0, total, 'Analyzing dependencies...');
+
+        for (let i = 0; i < total; i++) {
+            if (this._cancelRequested) {
+                throw Object.assign(new Error('Indexing cancelled'), { code: 'INDEXING_CANCELLED' });
+            }
+
+            const obj = objects[i];
+            const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
+            try {
+                const result = await this._connectionManager.executeQueryInDatabase(database, `
+                    SELECT DISTINCT
+                        ISNULL(referenced_database_name + '.', '') + referenced_schema_name + '.' + referenced_entity_name AS dependency,
+                        ISNULL(referenced_database_name, DB_NAME()) AS dependency_database
+                    FROM sys.dm_sql_referenced_entities(@objectName, N'OBJECT')
+                    WHERE referenced_entity_name IS NOT NULL
+                      AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''
+                      AND referenced_entity_name != '' AND referenced_minor_id = 0
+                `, { objectName: qualifiedName });
+
+                for (const row of result.recordset) {
+                    dependencies.push({
+                        object_name: qualifiedName, dependency: row.dependency,
+                        type: obj.type, dependency_database: row.dependency_database
+                    });
+                }
+            } catch {
+                // Same tolerance as the old server-side BEGIN CATCH: objects with
+                // broken or unresolvable references get no dependencies recorded.
+            }
+
+            this._reportProgress(i + 1, total, `${obj.schema_name}.${obj.name}`);
+        }
+
+        return { objects, dependencies };
     }
 
     _removeBrackets(name) {

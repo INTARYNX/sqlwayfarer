@@ -214,12 +214,19 @@ class IndexingModalManager {
         this.messageEl = document.getElementById('indexingModalMessage');
         this.progressFill = document.getElementById('indexingProgressFill');
         this.progressText = document.getElementById('indexingProgressText');
+        this.cancelBtn = document.getElementById('indexingCancelBtn');
+        this.cancelBtn.addEventListener('click', () => {
+            this.cancelBtn.disabled = true;
+            this.messageEl.textContent = 'Cancelling…';
+            vscode.postMessage({ command: 'cancelIndexing' });
+        });
     }
 
     show(message) {
         this.messageEl.textContent = message;
         this.progressFill.style.width = '0%';
         this.progressText.textContent = '';
+        this.cancelBtn.disabled = false;
         this.overlay.classList.add('visible');
     }
 

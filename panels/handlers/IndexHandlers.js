@@ -17,6 +17,7 @@ class IndexHandlers {
 
     cancel() {
         this._indexingInProgress = false;
+        this._indexService.requestCancel();
     }
 
     async startBackgroundIndexing(database) {
@@ -47,6 +48,12 @@ class IndexHandlers {
             console.log(`Background indexing completed successfully for database: ${database}`);
 
         } catch (error) {
+            // User cancellation is not a failure: handleCancelIndexing already
+            // notified the webview, so just stop quietly.
+            if (error.code === 'INDEXING_CANCELLED') {
+                console.log(`Background indexing cancelled for database: ${database}`);
+                return;
+            }
             console.error('Background indexing failed:', error);
             this._post({ command: 'indexingCompleted', database, success: false, message: `Indexing failed: ${error.message}` });
 
@@ -102,6 +109,10 @@ class IndexHandlers {
             console.log(`Force reindex completed for database: ${database}`);
 
         } catch (error) {
+            if (error.code === 'INDEXING_CANCELLED') {
+                console.log(`Force reindex cancelled for database: ${database}`);
+                return;
+            }
             console.error('Error force reindexing:', error);
             this._post({ command: 'indexingCompleted', database, success: false, forced: true, message: `Force reindex failed: ${error.message}` });
             this._post({ command: 'error', message: `Failed to force reindex: ${error.message}` });
@@ -112,6 +123,7 @@ class IndexHandlers {
         try {
             console.log('Canceling indexing operation');
             this._indexingInProgress = false;
+            this._indexService.requestCancel();
 
             const currentDb = this._getCurrentDatabase();
             if (currentDb) {
@@ -162,6 +174,10 @@ class IndexHandlers {
             console.log(`Index retrieved for database: ${database}`);
 
         } catch (error) {
+            if (error.code === 'INDEXING_CANCELLED') {
+                this._post({ command: 'indexResult', indexData: null });
+                return;
+            }
             console.error('Error getting index:', error);
             this._post({ command: 'indexResult', indexData: null });
             this._post({ command: 'error', message: `Failed to get index: ${error.message}` });
