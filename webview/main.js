@@ -1472,6 +1472,12 @@ class MessageHandler {
                 }
                 break;
 
+            case 'queryHistoryLoaded':
+                if (this.queryManager) {
+                    this.queryManager.onHistoryLoaded(message.history);
+                }
+                break;
+
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }

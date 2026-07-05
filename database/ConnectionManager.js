@@ -80,6 +80,12 @@ class ConnectionManager {
         return this._activeConfig?.server || 'unknown';
     }
 
+    // Expose a raw request so callers can stream results or cancel a long query.
+    createRequest() {
+        if (!this._activeConnection) throw new Error('No active connection');
+        return this._activeConnection.request();
+    }
+
     async executeQuery(query, params = null) {
         if (!this._activeConnection) throw new Error('No active connection');
         const request = this._activeConnection.request();

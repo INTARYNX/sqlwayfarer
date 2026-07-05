@@ -39,7 +39,7 @@ class SqlWayfarerPanel {
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
-        this._query = new QueryHandlers(post, this._connectionManager);
+        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState);
 
         this._initialize();
     }
@@ -156,7 +156,10 @@ class SqlWayfarerPanel {
             case 'confirmForceReindex':         await ix.handleConfirmForceReindex(message.database); break;
 
             // Query tool
-            case 'executeQuery':                await q.handleExecuteQuery(message.database, message.query); break;
+            case 'executeQuery':                await q.handleExecuteQuery(message.database, message.query, message.maxRows); break;
+            case 'cancelQuery':                 q.handleCancelQuery(); break;
+            case 'getQueryHistory':             await q.handleGetQueryHistory(); break;
+            case 'clearQueryHistory':           await q.handleClearQueryHistory(); break;
 
             default:
                 console.warn(`Unknown command: ${message.command}`);

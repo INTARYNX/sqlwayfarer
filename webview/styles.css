@@ -790,9 +790,38 @@ th {
     flex-shrink: 0;
 }
 
-.query-toolbar button {
+/* Globals give selects a vertical margin and labels bold + margin-bottom;
+   reset them here so every control sits on the same centered line. */
+.query-toolbar button,
+.query-toolbar select,
+.query-toolbar label {
     width: auto;
     margin: 0;
+    font-weight: normal;
+}
+
+.cancel-query-btn {
+    background: var(--vscode-terminal-ansiRed, #dc3545);
+    color: #ffffff;
+}
+
+.query-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+}
+
+.query-option select {
+    width: auto;
+}
+
+.query-history-select {
+    width: auto;
+    max-width: 320px;
+    text-overflow: ellipsis;
 }
 
 .query-status {
@@ -835,6 +864,41 @@ th {
 
 #queryResultsContainer .placeholder-text {
     padding: 40px 20px;
+}
+
+.result-set-header {
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-textCodeBlock-background);
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.result-set-header:not(:first-child) {
+    border-top: 1px solid var(--vscode-input-border);
+    margin-top: 12px;
+}
+
+.truncation-note {
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--vscode-terminal-ansiYellow, #b58900);
+}
+
+.query-messages {
+    border-top: 1px solid var(--vscode-input-border);
+    margin-top: 12px;
+    padding: 8px 10px;
+}
+
+.query-messages pre {
+    margin: 0;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    white-space: pre-wrap;
+    color: var(--vscode-descriptionForeground);
 }
 
 .query-error-box {
