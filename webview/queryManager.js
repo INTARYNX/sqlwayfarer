@@ -19,6 +19,7 @@ class QueryManager {
         this.status = document.getElementById('queryStatus');
         this.resultsContainer = document.getElementById('queryResultsContainer');
         this.history = [];
+        this.lastResultSets = [];
         this.isRunning = false;
         this.splitter = document.getElementById('querySplitter');
         this.autocomplete = new SqlAutocomplete(this.input);
@@ -37,6 +38,70 @@ class QueryManager {
                 this.runQuery();
             }
         });
+        // Ctrl+Click on an object name jumps to its definition in the Explorer
+        this.input.addEventListener('click', (e) => {
+            if (e.ctrlKey || e.metaKey) this.goToDefinition();
+        });
+        // Copy / CSV buttons are re-rendered with every result set: one delegated
+        // listener on the container instead of per-button bindings.
+        this.resultsContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-rs-action]');
+            if (!button) return;
+            const index = Number(button.dataset.rsIndex);
+            const set = this.lastResultSets[index];
+            if (!set) return;
+            if (button.dataset.rsAction === 'copy') this.copyResultSet(set);
+            else this.exportResultSetCsv(set, index);
+        });
+    }
+
+    copyResultSet(set) {
+        const tsv = QueryManager.toDelimited(set, '\t');
+        navigator.clipboard.writeText(tsv).then(
+            () => this.setStatus(`Copied ${set.rows.length} row(s) to clipboard.`, 'success'),
+            () => this.setStatus('Copy to clipboard failed.', 'error')
+        );
+    }
+
+    exportResultSetCsv(set, index) {
+        const suffix = this.lastResultSets.length > 1 ? `-${index + 1}` : '';
+        vscode.postMessage({
+            command: 'exportCsv',
+            csv: QueryManager.toDelimited(set, ','),
+            defaultName: `query-results${suffix}.csv`
+        });
+    }
+
+    onCsvExported(message) {
+        if (message.success) {
+            this.setStatus(`CSV saved to ${message.path}`, 'success');
+        } else if (message.cancelled) {
+            this.setStatus('CSV export cancelled.', '');
+        } else {
+            this.setStatus(`CSV export failed: ${message.message}`, 'error');
+        }
+    }
+
+    // Resolve the identifier under the caret (alias-aware) and reveal it in the Explorer
+    goToDefinition() {
+        const word = SqlAutocomplete.wordAt(this.input.value, this.input.selectionStart);
+        if (!word) return;
+
+        const clean = word.replace(/[[\]]/g, '');
+        const aliases = SqlAutocomplete.parseAliases(this.input.value);
+        const target = (aliases[clean.toLowerCase()] || clean).toLowerCase();
+
+        const obj = (appState.allObjects || []).find(o =>
+            o.qualified_name.toLowerCase() === target ||
+            (o.object_name || '').toLowerCase() === target ||
+            (o.name || '').toLowerCase() === target
+        );
+
+        if (obj && window.explorerManager) {
+            window.explorerManager.revealObject(obj);
+        } else {
+            this.setStatus(`No object named '${clean}' in this database.`, 'error');
+        }
     }
 
     // Drag the bar between editor and results to resize the SQL input;
@@ -137,6 +202,7 @@ class QueryManager {
     onQueryResult(message) {
         this.setRunning(false);
         const resultSets = message.resultSets || [];
+        this.lastResultSets = resultSets;
         const duration = this.formatDuration(message.durationMs);
 
         if (resultSets.length === 0) {
@@ -170,9 +236,15 @@ class QueryManager {
         let html = '';
 
         resultSets.forEach((set, index) => {
-            if (resultSets.length > 1) {
-                html += `<div class="result-set-header">Result ${index + 1} — ${set.totalRows} row(s)</div>`;
-            }
+            const label = resultSets.length > 1
+                ? `Result ${index + 1} — ${set.totalRows} row(s)`
+                : `${set.totalRows} row(s)`;
+            html += `<div class="result-set-actions">`
+                + `<span class="rs-label">${label}</span>`
+                + `<span class="rs-spacer"></span>`
+                + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)">📋 Copy</button>`
+                + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file">⬇ CSV</button>`
+                + `</div>`;
 
             if (set.rows.length < set.totalRows) {
                 html += `<p class="truncation-note">⚠ Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`;
@@ -252,6 +324,28 @@ class QueryManager {
 
     // === Formatting helpers ===
 
+    // RFC 4180-style: quote fields containing the separator, quotes or newlines.
+    // Used with '\t' for clipboard (pastes into Excel) and ',' for CSV export.
+    static toDelimited(set, separator) {
+        const escapeField = (value) => {
+            let text;
+            if (value === null || value === undefined) text = '';
+            else if (value instanceof Date) text = value.toISOString();
+            else if (typeof value === 'object') text = JSON.stringify(value);
+            else text = String(value);
+            if (text.includes(separator) || text.includes('"') || text.includes('\n') || text.includes('\r')) {
+                text = `"${text.replace(/"/g, '""')}"`;
+            }
+            return text;
+        };
+
+        const lines = [set.columns.map(escapeField).join(separator)];
+        for (const row of set.rows) {
+            lines.push(set.columns.map(col => escapeField(row[col])).join(separator));
+        }
+        return lines.join('\r\n');
+    }
+
     formatDuration(ms) {
         if (typeof ms !== 'number') return '?';
         return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
@@ -276,4 +370,9 @@ class QueryManager {
             { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
         ));
     }
+}
+
+// Allow unit tests to require() this file; in the webview `module` is undefined.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = QueryManager;
 }

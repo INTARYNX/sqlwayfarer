@@ -41,6 +41,17 @@ class DatabaseHandlers {
         }
     }
 
+    // Full-text search in object definitions for the Explorer "in code" scope
+    async handleSearchDefinitions(database, searchText) {
+        try {
+            const objects = await this._databaseService.searchInDefinitions(database, searchText);
+            this._post({ command: 'definitionSearchResult', searchText, objects });
+        } catch (error) {
+            console.error('Definition search failed:', error);
+            this._post({ command: 'definitionSearchResult', searchText, objects: [] });
+        }
+    }
+
     // Column list for the query tool autocompletion. Best-effort: on failure we
     // return an empty list instead of surfacing an error popup mid-typing.
     async handleGetObjectColumns(database, objectName) {

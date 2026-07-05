@@ -60,6 +60,44 @@ class DatabaseService {
         }));
     }
 
+    // LIKE treats [, % and _ as wildcards; wrap them in brackets so user input
+    // is matched literally.
+    static escapeLikePattern(text) {
+        return String(text).replace(/[[%_]/g, ch => `[${ch}]`);
+    }
+
+    // Full-text search inside object definitions (views, procedures, functions,
+    // triggers - tables have no sys.sql_modules entry).
+    async searchInDefinitions(database, searchText) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const pattern = `%${DatabaseService.escapeLikePattern(searchText)}%`;
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT
+                o.name as object_name,
+                s.name as schema_name,
+                s.name + '.' + o.name as qualified_name,
+                CASE
+                    WHEN o.type = 'V' THEN 'View'
+                    WHEN o.type = 'P' THEN 'Procedure'
+                    WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                    ELSE o.type_desc
+                END as object_type
+            FROM sys.objects o
+            INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+            INNER JOIN sys.sql_modules m ON m.object_id = o.object_id
+            WHERE m.definition LIKE @pattern
+            ORDER BY s.name, o.name
+        `, { pattern });
+
+        return result.recordset.map(row => ({
+            object_name: row.object_name,
+            schema_name: row.schema_name,
+            qualified_name: row.qualified_name,
+            object_type: row.object_type
+        }));
+    }
+
     // Lightweight column list for query autocompletion - getTableDetails is far
     // too heavy (indexes, FKs, dependencies) to call on every completion request.
     async getObjectColumns(database, objectName) {

@@ -17,6 +17,23 @@ const TSqlLexer = require('./generated/TSqlLexer');
 const TSqlParser = require('./generated/TSqlParser');
 const TSqlParserVisitor = require('./generated/TSqlParserVisitor');
 
+// Conserve le schéma (voire la DB) quand il est explicite dans le SQL, pour ne pas
+// confondre p.ex. dbo.Orders et sales.Orders sous une même clé "orders".
+function extractFromFullObjectName(fonCtx) {
+    if (!fonCtx || !fonCtx.object_name) return null;
+    const parts = [fonCtx.database, fonCtx.schema, fonCtx.object_name]
+        .filter(Boolean)
+        .map(idCtx => idCtx.getText());
+    return parts.join('.');
+}
+
+function extractFromDdlObject(ddlCtx) {
+    if (!ddlCtx) return null;
+    const fon = ddlCtx.full_object_name ? ddlCtx.full_object_name() : null;
+    if (fon) return extractFromFullObjectName(fon);
+    return null;
+}
+
 class OpsVisitor extends TSqlParserVisitor {
     constructor() {
         super();
@@ -39,21 +56,12 @@ class OpsVisitor extends TSqlParserVisitor {
         this._ops.get(t).add(operation);
     }
 
-    // Conserve le schéma (voire la DB) quand il est explicite dans le SQL, pour ne pas
-    // confondre p.ex. dbo.Orders et sales.Orders sous une même clé "orders".
     _extractFromFullObjectName(fonCtx) {
-        if (!fonCtx || !fonCtx.object_name) return null;
-        const parts = [fonCtx.database, fonCtx.schema, fonCtx.object_name]
-            .filter(Boolean)
-            .map(idCtx => idCtx.getText());
-        return parts.join('.');
+        return extractFromFullObjectName(fonCtx);
     }
 
     _extractFromDdlObject(ddlCtx) {
-        if (!ddlCtx) return null;
-        const fon = ddlCtx.full_object_name ? ddlCtx.full_object_name() : null;
-        if (fon) return this._extractFromFullObjectName(fon);
-        return null;
+        return extractFromDdlObject(ddlCtx);
     }
 
     // table_source_item est une règle récursive à gauche (JOIN, CROSS APPLY, PIVOT, ...) :
@@ -126,6 +134,32 @@ class OpsVisitor extends TSqlParserVisitor {
     }
 }
 
+// Flags UPDATE/DELETE statements that have no WHERE clause. `ctx.WHERE()` returns
+// null when the clause is absent (and also covers WHERE CURRENT OF, which is fine:
+// a positioned cursor update is not a mass write).
+class RiskVisitor extends TSqlParserVisitor {
+    constructor() {
+        super();
+        this.risks = []; // { type: 'UPDATE'|'DELETE', table: string|null }
+    }
+
+    visitUpdate_statement(ctx) {
+        if (!ctx.WHERE()) {
+            this.risks.push({ type: 'UPDATE', table: extractFromDdlObject(ctx.ddl_object ? ctx.ddl_object() : null) });
+        }
+        this.visitChildren(ctx);
+    }
+
+    visitDelete_statement(ctx) {
+        if (!ctx.WHERE()) {
+            const from = ctx.delete_statement_from ? ctx.delete_statement_from() : null;
+            const ddl = from && from.ddl_object ? from.ddl_object() : null;
+            this.risks.push({ type: 'DELETE', table: extractFromDdlObject(ddl) });
+        }
+        this.visitChildren(ctx);
+    }
+}
+
 class BabelfishSqlParser {
     constructor() {
         this._enabled = false;
@@ -161,6 +195,31 @@ class BabelfishSqlParser {
             return visitor.getResult();
         } catch (err) {
             console.warn(`[BabelfishSqlParser] Failed to analyze: ${err.message.substring(0, 150)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Détecte les UPDATE/DELETE sans clause WHERE.
+     * @param {string} sqlDefinition
+     * @returns {Array<{type: string, table: string|null}>|null} null si parse impossible/désactivé
+     */
+    analyzeRisks(sqlDefinition) {
+        if (!sqlDefinition || !this._enabled) return null;
+
+        try {
+            const chars = new antlr4.InputStream(sqlDefinition);
+            const lexer = new TSqlLexer(chars);
+            const tokens = new antlr4.CommonTokenStream(lexer);
+            const parser = new TSqlParser(tokens);
+            parser.removeErrorListeners();
+
+            const tree = parser.tsql_file();
+            const visitor = new RiskVisitor();
+            visitor.visit(tree);
+            return visitor.risks;
+        } catch (err) {
+            console.warn(`[BabelfishSqlParser] Failed to analyze risks: ${err.message.substring(0, 150)}`);
             return null;
         }
     }

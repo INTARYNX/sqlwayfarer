@@ -11,6 +11,31 @@ class ExportHandlers {
         this._dataDictionaryService = dataDictionaryService;
     }
 
+    // The webview builds the CSV text (it already holds the rows); this side
+    // only owns the save dialog and the file write.
+    async handleExportCsv(csv, defaultName) {
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+            const defaultDir = workspaceFolder ? workspaceFolder.uri.fsPath : os.homedir();
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(path.join(defaultDir, defaultName || 'results.csv')),
+                filters: { CSV: ['csv'] }
+            });
+            if (!uri) {
+                this._post({ command: 'csvExported', success: false, cancelled: true });
+                return;
+            }
+
+            // BOM so Excel opens the file as UTF-8 instead of guessing ANSI.
+            await fs.writeFile(uri.fsPath, '\ufeff' + csv, 'utf8');
+            this._post({ command: 'csvExported', success: true, path: uri.fsPath });
+        } catch (error) {
+            console.error('CSV export failed:', error);
+            vscode.window.showErrorMessage(`CSV export failed: ${error.message}`);
+            this._post({ command: 'csvExported', success: false, message: error.message });
+        }
+    }
+
     async handleExportDataDictionary(database) {
         if (!database) {
             this._post({ command: 'dataDictionaryExported', success: false, message: 'No database selected.' });

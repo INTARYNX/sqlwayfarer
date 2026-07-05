@@ -39,6 +39,23 @@ suite('SqlAutocomplete.extractContext', () => {
 	});
 });
 
+suite('SqlAutocomplete.wordAt', () => {
+	test('returns the full identifier around a middle position', () => {
+		const text = 'SELECT * FROM dbo.Employee WHERE ID = 1';
+		// position inside "Employee"
+		assert.strictEqual(SqlAutocomplete.wordAt(text, text.indexOf('ployee')), 'dbo.Employee');
+	});
+
+	test('handles bracketed names', () => {
+		const text = 'EXEC [Sales].[uspPlaceOrder]';
+		assert.strictEqual(SqlAutocomplete.wordAt(text, text.indexOf('usp')), '[Sales].[uspPlaceOrder]');
+	});
+
+	test('returns null on whitespace', () => {
+		assert.strictEqual(SqlAutocomplete.wordAt('SELECT  X', 7), null);
+	});
+});
+
 suite('SqlAutocomplete.parseAliases', () => {
 	test('maps FROM and JOIN aliases, with and without AS', () => {
 		const aliases = SqlAutocomplete.parseAliases(

@@ -26,6 +26,7 @@ class AppState {
         this.currentIndex = null; // Store the raw index data
         this.filters = {
             search: '',
+            inCode: false,
             types: {
                 Table: true,
                 View: true,
@@ -33,6 +34,9 @@ class AppState {
                 Function: true
             }
         };
+        // Set of qualified names (lowercase) matching the "search in code" query;
+        // null while no code search is active or results are pending.
+        this.definitionMatches = null;
     }
 }
 
@@ -551,6 +555,7 @@ class DependencyVisualizer {
 // Filter and search manager
 class FilterManager {
     constructor() {
+        this._definitionSearchTimer = null;
         this.initEventListeners();
     }
 
@@ -558,12 +563,19 @@ class FilterManager {
         const searchInput = document.getElementById('objectSearch');
         searchInput.addEventListener('input', (e) => {
             appState.filters.search = e.target.value.toLowerCase();
-            this.applyFilters();
+            this.handleSearchInput();
+        });
+
+        document.getElementById('searchInCodeChk').addEventListener('change', (e) => {
+            appState.filters.inCode = e.target.checked;
+            appState.definitionMatches = null;
+            this.handleSearchInput();
         });
 
         document.getElementById('clearSearchBtn').addEventListener('click', () => {
             searchInput.value = '';
             appState.filters.search = '';
+            appState.definitionMatches = null;
             this.applyFilters();
         });
 
@@ -596,6 +608,39 @@ class FilterManager {
         });
     }
 
+    // Name filtering is instant and local; "in code" searches are debounced
+    // and delegated to the backend (sys.sql_modules full-text LIKE).
+    handleSearchInput() {
+        clearTimeout(this._definitionSearchTimer);
+
+        if (appState.filters.inCode && appState.filters.search.length >= 2) {
+            appState.definitionMatches = null;
+            document.getElementById('objectCount').textContent = '(searching code…)';
+            this._definitionSearchTimer = setTimeout(() => {
+                vscode.postMessage({
+                    command: 'searchDefinitions',
+                    database: appState.currentDatabase,
+                    searchText: document.getElementById('objectSearch').value
+                });
+            }, 400);
+            return;
+        }
+
+        appState.definitionMatches = null;
+        this.applyFilters();
+    }
+
+    onDefinitionSearchResult(message) {
+        if (!appState.filters.inCode) return;
+        // Ignore stale responses from a previous keystroke
+        if ((message.searchText || '').toLowerCase() !== appState.filters.search) return;
+
+        appState.definitionMatches = new Set(
+            (message.objects || []).map(o => o.qualified_name.toLowerCase())
+        );
+        this.applyFilters();
+    }
+
     setAllFilters(checked) {
         Object.keys(appState.filters.types).forEach(type => {
             appState.filters.types[type] = checked;
@@ -612,8 +657,17 @@ class FilterManager {
         const typeFilters = appState.filters.types;
 
         appState.filteredObjects = appState.allObjects.filter(obj => {
-            const matchesSearch = !searchTerm ||
-                obj.name.toLowerCase().includes(searchTerm);
+            let matchesSearch;
+            if (appState.filters.inCode && searchTerm.length >= 2) {
+                // Code-scope search: only objects whose definition matched server-side
+                matchesSearch = appState.definitionMatches
+                    ? appState.definitionMatches.has((obj.qualified_name || obj.name).toLowerCase())
+                    : false;
+            } else if (appState.filters.inCode) {
+                matchesSearch = true; // query too short for a code search
+            } else {
+                matchesSearch = !searchTerm || obj.name.toLowerCase().includes(searchTerm);
+            }
             const matchesType = typeFilters[obj.object_type] === true;
             return matchesSearch && matchesType;
         });
@@ -654,6 +708,7 @@ class FilterManager {
     enableFilters() {
         document.getElementById('objectSearch').disabled = false;
         document.getElementById('clearSearchBtn').disabled = false;
+        document.getElementById('searchInCodeChk').disabled = false;
         document.getElementById('filterTable').disabled = false;
         document.getElementById('filterView').disabled = false;
         document.getElementById('filterProcedure').disabled = false;
@@ -665,6 +720,7 @@ class FilterManager {
     disableFilters() {
         document.getElementById('objectSearch').disabled = true;
         document.getElementById('clearSearchBtn').disabled = true;
+        document.getElementById('searchInCodeChk').disabled = true;
         document.getElementById('filterTable').disabled = true;
         document.getElementById('filterView').disabled = true;
         document.getElementById('filterProcedure').disabled = true;
@@ -676,6 +732,9 @@ class FilterManager {
     resetFilters() {
         document.getElementById('objectSearch').value = '';
         appState.filters.search = '';
+        document.getElementById('searchInCodeChk').checked = false;
+        appState.filters.inCode = false;
+        appState.definitionMatches = null;
         this.setAllFilters(true);
     }
 }
@@ -729,6 +788,19 @@ class ExplorerManager {
     onIndexingSettled(database) {
         if (appState.currentDatabase && database === appState.currentDatabase) {
             this.setPanelsLocked(false);
+        }
+    }
+
+    // Jump to an object from elsewhere in the app (e.g. Ctrl+Click in the query
+    // editor): switch to the Explorer tab, scroll to the object and select it.
+    revealObject(obj) {
+        if (window.tabManager) {
+            window.tabManager.switchTab('explorer');
+        }
+        const element = this.elements.objectList.querySelector(`[data-name="${CSS.escape(obj.name)}"]`);
+        if (element) {
+            element.scrollIntoView({ block: 'center' });
+            this.handleObjectClick(element, obj);
         }
     }
 
@@ -1509,6 +1581,16 @@ class MessageHandler {
 
             case 'dataDictionaryExported':
                 this.explorerManager.onDictionaryExported();
+                break;
+
+            case 'csvExported':
+                if (this.queryManager) {
+                    this.queryManager.onCsvExported(message);
+                }
+                break;
+
+            case 'definitionSearchResult':
+                this.explorerManager.filterManager.onDefinitionSearchResult(message);
                 break;
 
             default:

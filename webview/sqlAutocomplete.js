@@ -268,6 +268,18 @@ class SqlAutocomplete {
         };
     }
 
+    // Full identifier (dots and brackets included) around an arbitrary position:
+    // used by Ctrl+Click "go to definition" in the query editor.
+    static wordAt(text, pos) {
+        const isWordChar = ch => /[A-Za-z0-9_$#@[\].]/.test(ch);
+        let start = pos;
+        let end = pos;
+        while (start > 0 && isWordChar(text[start - 1])) start--;
+        while (end < text.length && isWordChar(text[end])) end++;
+        const word = text.slice(start, end).replace(/^\.+|\.+$/g, '');
+        return word || null;
+    }
+
     // Scan FROM/JOIN/UPDATE/INTO clauses for "source [AS] alias" pairs.
     static parseAliases(text) {
         const aliases = {};

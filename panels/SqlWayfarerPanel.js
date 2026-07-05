@@ -11,6 +11,8 @@ const DependencyService = require('../database/DependencyService');
 const IndexService = require('../database/IndexServices');
 const CommentsService = require('../database/CommentsService');
 const DataDictionaryService = require('../database/DataDictionaryService');
+const BabelfishSqlParser = require('../database/BabelfishSqlParser');
+const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
@@ -42,7 +44,9 @@ class SqlWayfarerPanel {
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
-        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState);
+        const riskParser = new BabelfishSqlParser();
+        riskParser.setEnabled(true);
+        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser));
         this._export = new ExportHandlers(post, this._dataDictionaryService);
 
         this._initialize();
@@ -141,6 +145,7 @@ class SqlWayfarerPanel {
             case 'getTableRowCount':            await d.handleGetTableRowCount(message.database, message.tableName); break;
             case 'getTableSampleData':          await d.handleGetTableSampleData(message.database, message.tableName, message.limit); break;
             case 'getObjectColumns':            await d.handleGetObjectColumns(message.database, message.objectName); break;
+            case 'searchDefinitions':           await d.handleSearchDefinitions(message.database, message.searchText); break;
             case 'getDependencyTree':           await d.handleGetDependencyTree(message.database, message.objectName, message.maxDepth); break;
             case 'getImpactAnalysis':           await d.handleGetImpactAnalysis(message.database, message.objectName); break;
 
@@ -168,6 +173,7 @@ class SqlWayfarerPanel {
 
             // Export
             case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database); break;
+            case 'exportCsv':                   await this._export.handleExportCsv(message.csv, message.defaultName); break;
 
             default:
                 console.warn(`Unknown command: ${message.command}`);

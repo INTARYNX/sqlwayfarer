@@ -891,6 +891,11 @@ th {
     color: var(--vscode-descriptionForeground);
 }
 
+.search-scope {
+    margin-top: 6px;
+    font-size: 12px;
+}
+
 .query-status.success {
     color: #2e9e44;
 }
@@ -943,18 +948,35 @@ th {
     padding: 40px 20px;
 }
 
-.result-set-header {
-    padding: 8px 10px;
+.result-set-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--vscode-descriptionForeground);
     background: var(--vscode-textCodeBlock-background);
     border-bottom: 1px solid var(--vscode-input-border);
 }
 
-.result-set-header:not(:first-child) {
+.result-set-actions:not(:first-child) {
     border-top: 1px solid var(--vscode-input-border);
     margin-top: 12px;
+}
+
+.result-set-actions .rs-label {
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+}
+
+.result-set-actions .rs-spacer {
+    flex: 1;
+}
+
+.result-set-actions button {
+    width: auto;
+    margin: 0;
+    padding: 2px 10px;
+    font-size: 12px;
 }
 
 .truncation-note {

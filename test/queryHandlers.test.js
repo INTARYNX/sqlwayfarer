@@ -135,6 +135,28 @@ suite('QueryHandlers', () => {
 		assert.ok(captured.sql.startsWith('USE [My Db];\n'), captured.sql);
 	});
 
+	test('destructive queries are cancelled when the user refuses confirmation', async () => {
+		const posts = [];
+		const analyzer = { analyze: q => q.includes('DELETE') ? ['DELETE without WHERE on dbo.T'] : [] };
+		const handlers = new QueryHandlers(m => posts.push(m), {
+			createRequest: () => new FakeRequest(req => { req.emit('rowsaffected', 1); })
+		}, makeState(), analyzer);
+
+		handlers._confirmRisks = async () => false;
+		await handlers.handleExecuteQuery('Db1', 'DELETE FROM T', 1000);
+
+		const err = posts.find(p => p.command === 'queryError');
+		assert.ok(err && err.cancelled, 'refusal must cancel, not fail');
+		assert.ok(err.message.includes('DELETE without WHERE'));
+		assert.ok(!posts.some(p => p.command === 'queryResult'), 'query must not run');
+
+		// Confirmed → executes normally; safe queries never prompt
+		posts.length = 0;
+		handlers._confirmRisks = async () => true;
+		await handlers.handleExecuteQuery('Db1', 'DELETE FROM T', 1000);
+		assert.ok(posts.some(p => p.command === 'queryResult'));
+	});
+
 	test('rejects a second query while one is still running', async () => {
 		const posts = [];
 		let release;

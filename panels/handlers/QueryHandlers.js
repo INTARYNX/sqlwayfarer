@@ -1,17 +1,30 @@
 'use strict';
 
+const vscode = require('vscode');
+
 const HISTORY_KEY = 'sqlwayfarer.queryHistory';
 const HISTORY_LIMIT = 50;
 const DEFAULT_MAX_ROWS = 1000;
 const QUERY_TIMEOUT_MS = 5 * 60 * 1000;
 
 class QueryHandlers {
-    constructor(postMessage, connectionManager, workspaceState) {
+    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._workspaceState = workspaceState;
+        this._riskAnalyzer = riskAnalyzer;
         this._currentRequest = null;
         this._cancelReason = null;
+    }
+
+    // Modal confirmation for destructive statements; overridable in tests.
+    async _confirmRisks(risks) {
+        const selection = await vscode.window.showWarningMessage(
+            'This query contains potentially destructive statements. Execute anyway?',
+            { modal: true, detail: risks.join('\n') },
+            'Execute'
+        );
+        return selection === 'Execute';
     }
 
     async handleExecuteQuery(database, query, maxRows) {
@@ -26,6 +39,18 @@ class QueryHandlers {
         if (this._currentRequest) {
             this._post({ command: 'queryError', message: 'A query is already running. Cancel it first.' });
             return;
+        }
+
+        if (this._riskAnalyzer) {
+            const risks = this._riskAnalyzer.analyze(query);
+            if (risks.length > 0 && !(await this._confirmRisks(risks))) {
+                this._post({
+                    command: 'queryError',
+                    message: `Execution cancelled — potentially destructive statements:\n${risks.join('\n')}`,
+                    cancelled: true
+                });
+                return;
+            }
         }
 
         let request;
