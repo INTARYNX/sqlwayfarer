@@ -4,11 +4,15 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## [0.7.3] - 2026-07-05
+## [0.7.4] - 2026-07-05
 
 ### Added
 
 - **Ctrl+F search** in the panel (VS Code's native find widget): searches code definitions, query results and object lists.
+
+### Fixed
+
+- Explorer filtering: schema badges now show filtered counts ("3 of 15"), schemas with no matching object are hidden, and an explicit "no match" message replaces the empty list.
 
 ### Removed
 
