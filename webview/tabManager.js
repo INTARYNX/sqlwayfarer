@@ -26,7 +26,7 @@ class TabManager {
 
     switchTab(tabName) {
         // Check if user can access tabs that require connection
-        if (tabName === 'explorer' && !appState.isConnected) {
+        if ((tabName === 'explorer' || tabName === 'query') && !appState.isConnected) {
             this.showStatus('Please connect to a database first before using this feature.', 'error');
             return;
         }
@@ -43,13 +43,8 @@ class TabManager {
             content.classList.toggle('active', content.id === `${tabName}Tab`);
         });
 
-        if ((tabName === 'explorer' || tabName === 'objects') && !appState.isConnected) {
-            this.showStatus('Please connect to a database first before using this feature.', 'error');
-            return;
-        }
-
         // Specific actions when changing tabs
-        if (tabName === 'explorer' && appState.isConnected) {
+        if (tabName === 'explorer') {
             this.onExplorerTabActivated();
         }
     }

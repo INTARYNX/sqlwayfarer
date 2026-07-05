@@ -38,18 +38,58 @@ class AppState {
 
 const appState = new AppState();
 
-// Simple Objects Tab Manager
+// Simple Objects Tab Manager (now backed by a modal opened from the top-bar indicator)
 class ObjectsTabManager {
     constructor() {
         this.objectsJsonContent = document.getElementById('objectsJsonContent');
         this.forceReindexBtn = document.getElementById('forceReindexBtn');
+        this.indicatorBtn = document.getElementById('objectsIndicatorBtn');
+        this.indicatorDot = document.getElementById('objectsIndicatorDot');
+        this.modalOverlay = document.getElementById('objectsModalOverlay');
+        this.modalCloseBtn = document.getElementById('objectsModalCloseBtn');
         this.currentDatabase = null;
+        this.status = 'none'; // none | indexing | ready | error
         this.initEventListeners();
     }
 
     initEventListeners() {
         if (this.forceReindexBtn) {
             this.forceReindexBtn.addEventListener('click', () => this.handleForceReindex());
+        }
+        if (this.indicatorBtn) {
+            this.indicatorBtn.addEventListener('click', () => this.openModal());
+        }
+        if (this.modalCloseBtn) {
+            this.modalCloseBtn.addEventListener('click', () => this.closeModal());
+        }
+        if (this.modalOverlay) {
+            this.modalOverlay.addEventListener('click', (e) => {
+                if (e.target === this.modalOverlay) this.closeModal();
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modalOverlay.classList.contains('visible')) {
+                this.closeModal();
+            }
+        });
+    }
+
+    openModal() {
+        this.modalOverlay.classList.add('visible');
+    }
+
+    closeModal() {
+        this.modalOverlay.classList.remove('visible');
+    }
+
+    // Reflect index status on the top-bar indicator dot
+    setStatus(status, title) {
+        this.status = status;
+        if (this.indicatorDot) {
+            this.indicatorDot.className = `indicator-dot dot-${status}`;
+        }
+        if (this.indicatorBtn && title) {
+            this.indicatorBtn.title = title;
         }
     }
 
@@ -60,10 +100,13 @@ class ObjectsTabManager {
         if (!database) {
             this.showPlaceholder();
             this.forceReindexBtn.disabled = true;
+            this.indicatorBtn.disabled = true;
+            this.setStatus('none', 'No database selected');
             return;
         }
 
         this.forceReindexBtn.disabled = false;
+        this.indicatorBtn.disabled = false;
         this.showLoading();
 
         // Request index from backend
@@ -102,12 +145,14 @@ class ObjectsTabManager {
         const message = forced ? 'Force reindexing started...' : 'Indexing started...';
         this.showLoading(message);
         this.forceReindexBtn.disabled = true;
+        this.setStatus('indexing', message);
     }
 
     // Handle indexing cancelled
     onIndexingCancelled(result) {
         this.forceReindexBtn.disabled = false;
         this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${result.message}</p>`;
+        this.setStatus(this.currentDatabase ? 'error' : 'none', result.message);
     }
 
     // Show loading state
@@ -144,6 +189,7 @@ class ObjectsTabManager {
         this.forceReindexBtn.disabled = false;
 
         if (success) {
+            this.setStatus('ready', 'Index up to date');
             // Request the index data
             vscode.postMessage({
                 command: 'getIndex',
@@ -151,12 +197,42 @@ class ObjectsTabManager {
             });
         } else {
             this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing failed: ${message}</p>`;
+            this.setStatus('error', message);
         }
     }
 
     // Handle force reindex completion
     onForceReindexCompleted(database, success, message) {
         this.onIndexingCompleted(database, success, message);
+    }
+}
+
+// Blocking modal shown while database indexing is running
+class IndexingModalManager {
+    constructor() {
+        this.overlay = document.getElementById('indexingModalOverlay');
+        this.messageEl = document.getElementById('indexingModalMessage');
+        this.progressFill = document.getElementById('indexingProgressFill');
+        this.progressText = document.getElementById('indexingProgressText');
+    }
+
+    show(message) {
+        this.messageEl.textContent = message;
+        this.progressFill.style.width = '0%';
+        this.progressText.textContent = '';
+        this.overlay.classList.add('visible');
+    }
+
+    updateProgress(progress, current, total, message) {
+        this.progressFill.style.width = `${progress}%`;
+        this.progressText.textContent = `${progress}% (${current}/${total})`;
+        if (message) {
+            this.messageEl.textContent = message;
+        }
+    }
+
+    hide() {
+        this.overlay.classList.remove('visible');
     }
 }
 
@@ -611,12 +687,27 @@ class ExplorerManager {
         this.elements = {
             databaseSelect: document.getElementById('databaseSelect'),
             objectList: document.getElementById('objectList'),
-            detailsContent: document.getElementById('detailsContent')
+            detailsContent: document.getElementById('detailsContent'),
+            explorerSection: document.querySelector('.explorer-section')
         };
     }
 
     initEventListeners() {
         this.elements.databaseSelect.addEventListener('change', () => this.handleDatabaseChange());
+    }
+
+    // Grey out / re-enable the explorer panels
+    setPanelsLocked(locked) {
+        this.elements.explorerSection.classList.toggle('locked', locked);
+    }
+
+    // Called when background indexing completes for a database - unlocks the
+    // panels only if that database is still the one currently selected (the
+    // user may have gone back to "select a database" while it was indexing).
+    onIndexingSettled(database) {
+        if (appState.currentDatabase && database === appState.currentDatabase) {
+            this.setPanelsLocked(false);
+        }
     }
 
     // UTILITY METHODS FOR CONSISTENT OBJECT NAME HANDLING
@@ -631,6 +722,9 @@ class ExplorerManager {
     handleDatabaseChange() {
         const database = this.elements.databaseSelect.value;
         appState.currentDatabase = database;
+
+        // Panels stay greyed out until this database finishes (re)indexing.
+        this.setPanelsLocked(true);
 
         vscode.postMessage({
             command: 'setCurrentDatabase',
@@ -651,6 +745,10 @@ class ExplorerManager {
                 window.objectsTabManager.onDatabaseChanged(database);
             }
 
+            if (window.queryManager) {
+                window.queryManager.onDatabaseChanged(database);
+            }
+
             vscode.postMessage({
                 command: 'getObjects',
                 database: database
@@ -665,6 +763,9 @@ class ExplorerManager {
             window.commentsManager.onDatabaseChanged();
             if (window.objectsTabManager) {
                 window.objectsTabManager.onDatabaseChanged(null);
+            }
+            if (window.queryManager) {
+                window.queryManager.onDatabaseChanged(null);
             }
         }
     }
@@ -743,6 +844,22 @@ class ExplorerManager {
         }
     }
 
+    // Jump to the Query tab and run a quick "SELECT TOP 10" on this object
+    handlePeekTop10(obj) {
+        const bracketed = this._getQualifiedName(obj)
+            .split('.')
+            .map(part => `[${part}]`)
+            .join('.');
+        const sql = `SELECT TOP 10 * FROM ${bracketed}`;
+
+        if (window.tabManager) {
+            window.tabManager.switchTab('query');
+        }
+        if (window.queryManager) {
+            window.queryManager.runQueryText(sql);
+        }
+    }
+
     onDatabasesLoaded(databases) {
         this.elements.databaseSelect.disabled = false;
         this.elements.databaseSelect.innerHTML = '<option value="">Select a database...</option>';
@@ -802,6 +919,18 @@ class ExplorerManager {
                 div.dataset.qualifiedName = obj.qualified_name || obj.name;
                 div.dataset.type = obj.object_type;
                 div.dataset.schema = obj.schema_name || 'dbo';
+
+                if (obj.object_type === 'Table' || obj.object_type === 'View') {
+                    const peekBtn = document.createElement('button');
+                    peekBtn.className = 'object-peek-btn';
+                    peekBtn.title = 'Run SELECT TOP 10 * FROM this object';
+                    peekBtn.textContent = '▶ Top 10';
+                    peekBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.handlePeekTop10(obj);
+                    });
+                    div.appendChild(peekBtn);
+                }
 
                 div.addEventListener('click', () => this.handleObjectClick(div, obj));
 
@@ -1172,7 +1301,7 @@ class ExplorerManager {
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager) {
+    constructor(connectionManager, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager, indexingModalManager, queryManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
@@ -1180,6 +1309,8 @@ class MessageHandler {
         this.detailsTabManager = detailsTabManager;
         this.codeViewManager = codeViewManager;
         this.objectsTabManager = objectsTabManager;
+        this.indexingModalManager = indexingModalManager;
+        this.queryManager = queryManager;
         this.databaseSelector = new DatabaseSelectorManager();
     }
 
@@ -1211,6 +1342,8 @@ class MessageHandler {
                 this.connectionManager.onConnectionStatus(message);
                 if (message.success) {
                     this.databaseSelector.showReadyGlow();
+                    // Land directly on Explorer after every successful connection.
+                    this.tabManager.switchTab('explorer');
                 }
                 break;
 
@@ -1262,12 +1395,19 @@ class MessageHandler {
                 if (this.objectsTabManager) {
                     this.objectsTabManager.onIndexingProgress(message);
                 }
+                if (this.indexingModalManager) {
+                    this.indexingModalManager.updateProgress(message.progress, message.current, message.total, message.message);
+                }
                 break;
 
             case 'indexingCompleted':
                 if (this.objectsTabManager) {
                     this.objectsTabManager.onIndexingCompleted(message.database, message.success, message.message);
                 }
+                if (this.indexingModalManager) {
+                    this.indexingModalManager.hide();
+                }
+                this.explorerManager.onIndexingSettled(message.database);
                 break;
 
             // Comments Messages
@@ -1295,12 +1435,20 @@ class MessageHandler {
                 if (this.objectsTabManager) {
                     this.objectsTabManager.onIndexingStarted(message.database, message.forced);
                 }
+                if (this.indexingModalManager) {
+                    this.indexingModalManager.show(message.forced ? 'Force reindexing started...' : 'Indexing started...');
+                }
                 break;
 
             case 'indexingCancelled':
                 if (this.objectsTabManager) {
                     this.objectsTabManager.onIndexingCancelled(message);
                 }
+                if (this.indexingModalManager) {
+                    this.indexingModalManager.hide();
+                }
+                // No per-database info on cancellation - unlock unconditionally.
+                this.explorerManager.setPanelsLocked(false);
                 break;
             case 'forceReindexConfirmed':
                 if (this.objectsTabManager) {
@@ -1310,6 +1458,18 @@ class MessageHandler {
 
             case 'dependencyTreeResult':
                 this.explorerManager.displayDependencyTree(message.dependencyTree);
+                break;
+
+            case 'queryResult':
+                if (this.queryManager) {
+                    this.queryManager.onQueryResult(message);
+                }
+                break;
+
+            case 'queryError':
+                if (this.queryManager) {
+                    this.queryManager.onQueryError(message);
+                }
                 break;
 
             default:
@@ -1338,6 +1498,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const codeViewManager = new CodeViewManager();
     const detailsTabManager = new DetailsTabManager();
     const objectsTabManager = new ObjectsTabManager();
+    const indexingModalManager = new IndexingModalManager();
+    const queryManager = new QueryManager();
 
     const messageHandler = new MessageHandler(
         connectionManager,
@@ -1346,7 +1508,9 @@ document.addEventListener('DOMContentLoaded', function () {
         commentsManager,
         detailsTabManager,
         codeViewManager,
-        objectsTabManager
+        objectsTabManager,
+        indexingModalManager,
+        queryManager
     );
 
     // Make managers available globally
@@ -1355,6 +1519,8 @@ document.addEventListener('DOMContentLoaded', function () {
     window.codeViewManager = codeViewManager;
     window.detailsTabManager = detailsTabManager;
     window.objectsTabManager = objectsTabManager;
+    window.queryManager = queryManager;
+    window.tabManager = tabManager;
 
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
 

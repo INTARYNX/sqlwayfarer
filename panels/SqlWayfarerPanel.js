@@ -15,6 +15,7 @@ const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
+const QueryHandlers = require('./handlers/QueryHandlers');
 
 class SqlWayfarerPanel {
     constructor(panel, extensionUri, context) {
@@ -38,6 +39,7 @@ class SqlWayfarerPanel {
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
+        this._query = new QueryHandlers(post, this._connectionManager);
 
         this._initialize();
     }
@@ -92,8 +94,8 @@ class SqlWayfarerPanel {
     }
 
     async _handleMessage(message) {
-        const { conn: c, db: d, comments: cm, idx: ix } = {
-            conn: this._conn, db: this._db, comments: this._comments, idx: this._idx
+        const { conn: c, db: d, comments: cm, idx: ix, query: q } = {
+            conn: this._conn, db: this._db, comments: this._comments, idx: this._idx, query: this._query
         };
 
         switch (message.command) {
@@ -153,6 +155,9 @@ class SqlWayfarerPanel {
             case 'getIndex':                    await ix.handleGetIndex(message.database); break;
             case 'confirmForceReindex':         await ix.handleConfirmForceReindex(message.database); break;
 
+            // Query tool
+            case 'executeQuery':                await q.handleExecuteQuery(message.database, message.query); break;
+
             default:
                 console.warn(`Unknown command: ${message.command}`);
         }
@@ -188,6 +193,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
+        html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 
         return html;

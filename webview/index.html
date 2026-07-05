@@ -13,20 +13,26 @@
         <!-- Header with title and database selector -->
         <div class="header-section">
             <h1>SQL Wayfarer</h1>
-            <div class="database-selector-inline">
-                <label for="databaseSelect">Database:</label>
-                <select id="databaseSelect" disabled>
-                    <option value="">Select a database...</option>
-                </select>
+            <div class="header-actions">
+                <button id="objectsIndicatorBtn" class="objects-indicator" disabled title="No database selected">
+                    <span id="objectsIndicatorDot" class="indicator-dot dot-none"></span>
+                    Objects
+                </button>
+                <div class="database-selector-inline">
+                    <label for="databaseSelect">Database:</label>
+                    <select id="databaseSelect" disabled>
+                        <option value="">Select a database...</option>
+                    </select>
+                </div>
             </div>
         </div>
-        
+
         <!-- Tab Navigation -->
         <div class="tab-container">
             <div class="tab-nav">
                 <button class="tab-button active" data-tab="configuration">Configuration</button>
-                <button class="tab-button" data-tab="objects">Objects</button>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
+                <button class="tab-button" data-tab="query">Query</button>
             </div>
             
             <!-- Configuration Tab -->
@@ -113,22 +119,12 @@
                 </div>
             </div>
 
-            <!-- Objects Tab (NEW - SIMPLE) -->
-            <div id="objectsTab" class="tab-content">
-                <div class="objects-section">
-                    <div class="objects-header">
-                        <h2>Database Objects - Raw JSON Index</h2>
-                        <button id="forceReindexBtn" class="force-reindex-btn" disabled>🔄 Force Reindex</button>
-                    </div>
-                    <div id="objectsJsonContent">
-                        <p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>
-                    </div>
-                </div>
-            </div>
-            
             <!-- Explorer Tab -->
             <div id="explorerTab" class="tab-content">
-                <div class="explorer-section">
+                <div class="explorer-section locked">
+                    <div class="explorer-lock-overlay">
+                        <p>Select a database to activate the explorer.</p>
+                    </div>
                     <div class="selector-panel">
                         <div class="section-header">Filter & Search</div>
                         <div class="filter-section">
@@ -246,6 +242,56 @@
                 </div>
             </div>
 
+            <!-- Query Tab -->
+            <div id="queryTab" class="tab-content">
+                <div class="query-section">
+                    <div class="query-toolbar">
+                        <button id="runQueryBtn" disabled>▶ Run Query</button>
+                        <span id="queryStatus" class="query-status">Select a database in Explorer to run queries.</span>
+                    </div>
+                    <textarea id="queryInput" class="query-input" placeholder="SELECT TOP 100 * FROM ..." spellcheck="false"></textarea>
+                    <div id="queryResultsContainer">
+                        <p class="placeholder-text">Run a query to see results here.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Objects Modal -->
+    <div id="objectsModalOverlay" class="modal-overlay objects-modal-overlay">
+        <div class="modal-dialog modal-dialog-wide">
+            <div class="modal-header">
+                <h3>Database Objects - Raw JSON Index</h3>
+                <button id="objectsModalCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="objects-section">
+                    <div class="objects-header">
+                        <button id="forceReindexBtn" class="force-reindex-btn" disabled>🔄 Force Reindex</button>
+                    </div>
+                    <div id="objectsJsonContent">
+                        <p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indexing Progress Modal (blocking) -->
+    <div id="indexingModalOverlay" class="modal-overlay indexing-modal-overlay">
+        <div class="modal-dialog modal-dialog-small">
+            <div class="modal-header">
+                <h3>Indexing Database</h3>
+            </div>
+            <div class="modal-body">
+                <p id="indexingModalMessage">Indexing started...</p>
+                <div class="progress-bar-track">
+                    <div id="indexingProgressFill" class="progress-bar-fill"></div>
+                </div>
+                <p id="indexingProgressText" class="progress-bar-text"></p>
+            </div>
         </div>
     </div>
 
@@ -255,6 +301,7 @@
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
+    <script src="{{QUERY_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>

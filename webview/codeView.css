@@ -1,4 +1,21 @@
 /* === CODE VIEW TAB === */
+/* The Code tab owns a single scrollbar on .code-content - the generic
+   .details-tab-content.active outer scroll (styles.css) must stay off here,
+   otherwise resizing the window produces two nested scrollbars. */
+#codeDetailsTab.details-tab-content.active {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#codeContainer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .code-placeholder {
     text-align: center;
     padding: 40px 20px;
@@ -20,6 +37,10 @@
     border: 1px solid var(--vscode-input-border);
     border-radius: 4px;
     margin: 15px 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .code-header {
@@ -68,13 +89,15 @@
 .code-content {
     position: relative;
     background: var(--vscode-textCodeBlock-background);
-    max-height: 500px;
+    flex: 1;
+    min-height: 0;
+    max-height: 60vh;
     overflow: auto;
     border-radius: 0 0 4px 4px;
 }
 
 .code-content.expanded {
-    max-height: 80vh;
+    max-height: 85vh;
 }
 
 .code-editor {
@@ -268,11 +291,11 @@
    }
    
    .code-content {
-       max-height: 300px;
+       max-height: 45vh;
    }
-   
+
    .code-content.expanded {
-       max-height: 60vh;
+       max-height: 70vh;
    }
    
    .code-metrics {
