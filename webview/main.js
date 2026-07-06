@@ -219,11 +219,23 @@ class IndexingModalManager {
         this.progressFill = document.getElementById('indexingProgressFill');
         this.progressText = document.getElementById('indexingProgressText');
         this.cancelBtn = document.getElementById('indexingCancelBtn');
+        this._previousFocus = null;
         this.cancelBtn.addEventListener('click', () => {
             this.cancelBtn.disabled = true;
             this.messageEl.textContent = 'Cancelling…';
             vscode.postMessage({ command: 'cancelIndexing' });
         });
+        // Piège à focus : l'overlay bloque les clics mais pas le clavier — sans ça,
+        // un Ctrl+Enter dans l'éditeur de requête exécuterait une requête sur la
+        // connexion unique pendant l'indexation, et Tab atteint l'UI en arrière-plan.
+        document.addEventListener('keydown', (e) => {
+            if (!this.overlay.classList.contains('visible')) return;
+            if (e.key === 'Tab' || !this.overlay.contains(e.target)) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.cancelBtn.focus();
+            }
+        }, true);
     }
 
     show(message) {
@@ -232,6 +244,8 @@ class IndexingModalManager {
         this.progressText.textContent = '';
         this.cancelBtn.disabled = false;
         this.overlay.classList.add('visible');
+        this._previousFocus = document.activeElement;
+        this.cancelBtn.focus();
     }
 
     updateProgress(progress, current, total, message) {
@@ -244,6 +258,10 @@ class IndexingModalManager {
 
     hide() {
         this.overlay.classList.remove('visible');
+        if (this._previousFocus && typeof this._previousFocus.focus === 'function') {
+            this._previousFocus.focus();
+        }
+        this._previousFocus = null;
     }
 }
 
@@ -341,7 +359,7 @@ class DatabaseSelectorManager {
         const notification = document.createElement('div');
         notification.className = 'database-ready-notification';
         notification.innerHTML = `
-            <span class="notification-icon">✨</span>
+            <span class="notification-icon"><i class="codicon codicon-sparkle"></i></span>
             <span class="notification-text">Connected! Select a database to explore</span>
         `;
 
@@ -787,13 +805,13 @@ class ExplorerManager {
     handleExportDictionary() {
         if (!appState.currentDatabase) return;
         this.elements.exportDictionaryBtn.disabled = true;
-        this.elements.exportDictionaryBtn.textContent = '📖 Exporting…';
+        this.elements.exportDictionaryBtn.innerHTML = '<i class="codicon codicon-library"></i> Exporting…';
         vscode.postMessage({ command: 'exportDataDictionary', database: appState.currentDatabase });
     }
 
     onDictionaryExported() {
         this.elements.exportDictionaryBtn.disabled = !appState.currentDatabase;
-        this.elements.exportDictionaryBtn.textContent = '📖 Dictionary';
+        this.elements.exportDictionaryBtn.innerHTML = '<i class="codicon codicon-library"></i> Dictionary';
     }
 
     // Grey out / re-enable the explorer panels
@@ -1016,7 +1034,7 @@ class ExplorerManager {
         });
     }
 
-    // Script types offered by the 📜 button, per object type
+    // Script types offered by the generate-script button, per object type
     _getScriptOptions(objectType) {
         switch (objectType) {
             case 'Table': return [
@@ -1055,8 +1073,8 @@ class ExplorerManager {
         this._openPopupMenu(anchorBtn, items, { alignRight: true });
     }
 
-    // Shared popup mechanics for the script and column-usage menus: one menu
-    // open at a time, closed by any outside click.
+    // Popup mechanics for the script menu: one menu open at a time,
+    // closed by any outside click.
     _openPopupMenu(anchorBtn, items, { alignRight = false } = {}) {
         this.closePopupMenu();
         if (items.length === 0) return;
@@ -1143,7 +1161,7 @@ class ExplorerManager {
                 schemaHeader.dataset.schema = schema;
                 schemaHeader.dataset.total = objectsBySchema[schema].length;
                 schemaHeader.innerHTML = `
-                <span class="schema-name">📁 ${schema}</span>
+                <span class="schema-name"><i class="codicon codicon-folder"></i> ${schema}</span>
                 <span class="schema-count">(${objectsBySchema[schema].length})</span>
             `;
                 this.elements.objectList.appendChild(schemaHeader);
@@ -1177,7 +1195,7 @@ class ExplorerManager {
                     const scriptBtn = document.createElement('button');
                     scriptBtn.className = 'object-script-btn';
                     scriptBtn.title = 'Generate a SQL script for this object';
-                    scriptBtn.textContent = '📜';
+                    scriptBtn.innerHTML = '<i class="codicon codicon-file-code"></i>';
                     scriptBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.openScriptMenu(scriptBtn, obj);
@@ -1214,17 +1232,17 @@ class ExplorerManager {
     _getObjectTypeIcon(objectType) {
         switch (objectType) {
             case 'Table':
-                return '📋';
+                return '<i class="codicon codicon-table"></i>';
             case 'View':
-                return '👁️';
+                return '<i class="codicon codicon-eye"></i>';
             case 'Procedure':
-                return '⚙️';
+                return '<i class="codicon codicon-gear"></i>';
             case 'Function':
-                return '🔧';
+                return '<i class="codicon codicon-wrench"></i>';
             case 'Trigger':
-                return '⚡';
+                return '<i class="codicon codicon-zap"></i>';
             default:
-                return '📄';
+                return '<i class="codicon codicon-file"></i>';
         }
     }
     _groupObjectsBySchema(objects) {
@@ -1318,7 +1336,7 @@ class ExplorerManager {
         if (!dependencies || (!dependencies.dependsOn?.length && !dependencies.referencedBy?.length)) {
             container.innerHTML = `
                 <div class="graph-placeholder">
-                    <h3>📊 Dependency Graph</h3>
+                    <h3><i class="codicon codicon-graph"></i> Dependency Graph</h3>
                     <p class="placeholder-text">No dependencies found for ${objectName}</p>
                 </div>
             `;
@@ -1329,7 +1347,7 @@ class ExplorerManager {
         container.innerHTML = `
             <div class="graph-viz-container">
                 <div class="graph-header">
-                    <h3>📊 Dependency Graph: ${this.escapeHtml(objectName)}</h3>
+                    <h3><i class="codicon codicon-graph"></i> Dependency Graph: ${this.escapeHtml(objectName)}</h3>
                     <div class="viz-controls">
                         <button id="showDependenciesBtn" class="viz-btn">Dependencies</button>
                         <button id="showReferencesBtn" class="viz-btn">References</button>
@@ -1449,7 +1467,7 @@ class ExplorerManager {
                <td>${this.escapeHtml(col.COLUMN_DEFAULT || '')}</td>
                <td>${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
                <td>${extraInfo.join(', ')}</td>
-               <td class="col-usage" data-column="${this.escapeHtml(col.COLUMN_NAME.toLowerCase()).replace(/"/g, '&quot;')}">…</td>
+               <td class="col-usage" data-column="${this.escapeHtml(col.COLUMN_NAME.toLowerCase()).replace(/"/g, '&quot;')}" data-column-label="${this.escapeHtml(col.COLUMN_NAME).replace(/"/g, '&quot;')}">…</td>
            </tr>`;
         });
 
@@ -1487,26 +1505,100 @@ class ExplorerManager {
             btn.className = 'col-usage-btn';
             btn.textContent = label;
             btn.title = 'Objects referencing this column (✍ = writes, ~ = uncertain matches). Click for the list.';
+            const columnLabel = cell.dataset.columnLabel || cell.dataset.column;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.openColumnUsageMenu(btn, refs);
+                this.openColumnUsageModal(columnLabel, refs);
             });
             cell.appendChild(btn);
         });
     }
 
     // List of referencing objects; click reveals the object in the Explorer.
-    openColumnUsageMenu(anchorBtn, refs) {
-        const items = refs.map(ref => ({
-            label: `${ref.object}${ref.write ? ' ✍' : ''}${ref.confident ? '' : ' (?)'}`,
-            title: `${ref.write ? 'Writes to' : 'Reads'} this column${ref.confident ? '' : ' (ambiguous, unqualified reference)'}`,
-            onClick: () => {
+    // A real modal, not a dropdown: the list can hold 150+ objects and a menu
+    // pinned to the viewport can neither scroll nor show them all.
+    openColumnUsageModal(columnLabel, refs) {
+        if (!this._usageModal) {
+            this._usageModal = {
+                overlay: document.getElementById('columnUsageModalOverlay'),
+                title: document.getElementById('columnUsageModalTitle'),
+                filter: document.getElementById('columnUsageFilter'),
+                list: document.getElementById('columnUsageList')
+            };
+            const m = this._usageModal;
+            document.getElementById('columnUsageModalCloseBtn').addEventListener('click', () => this.closeColumnUsageModal());
+            m.overlay.addEventListener('click', (e) => {
+                if (e.target === m.overlay) this.closeColumnUsageModal();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && m.overlay.classList.contains('visible')) {
+                    this.closeColumnUsageModal();
+                }
+            });
+            m.filter.addEventListener('input', () => this._renderColumnUsageList());
+            m.copyBtn = document.getElementById('columnUsageCopyBtn');
+            m.copyBtn.addEventListener('click', () => this._copyColumnUsageList());
+        }
+
+        const m = this._usageModal;
+        this._usageRefs = refs;
+        m.title.textContent = `Objects using ${columnLabel} (${refs.length})`;
+        m.filter.value = '';
+        // A filter box on a three-line list is clutter
+        m.filter.style.display = refs.length > 8 ? '' : 'none';
+        this._renderColumnUsageList();
+        m.overlay.classList.add('visible');
+        if (refs.length > 8) m.filter.focus();
+    }
+
+    _renderColumnUsageList() {
+        const m = this._usageModal;
+        const needle = m.filter.value.trim().toLowerCase();
+        const matching = this._usageRefs.filter(ref => !needle || ref.object.toLowerCase().includes(needle));
+        // Kept for the Copy button: it copies what the user sees (filter applied)
+        this._usageVisibleRefs = matching;
+
+        m.list.innerHTML = '';
+        if (matching.length === 0) {
+            m.list.innerHTML = '<p class="placeholder-text">No matching object.</p>';
+            return;
+        }
+        matching.forEach(ref => {
+            const item = document.createElement('button');
+            item.className = 'column-usage-item';
+            item.textContent = `${ref.object}${ref.write ? ' ✍' : ''}${ref.confident ? '' : ' (?)'}`;
+            item.title = `${ref.write ? 'Writes to' : 'Reads'} this column${ref.confident ? '' : ' (ambiguous, unqualified reference)'}. Click to reveal in Explorer.`;
+            item.addEventListener('click', () => {
                 const obj = (appState.allObjects || []).find(o =>
                     (o.qualified_name || '').toLowerCase() === ref.object.toLowerCase());
+                this.closeColumnUsageModal();
                 if (obj) this.revealObject(obj);
+            });
+            m.list.appendChild(item);
+        });
+    }
+
+    _copyColumnUsageList() {
+        const m = this._usageModal;
+        const refs = this._usageVisibleRefs || [];
+        if (refs.length === 0) return;
+
+        const text = refs.map(ref => ref.object).join('\n');
+        const resetLabel = '<i class="codicon codicon-copy"></i> Copy';
+        navigator.clipboard.writeText(text).then(
+            () => {
+                m.copyBtn.innerHTML = `<i class="codicon codicon-check"></i> ${refs.length} copied`;
+                setTimeout(() => { m.copyBtn.innerHTML = resetLabel; }, 1500);
+            },
+            () => {
+                m.copyBtn.innerHTML = '<i class="codicon codicon-close"></i> Copy failed';
+                setTimeout(() => { m.copyBtn.innerHTML = resetLabel; }, 1500);
             }
-        }));
-        this._openPopupMenu(anchorBtn, items);
+        );
+    }
+
+    closeColumnUsageModal() {
+        if (this._usageModal) this._usageModal.overlay.classList.remove('visible');
     }
 
     buildIndexesTable(indexes) {

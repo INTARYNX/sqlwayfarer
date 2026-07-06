@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQL Wayfarer</title>
+    <link href="{{CODICON_STYLES_URI}}" rel="stylesheet">
     <link href="{{STYLES_URI}}" rel="stylesheet">
     <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
     <link href="{{CODE_VIEW_STYLES_URI}}" rel="stylesheet">
@@ -14,7 +15,7 @@
         <div class="header-section">
             <h1>SQL Wayfarer</h1>
             <div class="header-actions">
-                <button id="exportDictionaryBtn" disabled title="Export a Markdown data dictionary of the selected database">📖 Dictionary</button>
+                <button id="exportDictionaryBtn" disabled title="Export a Markdown data dictionary of the selected database"><i class="codicon codicon-library"></i> Dictionary</button>
                 <button id="objectsIndicatorBtn" class="objects-indicator" disabled title="No database selected">
                     <span id="objectsIndicatorDot" class="indicator-dot dot-none"></span>
                     Objects
@@ -194,7 +195,7 @@
                         <div id="treeDetailsTab" class="details-tab-content">
                             <div id="treeContainer">
                                 <div class="tree-placeholder">
-                                    <h3>🌳 Dependency Tree</h3>
+                                    <h3><i class="codicon codicon-list-tree"></i> Dependency Tree</h3>
                                     <p class="placeholder-text">Select an object to view its dependency tree.</p>
                                 </div>
                             </div>
@@ -204,7 +205,7 @@
                         <div id="graphDetailsTab" class="details-tab-content">
                             <div id="graphContainer">
                                 <div class="graph-placeholder">
-                                    <h3>📊 Dependency Graph</h3>
+                                    <h3><i class="codicon codicon-graph"></i> Dependency Graph</h3>
                                     <p class="placeholder-text">Select an object to view its dependency graph.</p>
                                 </div>
                             </div>
@@ -214,7 +215,7 @@
                         <div id="codeDetailsTab" class="details-tab-content">
                             <div id="codeContainer">
                                 <div class="code-placeholder">
-                                    <h3>💻 Code View</h3>
+                                    <h3><i class="codicon codicon-file-code"></i> Code View</h3>
                                     <p class="placeholder-text">Select a view, procedure, or function to view its code definition.</p>
                                 </div>
                             </div>
@@ -287,12 +288,30 @@
             <div class="modal-body">
                 <div class="objects-section">
                     <div class="objects-header">
-                        <button id="forceReindexBtn" class="force-reindex-btn" disabled>🔄 Force Reindex</button>
+                        <button id="forceReindexBtn" class="force-reindex-btn" disabled><i class="codicon codicon-refresh"></i> Force Reindex</button>
                     </div>
                     <div id="objectsJsonContent">
                         <p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Usage Modal: the "Used by" lineage list (can hold 150+ objects,
+         a dropdown menu pinned to the viewport cannot) -->
+    <div id="columnUsageModalOverlay" class="modal-overlay column-usage-modal-overlay">
+        <div class="modal-dialog modal-dialog-column-usage">
+            <div class="modal-header">
+                <h3 id="columnUsageModalTitle">Column usage</h3>
+                <button id="columnUsageModalCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="column-usage-toolbar">
+                    <input type="text" id="columnUsageFilter" class="column-usage-filter" placeholder="Filter objects…" spellcheck="false">
+                    <button id="columnUsageCopyBtn" class="column-usage-copy-btn" title="Copy the listed objects to the clipboard (one per line)"><i class="codicon codicon-copy"></i> Copy</button>
+                </div>
+                <div id="columnUsageList" class="column-usage-list"></div>
             </div>
         </div>
     </div>

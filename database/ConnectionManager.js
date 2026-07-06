@@ -24,11 +24,23 @@ class ConnectionManager {
         if (connectionConfig.encrypt !== undefined) options.encrypt = connectionConfig.encrypt;
         if (connectionConfig.trustServerCertificate !== undefined) options.trustServerCertificate = connectionConfig.trustServerCertificate;
 
-        const config = { server: connectionConfig.server, options };
+        // Le défaut mssql/tedious de 15s tue les requêtes longues (indexation d'une
+        // grosse base, requêtes utilisateur) ; les timeouts applicatifs (annulation à
+        // 5 min dans QueryHandlers, bouton Cancel de l'indexation) restent les garde-fous.
+        const config = { server: connectionConfig.server, options, requestTimeout: 300000 };
         if (connectionConfig.port) config.port = Number(connectionConfig.port);
         if (connectionConfig.database) config.database = connectionConfig.database;
         if (connectionConfig.username && password) {
-            config.user = connectionConfig.username;
+            // 'DOMAIN\user' doit devenir { domain, user } : tedious ne passe en NTLM
+            // (compte Windows) que si config.domain est défini, comme le faisait
+            // le parser de connection string de mssql avant le passage à l'objet natif.
+            const domainUser = /^(.*)\\(.*)$/.exec(connectionConfig.username);
+            if (domainUser && domainUser[1]) {
+                config.domain = domainUser[1];
+                config.user = domainUser[2];
+            } else {
+                config.user = connectionConfig.username;
+            }
             config.password = password;
         }
 

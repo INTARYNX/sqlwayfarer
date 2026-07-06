@@ -39,10 +39,11 @@ class IndexHandlers {
                 }
             };
 
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Indexing timeout after 5 minutes')), 300000)
-            );
-            await Promise.race([this._indexService.getIndex(database, progressCallback), timeoutPromise]);
+            // Pas de timeout global ici : il déclarait l'indexation échouée au bout de
+            // 5 min sans l'annuler réellement (elle continuait en arrière-plan pendant
+            // que la modale affichait une erreur). Une base volumineuse peut légitimement
+            // dépasser 5 min ; le bouton Cancel et le requestTimeout par requête suffisent.
+            await this._indexService.getIndex(database, progressCallback);
 
             this._post({ command: 'indexingCompleted', database, success: true, message: 'Database indexing completed successfully' });
             console.log(`Background indexing completed successfully for database: ${database}`);

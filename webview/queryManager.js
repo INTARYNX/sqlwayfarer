@@ -251,12 +251,12 @@ class QueryManager {
             html += `<div class="result-set-actions">`
                 + `<span class="rs-label">${label}</span>`
                 + `<span class="rs-spacer"></span>`
-                + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)">📋 Copy</button>`
-                + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file">⬇ CSV</button>`
+                + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
+                + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
                 + `</div>`;
 
             if (set.rows.length < set.totalRows) {
-                html += `<p class="truncation-note">⚠ Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`;
+                html += `<p class="truncation-note"><i class="codicon codicon-warning"></i> Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`;
             }
 
             if (set.rows.length === 0) {

@@ -174,8 +174,10 @@
 }
 
 .code-error::before {
-    content: "⚠️ ";
+    font-family: "codicon";
+    content: "\ea6c "; /* codicon-warning */
     font-size: 18px;
+    vertical-align: middle;
     margin-right: 8px;
 }
 
@@ -201,7 +203,8 @@
 }
 
 .procedure-indicator::before {
-   content: "⚙️";
+   font-family: "codicon";
+   content: "\eaf8"; /* codicon-gear */
 }
 
 .function-indicator {
@@ -211,7 +214,8 @@
 }
 
 .function-indicator::before {
-   content: "🔧";
+   font-family: "codicon";
+   content: "\eb65"; /* codicon-wrench */
 }
 
 .view-indicator {
@@ -221,7 +225,8 @@
 }
 
 .view-indicator::before {
-   content: "👁️";
+   font-family: "codicon";
+   content: "\ea70"; /* codicon-eye */
 }
 
 .trigger-indicator {
@@ -231,7 +236,8 @@
 }
 
 .trigger-indicator::before {
-   content: "⚡";
+   font-family: "codicon";
+   content: "\ea86"; /* codicon-zap */
 }
 
 /* === TABLE CODE MESSAGE === */
@@ -246,8 +252,10 @@
 }
 
 .table-code-message::before {
-   content: "📋 ";
+   font-family: "codicon";
+   content: "\ebb7 "; /* codicon-table */
    font-size: 18px;
+   vertical-align: middle;
    margin-right: 8px;
 }
 

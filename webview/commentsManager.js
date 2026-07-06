@@ -64,7 +64,7 @@ class CommentsManager {
         html += `
             <div class="comment-section">
                 <div class="comment-section-header">
-                    <h4>📋 Table Description</h4>
+                    <h4><i class="codicon codicon-note"></i> Table Description</h4>
                     ${this.editingMode ? '<button class="edit-btn" onclick="window.commentsManager.editTableDescription()">Edit</button>' : ''}
                 </div>
                 <div class="comment-display">
@@ -77,7 +77,7 @@ class CommentsManager {
         html += `
             <div class="comment-section">
                 <div class="comment-section-header">
-                    <h4>📝 Column Descriptions</h4>
+                    <h4><i class="codicon codicon-note"></i> Column Descriptions</h4>
                 </div>
                 <div class="column-descriptions-table">
                     <table class="comments-table">
@@ -128,7 +128,7 @@ class CommentsManager {
                         ${this.editingMode ? `
                             <td class="text-center action-cell">
                                 <button class="edit-btn-small" onclick="window.commentsManager.editColumnDescription('${this.escapeHtml(column.columnName)}')" title="Edit description">
-                                    ✏️ Edit
+                                    <i class="codicon codicon-edit"></i> Edit
                                 </button>
                             </td>
                         ` : ''}
@@ -153,7 +153,7 @@ class CommentsManager {
 
         html += `
             <div class="comment-stats">
-                <h4>📊 Documentation Statistics</h4>
+                <h4><i class="codicon codicon-graph"></i> Documentation Statistics</h4>
                 <div class="stats-grid">
                     <div class="stat-item">
                         <span class="stat-label">Documentation Coverage:</span>
@@ -193,7 +193,7 @@ class CommentsManager {
             <div class="comments-content">
                 <div class="comment-section">
                     <div class="comment-section-header">
-                        <h4>📋 ${properties.objectType} Description</h4>
+                        <h4><i class="codicon codicon-note"></i> ${properties.objectType} Description</h4>
                         ${this.editingMode ? '<button class="edit-btn" onclick="window.commentsManager.editObjectDescription()">Edit</button>' : ''}
                     </div>
                     <div class="comment-display">

@@ -147,7 +147,7 @@ class SqlAutocomplete {
 
             const icon = document.createElement('span');
             icon.className = 'ac-icon';
-            icon.textContent = SqlAutocomplete.iconFor(item.kind);
+            icon.innerHTML = SqlAutocomplete.iconFor(item.kind);
             li.appendChild(icon);
 
             const label = document.createElement('span');
@@ -239,12 +239,12 @@ class SqlAutocomplete {
 
     static iconFor(kind) {
         switch (kind) {
-            case 'Table': return '📋';
-            case 'View': return '👁️';
-            case 'Procedure': return '⚙️';
-            case 'Function': return '🔧';
+            case 'Table': return '<i class="codicon codicon-table"></i>';
+            case 'View': return '<i class="codicon codicon-eye"></i>';
+            case 'Procedure': return '<i class="codicon codicon-gear"></i>';
+            case 'Function': return '<i class="codicon codicon-wrench"></i>';
             case 'column': return '▪';
-            default: return '🔤';
+            default: return '<i class="codicon codicon-symbol-keyword"></i>';
         }
     }
 

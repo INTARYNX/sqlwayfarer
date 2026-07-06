@@ -24,6 +24,26 @@ body {
     width: 100%;
 }
 
+/* codicon.css hardcodes a 16px icon; scale it with the surrounding text
+   instead so it doesn't tower over small badges / 11px index tags. */
+.codicon {
+    font-size: 1.1em;
+    vertical-align: middle;
+}
+
+/* True vertical centering for icon + text. vertical-align anchors to the
+   x-height midpoint (icon rides too high); flexbox centers on the real line
+   box. The existing space in the markup keeps the icon/label gap. */
+button:has(> .codicon),
+h3:has(> .codicon),
+h4:has(> .codicon),
+.schema-name,
+.code-stat,
+.truncation-note {
+    display: inline-flex;
+    align-items: center;
+}
+
 /* === HEADER SECTION === */
 .header-section {
     display: flex;
@@ -644,6 +664,9 @@ label {
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     padding: 4px 0;
+    /* Safety net: a long list must scroll, not overflow the viewport */
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .script-menu-item {
@@ -761,9 +784,17 @@ th {
     border: 1px solid #c82333;
 }
 
-.index-primary::before {
-    content: "🔑";
+.index-primary::before,
+.index-unique::before,
+.index-clustered::before,
+.index-normal::before {
+    font-family: "codicon";
+    vertical-align: middle;
     margin-right: 2px;
+}
+
+.index-primary::before {
+    content: "\eb11"; /* codicon-key */
 }
 
 .index-unique {
@@ -773,8 +804,7 @@ th {
 }
 
 .index-unique::before {
-    content: "💎";
-    margin-right: 2px;
+    content: "\eb59"; /* codicon-star-full */
 }
 
 .index-clustered {
@@ -784,8 +814,7 @@ th {
 }
 
 .index-clustered::before {
-    content: "🗂️";
-    margin-right: 2px;
+    content: "\eb16"; /* codicon-list-ordered */
 }
 
 .index-normal {
@@ -795,8 +824,7 @@ th {
 }
 
 .index-normal::before {
-    content: "📋";
-    margin-right: 2px;
+    content: "\eb17"; /* codicon-list-unordered */
 }
 
 /* === DEPENDENCY VISUALIZATION === */
@@ -1148,12 +1176,14 @@ th {
 /* Higher specificity than the plain .modal-overlay rule in comments.css,
    which sets display:flex unconditionally and would otherwise win. */
 .modal-overlay.objects-modal-overlay,
-.modal-overlay.indexing-modal-overlay {
+.modal-overlay.indexing-modal-overlay,
+.modal-overlay.column-usage-modal-overlay {
     display: none;
 }
 
 .modal-overlay.objects-modal-overlay.visible,
-.modal-overlay.indexing-modal-overlay.visible {
+.modal-overlay.indexing-modal-overlay.visible,
+.modal-overlay.column-usage-modal-overlay.visible {
     display: flex;
 }
 
@@ -1167,6 +1197,72 @@ th {
 
 .modal-dialog.modal-dialog-small {
     max-width: 420px;
+}
+
+.modal-dialog.modal-dialog-column-usage {
+    max-width: 560px;
+    max-height: 80vh;
+}
+
+/* Filter stays pinned while only the object list scrolls; the .modal-body
+   default overflow-y:auto would scroll the filter away with the list. */
+.column-usage-modal-overlay .modal-body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.column-usage-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+
+.column-usage-copy-btn {
+    width: auto;
+    margin: 0;
+    padding: 2px 10px;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.column-usage-filter {
+    box-sizing: border-box;
+    flex: 1;
+    margin: 0;
+    padding: 4px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.column-usage-list {
+    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.column-usage-item {
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    width: 100%;
+    margin: 0;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.column-usage-item:hover {
+    background: var(--vscode-list-hoverBackground);
 }
 
 /* Objects modal: a single scrollbar, owned by the JSON block itself.

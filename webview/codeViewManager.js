@@ -84,13 +84,13 @@ class CodeViewManager {
                 <div class="code-metrics">
                     <div class="code-stats">
                         <div class="code-stat">
-                            📏 <span class="code-stat-value">${this.countLines(definition)}</span> lines
+                            <i class="codicon codicon-list-ordered"></i> <span class="code-stat-value">${this.countLines(definition)}</span> lines
                         </div>
                         <div class="code-stat">
-                            📝 <span class="code-stat-value">${definition.length}</span> characters
+                            <i class="codicon codicon-note"></i> <span class="code-stat-value">${definition.length}</span> characters
                         </div>
                         <div class="code-stat">
-                            📊 <span class="code-stat-value">${this.estimateComplexity(definition)}</span> complexity
+                            <i class="codicon codicon-graph"></i> <span class="code-stat-value">${this.estimateComplexity(definition)}</span> complexity
                         </div>
                     </div>
                     <div class="code-info">
@@ -177,7 +177,7 @@ class CodeViewManager {
 
         container.innerHTML = `
             <div class="code-placeholder">
-                <h3>💻 Code View</h3>
+                <h3><i class="codicon codicon-file-code"></i> Code View</h3>
                 <p class="placeholder-text">Select a view, procedure, or function to view its code definition.</p>
             </div>
         `;
@@ -254,11 +254,11 @@ class CodeViewManager {
 
     getObjectTypeIcon(objectType) {
         switch (objectType) {
-            case 'Procedure': return '⚙️';
-            case 'Function': return '🔧';
-            case 'View': return '👁️';
-            case 'Trigger': return '⚡';
-            default: return '💻';
+            case 'Procedure': return '<i class="codicon codicon-gear"></i>';
+            case 'Function': return '<i class="codicon codicon-wrench"></i>';
+            case 'View': return '<i class="codicon codicon-eye"></i>';
+            case 'Trigger': return '<i class="codicon codicon-zap"></i>';
+            default: return '<i class="codicon codicon-file-code"></i>';
         }
     }
 
