@@ -12,6 +12,7 @@ const IndexService = require('../database/IndexServices');
 const CommentsService = require('../database/CommentsService');
 const DataDictionaryService = require('../database/DataDictionaryService');
 const ScriptGeneratorService = require('../database/ScriptGeneratorService');
+const WriteFootprintService = require('../database/WriteFootprintService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
@@ -22,6 +23,7 @@ const IndexHandlers = require('./handlers/IndexHandlers');
 const QueryHandlers = require('./handlers/QueryHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
+const FootprintHandlers = require('./handlers/FootprintHandlers');
 
 class SqlWayfarerPanel {
     constructor(panel, extensionUri, context) {
@@ -38,6 +40,7 @@ class SqlWayfarerPanel {
         this._dependencyService = new DependencyService();
         this._commentsService = new CommentsService(this._connectionManager);
         this._dataDictionaryService = new DataDictionaryService(this._connectionManager, this._indexService);
+        this._writeFootprintService = new WriteFootprintService(this._connectionManager, this._indexService);
 
         const post = msg => this._panel.webview.postMessage(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -51,6 +54,7 @@ class SqlWayfarerPanel {
         this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser));
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
+        this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
 
         this._initialize();
     }
@@ -134,6 +138,7 @@ class SqlWayfarerPanel {
                 break;
             }
             case 'loadConnections':             await c.handleLoadConnections(); break;
+            case 'setAutoConnect':              await c.handleSetAutoConnect(message.enabled); break;
             case 'loadConnectionForDisplay':    await c.handleLoadConnectionForDisplay(message.connectionName); break;
             case 'testConnection':              await c.handleTestConnection(message.connectionConfig); break;
 
@@ -180,8 +185,12 @@ class SqlWayfarerPanel {
             // Script generator
             case 'generateScript':              await this._script.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType); break;
 
+            // Write footprint (tables read/written by an object, trigger cascades included)
+            case 'getWriteFootprint':           await this._footprint.handleGetWriteFootprint(message.database, message.objectName); break;
+            case 'getFootprintDoc':             await this._footprint.handleGetFootprintDoc(message.database, message.tableNames); break;
+
             // Export
-            case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database); break;
+            case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database, message.full); break;
             case 'exportCsv':                   await this._export.handleExportCsv(message.csv, message.defaultName); break;
 
             default:
@@ -222,6 +231,10 @@ class SqlWayfarerPanel {
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
+        html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
+        html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));
+        html = html.replace('{{CYTOSCAPE_URI}}',            u('webview', 'vendor', 'cytoscape.min.js'));
+        html = html.replace('{{CYTOSCAPE_DAGRE_URI}}',      u('webview', 'vendor', 'cytoscape-dagre.min.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 
         return html;

@@ -30,6 +30,8 @@ class ConnectionHandlers {
     async handleConnectWithSaved(connectionName) {
         try {
             await this._connectionManager.connectWithSaved(connectionName);
+            // Remember for auto-connect on next startup.
+            await this._connectionStorage.setLastConnectionName(connectionName);
             this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
             return true;
         } catch (error) {
@@ -63,10 +65,23 @@ class ConnectionHandlers {
     async handleLoadConnections() {
         try {
             const connections = this._connectionStorage.getSavedConnections();
-            this._post({ command: 'savedConnectionsLoaded', connections });
+            this._post({
+                command: 'savedConnectionsLoaded',
+                connections,
+                lastConnection: this._connectionStorage.getLastConnectionName(),
+                autoConnect: this._connectionStorage.getAutoConnectEnabled()
+            });
         } catch (error) {
             console.error('Error loading saved connections:', error);
             this._post({ command: 'error', message: 'Failed to load saved connections' });
+        }
+    }
+
+    async handleSetAutoConnect(enabled) {
+        try {
+            await this._connectionStorage.setAutoConnectEnabled(enabled);
+        } catch (error) {
+            console.error('Error saving auto-connect preference:', error);
         }
     }
 

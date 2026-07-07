@@ -16,6 +16,9 @@
             <h1>SQL Wayfarer</h1>
             <div class="header-actions">
                 <button id="exportDictionaryBtn" disabled title="Export a Markdown data dictionary of the selected database"><i class="codicon codicon-library"></i> Dictionary</button>
+                <label class="full-doc-option" title="Full mode: also include indexes, incoming relations, CHECK/UNIQUE constraints and triggers (runs a few more queries)">
+                    <input type="checkbox" id="dictionaryFullChk"> Full
+                </label>
                 <button id="objectsIndicatorBtn" class="objects-indicator" disabled title="No database selected">
                     <span id="objectsIndicatorDot" class="indicator-dot dot-none"></span>
                     Objects
@@ -57,6 +60,11 @@
                             <button id="editBtn" style="display: none;">Edit</button>
                             <button id="deleteBtn" style="display: none;">Delete</button>
                         </div>
+
+                        <label class="filter-checkbox auto-connect-option" title="Reconnect to the last used connection automatically when the panel opens">
+                            <input type="checkbox" id="autoConnectChk" checked>
+                            Auto-connect on startup
+                        </label>
                     </div>
                     
                     <!-- Connection Settings (Initially Hidden) -->
@@ -316,6 +324,49 @@
         </div>
     </div>
 
+    <!-- Write Footprint Modal: interactive graph of the tables an object reads/
+         writes, including tables reached only through trigger cascades. -->
+    <div id="writeFootprintOverlay" class="modal-overlay footprint-modal-overlay">
+        <div class="modal-dialog modal-dialog-footprint">
+            <div class="modal-header">
+                <h3 id="writeFootprintTitle">Table footprint</h3>
+                <button id="writeFootprintCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="footprint-tabs">
+                <button class="fp-tab active" data-fptab="graph">Graph</button>
+                <button class="fp-tab" data-fptab="schema">Schema</button>
+                <button class="fp-tab" data-fptab="tables">Tables</button>
+            </div>
+
+            <!-- Graph tab: proc-centric footprint (reads/writes/trigger cascade) -->
+            <div class="fp-panel active" data-fppanel="graph">
+                <div class="footprint-legend">
+                    <span class="fp-chip fp-target">Object</span>
+                    <span class="fp-chip fp-write">Written</span>
+                    <span class="fp-chip fp-read">Read</span>
+                    <span class="fp-chip fp-trigger">Via trigger</span>
+                    <span class="fp-chip fp-possible">Possible (dynamic)</span>
+                    <span class="fp-legend-edge">— FK relationship</span>
+                    <label class="fp-toggle" title="Show or hide the tables the object only reads, to focus on writes and trigger cascades">
+                        <input type="checkbox" id="footprintShowReads" checked> Show reads
+                    </label>
+                </div>
+                <div id="writeFootprintGraph" class="footprint-graph"></div>
+                <div id="writeFootprintMeta" class="footprint-meta"></div>
+            </div>
+
+            <!-- Schema tab: pure relational ER of the footprint tables (PK/FK) -->
+            <div class="fp-panel" data-fppanel="schema">
+                <div id="footprintSchemaGraph" class="footprint-graph"></div>
+            </div>
+
+            <!-- Tables tab: lean per-table documentation (columns, PK/FK, descriptions) -->
+            <div class="fp-panel" data-fppanel="tables">
+                <div id="footprintTablesDoc" class="footprint-doc"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Indexing Progress Modal (blocking) -->
     <div id="indexingModalOverlay" class="modal-overlay indexing-modal-overlay">
         <div class="modal-dialog modal-dialog-small">
@@ -337,12 +388,17 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
+    <!-- Vendored locally (no CDN): interactive footprint graph -->
+    <script src="{{DAGRE_URI}}"></script>
+    <script src="{{CYTOSCAPE_URI}}"></script>
+    <script src="{{CYTOSCAPE_DAGRE_URI}}"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
     <script src="{{SQL_AUTOCOMPLETE_URI}}"></script>
     <script src="{{QUERY_MANAGER_URI}}"></script>
+    <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>

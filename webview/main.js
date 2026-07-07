@@ -792,7 +792,8 @@ class ExplorerManager {
             objectList: document.getElementById('objectList'),
             detailsContent: document.getElementById('detailsContent'),
             explorerSection: document.querySelector('.explorer-section'),
-            exportDictionaryBtn: document.getElementById('exportDictionaryBtn')
+            exportDictionaryBtn: document.getElementById('exportDictionaryBtn'),
+            dictionaryFullChk: document.getElementById('dictionaryFullChk')
         };
     }
 
@@ -806,7 +807,11 @@ class ExplorerManager {
         if (!appState.currentDatabase) return;
         this.elements.exportDictionaryBtn.disabled = true;
         this.elements.exportDictionaryBtn.innerHTML = '<i class="codicon codicon-library"></i> Exporting…';
-        vscode.postMessage({ command: 'exportDataDictionary', database: appState.currentDatabase });
+        vscode.postMessage({
+            command: 'exportDataDictionary',
+            database: appState.currentDatabase,
+            full: !!(this.elements.dictionaryFullChk && this.elements.dictionaryFullChk.checked)
+        });
     }
 
     onDictionaryExported() {
@@ -826,6 +831,15 @@ class ExplorerManager {
         if (appState.currentDatabase && database === appState.currentDatabase) {
             this.setPanelsLocked(false);
         }
+    }
+
+    // Reveal an object by its qualified (or bare) name, e.g. from a footprint
+    // graph node. Matches against the loaded object list, case-insensitively.
+    revealByName(name) {
+        const q = (name || '').toLowerCase();
+        const obj = (appState.allObjects || []).find(o =>
+            (o.qualified_name || '').toLowerCase() === q || (o.name || '').toLowerCase() === q);
+        if (obj) this.revealObject(obj);
     }
 
     // Jump to an object from elsewhere in the app (e.g. Ctrl+Click in the query
@@ -1312,8 +1326,25 @@ class ExplorerManager {
 
         // Update structure tab
         let html = `<div class="section-header">${objectType}: ${this.escapeHtml(objectName)}</div>`;
+        // Write footprint applies to programmable objects (they read/write tables).
+        const ftType = appState.selectedObject && appState.selectedObject.object_type;
+        const canFootprint = ['Procedure', 'Function', 'View'].includes(ftType);
+        if (canFootprint) {
+            html += `<div class="details-actions">
+                <button id="writeFootprintBtn" class="viz-btn" title="Graph the tables this object reads and writes, including tables reached through trigger cascades">
+                    <i class="codicon codicon-type-hierarchy"></i> Table footprint
+                </button>
+            </div>`;
+        }
         html += this.buildDependenciesSection(dependencies);
         this.elements.detailsContent.innerHTML = html;
+
+        if (canFootprint) {
+            const btn = document.getElementById('writeFootprintBtn');
+            if (btn) btn.addEventListener('click', () => {
+                if (window.footprintManager) window.footprintManager.open(objectName);
+            });
+        }
 
         // Update graph tab if it's active
         if (appState.activeDetailsTab === 'graph') {
@@ -1761,7 +1792,7 @@ class MessageHandler {
 
         switch (message.command) {
             case 'savedConnectionsLoaded':
-                this.connectionManager.onSavedConnectionsLoaded(message.connections);
+                this.connectionManager.onSavedConnectionsLoaded(message.connections, message.lastConnection, message.autoConnect);
                 break;
 
             case 'connectionLoadedForDisplay':
@@ -1831,6 +1862,14 @@ class MessageHandler {
                     message.dependencies,
                     message.stats
                 );
+                break;
+
+            case 'writeFootprintResult':
+                if (window.footprintManager) window.footprintManager.onResult(message);
+                break;
+
+            case 'footprintDocResult':
+                if (window.footprintManager) window.footprintManager.onDocResult(message);
                 break;
 
             case 'objectDetailsLoaded':
@@ -1984,6 +2023,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const objectsTabManager = new ObjectsTabManager();
     const indexingModalManager = new IndexingModalManager();
     const queryManager = new QueryManager();
+    const footprintManager = new FootprintManager();
 
     const messageHandler = new MessageHandler(
         connectionManager,
@@ -2005,6 +2045,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.objectsTabManager = objectsTabManager;
     window.queryManager = queryManager;
     window.tabManager = tabManager;
+    window.footprintManager = footprintManager;
 
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
 

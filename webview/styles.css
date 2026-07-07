@@ -33,7 +33,8 @@ body {
 
 /* True vertical centering for icon + text. vertical-align anchors to the
    x-height midpoint (icon rides too high); flexbox centers on the real line
-   box. The existing space in the markup keeps the icon/label gap. */
+   box. flexbox collapses the whitespace text node between icon and label, so
+   `gap` (not the markup space) provides the icon/label spacing. */
 button:has(> .codicon),
 h3:has(> .codicon),
 h4:has(> .codicon),
@@ -42,6 +43,7 @@ h4:has(> .codicon),
 .truncation-note {
     display: inline-flex;
     align-items: center;
+    gap: 0.4em;
 }
 
 /* === HEADER SECTION === */
@@ -499,7 +501,9 @@ label {
 .filter-types {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 5px;
+    /* row gap tight (les cases ont déjà un padding vertical), column gap
+       plus large pour séparer lisiblement les deux colonnes */
+    gap: 1px 5px;
     margin-bottom: 10px;
 }
 
@@ -695,8 +699,9 @@ label {
     background: var(--vscode-badge-background);
     color: var(--vscode-badge-foreground);
     border: none;
-    padding: 1px 8px;
+    padding: 3px 8px;
     font-size: 11px;
+    line-height: 1.4;
     border-radius: 10px;
     cursor: pointer;
     width: auto;
@@ -1041,6 +1046,30 @@ th {
     font-size: 12px;
 }
 
+.auto-connect-option {
+    margin-top: 10px;
+    opacity: 0.85;
+}
+
+/* "Full" toggle next to the Dictionary button in the header row. Overrides the
+   global block/bold label styling so it sits inline with the button. */
+.full-doc-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: normal;
+    opacity: 0.85;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.full-doc-option input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
 .query-status.success {
     color: #2e9e44;
 }
@@ -1177,14 +1206,170 @@ th {
    which sets display:flex unconditionally and would otherwise win. */
 .modal-overlay.objects-modal-overlay,
 .modal-overlay.indexing-modal-overlay,
-.modal-overlay.column-usage-modal-overlay {
+.modal-overlay.column-usage-modal-overlay,
+.modal-overlay.footprint-modal-overlay {
     display: none;
 }
 
 .modal-overlay.objects-modal-overlay.visible,
 .modal-overlay.indexing-modal-overlay.visible,
-.modal-overlay.column-usage-modal-overlay.visible {
+.modal-overlay.column-usage-modal-overlay.visible,
+.modal-overlay.footprint-modal-overlay.visible {
     display: flex;
+}
+
+/* Write footprint: large dialog laid out as a column so the graph fills it. */
+.modal-dialog.modal-dialog-footprint {
+    width: 92vw;
+    max-width: 1200px;
+    height: 88vh;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.footprint-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px 12px 0;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+.fp-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 14px;
+    margin: 0;
+    width: auto;
+    cursor: pointer;
+    color: var(--vscode-foreground);
+    font-size: 13px;
+    opacity: 0.7;
+}
+.fp-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--vscode-focusBorder, #3794ff);
+    font-weight: 600;
+}
+
+/* Only the active tab's panel fills the dialog; others are removed from layout. */
+.fp-panel { display: none; }
+.fp-panel.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.footprint-graph {
+    flex: 1;
+    min-height: 0;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    margin: 8px 12px;
+}
+
+.footprint-doc {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 12px 16px;
+}
+.fp-doc-msg { opacity: 0.7; padding: 12px; }
+
+.fp-table-card {
+    margin-bottom: 16px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.fp-table-card h4 {
+    margin: 0;
+    padding: 6px 10px;
+    background: var(--vscode-editor-background);
+    font-size: 13px;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+.fp-table-desc {
+    padding: 6px 10px;
+    font-style: italic;
+    opacity: 0.85;
+    font-size: 12px;
+}
+table.fp-cols {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+table.fp-cols th, table.fp-cols td {
+    text-align: left;
+    padding: 4px 10px;
+    border-top: 1px solid var(--vscode-input-border);
+    vertical-align: top;
+}
+table.fp-cols th { opacity: 0.7; font-weight: 600; }
+table.fp-cols .fp-center { text-align: center; }
+.fp-fk {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 6px;
+    background: #4a5160;
+    color: #cfd6de;
+    vertical-align: middle;
+}
+
+.footprint-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.fp-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 11px;
+}
+.fp-chip.fp-target  { background: #0e639c; }
+.fp-chip.fp-write   { background: #c0392b; }
+.fp-chip.fp-read    { background: #5a6673; }
+.fp-chip.fp-trigger { background: #c77d0a; border: 1px dashed #e8a33d; }
+.fp-chip.fp-possible { background: #4a5160; border: 1px dashed #8892a0; color: #cfd6de; }
+.fp-legend-edge     { opacity: 0.7; }
+
+.fp-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 0 auto;
+    font-size: 12px;
+    font-weight: normal;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.fp-toggle input[type="checkbox"] { width: auto; margin: 0; }
+
+.footprint-meta {
+    padding: 8px 12px 4px;
+    font-size: 12px;
+}
+.footprint-summary { font-weight: 600; }
+.footprint-caveat {
+    opacity: 0.7;
+    font-style: italic;
+    margin-top: 2px;
+}
+
+.details-actions {
+    margin: 8px 0;
 }
 
 /* Doubled class for specificity: comments.css (loaded after this sheet) sets
@@ -1221,11 +1406,22 @@ th {
 }
 
 .column-usage-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     width: auto;
     margin: 0;
-    padding: 2px 10px;
+    /* aligne la hauteur sur le champ de filtre voisin (padding 4px + bordure) */
+    padding: 5px 12px;
     font-size: 12px;
+    border: none;
+    border-radius: 3px;
     flex-shrink: 0;
+}
+
+.column-usage-copy-btn .codicon {
+    font-size: 14px;
+    line-height: 1;
 }
 
 .column-usage-filter {

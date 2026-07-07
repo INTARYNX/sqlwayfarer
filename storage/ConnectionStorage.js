@@ -33,6 +33,10 @@ class ConnectionStorage {
             if (isRename) {
                 await this._context.secrets.delete(`sqlwayfarer.password.${originalName}`);
                 this._savedConnections.delete(originalName);
+                // Keep the auto-connect pointer valid across a rename.
+                if (this.getLastConnectionName() === originalName) {
+                    await this.setLastConnectionName(name);
+                }
             }
 
             await this._persistConnections();
@@ -48,6 +52,10 @@ class ConnectionStorage {
             await this._context.secrets.delete(`sqlwayfarer.password.${connectionName}`);
             if (!this._savedConnections.delete(connectionName)) {
                 throw new Error(`Connection '${connectionName}' not found`);
+            }
+            // Drop the auto-connect pointer if it referenced the deleted connection.
+            if (this.getLastConnectionName() === connectionName) {
+                await this.setLastConnectionName(null);
             }
             await this._persistConnections();
             return { success: true, message: `Connection '${connectionName}' deleted successfully!` };
@@ -76,6 +84,28 @@ class ConnectionStorage {
 
     hasConnection(connectionName) {
         return this._savedConnections.has(connectionName);
+    }
+
+    // Name of the last saved connection the user connected to, used to
+    // pre-select and auto-connect on startup. Non-sensitive, so plain
+    // globalState (shared across windows like the connections themselves).
+    getLastConnectionName() {
+        return this._context.globalState.get('sqlwayfarer.lastConnection') || null;
+    }
+
+    async setLastConnectionName(name) {
+        await this._context.globalState.update('sqlwayfarer.lastConnection', name || undefined);
+    }
+
+    // Whether to auto-connect to the last connection on startup. Defaults to
+    // enabled (the feature the user asked for); the checkbox can turn it off.
+    getAutoConnectEnabled() {
+        const value = this._context.globalState.get('sqlwayfarer.autoConnect');
+        return value === undefined ? true : !!value;
+    }
+
+    async setAutoConnectEnabled(enabled) {
+        await this._context.globalState.update('sqlwayfarer.autoConnect', !!enabled);
     }
 
     async _loadSavedConnections() {

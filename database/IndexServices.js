@@ -6,9 +6,9 @@ const os = require('os');
 const crypto = require('crypto');
 const BabelfishSqlParser = require('./BabelfishSqlParser');
 
-// Bumped when the index entry shape changes (2 = columnRefs for column lineage);
-// older cached files trigger a full rebuild.
-const INDEX_FORMAT_VERSION = 2;
+// Bumped when the index entry shape changes (2 = columnRefs for column lineage,
+// 3 = possibleRefs from the dynamic-SQL name scan); older cached files rebuild.
+const INDEX_FORMAT_VERSION = 3;
 
 class IndexService {
     constructor(connectionManager, databaseService) {
@@ -193,7 +193,10 @@ class IndexService {
             checksum: this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`),
             dependencies: [],
             // { tableKey: { columnName: { write, confident } } } from the parser
-            columnRefs: {}
+            columnRefs: {},
+            // Qualified names of known objects mentioned in the module text but not
+            // resolved confidently — best-effort dynamic-SQL usage (low confidence).
+            possibleRefs: []
         };
     }
 
@@ -214,8 +217,11 @@ class IndexService {
         });
 
         const columnRefs = {};
-        this._attachDependencies(index.objects, await this._analyzeDependencies(database, objects, columnRefs));
+        const possibleRefs = {};
+        const nameMap = this._buildNameMap(objects);
+        this._attachDependencies(index.objects, await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs));
         this._attachColumnRefs(index.objects, columnRefs);
+        this._attachPossibleRefs(index.objects, possibleRefs);
 
         index.totalObjects = Object.keys(index.objects).length;
         console.log(`Index complete: ${index.totalObjects} objects`);
@@ -247,8 +253,12 @@ class IndexService {
         console.log(`Incremental index update for ${database}: ${changed.length} changed/new, ${removed} removed, ${liveObjects.length - changed.length} reused`);
 
         const columnRefs = {};
-        this._attachDependencies(objects, await this._analyzeDependencies(database, changed, columnRefs));
+        const possibleRefs = {};
+        // Name map spans ALL live objects so mentions of unchanged tables are caught.
+        const nameMap = this._buildNameMap(liveObjects);
+        this._attachDependencies(objects, await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs));
         this._attachColumnRefs(objects, columnRefs);
+        this._attachPossibleRefs(objects, possibleRefs);
 
         return {
             database, server: this._currentServer,
@@ -277,12 +287,28 @@ class IndexService {
         }
     }
 
+    _attachPossibleRefs(indexObjects, possibleRefsByKey) {
+        for (const [key, refs] of Object.entries(possibleRefsByKey)) {
+            if (indexObjects[key]) indexObjects[key].possibleRefs = refs;
+        }
+    }
+
+    // lower(qualified name) -> canonical qualified name, for the possible-ref scan.
+    _buildNameMap(objects) {
+        const map = new Map();
+        for (const o of objects) {
+            const canonical = this._removeBrackets(o.qualified_name);
+            if (canonical) map.set(canonical.toLowerCase(), canonical);
+        }
+        return map;
+    }
+
     // One dm_sql_referenced_entities call per object, driven from Node instead of
     // a single server-side cursor batch: this gives a real per-object progress
     // bar and a cancellation checkpoint between every object.
     // The same batch also returns OBJECT_DEFINITION, parsed into per-column
     // lineage (columnRefsOut, keyed by clean qualified name) for code objects.
-    async _analyzeDependencies(database, objects, columnRefsOut = null) {
+    async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null) {
         const dependencies = [];
         const total = objects.length;
         this._lastReportedPct = -1;
@@ -295,9 +321,13 @@ class IndexService {
 
             const obj = objects[i];
             const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
+            const cleanQN = this._removeBrackets(obj.qualified_name);
             // Tables have no SQL module: skip the definition fetch entirely
             const wantsDefinition = !!columnRefsOut && obj.type !== 'U';
             let definition = null;
+            // Names this object references confidently (resolver + parser); excluded
+            // from the possible-ref scan so we only flag the *extra* text mentions.
+            const confidentSet = new Set();
             try {
                 const result = await this._connectionManager.executeQueryInDatabase(database, `
                     SELECT DISTINCT
@@ -315,6 +345,7 @@ class IndexService {
                         object_name: qualifiedName, dependency: row.dependency,
                         type: obj.type, dependency_database: row.dependency_database
                     });
+                    confidentSet.add(this._removeBrackets(row.dependency).toLowerCase());
                 }
                 definition = result.recordsets?.[1]?.[0]?.definition || null;
             } catch {
@@ -335,7 +366,14 @@ class IndexService {
             if (wantsDefinition && definition) {
                 const refs = this._sqlParser.analyzeColumns(definition);
                 if (refs && Object.keys(refs).length > 0) {
-                    columnRefsOut[this._removeBrackets(obj.qualified_name)] = refs;
+                    columnRefsOut[cleanQN] = refs;
+                    for (const k of Object.keys(refs)) confidentSet.add(this._removeBrackets(k).toLowerCase());
+                }
+                // Best-effort dynamic-SQL scan: qualified names of known objects in
+                // the text that weren't resolved confidently above.
+                if (nameMap && possibleRefsOut) {
+                    const possible = this._scanPossibleRefs(definition, nameMap, cleanQN.toLowerCase(), confidentSet);
+                    if (possible.length) possibleRefsOut[cleanQN] = possible;
                 }
             }
 
@@ -376,6 +414,24 @@ class IndexService {
             }
         }
         return usage;
+    }
+
+    // Scan raw module text for qualified (schema.name) mentions of known objects
+    // that were not resolved confidently — catches names that only appear inside
+    // dynamic-SQL strings. Bracket-insensitive; qualified-only to limit false
+    // positives (a bare word collides with columns/aliases/variables).
+    _scanPossibleRefs(definition, nameMap, selfKey, confidentSet) {
+        const text = definition.replace(/[[\]]/g, '');
+        const re = /[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*/g;
+        const found = new Set();
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            const key = m[0].toLowerCase();
+            if (key === selfKey || confidentSet.has(key)) continue;
+            const canonical = nameMap.get(key);
+            if (canonical) found.add(canonical);
+        }
+        return [...found];
     }
 
     _removeBrackets(name) {

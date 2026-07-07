@@ -2,7 +2,7 @@
   "name": "sqlwayfarer",
   "displayName": "SQL Wayfarer",
   "description": "Navigate and explore SQL Server databases directly within VS Code. View tables, procedures, dependencies, and more.",
-  "version": "0.8.2",
+  "version": "0.8.4",
   "publisher": "intarynx",
   "engines": {
     "vscode": "^1.100.0"
@@ -83,6 +83,9 @@
     "@vscode/codicons": "^0.0.45",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.5.2",
+    "cytoscape": "^3.34.0",
+    "cytoscape-dagre": "^4.0.0",
+    "dagre": "^0.8.5",
     "eslint": "^9.25.1",
     "typescript": "^5.1.6",
     "webpack": "^5.107.2",

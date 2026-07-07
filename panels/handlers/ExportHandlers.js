@@ -36,22 +36,25 @@ class ExportHandlers {
         }
     }
 
-    async handleExportDataDictionary(database) {
+    async handleExportDataDictionary(database, full = false) {
         if (!database) {
             this._post({ command: 'dataDictionaryExported', success: false, message: 'No database selected.' });
             return;
         }
 
         try {
+            const title = full
+                ? `SQL Wayfarer: generating full data dictionary for ${database}…`
+                : `SQL Wayfarer: generating data dictionary for ${database}…`;
             const markdown = await vscode.window.withProgress(
-                { location: vscode.ProgressLocation.Notification, title: `SQL Wayfarer: generating data dictionary for ${database}…` },
-                () => this._dataDictionaryService.generateMarkdown(database)
+                { location: vscode.ProgressLocation.Notification, title },
+                () => this._dataDictionaryService.generateMarkdown(database, { full })
             );
 
             const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
             const defaultDir = workspaceFolder ? workspaceFolder.uri.fsPath : os.homedir();
             const uri = await vscode.window.showSaveDialog({
-                defaultUri: vscode.Uri.file(path.join(defaultDir, `${database}-data-dictionary.md`)),
+                defaultUri: vscode.Uri.file(path.join(defaultDir, `${database}-data-dictionary${full ? '-full' : ''}.md`)),
                 filters: { Markdown: ['md'] }
             });
             if (!uri) {

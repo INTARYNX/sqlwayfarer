@@ -21,6 +21,7 @@ SQL Wayfarer is a VS Code extension that turns your editor into a full SQL Serve
 - Save and switch between multiple SQL Server connections
 - Secure credential storage integrated with VS Code
 - Connection testing with live feedback
+- **Auto-connect**: the last connection used is reconnected automatically when the panel opens (toggleable, and the last connection stays pre-selected either way)
 
 ### Schema Explorer
 - Browse databases, schemas, tables, views, stored procedures, and functions
@@ -66,9 +67,17 @@ A 📜 button on every object in the Explorer generates ready-to-edit scripts st
 - Click the badge to list the referencing objects and jump to any of them in the Explorer
 - Alias resolution, CTE exclusion, MERGE targets, and trigger `inserted`/`deleted` pseudo-tables are handled
 
+### Table Footprint
+*"Which tables does this procedure really touch — including through triggers?"*
+- A **Table Footprint** button on any procedure, function, or view opens an interactive graph of every table it reads and writes
+- Follows nested procedure/function/view calls **and the DML trigger cascades** that fire when a table is written — surfacing tables a procedure touches indirectly that you would never see by reading its code
+- Tables are colour-coded by access: **written**, **read**, reached **only via a trigger**, or a low-confidence **possible** match found by scanning dynamic-SQL text for known object names
+- Three tabs: **Graph** (the object-centric footprint with a "Show reads" toggle), **Schema** (a pure relational ER of the tables with their PK/FK columns), and **Tables** (lean per-table columns, keys, and descriptions — analyze in place without exporting the dictionary)
+
 ### Documentation
 - Read and write MS_Description extended properties directly from the panel
 - **Data dictionary export**: generate a complete Markdown data dictionary of the database — every table, view, procedure, and function with columns, keys, parameters, cross-linked dependencies, and your extended-property descriptions
+- **Full mode** (a checkbox next to the Dictionary button): additionally documents, per table, indexes, incoming foreign-key relations, CHECK/UNIQUE constraints, and triggers, plus a compact per-table Mermaid ER diagram, a whole-database model summary, User Defined Types, and row counts and size
 
 ### Local Schema Index
 - Schema, dependency, and column-lineage metadata are indexed locally per connection, so browsing, dependency, and lineage lookups stay fast after the first scan
@@ -102,7 +111,7 @@ You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 - Encrypted object definitions cannot be retrieved by design (SQL Server restriction).
 - Very large databases may experience slower initial indexing (each code object is parsed once for dependencies and column lineage; subsequent refreshes are incremental).
 - T-SQL syntax highlighting covers standard cases; complex dialect features may not be fully highlighted.
-- Dependency operations and column lineage are detected via static analysis of T-SQL: dynamic SQL (`EXEC` of a string), calls through another procedure, or references used only as a parameter type are shown without a specific operation.
+- Dependency operations and column lineage are detected via static analysis of T-SQL: dynamic SQL (`EXEC` of a string), calls through another procedure, or references used only as a parameter type are shown without a specific operation. The Table Footprint additionally scans module text for qualified names of known objects to catch tables referenced only inside dynamic SQL, but marks them as low-confidence "possible" (read/write direction unknown).
 - Column lineage favors recall over precision: an unqualified column in a multi-table statement is attributed to every table in scope and flagged as ambiguous (`~`) rather than dropped.
 
 ---

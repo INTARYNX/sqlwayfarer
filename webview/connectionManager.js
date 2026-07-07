@@ -37,7 +37,8 @@ class ConnectionManager {
             connectionNameInput: document.getElementById('connectionNameInput'),
             saveConnectionBtn: document.getElementById('saveConnectionBtn'),
             testConnectionBtn: document.getElementById('testConnectionBtn'),
-            connectionStatus: document.getElementById('connectionStatus')
+            connectionStatus: document.getElementById('connectionStatus'),
+            autoConnectChk: document.getElementById('autoConnectChk')
         };
     }
 
@@ -50,6 +51,9 @@ class ConnectionManager {
         this.elements.cancelSettingsBtn.addEventListener('click', () => this.hideSettings());
         this.elements.saveConnectionBtn.addEventListener('click', () => this.handleSaveConnection());
         this.elements.testConnectionBtn.addEventListener('click', () => this.handleTestConnection());
+        this.elements.autoConnectChk.addEventListener('change', () => {
+            vscode.postMessage({ command: 'setAutoConnect', enabled: this.elements.autoConnectChk.checked });
+        });
     }
 
     loadSavedConnections() {
@@ -253,17 +257,18 @@ class ConnectionManager {
     }
 
     // Gestionnaires de messages
-    onSavedConnectionsLoaded(connections) {
+    onSavedConnectionsLoaded(connections, lastConnection = null, autoConnect = true) {
         appState.savedConnections = connections;
-        
+        this.elements.autoConnectChk.checked = autoConnect;
+
         this.elements.connectionSelect.innerHTML = '<option value="">Select a connection...</option>';
-        
+
         // Add "New Connection" option
         const newOption = document.createElement('option');
         newOption.value = 'new';
         newOption.textContent = '+ New Connection';
         this.elements.connectionSelect.appendChild(newOption);
-        
+
         // Add saved connections
         connections.forEach(conn => {
             const option = document.createElement('option');
@@ -271,6 +276,18 @@ class ConnectionManager {
             option.textContent = conn.name;
             this.elements.connectionSelect.appendChild(option);
         });
+
+        // Pré-sélectionne la dernière connexion utilisée et reconnecte
+        // automatiquement — une seule fois au démarrage, jamais lors des
+        // rechargements déclenchés par un save/delete, ni si déjà connecté.
+        if (lastConnection && connections.some(c => c.name === lastConnection)) {
+            this.elements.connectionSelect.value = lastConnection;
+            this.handleConnectionSelectChange();
+            if (autoConnect && !this._autoConnectDone && !appState.isConnected) {
+                this._autoConnectDone = true;
+                this.handleConnect();
+            }
+        }
     }
 
     onConnectionSaved(message) {

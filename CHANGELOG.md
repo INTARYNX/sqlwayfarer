@@ -4,6 +4,25 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.8.5] - 2026-07-07
+
+### Added
+
+- **Table Footprint** (a button on every procedure, function, and view): an interactive graph of every table the object reads and writes — following nested procedure/function/view calls and, crucially, the DML **trigger cascades** that fire when a table is written (a procedure that writes one table can silently touch a dozen more through triggers, and nobody sees it by reading the procedure). Tables are coloured by access — written, read, reached **only via a trigger**, or a low-confidence **possible** match. Three tabs:
+  - **Graph**: the object-centric footprint with read / write / trigger-cascade edges and the FK relationships between the tables. A "Show reads" toggle isolates the writes and cascades.
+  - **Schema**: a pure relational ER of the footprint tables, each entity listing its key columns (e.g. `BusinessEntityID (PK, FK)`).
+  - **Tables**: lean per-table documentation (columns, types, nullability, defaults, PK/FK, and `MS_Description` descriptions), so you can analyze in place without opening the full Markdown export.
+
+  Rendered with a locally vendored Cytoscape + dagre (no CDN). The analysis engine is fully unit-tested (trigger cascade, cycle handling, nested calls).
+- **Dynamic-SQL name scan**: during indexing, qualified names (`schema.table`) of known objects that appear in a module's text but are not resolved by static analysis are recorded as low-confidence references — catching tables referenced only inside `EXEC` / `sp_executesql` strings. They surface as dashed **possible** tables in the Table Footprint (read/write direction unknown). The index format changed (**v3**): the first indexing after the update is a full rebuild.
+- **Data dictionary — Full mode**: a "Full" checkbox next to the Dictionary button enriches the Markdown export with, per table, non-clustered/unique indexes, incoming foreign-key relations ("referenced by"), CHECK and UNIQUE constraints, triggers, a compact per-table Mermaid ER diagram (the table and its directly related tables, keys only — bounded so it stays readable on large schemas), plus a whole-database model summary, a User Defined Types section, and per-table row counts and size. The basic (unchecked) export is unchanged.
+- **Auto-connect**: the last connection used is remembered and reconnected automatically when the panel opens; an "Auto-connect on startup" checkbox turns it off (the last connection stays pre-selected either way).
+
+### Fixed
+
+- A valid, up-to-date index was deleted and fully rebuilt after reconnecting to a database: the current database's index was cleared on every `getDatabases`, so a large database re-indexed from scratch after quitting and reconnecting. The redundant clear was removed — staleness is already handled by the schema checksum (incremental update).
+- UI spacing: filter checkboxes, icon/label gaps on buttons (Dictionary and others), the "Used by" pill height, and the column-usage Copy button.
+
 ## [0.8.0] - 2026-07-05
 
 ### Added
