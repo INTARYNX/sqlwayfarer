@@ -123,3 +123,4 @@ Bug reports and feature requests are tracked on [GitHub Issues](https://github.c
 ---
 
 *SQL Wayfarer — built for developers who spend their days navigating complex databases.*
+"# sqlwayfarer" 

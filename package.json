@@ -2,7 +2,7 @@
   "name": "sqlwayfarer",
   "displayName": "SQL Wayfarer",
   "description": "A SQL Server & Azure SQL workspace for VS Code: see what depends on a column, trace the tables a procedure really touches through triggers, run T-SQL, generate scripts, and export a Markdown data dictionary.",
-  "version": "0.8.8",
+  "version": "0.8.9",
   "publisher": "intarynx",
   "engines": {
     "vscode": "^1.100.0"
@@ -38,7 +38,6 @@
     "url": "https://github.com/intarynx/sqlwayfarer/issues"
   },
   "homepage": "https://github.com/intarynx/sqlwayfarer",
-  "qna": "https://github.com/intarynx/sqlwayfarer/issues",
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [

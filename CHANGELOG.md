@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.8.9] - 2026-07-07
+
+### Changed
+
+- Restored the native Marketplace **Q & A** tab (removed the redirect to GitHub Issues).
+
 ## [0.8.8] - 2026-07-07
 
 ### Changed
