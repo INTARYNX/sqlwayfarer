@@ -16,6 +16,12 @@ class DataDictionaryService {
         return DataDictionaryService.render(data, options);
     }
 
+    // Multi-file variant for the full export: returns { indexName, files }.
+    async generateMarkdownFiles(database, options = {}) {
+        const data = await this.collect(database, options);
+        return DataDictionaryService.renderPages(data, options);
+    }
+
     // Scoped, lean per-table documentation for a given set of tables (used by the
     // Table Footprint "Tables"/"Schema" tabs so the user analyses in place without
     // opening the full Markdown export). Columns + PK/FK + descriptions only.
@@ -449,15 +455,92 @@ class DataDictionaryService {
 
     // === Rendering (pure) ===
 
+    // Single self-contained Markdown document. Used for the basic (no Mermaid)
+    // export; the full export is split across files by renderPages() so that no
+    // single document carries hundreds of Mermaid diagrams (which chokes MD
+    // readers). Both paths share the per-object renderers below.
     static render(data, options = {}) {
         const full = !!options.full;
         const lines = [];
         const schemaNames = Object.keys(data.schemas).sort();
-        const stats = DataDictionaryService.computeStats(data);
-        const exists = name => !!data.byQualifiedName[name.toLowerCase()];
-        const link = name => exists(name) ? `[${name}](#${DataDictionaryService.anchor(name)})` : name;
+        const link = name => DataDictionaryService.sameDocLink(data, name);
         const linkList = names => names.length ? names.map(link).join(', ') : '—';
+        const ctx = { full, link, linkList, byQualifiedName: data.byQualifiedName };
 
+        DataDictionaryService.renderHeader(lines, data, options);
+
+        // Table of contents
+        lines.push('## Contents');
+        lines.push('');
+        for (const schemaName of schemaNames) {
+            const s = data.schemas[schemaName];
+            lines.push(`- [Schema ${schemaName}](#${DataDictionaryService.anchor('Schema: ' + schemaName)}) — ${DataDictionaryService.schemaCounts(s).join(', ')}`);
+        }
+        lines.push('');
+
+        for (const schemaName of schemaNames) {
+            const s = data.schemas[schemaName];
+            lines.push(`## Schema: ${schemaName}`);
+            lines.push('');
+
+            for (const [title, entries] of [['Tables', s.tables], ['Views', s.views]]) {
+                if (entries.length === 0) continue;
+                lines.push(`### ${title}`);
+                lines.push('');
+                for (const entry of entries) DataDictionaryService.renderTableEntry(lines, entry, ctx);
+            }
+
+            for (const [title, entries] of [['Procedures', s.procedures], ['Functions', s.functions]]) {
+                if (entries.length === 0) continue;
+                lines.push(`### ${title}`);
+                lines.push('');
+                for (const entry of entries) DataDictionaryService.renderRoutineEntry(lines, entry, ctx);
+            }
+        }
+
+        if (full && data.userTypes && data.userTypes.length > 0) {
+            DataDictionaryService.renderUserTypes(lines, data.userTypes);
+        }
+
+        DataDictionaryService.renderFooter(lines);
+        return lines.join('\n');
+    }
+
+    // Multi-file full export: an index (README.md) plus one file per page of
+    // objects. Tables — the only objects carrying a Mermaid ER diagram — are
+    // paginated with a hard cap so no file exceeds `maxTablesPerFile` diagrams,
+    // which is what keeps big single-schema databases readable. Cross-object
+    // links (FKs, depends-on/referenced-by) resolve to `<file>#anchor` across
+    // pages. Returns { indexName, files: [{ name, content }] }.
+    static renderPages(data, options = {}) {
+        const cap = Math.max(1, options.maxTablesPerFile || 40);
+        const pages = DataDictionaryService.paginate(data, cap);
+
+        // qualifiedName → page file it lives on, for cross-file link resolution.
+        const fileOf = {};
+        for (const p of pages) for (const e of p.entries) fileOf[e.qualifiedName.toLowerCase()] = p.name;
+
+        const exists = name => !!data.byQualifiedName[name.toLowerCase()];
+        const link = name => {
+            if (!exists(name)) return name;
+            const file = fileOf[name.toLowerCase()] || '';
+            return `[${name}](${file}#${DataDictionaryService.anchor(name)})`;
+        };
+        const linkList = names => names.length ? names.map(link).join(', ') : '—';
+        const ctx = { full: true, link, linkList, byQualifiedName: data.byQualifiedName };
+
+        const files = [{ name: 'README.md', content: DataDictionaryService.renderIndex(data, options, pages) }];
+        for (const page of pages) {
+            files.push({ name: page.name, content: DataDictionaryService.renderPage(data, page, ctx) });
+        }
+        return { indexName: 'README.md', files };
+    }
+
+    // === Shared rendering blocks ===
+
+    static renderHeader(lines, data, options) {
+        const full = !!options.full;
+        const stats = DataDictionaryService.computeStats(data);
         lines.push(`# Data Dictionary — ${data.database}`);
         lines.push('');
         lines.push(`Generated by SQL Wayfarer on ${data.generatedAt.toISOString().slice(0, 10)} (server: ${data.server}).`);
@@ -477,123 +560,251 @@ class DataDictionaryService {
             }
         }
         lines.push('');
+    }
 
-        // Table of contents
-        lines.push('## Contents');
-        lines.push('');
-        for (const schemaName of schemaNames) {
-            const s = data.schemas[schemaName];
-            const counts = [];
-            if (s.tables.length) counts.push(`${s.tables.length} tables`);
-            if (s.views.length) counts.push(`${s.views.length} views`);
-            if (s.procedures.length) counts.push(`${s.procedures.length} procedures`);
-            if (s.functions.length) counts.push(`${s.functions.length} functions`);
-            lines.push(`- [Schema ${schemaName}](#${DataDictionaryService.anchor('Schema: ' + schemaName)}) — ${counts.join(', ')}`);
-        }
-        lines.push('');
-
-        for (const schemaName of schemaNames) {
-            const s = data.schemas[schemaName];
-            lines.push(`## Schema: ${schemaName}`);
-            lines.push('');
-
-            for (const [title, entries] of [['Tables', s.tables], ['Views', s.views]]) {
-                if (entries.length === 0) continue;
-                lines.push(`### ${title}`);
-                lines.push('');
-                for (const entry of entries) {
-                    lines.push(`#### ${entry.qualifiedName}`);
-                    lines.push('');
-                    if (entry.description) {
-                        lines.push(`> ${entry.description.replace(/\r?\n/g, ' ')}`);
-                        lines.push('');
-                    }
-                    if (full && entry.rowCount !== undefined && entry.rowCount !== null) {
-                        lines.push(`*${DataDictionaryService.formatCount(entry.rowCount)} rows · ${DataDictionaryService.formatSize(entry.reservedKb)}*`);
-                        lines.push('');
-                    }
-                    lines.push('| Column | Type | Nullable | Default | Description |');
-                    lines.push('|--------|------|:--------:|---------|-------------|');
-                    for (const col of entry.columns) {
-                        const isPk = entry.primaryKey.includes(col.column_name);
-                        const nameCell = `${isPk ? '🔑 ' : ''}**${col.column_name}**`;
-                        let type = DataDictionaryService.formatDataType(col.data_type, col.max_length, col.precision, col.scale);
-                        if (col.is_identity) type += ' · identity';
-                        if (col.is_computed) type += ' · computed';
-                        const cells = [
-                            nameCell,
-                            type,
-                            col.is_nullable ? '✓' : '',
-                            DataDictionaryService.cleanDefault(col.default_definition),
-                            col.description || ''
-                        ];
-                        lines.push(`| ${cells.map(DataDictionaryService.escapeCell).join(' | ')} |`);
-                    }
-                    lines.push('');
-
-                    if (entry.foreignKeys.length > 0) {
-                        lines.push('**Foreign keys:**');
-                        lines.push('');
-                        for (const fk of entry.foreignKeys) {
-                            const target = `${fk.ref_schema}.${fk.ref_table}`;
-                            lines.push(`- \`${fk.fk_name}\`: ${fk.column_name} → ${link(target)} (${fk.ref_column})`);
-                        }
-                        lines.push('');
-                    }
-
-                    if (full) {
-                        DataDictionaryService.renderTableExtras(lines, entry, link);
-                        DataDictionaryService.renderErNeighborhood(lines, entry, data.byQualifiedName);
-                    }
-
-                    lines.push(`**Depends on:** ${linkList(entry.dependsOn)}  `);
-                    lines.push(`**Referenced by:** ${linkList(entry.referencedBy)}`);
-                    lines.push('');
-                }
-            }
-
-            for (const [title, entries] of [['Procedures', s.procedures], ['Functions', s.functions]]) {
-                if (entries.length === 0) continue;
-                lines.push(`### ${title}`);
-                lines.push('');
-                for (const entry of entries) {
-                    lines.push(`#### ${entry.qualifiedName}`);
-                    lines.push('');
-                    if (entry.description) {
-                        lines.push(`> ${entry.description.replace(/\r?\n/g, ' ')}`);
-                        lines.push('');
-                    }
-                    if (entry.parameters.length > 0) {
-                        lines.push('| Parameter | Type | Direction |');
-                        lines.push('|-----------|------|-----------|');
-                        for (const p of entry.parameters) {
-                            const type = DataDictionaryService.formatDataType(p.data_type, p.max_length, p.precision, p.scale);
-                            lines.push(`| ${DataDictionaryService.escapeCell(p.param_name)} | ${type} | ${p.is_output ? 'out' : 'in'} |`);
-                        }
-                        lines.push('');
-                    }
-                    lines.push(`**Depends on:** ${linkList(entry.dependsOn)}  `);
-                    lines.push(`**Referenced by:** ${linkList(entry.referencedBy)}`);
-                    lines.push('');
-                }
-            }
-        }
-
-        if (full && data.userTypes && data.userTypes.length > 0) {
-            lines.push('## User Defined Types');
-            lines.push('');
-            lines.push('| Type | Base type | Nullable |');
-            lines.push('|------|-----------|:--------:|');
-            for (const t of data.userTypes) {
-                lines.push(`| ${DataDictionaryService.escapeCell(t.qualifiedName)} | ${DataDictionaryService.escapeCell(t.baseType)} | ${t.nullable ? '✓' : ''} |`);
-            }
-            lines.push('');
-        }
-
+    static renderFooter(lines) {
         lines.push('---');
         lines.push('*Generated with [SQL Wayfarer](https://github.com/intarynx/sqlwayfarer). Descriptions come from MS_Description extended properties — edit them in the Comments tab.*');
         lines.push('');
+    }
+
+    static renderUserTypes(lines, userTypes) {
+        lines.push('## User Defined Types');
+        lines.push('');
+        lines.push('| Type | Base type | Nullable |');
+        lines.push('|------|-----------|:--------:|');
+        for (const t of userTypes) {
+            lines.push(`| ${DataDictionaryService.escapeCell(t.qualifiedName)} | ${DataDictionaryService.escapeCell(t.baseType)} | ${t.nullable ? '✓' : ''} |`);
+        }
+        lines.push('');
+    }
+
+    static schemaCounts(s) {
+        const counts = [];
+        if (s.tables.length) counts.push(`${s.tables.length} tables`);
+        if (s.views.length) counts.push(`${s.views.length} views`);
+        if (s.procedures.length) counts.push(`${s.procedures.length} procedures`);
+        if (s.functions.length) counts.push(`${s.functions.length} functions`);
+        return counts;
+    }
+
+    static sameDocLink(data, name) {
+        return data.byQualifiedName[name.toLowerCase()]
+            ? `[${name}](#${DataDictionaryService.anchor(name)})`
+            : name;
+    }
+
+    // One table/view card. `ctx` = { full, link, linkList, byQualifiedName }.
+    static renderTableEntry(lines, entry, ctx) {
+        const { full, link, linkList, byQualifiedName } = ctx;
+        lines.push(`#### ${entry.qualifiedName}`);
+        lines.push('');
+        if (entry.description) {
+            lines.push(`> ${entry.description.replace(/\r?\n/g, ' ')}`);
+            lines.push('');
+        }
+        if (full && entry.rowCount !== undefined && entry.rowCount !== null) {
+            lines.push(`*${DataDictionaryService.formatCount(entry.rowCount)} rows · ${DataDictionaryService.formatSize(entry.reservedKb)}*`);
+            lines.push('');
+        }
+        lines.push('| Column | Type | Nullable | Default | Description |');
+        lines.push('|--------|------|:--------:|---------|-------------|');
+        for (const col of entry.columns) {
+            const isPk = entry.primaryKey.includes(col.column_name);
+            const nameCell = `${isPk ? '🔑 ' : ''}**${col.column_name}**`;
+            let type = DataDictionaryService.formatDataType(col.data_type, col.max_length, col.precision, col.scale);
+            if (col.is_identity) type += ' · identity';
+            if (col.is_computed) type += ' · computed';
+            const cells = [
+                nameCell,
+                type,
+                col.is_nullable ? '✓' : '',
+                DataDictionaryService.cleanDefault(col.default_definition),
+                col.description || ''
+            ];
+            lines.push(`| ${cells.map(DataDictionaryService.escapeCell).join(' | ')} |`);
+        }
+        lines.push('');
+
+        if (entry.foreignKeys.length > 0) {
+            lines.push('**Foreign keys:**');
+            lines.push('');
+            for (const fk of entry.foreignKeys) {
+                const target = `${fk.ref_schema}.${fk.ref_table}`;
+                lines.push(`- \`${fk.fk_name}\`: ${fk.column_name} → ${link(target)} (${fk.ref_column})`);
+            }
+            lines.push('');
+        }
+
+        if (full) {
+            DataDictionaryService.renderTableExtras(lines, entry, link);
+            DataDictionaryService.renderErNeighborhood(lines, entry, byQualifiedName);
+        }
+
+        lines.push(`**Depends on:** ${linkList(entry.dependsOn)}  `);
+        lines.push(`**Referenced by:** ${linkList(entry.referencedBy)}`);
+        lines.push('');
+    }
+
+    // One procedure/function card. `ctx` = { link, linkList }.
+    static renderRoutineEntry(lines, entry, ctx) {
+        const { linkList } = ctx;
+        lines.push(`#### ${entry.qualifiedName}`);
+        lines.push('');
+        if (entry.description) {
+            lines.push(`> ${entry.description.replace(/\r?\n/g, ' ')}`);
+            lines.push('');
+        }
+        if (entry.parameters.length > 0) {
+            lines.push('| Parameter | Type | Direction |');
+            lines.push('|-----------|------|-----------|');
+            for (const p of entry.parameters) {
+                const type = DataDictionaryService.formatDataType(p.data_type, p.max_length, p.precision, p.scale);
+                lines.push(`| ${DataDictionaryService.escapeCell(p.param_name)} | ${type} | ${p.is_output ? 'out' : 'in'} |`);
+            }
+            lines.push('');
+        }
+        lines.push(`**Depends on:** ${linkList(entry.dependsOn)}  `);
+        lines.push(`**Referenced by:** ${linkList(entry.referencedBy)}`);
+        lines.push('');
+    }
+
+    // === Multi-file pagination ===
+
+    // Split every schema's objects into page bins. Each category is paginated
+    // independently; tables are grouped by name prefix then packed under the
+    // cap (see packByPrefix). Returns an ordered list of pages, each
+    // { name, schema, category, part, partCount, entries }.
+    static paginate(data, cap) {
+        const pages = [];
+        const categories = [
+            { key: 'tables', label: 'Tables' },
+            { key: 'views', label: 'Views' },
+            { key: 'procedures', label: 'Procedures' },
+            { key: 'functions', label: 'Functions' }
+        ];
+        for (const schemaName of Object.keys(data.schemas).sort()) {
+            const s = data.schemas[schemaName];
+            const schemaSlug = DataDictionaryService.slugFile(schemaName);
+            for (const cat of categories) {
+                const entries = s[cat.key] || [];
+                if (entries.length === 0) continue;
+                const bins = DataDictionaryService.packByPrefix(entries, cap);
+                const multi = bins.length > 1;
+                bins.forEach((bin, i) => {
+                    const suffix = multi ? `-${String(i + 1).padStart(2, '0')}` : '';
+                    pages.push({
+                        name: `${schemaSlug}-${cat.key}${suffix}.md`,
+                        schema: schemaName,
+                        category: cat.label,
+                        part: multi ? i + 1 : null,
+                        partCount: multi ? bins.length : null,
+                        entries: bin
+                    });
+                });
+            }
+        }
+        return pages;
+    }
+
+    // Grouping key for an object: the segment before the first underscore, else
+    // the first camelCase / leading word. Maps names like Invoice_Header and
+    // InvoiceLine to a shared module bucket when a convention exists, and
+    // degrades to per-name buckets (→ alphabetical packing) when it doesn't.
+    static objectPrefix(name) {
+        const n = name || '';
+        const us = n.indexOf('_');
+        if (us > 0) return n.slice(0, us);
+        const m = n.match(/^[A-Za-z][a-z0-9]*/);
+        return m ? m[0] : n;
+    }
+
+    // Bin-pack entries under a hard cap while keeping same-prefix objects
+    // together. A prefix group larger than the cap is chunked; smaller groups
+    // are merged with following groups until the cap is reached. Deterministic
+    // (groups and items are ordered), so the file layout is stable across runs.
+    static packByPrefix(entries, cap) {
+        const groups = [];
+        const byPrefix = {};
+        for (const e of entries) {
+            const key = DataDictionaryService.objectPrefix(e.name).toLowerCase();
+            if (!byPrefix[key]) { byPrefix[key] = { key, items: [] }; groups.push(byPrefix[key]); }
+            byPrefix[key].items.push(e);
+        }
+        groups.sort((a, b) => a.key.localeCompare(b.key));
+
+        const bins = [];
+        let cur = [];
+        const flush = () => { if (cur.length) { bins.push(cur); cur = []; } };
+        for (const g of groups) {
+            if (g.items.length > cap) {
+                flush();
+                for (let i = 0; i < g.items.length; i += cap) bins.push(g.items.slice(i, i + cap));
+                continue;
+            }
+            if (cur.length + g.items.length > cap) flush();
+            cur.push(...g.items);
+        }
+        flush();
+        return bins.length ? bins : [[]];
+    }
+
+    // The index file: header, per-schema list of page files with row ranges,
+    // and (full mode) the small user-defined-types table.
+    static renderIndex(data, options, pages) {
+        const lines = [];
+        DataDictionaryService.renderHeader(lines, data, options);
+
+        lines.push('## Contents');
+        lines.push('');
+        lines.push('*This dictionary is split across several files to stay readable in any Markdown viewer.*');
+        lines.push('');
+        for (const schemaName of Object.keys(data.schemas).sort()) {
+            const s = data.schemas[schemaName];
+            lines.push(`### Schema: ${schemaName}`);
+            lines.push('');
+            lines.push(`${DataDictionaryService.schemaCounts(s).join(' · ')}`);
+            lines.push('');
+            for (const page of pages.filter(p => p.schema === schemaName)) {
+                const first = page.entries[0];
+                const last = page.entries[page.entries.length - 1];
+                const range = page.entries.length > 1 && first && last
+                    ? ` — ${first.name} … ${last.name}`
+                    : (first ? ` — ${first.name}` : '');
+                const part = page.partCount ? ` (part ${page.part}/${page.partCount})` : '';
+                lines.push(`- [${page.category}${part}](${page.name}) · ${page.entries.length}${range}`);
+            }
+            lines.push('');
+        }
+
+        if (data.userTypes && data.userTypes.length > 0) {
+            DataDictionaryService.renderUserTypes(lines, data.userTypes);
+        }
+
+        DataDictionaryService.renderFooter(lines);
         return lines.join('\n');
+    }
+
+    // One page file: a heading, a back-link to the index, then the object cards.
+    static renderPage(data, page, ctx) {
+        const lines = [];
+        const part = page.partCount ? ` — part ${page.part}/${page.partCount}` : '';
+        lines.push(`# ${data.database} — ${page.schema}: ${page.category}${part}`);
+        lines.push('');
+        lines.push('[← Index](README.md)');
+        lines.push('');
+        const isRoutine = page.category === 'Procedures' || page.category === 'Functions';
+        for (const entry of page.entries) {
+            if (isRoutine) DataDictionaryService.renderRoutineEntry(lines, entry, ctx);
+            else DataDictionaryService.renderTableEntry(lines, entry, ctx);
+        }
+        DataDictionaryService.renderFooter(lines);
+        return lines.join('\n');
+    }
+
+    // Filesystem-safe slug for a schema/database name used in file names.
+    static slugFile(text) {
+        return String(text).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
     }
 
     // === Full-mode table sections (indexes, incoming FKs, constraints, triggers) ===

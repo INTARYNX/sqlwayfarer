@@ -4,6 +4,16 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.8.7] - 2026-07-07
+
+### Improved
+
+- **Table Footprint legend**: the graph legend now groups the table chips under "Tables" and adds an "Edges" group with line samples that mirror the graph's edge styles (writes, reads, FK relationship, possible), so the diagram is readable without guessing what each line means.
+
+### Changed
+
+- **Full data dictionary is now exported as a folder of files instead of one giant `.md`.** With the per-table Mermaid ER diagrams, a large database produced a single document with hundreds of `mermaid` blocks, which chokes Markdown viewers (VS Code preview, GitHub, Obsidian). The full export now writes a `<database>-data-dictionary-full/` folder: a `README.md` index (header, coverage, model summary, user-defined types, and a per-schema list of the page files) plus one file per page of objects. Each category is paginated with a hard cap (~40 tables per file), so no file ever carries more than ~40 diagrams; tables are grouped by name prefix (e.g. `Invoice_*`) so related tables stay together, degrading to alphabetical packing when there's no naming convention. Cross-object links (foreign keys, depends-on / referenced-by) resolve across files (`<file>#anchor`). The basic (unchecked) export is unchanged — still a single file.
+
 ## [0.8.6] - 2026-07-07
 
 ### Fixed

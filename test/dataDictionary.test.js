@@ -113,6 +113,88 @@ suite('DataDictionaryService.render', () => {
 	});
 });
 
+suite('DataDictionaryService.renderPages (multi-file full export)', () => {
+	const data = DataDictionaryService.assemble(makeFixture());
+	const result = DataDictionaryService.renderPages(data, { full: true, maxTablesPerFile: 1 });
+	const byName = Object.fromEntries(result.files.map(f => [f.name, f.content]));
+
+	test('emits a README index plus one file per page', () => {
+		assert.strictEqual(result.indexName, 'README.md');
+		assert.ok(byName['README.md'], 'has README');
+		// dbo: 2 tables (cap 1 → 2 files), 1 view; sales: 1 proc, 1 function.
+		assert.ok(byName['dbo-tables-01.md'], 'dbo tables page 1');
+		assert.ok(byName['dbo-tables-02.md'], 'dbo tables page 2');
+		assert.ok(byName['dbo-views.md'], 'dbo views (single page, no suffix)');
+		assert.ok(byName['sales-procedures.md']);
+		assert.ok(byName['sales-functions.md']);
+	});
+
+	test('caps tables per page so no file carries more than maxTablesPerFile', () => {
+		for (const f of result.files) {
+			const tables = (f.content.match(/^#### /gm) || []).length;
+			if (f.name.includes('-tables-')) assert.ok(tables <= 1, `${f.name} has ${tables} tables`);
+		}
+	});
+
+	test('README lists schemas with links to the page files', () => {
+		const readme = byName['README.md'];
+		assert.ok(readme.includes('# Data Dictionary — Shop'));
+		assert.ok(readme.includes('### Schema: dbo'));
+		assert.ok(readme.includes('(dbo-tables-01.md)'), readme);
+		assert.ok(readme.includes('(sales-procedures.md)'));
+	});
+
+	test('foreign-key links resolve to the file the referenced table lives on', () => {
+		// dbo.Order references dbo.Customer; each is on its own page (cap 1).
+		const orderPage = result.files.find(f => f.content.includes('#### dbo.Order')).content;
+		const customerFile = result.files.find(f => f.content.includes('#### dbo.Customer')).name;
+		assert.ok(
+			orderPage.includes(`→ [dbo.Customer](${customerFile}#dbocustomer)`),
+			orderPage.match(/Foreign keys[\s\S]*?→.*$/m)
+		);
+	});
+
+	test('page files carry a Mermaid ER neighborhood and a back-link to the index', () => {
+		const orderPage = result.files.find(f => f.content.includes('#### dbo.Order')).content;
+		assert.ok(orderPage.includes('[← Index](README.md)'));
+		assert.ok(orderPage.includes('```mermaid'), 'ER diagram present in full mode');
+	});
+});
+
+suite('DataDictionaryService pagination helpers', () => {
+	const mk = name => ({ name });
+
+	test('objectPrefix groups by underscore segment then leading word', () => {
+		assert.strictEqual(DataDictionaryService.objectPrefix('Invoice_Header'), 'Invoice');
+		assert.strictEqual(DataDictionaryService.objectPrefix('InvoiceLine'), 'Invoice');
+		assert.strictEqual(DataDictionaryService.objectPrefix('Customer'), 'Customer');
+	});
+
+	test('packByPrefix keeps same-prefix objects together and respects the cap', () => {
+		const entries = [
+			mk('Invoice_A'), mk('Invoice_B'), mk('Invoice_C'),
+			mk('Order_A'), mk('Order_B')
+		];
+		const bins = DataDictionaryService.packByPrefix(entries, 3);
+		// Invoice group (3) fills a bin; Order group (2) lands in the next.
+		assert.strictEqual(bins.length, 2);
+		assert.deepStrictEqual(bins[0].map(e => e.name), ['Invoice_A', 'Invoice_B', 'Invoice_C']);
+		assert.deepStrictEqual(bins[1].map(e => e.name), ['Order_A', 'Order_B']);
+	});
+
+	test('packByPrefix chunks a single prefix group larger than the cap', () => {
+		const entries = [mk('T_1'), mk('T_2'), mk('T_3'), mk('T_4'), mk('T_5')];
+		const bins = DataDictionaryService.packByPrefix(entries, 2);
+		assert.deepStrictEqual(bins.map(b => b.length), [2, 2, 1]);
+	});
+
+	test('packByPrefix merges small consecutive groups up to the cap', () => {
+		const entries = [mk('Aaa'), mk('Bbb'), mk('Ccc'), mk('Ddd')];
+		const bins = DataDictionaryService.packByPrefix(entries, 3);
+		assert.deepStrictEqual(bins.map(b => b.length), [3, 1]);
+	});
+});
+
 suite('DataDictionaryService helpers', () => {
 	test('formatDataType covers length, unicode, precision and MAX cases', () => {
 		assert.strictEqual(DataDictionaryService.formatDataType('varchar', 50), 'varchar(50)');
