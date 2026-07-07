@@ -1,25 +1,33 @@
 {
   "name": "sqlwayfarer",
   "displayName": "SQL Wayfarer",
-  "description": "Navigate and explore SQL Server databases directly within VS Code. View tables, procedures, dependencies, and more.",
-  "version": "0.8.7",
+  "description": "A SQL Server & Azure SQL workspace for VS Code: see what depends on a column, trace the tables a procedure really touches through triggers, run T-SQL, generate scripts, and export a Markdown data dictionary.",
+  "version": "0.8.8",
   "publisher": "intarynx",
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
   "keywords": [
-    "sql",
+    "sql server",
+    "azure sql",
     "tsql",
     "mssql",
     "database",
-    "explorer",
+    "data dictionary",
+    "column lineage",
+    "dependency graph",
     "dependencies",
     "schema",
+    "explorer",
+    "erd",
+    "trigger",
     "procedure",
-    "table"
+    "table",
+    "query"
   ],
   "icon": "icon.png",
   "repository": {
@@ -30,6 +38,7 @@
     "url": "https://github.com/intarynx/sqlwayfarer/issues"
   },
   "homepage": "https://github.com/intarynx/sqlwayfarer",
+  "qna": "https://github.com/intarynx/sqlwayfarer/issues",
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [

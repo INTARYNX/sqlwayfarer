@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.8.8] - 2026-07-07
+
+### Changed
+
+- Marketplace listing refresh: the extension description, search keywords, and categories now reflect what the extension actually does today — column-level lineage, trigger-aware table footprints, the script generator, and the data-dictionary export (the previous one-liner predated all of them). The Marketplace **Q & A** tab now points to GitHub Issues, matching the stated feedback channel.
+
 ## [0.8.7] - 2026-07-07
 
 ### Improved
