@@ -8,3 +8,5 @@ if ([string]::IsNullOrWhiteSpace($commitMsg)) { $commitMsg = $date }
 if (-not $?) { throw "git add failed" }
 & git commit -m $commitMsg
 if (-not $?) { throw "git commit failed" }
+& git push
+if (-not $?) { throw "git push failed" }
