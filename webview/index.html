@@ -341,12 +341,17 @@
             <!-- Graph tab: proc-centric footprint (reads/writes/trigger cascade) -->
             <div class="fp-panel active" data-fppanel="graph">
                 <div class="footprint-legend">
+                    <span class="fp-legend-sep">Tables</span>
                     <span class="fp-chip fp-target">Object</span>
                     <span class="fp-chip fp-write">Written</span>
                     <span class="fp-chip fp-read">Read</span>
                     <span class="fp-chip fp-trigger">Via trigger</span>
                     <span class="fp-chip fp-possible">Possible (dynamic)</span>
-                    <span class="fp-legend-edge">— FK relationship</span>
+                    <span class="fp-legend-sep">Edges</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-write"></i> writes</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-read"></i> reads</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-fk"></i> FK relationship</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-possible"></i> possible</span>
                     <label class="fp-toggle" title="Show or hide the tables the object only reads, to focus on writes and trigger cascades">
                         <input type="checkbox" id="footprintShowReads" checked> Show reads
                     </label>

@@ -1343,7 +1343,33 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-chip.fp-read    { background: #5a6673; }
 .fp-chip.fp-trigger { background: #c77d0a; border: 1px dashed #e8a33d; }
 .fp-chip.fp-possible { background: #4a5160; border: 1px dashed #8892a0; color: #cfd6de; }
-.fp-legend-edge     { opacity: 0.7; }
+
+.fp-legend-sep {
+    opacity: 0.55;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: 4px;
+}
+.fp-legend-sep:first-child { margin-left: 0; }
+
+.fp-legend-edge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.85;
+}
+/* Small line samples that mirror the graph's edge styles. */
+.fp-line {
+    display: inline-block;
+    width: 24px;
+    height: 0;
+    vertical-align: middle;
+}
+.fp-line-write    { border-top: 2px solid #c0392b; }
+.fp-line-read     { border-top: 2px dashed #6b7684; }
+.fp-line-fk       { border-top: 2px solid #8892a0; }
+.fp-line-possible { border-top: 2px dotted #8892a0; }
 
 .fp-toggle {
     display: inline-flex;
