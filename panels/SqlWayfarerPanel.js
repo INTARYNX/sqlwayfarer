@@ -245,13 +245,10 @@ class SqlWayfarerPanel {
         this._panel.dispose();
 
         this._idx.cancel();
-        if (this._currentSelectedDatabase) {
-            try {
-                await this._indexService.clearIndex(this._currentSelectedDatabase);
-            } catch (error) {
-                console.warn('Error clearing index during disposal:', error);
-            }
-        }
+        // NB: do NOT clear the index here. It is a persistent, checksum-validated
+        // on-disk cache keyed by server+database — deleting it when the panel
+        // closes forces a full rebuild on every reopen (crippling on large
+        // databases). Staleness is handled by the schema checksum on next open.
 
         if (this._connectionManager) {
             try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error disposing connection manager:', error); }
