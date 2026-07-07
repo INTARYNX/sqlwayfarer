@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.8.6] - 2026-07-07
+
+### Fixed
+
+- The current database's on-disk index was deleted when the panel was closed (`dispose`), forcing a full rebuild on every reopen — very costly on large databases. The index is a persistent, checksum-validated cache and is now kept; staleness is handled by the schema checksum on next open. (Companion to the 0.8.5 `getDatabases` fix, which closed the other path that wiped a valid index.)
+
 ## [0.8.5] - 2026-07-07
 
 ### Added
