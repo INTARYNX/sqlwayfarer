@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Wayfarer</title>
+    <link href="{{CODICON_STYLES_URI}}" rel="stylesheet">
+    <link href="{{STYLES_URI}}" rel="stylesheet">
+    <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
+    <link href="{{CODE_VIEW_STYLES_URI}}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header with title and database selector -->
+        <div class="header-section">
+            <h1>SQL Wayfarer</h1>
+            <div class="header-actions">
+                <button id="exportDictionaryBtn" disabled title="Export a Markdown data dictionary of the selected database"><i class="codicon codicon-library"></i> Dictionary</button>
+                <label class="full-doc-option" title="Full mode: also include indexes, incoming relations, CHECK/UNIQUE constraints and triggers (runs a few more queries)">
+                    <input type="checkbox" id="dictionaryFullChk"> Full
+                </label>
+                <button id="objectsIndicatorBtn" class="objects-indicator" disabled title="No database selected">
+                    <span id="objectsIndicatorDot" class="indicator-dot dot-none"></span>
+                    Objects
+                </button>
+                <div class="database-selector-inline">
+                    <label for="databaseSelect">Database:</label>
+                    <select id="databaseSelect" disabled>
+                        <option value="">Select a database...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-container">
+            <div class="tab-nav">
+                <button class="tab-button active" data-tab="configuration">Configuration</button>
+                <button class="tab-button" data-tab="explorer">Explorer</button>
+                <button class="tab-button" data-tab="query">Query</button>
+            </div>
+            
+            <!-- Configuration Tab -->
+            <div id="configurationTab" class="tab-content active">
+                <div class="connection-section">
+                    <h2>Connection</h2>
+                    <div id="buildInfo" style="font-size: 0.8em; opacity: 0.6; margin-bottom: 8px;">Build: {{BUILD_TIME}}</div>
+
+                    <!-- Main Connection Interface -->
+                    <div class="connection-main">
+                        <div class="input-group">
+                            <label for="connectionSelect">Connection:</label>
+                            <select id="connectionSelect">
+                                <option value="">Loading connections...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="connection-actions">
+                            <button id="connectBtn">Connect</button>
+                            <button id="editBtn" style="display: none;">Edit</button>
+                            <button id="deleteBtn" style="display: none;">Delete</button>
+                        </div>
+
+                        <label class="filter-checkbox auto-connect-option" title="Reconnect to the last used connection automatically when the panel opens">
+                            <input type="checkbox" id="autoConnectChk" checked>
+                            Auto-connect on startup
+                        </label>
+                    </div>
+                    
+                    <!-- Connection Settings (Initially Hidden) -->
+                    <div id="connectionSettings" class="connection-inputs" style="display: none;">
+                        <div class="section-header">
+                            <span id="settingsTitle">New Connection</span>
+                            <button id="closeSettingsBtn" type="button" style="float: right; width: auto;">Close</button>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="serverInput">Server:</label>
+                            <input type="text" id="serverInput" placeholder="localhost">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="portInput">Port (optional):</label>
+                            <input type="number" id="portInput" placeholder="1433">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="databaseInput">Database (optional):</label>
+                            <input type="text" id="databaseInput" placeholder="master">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="usernameInput">Username:</label>
+                            <input type="text" id="usernameInput" placeholder="sa">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="passwordInput">Password:</label>
+                            <input type="password" id="passwordInput" placeholder="Password" autocomplete="new-password">
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="encryptCheckbox"> 
+                                Encrypt Connection
+                            </label>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="trustCertCheckbox" checked> 
+                                Trust Server Certificate
+                            </label>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="connectionNameInput">Connection Name:</label>
+                            <input type="text" id="connectionNameInput" placeholder="My SQL Server">
+                        </div>
+                        
+                        <div class="connection-actions">
+                            <button id="saveConnectionBtn">Save Connection</button>
+                            <button id="testConnectionBtn">Test Connection</button>
+                            <button id="cancelSettingsBtn" type="button">Cancel</button>
+                        </div>
+                    </div>
+                    
+                    <div id="connectionStatus"></div>
+                </div>
+            </div>
+
+            <!-- Explorer Tab -->
+            <div id="explorerTab" class="tab-content">
+                <div class="explorer-section locked">
+                    <div class="explorer-lock-overlay">
+                        <p>Select a database to activate the explorer.</p>
+                    </div>
+                    <div class="selector-panel">
+                        <div class="section-header">Filter & Search</div>
+                        <div class="filter-section">
+                            <div class="search-container">
+                                <input type="text" id="objectSearch" placeholder="Search objects..." disabled>
+                                <button id="clearSearchBtn" class="clear-search-btn" disabled>×</button>
+                            </div>
+                            <label class="filter-checkbox search-scope" title="Search inside view / procedure / function definitions instead of object names">
+                                <input type="checkbox" id="searchInCodeChk" disabled>
+                                Search in code
+                            </label>
+                            
+                            <div class="filter-types">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterTable" checked disabled>
+                                    Tables
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterView" checked disabled>
+                                    Views
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterProcedure" checked disabled>
+                                    Procedures
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="filterFunction" checked disabled>
+                                    Functions
+                                </label>
+                            </div>
+                            
+                            <div class="filter-actions">
+                                <button id="selectAllTypesBtn" class="filter-btn" disabled>All</button>
+                                <button id="clearAllTypesBtn" class="filter-btn" disabled>None</button>
+                            </div>
+                        </div>
+                        
+                        <div class="section-header">
+                            Objects
+                            <span id="objectCount" class="object-count"></span>
+                        </div>
+                        <div id="objectList">
+                            <p class="placeholder-text">Connect to a database first to view objects.</p>
+                        </div>
+                    </div>
+
+                    <div class="details-panel">
+                        <!-- Details Panel Navigation -->
+                        <div class="details-nav">
+                            <button class="details-tab-button active" data-details-tab="structure">Structure</button>
+                            <button class="details-tab-button" data-details-tab="tree">Tree</button>
+                            <button class="details-tab-button" data-details-tab="graph">Graph</button>
+                            <button class="details-tab-button" data-details-tab="code">Code</button>
+                            <button class="details-tab-button" data-details-tab="comments">Comments</button>
+                        </div>
+
+                        <!-- Structure Tab (existing details) -->
+                        <div id="structureDetailsTab" class="details-tab-content active">
+                            <div class="section-header">Details</div>
+                            <div id="detailsContent">
+                                <p>Select a table to view its structure, indexes, and constraints.</p>
+                            </div>
+                        </div>
+
+                        <!-- Add new Tree tab content -->
+                        <div id="treeDetailsTab" class="details-tab-content">
+                            <div id="treeContainer">
+                                <div class="tree-placeholder">
+                                    <h3><i class="codicon codicon-list-tree"></i> Dependency Tree</h3>
+                                    <p class="placeholder-text">Select an object to view its dependency tree.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Graph Tab (new) -->
+                        <div id="graphDetailsTab" class="details-tab-content">
+                            <div id="graphContainer">
+                                <div class="graph-placeholder">
+                                    <h3><i class="codicon codicon-graph"></i> Dependency Graph</h3>
+                                    <p class="placeholder-text">Select an object to view its dependency graph.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Code Tab (new) -->
+                        <div id="codeDetailsTab" class="details-tab-content">
+                            <div id="codeContainer">
+                                <div class="code-placeholder">
+                                    <h3><i class="codicon codicon-file-code"></i> Code View</h3>
+                                    <p class="placeholder-text">Select a view, procedure, or function to view its code definition.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Comments Tab -->
+                        <div id="commentsDetailsTab" class="details-tab-content">
+                            <div id="commentsContainer">
+                                <div class="comments-placeholder">
+                                    <h3>Comments & Documentation</h3>
+                                    <p class="placeholder-text">Select a table, view, procedure, or function to view and edit its comments.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Dependency Visualization Container -->
+                        <div id="dependencyVisualization" class="dependency-viz-container" style="display: none;">
+                            <div class="section-header">
+                                <span>Dependency Graph</span>
+                                <button id="closeDependencyViz" class="close-viz-btn">Close</button>
+                            </div>
+                            <div class="viz-controls">
+                                <button id="showDependenciesBtn" class="viz-btn">Dependencies</button>
+                                <button id="showReferencesBtn" class="viz-btn">References</button>
+                                <button id="showBothBtn" class="viz-btn active">Both</button>
+                            </div>
+                            <div id="dependencyGraph" class="dependency-graph"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Query Tab -->
+            <div id="queryTab" class="tab-content">
+                <div class="query-section">
+                    <div class="query-toolbar">
+                        <button id="runQueryBtn" disabled>▶ Run Query</button>
+                        <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;">⏹ Cancel</button>
+                        <label class="query-option">Max rows
+                            <select id="maxRowsSelect">
+                                <option value="100">100</option>
+                                <option value="1000" selected>1 000</option>
+                                <option value="5000">5 000</option>
+                                <option value="10000">10 000</option>
+                            </select>
+                        </label>
+                        <select id="queryHistorySelect" class="query-history-select" title="Recent queries">
+                            <option value="">🕘 History…</option>
+                        </select>
+                        <span id="queryStatus" class="query-status">Select a database in Explorer to run queries.</span>
+                    </div>
+                    <textarea id="queryInput" class="query-input" placeholder="SELECT TOP 100 * FROM ..." spellcheck="false"></textarea>
+                    <div id="querySplitter" class="query-splitter" title="Drag to resize — double-click to reset"></div>
+                    <div id="queryResultsContainer">
+                        <p class="placeholder-text">Run a query to see results here.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Objects Modal -->
+    <div id="objectsModalOverlay" class="modal-overlay objects-modal-overlay">
+        <div class="modal-dialog modal-dialog-wide">
+            <div class="modal-header">
+                <h3>Database Objects - Raw JSON Index</h3>
+                <button id="objectsModalCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="objects-section">
+                    <div class="objects-header">
+                        <button id="forceReindexBtn" class="force-reindex-btn" disabled><i class="codicon codicon-refresh"></i> Force Reindex</button>
+                    </div>
+                    <div id="objectsJsonContent">
+                        <p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Usage Modal: the "Used by" lineage list (can hold 150+ objects,
+         a dropdown menu pinned to the viewport cannot) -->
+    <div id="columnUsageModalOverlay" class="modal-overlay column-usage-modal-overlay">
+        <div class="modal-dialog modal-dialog-column-usage">
+            <div class="modal-header">
+                <h3 id="columnUsageModalTitle">Column usage</h3>
+                <button id="columnUsageModalCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="column-usage-toolbar">
+                    <input type="text" id="columnUsageFilter" class="column-usage-filter" placeholder="Filter objects…" spellcheck="false">
+                    <button id="columnUsageCopyBtn" class="column-usage-copy-btn" title="Copy the listed objects to the clipboard (one per line)"><i class="codicon codicon-copy"></i> Copy</button>
+                </div>
+                <div id="columnUsageList" class="column-usage-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Write Footprint Modal: interactive graph of the tables an object reads/
+         writes, including tables reached only through trigger cascades. -->
+    <div id="writeFootprintOverlay" class="modal-overlay footprint-modal-overlay">
+        <div class="modal-dialog modal-dialog-footprint">
+            <div class="modal-header">
+                <h3 id="writeFootprintTitle">Table footprint</h3>
+                <button id="writeFootprintCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="footprint-tabs">
+                <button class="fp-tab active" data-fptab="graph">Graph</button>
+                <button class="fp-tab" data-fptab="schema">Schema</button>
+                <button class="fp-tab" data-fptab="tables">Tables</button>
+            </div>
+
+            <!-- Graph tab: proc-centric footprint (reads/writes/trigger cascade) -->
+            <div class="fp-panel active" data-fppanel="graph">
+                <div class="footprint-legend">
+                    <span class="fp-legend-sep">Tables</span>
+                    <span class="fp-chip fp-target">Object</span>
+                    <span class="fp-chip fp-write">Written</span>
+                    <span class="fp-chip fp-read">Read</span>
+                    <span class="fp-chip fp-trigger">Via trigger</span>
+                    <span class="fp-chip fp-possible">Possible (dynamic)</span>
+                    <span class="fp-legend-sep">Edges</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-write"></i> writes</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-read"></i> reads</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-fk"></i> FK relationship</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-possible"></i> possible</span>
+                    <label class="fp-toggle" title="Show or hide the tables the object only reads, to focus on writes and trigger cascades">
+                        <input type="checkbox" id="footprintShowReads" checked> Show reads
+                    </label>
+                </div>
+                <div id="writeFootprintGraph" class="footprint-graph"></div>
+                <div id="writeFootprintMeta" class="footprint-meta"></div>
+            </div>
+
+            <!-- Schema tab: pure relational ER of the footprint tables (PK/FK) -->
+            <div class="fp-panel" data-fppanel="schema">
+                <div id="footprintSchemaGraph" class="footprint-graph"></div>
+            </div>
+
+            <!-- Tables tab: lean per-table documentation (columns, PK/FK, descriptions) -->
+            <div class="fp-panel" data-fppanel="tables">
+                <div id="footprintTablesDoc" class="footprint-doc"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indexing Progress Modal (blocking) -->
+    <div id="indexingModalOverlay" class="modal-overlay indexing-modal-overlay">
+        <div class="modal-dialog modal-dialog-small">
+            <div class="modal-header">
+                <h3>Indexing Database</h3>
+            </div>
+            <div class="modal-body">
+                <p id="indexingModalMessage">Indexing started...</p>
+                <div class="progress-bar-track">
+                    <div id="indexingProgressFill" class="progress-bar-fill"></div>
+                </div>
+                <p id="indexingProgressText" class="progress-bar-text"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="indexingCancelBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
+    <!-- Vendored locally (no CDN): interactive footprint graph -->
+    <script src="{{DAGRE_URI}}"></script>
+    <script src="{{CYTOSCAPE_URI}}"></script>
+    <script src="{{CYTOSCAPE_DAGRE_URI}}"></script>
+    <script src="{{TAB_MANAGER_URI}}"></script>
+    <script src="{{CONNECTION_MANAGER_URI}}"></script>
+    <script src="{{COMMENTS_MANAGER_URI}}"></script>
+    <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
+    <script src="{{SQL_AUTOCOMPLETE_URI}}"></script>
+    <script src="{{QUERY_MANAGER_URI}}"></script>
+    <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
+    <script src="{{MAIN_SCRIPT_URI}}"></script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+{
+  "name": "sqlwayfarer",
+  "displayName": "SQL Wayfarer",
+  "description": "A SQL Server & Azure SQL workspace for VS Code: see what depends on a column, trace the tables a procedure really touches through triggers, run T-SQL, generate scripts, and export a Markdown data dictionary.",
+  "version": "0.8.9",
+  "publisher": "intarynx",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "sql server",
+    "azure sql",
+    "tsql",
+    "mssql",
+    "database",
+    "data dictionary",
+    "column lineage",
+    "dependency graph",
+    "dependencies",
+    "schema",
+    "explorer",
+    "erd",
+    "trigger",
+    "procedure",
+    "table",
+    "query"
+  ],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intarynx/sqlwayfarer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/intarynx/sqlwayfarer/issues"
+  },
+  "homepage": "https://github.com/intarynx/sqlwayfarer",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sqlwayfarer.sqlwayfarer",
+        "title": "Open SQL Wayfarer",
+        "icon": "$(compass)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sql-wayfarer-container",
+          "title": "SQL Wayfarer",
+          "icon": "$(compass)"
+        }
+      ]
+    },
+    "views": {
+      "sql-wayfarer-container": [
+        {
+          "id": "sqlWayfarerView",
+          "name": "SQL Wayfarer"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "sqlwayfarer.sqlwayfarer",
+          "when": "view == sqlWayfarerView",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "webpack",
+    "test": "vscode-test",
+    "package": "npm run build && vsce package",
+    "publish": "npm run build && vsce publish"
+  },
+  "dependencies": {
+    "antlr4": "^4.13.2",
+    "mssql": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.100.0",
+    "@vscode/codicons": "^0.0.45",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "cytoscape": "^3.34.0",
+    "cytoscape-dagre": "^4.0.0",
+    "dagre": "^0.8.5",
+    "eslint": "^9.25.1",
+    "typescript": "^5.1.6",
+    "webpack": "^5.107.2",
+    "webpack-cli": "^5.1.4"
+  }
+}

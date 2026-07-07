@@ -1,0 +1,323 @@
+/* === CODE VIEW TAB === */
+/* The Code tab owns a single scrollbar on .code-content - the generic
+   .details-tab-content.active outer scroll (styles.css) must stay off here,
+   otherwise resizing the window produces two nested scrollbars. */
+#codeDetailsTab.details-tab-content.active {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#codeContainer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.code-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.code-placeholder h3 {
+    margin: 0 0 15px 0;
+    color: var(--vscode-foreground);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.code-viewer {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    margin: 15px 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--vscode-input-background);
+    border-bottom: 1px solid var(--vscode-input-border);
+    border-radius: 4px 4px 0 0;
+}
+
+.code-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.code-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.code-action-btn {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-input-border);
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 3px;
+    cursor: pointer;
+    width: auto;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.code-action-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* flex:1 fills the whole tab height - no max-height cap, which also made
+   the old Expand/Collapse button redundant (removed). */
+.code-content {
+    position: relative;
+    background: var(--vscode-textCodeBlock-background);
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border-radius: 0 0 4px 4px;
+}
+
+.code-editor {
+    display: block;
+    padding: 15px;
+    margin: 0;
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size, 14px);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: transparent;
+    border: none;
+    overflow: visible;
+    tab-size: 4;
+    -moz-tab-size: 4;
+}
+
+.code-metrics {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 15px;
+    background: var(--vscode-input-background);
+    border-top: 1px solid var(--vscode-input-border);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.code-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.code-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.code-stat-value {
+    font-weight: 600;
+    color: var(--vscode-foreground);
+}
+
+.code-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+}
+
+.code-loading::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--vscode-descriptionForeground);
+    border-radius: 50%;
+    border-top-color: var(--vscode-button-background);
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+.code-error {
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px solid #dc3545;
+    border-radius: 4px;
+    padding: 20px;
+    margin: 15px 0;
+    color: var(--vscode-foreground);
+    text-align: center;
+}
+
+.code-error::before {
+    font-family: "codicon";
+    content: "\ea6c "; /* codicon-warning */
+    font-size: 18px;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+/* === OBJECT TYPE INDICATORS === */
+.object-type-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+   font-size: 10px;
+   font-weight: bold;
+   text-transform: uppercase;
+   background: var(--vscode-button-secondaryBackground);
+   color: var(--vscode-button-secondaryForeground);
+   border: 1px solid var(--vscode-input-border);
+}
+
+.procedure-indicator {
+   background: #7B1FA2 !important;
+   color: white !important;
+   border-color: #6A1B9A !important;
+}
+
+.procedure-indicator::before {
+   font-family: "codicon";
+   content: "\eaf8"; /* codicon-gear */
+}
+
+.function-indicator {
+   background: #5D4037 !important;
+   color: white !important;
+   border-color: #4E342E !important;
+}
+
+.function-indicator::before {
+   font-family: "codicon";
+   content: "\eb65"; /* codicon-wrench */
+}
+
+.view-indicator {
+   background: #CC6900 !important;
+   color: white !important;
+   border-color: #BF6000 !important;
+}
+
+.view-indicator::before {
+   font-family: "codicon";
+   content: "\ea70"; /* codicon-eye */
+}
+
+.trigger-indicator {
+   background: #C62828 !important;
+   color: white !important;
+   border-color: #B71C1C !important;
+}
+
+.trigger-indicator::before {
+   font-family: "codicon";
+   content: "\ea86"; /* codicon-zap */
+}
+
+/* === TABLE CODE MESSAGE === */
+.table-code-message {
+   background: var(--vscode-input-background);
+   border: 1px solid var(--vscode-input-border);
+   border-radius: 4px;
+   padding: 20px;
+   margin: 15px 0;
+   text-align: center;
+   color: var(--vscode-descriptionForeground);
+}
+
+.table-code-message::before {
+   font-family: "codicon";
+   content: "\ebb7 "; /* codicon-table */
+   font-size: 18px;
+   vertical-align: middle;
+   margin-right: 8px;
+}
+
+/* === LINE NUMBERS === */
+.code-with-lines {
+   display: flex;
+}
+
+.line-numbers {
+   background: var(--vscode-input-background);
+   border-right: 1px solid var(--vscode-input-border);
+   padding: 15px 8px;
+   font-family: var(--vscode-editor-font-family);
+   font-size: var(--vscode-editor-font-size, 14px);
+   line-height: 1.5;
+   color: var(--vscode-descriptionForeground);
+   user-select: none;
+   white-space: pre;
+   min-width: 40px;
+   text-align: right;
+}
+
+.code-with-lines .code-editor {
+   flex: 1;
+   padding-left: 10px;
+}
+
+/* === RESPONSIVE DESIGN === */
+@media (max-width: 768px) {
+   .code-header {
+       flex-direction: column;
+       align-items: flex-start;
+       gap: 10px;
+   }
+   
+   .code-actions {
+       align-self: flex-end;
+   }
+   
+   .code-content {
+       max-height: 45vh;
+   }
+   
+   .code-metrics {
+       flex-direction: column;
+       align-items: flex-start;
+       gap: 8px;
+   }
+   
+   .code-stats {
+       flex-wrap: wrap;
+       gap: 10px;
+   }
+   
+   .code-editor {
+       font-size: 12px;
+       padding: 10px;
+   }
+   
+   .line-numbers {
+       padding: 10px 4px;
+       font-size: 12px;
+       min-width: 30px;
+   }
+}

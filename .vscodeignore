@@ -1,0 +1,45 @@
+# Everything excluded by default — only what's needed for the packaged extension is kept
+
+# Source files (bundled into dist/)
+database/**
+panels/**
+storage/**
+src/**
+extension.js
+
+# Dependencies (bundled into dist/)
+node_modules/**
+
+# Build tooling
+webpack.config.js
+package-lock.json
+deploy.ps1
+.vscode-test.mjs
+eslint.config.mjs
+jsconfig.json
+tsconfig.json
+.eslintrc*
+
+# Dev/CI
+.vscode/**
+.git/**
+.gitignore
+.github/**
+.claude/**
+test/**
+coverage/
+.nyc_output/
+*.log
+*.tmp
+.cache/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# Keep these
+!dist/extension.js
+!icon.png
+!package.json
+!readme.md
+!LICENSE.txt
