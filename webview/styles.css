@@ -1653,9 +1653,41 @@ table.fp-cols .fp-center { text-align: center; }
     font-size: var(--vscode-editor-font-size, 13px);
     line-height: 1.5;
     color: var(--vscode-editor-foreground);
-    /* pre (not pre-wrap): JSON lines stay intact, long ones scroll horizontally */
+}
+
+/* === JSON TREE (collapsible rows inside #objectsJsonContent) === */
+.json-row {
+    display: flex;
+    align-items: baseline;
     white-space: pre;
 }
+
+.json-toggle, .json-toggle-spacer {
+    flex: 0 0 auto;
+    width: 16px;
+    text-align: center;
+}
+
+.json-toggle {
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--vscode-icon-foreground);
+}
+
+.json-key {
+    color: var(--vscode-symbolIcon-fieldForeground, var(--vscode-editor-foreground));
+    opacity: 0.85;
+}
+
+.json-preview {
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+}
+
+.json-value-string { color: var(--vscode-debugTokenExpression-string, #ce9178); }
+.json-value-number { color: var(--vscode-debugTokenExpression-number, #b5cea8); }
+.json-value-boolean { color: var(--vscode-debugTokenExpression-boolean, #569cd6); }
+.json-value-null { color: var(--vscode-debugTokenExpression-boolean, #569cd6); font-style: italic; }
 
 /* === PLACEHOLDER TEXT === */
 .placeholder-text {
