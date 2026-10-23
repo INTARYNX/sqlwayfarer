@@ -44,6 +44,105 @@ class AppState {
 
 const appState = new AppState();
 
+// Builds a collapsible DOM tree for a JSON value. Containers (objects/arrays)
+// start collapsed; their children are only built the first time they're
+// expanded, so opening the modal on a huge index only ever pays the
+// DOM-construction cost for whatever the user actually drills into - instead
+// of eagerly formatting/rendering the entire thing up front.
+function buildJsonNode(key, value, depth) {
+    const isContainer = value !== null && typeof value === 'object';
+    const isArray = isContainer && Array.isArray(value);
+    const entries = isContainer ? (isArray ? value.map((v, i) => [i, v]) : Object.entries(value)) : null;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'json-node';
+
+    const row = document.createElement('div');
+    row.className = 'json-row';
+    row.style.paddingLeft = `${depth * 16}px`;
+    wrapper.appendChild(row);
+
+    const toggle = document.createElement('span');
+    toggle.className = (isContainer && entries.length > 0) ? 'json-toggle codicon codicon-chevron-right' : 'json-toggle-spacer';
+    row.appendChild(toggle);
+
+    if (key !== null) {
+        const keySpan = document.createElement('span');
+        keySpan.className = 'json-key';
+        keySpan.textContent = `${key}: `;
+        row.appendChild(keySpan);
+    }
+
+    if (!isContainer) {
+        const valueSpan = document.createElement('span');
+        valueSpan.className = `json-value json-value-${value === null ? 'null' : typeof value}`;
+        valueSpan.textContent = value === null ? 'null' : JSON.stringify(value);
+        row.appendChild(valueSpan);
+        return wrapper;
+    }
+
+    const openBrace = isArray ? '[' : '{';
+    const closeBrace = isArray ? ']' : '}';
+    const preview = document.createElement('span');
+    preview.className = 'json-preview';
+    preview.textContent = entries.length === 0
+        ? `${openBrace}${closeBrace}`
+        : `${openBrace}…${closeBrace} (${entries.length} ${isArray ? 'item' : 'key'}${entries.length === 1 ? '' : 's'})`;
+    row.appendChild(preview);
+
+    if (entries.length === 0) return wrapper;
+
+    const childrenEl = document.createElement('div');
+    childrenEl.className = 'json-children';
+    childrenEl.style.display = 'none';
+    wrapper.appendChild(childrenEl);
+
+    let built = false;
+    const expand = () => {
+        toggle.classList.replace('codicon-chevron-right', 'codicon-chevron-down');
+        preview.style.display = 'none';
+        childrenEl.style.display = '';
+        if (built) return;
+        built = true;
+        const renderChildren = () => {
+            for (const [k, v] of entries) childrenEl.appendChild(buildJsonNode(k, v, depth + 1));
+        };
+        // Building DOM for a very large container (e.g. the "objects" map on a
+        // big database) can itself take a noticeable moment - defer past the
+        // next paint so the chevron flip is visible before that work runs,
+        // instead of the click just appearing to hang.
+        if (entries.length > 200) {
+            childrenEl.textContent = 'Expanding…';
+            setTimeout(() => { childrenEl.textContent = ''; renderChildren(); }, 0);
+        } else {
+            renderChildren();
+        }
+    };
+    const collapseNode = () => {
+        toggle.classList.replace('codicon-chevron-down', 'codicon-chevron-right');
+        preview.style.display = '';
+        childrenEl.style.display = 'none';
+    };
+    const toggleHandler = () => {
+        if (childrenEl.style.display === 'none') expand(); else collapseNode();
+    };
+    toggle.addEventListener('click', toggleHandler);
+    preview.addEventListener('click', toggleHandler);
+
+    return wrapper;
+}
+
+function renderJsonTree(container, data) {
+    container.innerHTML = '';
+    if (data === null || typeof data !== 'object') {
+        container.textContent = JSON.stringify(data, null, 2);
+        return;
+    }
+    const isArray = Array.isArray(data);
+    const entries = isArray ? data.map((v, i) => [i, v]) : Object.entries(data);
+    for (const [k, v] of entries) container.appendChild(buildJsonNode(k, v, 0));
+}
+
 // Simple Objects Tab Manager (now backed by a modal opened from the top-bar indicator)
 class ObjectsTabManager {
     constructor() {
@@ -92,19 +191,15 @@ class ObjectsTabManager {
         this.modalOverlay.classList.remove('visible');
     }
 
-    // Formatting the full index is a synchronous JSON.stringify that can take
-    // a noticeable moment on a database with a lot of objects, and it freezes
-    // the whole webview UI while it runs. Deferred until the modal is actually
-    // opened (instead of eagerly whenever an index result arrives), and pushed
-    // past the next paint so the overlay/"Formatting..." text is visible
-    // before that freeze happens instead of the click just appearing to hang.
+    // Builds the collapsible tree for the current index, deferred until the
+    // modal is actually opened (instead of eagerly whenever an index result
+    // arrives). Top-level containers start collapsed, so this itself is cheap
+    // regardless of index size - see buildJsonNode for the per-node lazy
+    // expansion that keeps large subtrees (e.g. "objects") cheap too.
     _renderJsonIfNeeded() {
         if (this._jsonRendered || !this._rawIndexData) return;
-        this.objectsJsonContent.textContent = 'Formatting…';
-        setTimeout(() => {
-            this.objectsJsonContent.textContent = JSON.stringify(this._rawIndexData, null, 2);
-            this._jsonRendered = true;
-        }, 0);
+        renderJsonTree(this.objectsJsonContent, this._rawIndexData);
+        this._jsonRendered = true;
     }
 
     // Reflect index status on the top-bar indicator dot
