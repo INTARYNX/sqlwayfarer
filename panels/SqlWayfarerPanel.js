@@ -173,7 +173,7 @@ class SqlWayfarerPanel {
 
             // Indexing
             case 'forceReindex':                await ix.handleForceReindex(message.database); break;
-            case 'cancelIndexing':              await ix.handleCancelIndexing(); break;
+            case 'cancelIndexing':              await ix.handleCancelIndexing(message.database); break;
             case 'getIndexStats':               await ix.handleGetIndexStats(message.database); break;
             case 'getIndex':                    await ix.handleGetIndex(message.database); break;
             case 'confirmForceReindex':         await ix.handleConfirmForceReindex(message.database); break;
@@ -255,6 +255,10 @@ class SqlWayfarerPanel {
         // on-disk cache keyed by server+database — deleting it when the panel
         // closes forces a full rebuild on every reopen (crippling on large
         // databases). Staleness is handled by the schema checksum on next open.
+
+        if (this._indexService) {
+            try { await this._indexService.dispose(); } catch (error) { console.warn('Error disposing index service:', error); }
+        }
 
         if (this._connectionManager) {
             try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error disposing connection manager:', error); }

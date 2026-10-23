@@ -4,7 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const BabelfishSqlParser = require('./BabelfishSqlParser');
+const ParserWorkerPool = require('./ParserWorkerPool');
 
 // Bumped when the index entry shape changes (2 = columnRefs for column lineage,
 // 3 = possibleRefs from the dynamic-SQL name scan); older cached files rebuild.
@@ -19,59 +19,78 @@ class IndexService {
     constructor(connectionManager, databaseService) {
         this._connectionManager = connectionManager;
         this._databaseService = databaseService;
-        this._sqlParser = new BabelfishSqlParser();
-        this._sqlParser.setEnabled(true);
+        this._parserPool = new ParserWorkerPool();
         this._indexDir = path.join(os.homedir(), '.vscode', 'sqlwayfarer', 'indexes');
-        this._currentServer = null;
-        this._progressCallback = null;
-        this._cancelRequested = false;
-        this._lastReportedPct = -1;
+        // database -> { promise, forced, cancelRequested, subscribers: Set<fn>, lastReportedPct, server }
+        // One entry per database currently building/loading, instead of single
+        // shared fields - two databases can be indexed concurrently (switching
+        // database mid-build must not corrupt progress/cancel for the other one),
+        // and a second caller for the SAME database joins the existing entry
+        // instead of racing a duplicate build.
+        this._builds = new Map();
     }
 
-    // Ask the running indexing loop to stop at the next per-object checkpoint.
-    requestCancel() {
-        this._cancelRequested = true;
+    // Ask the running indexing loop for this database to stop at the next
+    // per-object checkpoint. Targeted - cancelling one database's build must
+    // not affect another database indexing concurrently.
+    requestCancel(database) {
+        const build = this._builds.get(database);
+        if (build) build.cancelRequested = true;
+    }
+
+    // Cancel every in-flight build, used when the panel itself is closing.
+    requestCancelAll() {
+        for (const build of this._builds.values()) build.cancelRequested = true;
+    }
+
+    isBuildInProgress(database) {
+        return this._builds.has(database);
     }
 
     // Throttled: only posts when the integer percentage actually changes.
-    _reportProgress(current, total, message) {
-        if (!this._progressCallback) return;
+    // Fans out to every subscriber for this database - a getIndex call that
+    // joins an in-flight forceReindex (or vice versa) has its own callback
+    // alongside the original caller's, both need to see progress.
+    _reportProgress(database, current, total, message) {
+        const build = this._builds.get(database);
+        if (!build || build.subscribers.size === 0) return;
         const progress = total === 0 ? 100 : Math.round((current / total) * 100);
-        if (progress === this._lastReportedPct && current !== total) return;
-        this._lastReportedPct = progress;
-        try {
-            this._progressCallback({ progress, current, total, message });
-        } catch (error) {
-            console.warn('Progress callback failed:', error.message);
+        if (progress === build.lastReportedPct && current !== total) return;
+        build.lastReportedPct = progress;
+        for (const callback of build.subscribers) {
+            try {
+                callback({ progress, current, total, message });
+            } catch (error) {
+                console.warn('Progress callback failed:', error.message);
+            }
         }
     }
 
     // Concurrent calls for the same database (background indexing + a details
     // click asking for dependencies or column usage) share one in-flight
-    // promise: without this, a second call would reset _progressCallback /
-    // _cancelRequested mid-build and could run a duplicate full rebuild.
+    // promise/build entry: without this, a second call would reset progress/
+    // cancel state mid-build and could run a duplicate full rebuild.
     async getIndex(database, progressCallback = null) {
-        if (this._inFlight && this._inFlightDatabase === database) {
-            return this._inFlight;
+        const existing = this._builds.get(database);
+        if (existing) {
+            if (progressCallback) existing.subscribers.add(progressCallback);
+            return existing.promise;
         }
 
-        this._inFlightDatabase = database;
-        this._inFlight = this._getIndexInternal(database, progressCallback);
-        try {
-            return await this._inFlight;
-        } finally {
-            this._inFlight = null;
-            this._inFlightDatabase = null;
-        }
+        const build = {
+            forced: false, cancelRequested: false,
+            subscribers: new Set(progressCallback ? [progressCallback] : []),
+            lastReportedPct: -1, server: this._getCurrentServerName()
+        };
+        build.promise = this._runGetIndex(database, build).finally(() => this._builds.delete(database));
+        this._builds.set(database, build);
+        return build.promise;
     }
 
-    async _getIndexInternal(database, progressCallback) {
-        this._progressCallback = progressCallback;
-        this._cancelRequested = false;
-        this._currentServer = this._getCurrentServerName();
+    async _runGetIndex(database, build) {
         await this._ensureIndexDir();
 
-        const indexFile = this._getIndexFilePath(database);
+        const indexFile = this._getIndexFilePath(database, build.server);
         const liveObjects = await this._getLiveObjects(database);
         const liveChecksum = this._checksumFromObjects(liveObjects);
         let index = await this._loadIndex(indexFile);
@@ -80,28 +99,57 @@ class IndexService {
             // With a cached index, only re-analyze objects whose modify_date changed
             // (plus additions/removals) instead of rebuilding everything.
             index = index
-                ? await this._updateIndexIncrementally(database, index, liveObjects, liveChecksum)
-                : await this._buildCompleteIndex(database, liveChecksum, liveObjects);
+                ? await this._updateIndexIncrementally(database, index, liveObjects, liveChecksum, build.server)
+                : await this._buildCompleteIndex(database, liveChecksum, liveObjects, build.server);
             await this._saveIndex(indexFile, index);
         }
         return index;
     }
 
     async forceReindex(database, progressCallback = null) {
+        const existing = this._builds.get(database);
+        if (existing) {
+            if (existing.forced) {
+                // Already force-rebuilding this database - join it instead of
+                // redoing the work (e.g. a rapid double confirm, or a retry
+                // landing while the first force reindex is still running).
+                if (progressCallback) existing.subscribers.add(progressCallback);
+                return existing.promise;
+            }
+            // Let the in-flight plain build finish before clearing the cache
+            // out from under it; its own result/errors don't matter here.
+            await existing.promise.catch(() => {});
+        }
+
         console.log(`Force reindexing database: ${database}`);
-        this._progressCallback = progressCallback;
-        this._cancelRequested = false;
-        this._currentServer = this._getCurrentServerName();
+        const build = {
+            forced: true, cancelRequested: false,
+            subscribers: new Set(progressCallback ? [progressCallback] : []),
+            lastReportedPct: -1, server: this._getCurrentServerName()
+        };
+        build.promise = this._runForceReindex(database, build).finally(() => this._builds.delete(database));
+        this._builds.set(database, build);
+        return build.promise;
+    }
+
+    async _runForceReindex(database, build) {
         await this._ensureIndexDir();
 
-        const indexFile = this._getIndexFilePath(database);
+        const indexFile = this._getIndexFilePath(database, build.server);
         try { await fs.unlink(indexFile); } catch { /* file may not exist yet */ }
 
         const liveObjects = await this._getLiveObjects(database);
-        const index = await this._buildCompleteIndex(database, this._checksumFromObjects(liveObjects), liveObjects);
+        const index = await this._buildCompleteIndex(database, this._checksumFromObjects(liveObjects), liveObjects, build.server);
         await this._saveIndex(indexFile, index);
         console.log(`Force reindex complete for ${database}`);
         return index;
+    }
+
+    // Cancels every in-flight build and tears down the parser worker pool -
+    // called when the panel closes.
+    async dispose() {
+        this.requestCancelAll();
+        await this._parserPool.dispose();
     }
 
     async clearIndex(database) {
@@ -205,11 +253,11 @@ class IndexService {
         };
     }
 
-    async _buildCompleteIndex(database, schemaChecksum, objects) {
+    async _buildCompleteIndex(database, schemaChecksum, objects, server = this._getCurrentServerName()) {
         console.log(`Building full index for database: ${database} (${objects.length} objects)`);
 
         const index = {
-            database, server: this._currentServer,
+            database, server,
             formatVersion: INDEX_FORMAT_VERSION,
             lastFullIndex: new Date().toISOString(),
             schemaChecksum,
@@ -236,7 +284,7 @@ class IndexService {
     // Reuse cached entries whose per-object checksum (name + type + modify_date)
     // is unchanged; only additions and modified objects get re-analyzed, and
     // entries for dropped objects are discarded.
-    async _updateIndexIncrementally(database, cachedIndex, liveObjects, liveChecksum) {
+    async _updateIndexIncrementally(database, cachedIndex, liveObjects, liveChecksum, server = this._getCurrentServerName()) {
         const objects = {};
         const objectsByType = {};
         const changed = [];
@@ -266,7 +314,7 @@ class IndexService {
         this._attachPossibleRefs(objects, possibleRefs);
 
         return {
-            database, server: this._currentServer,
+            database, server,
             formatVersion: INDEX_FORMAT_VERSION,
             lastFullIndex: cachedIndex.lastFullIndex,
             lastIncrementalUpdate: new Date().toISOString(),
@@ -318,11 +366,10 @@ class IndexService {
     async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null) {
         const dependencies = [];
         const total = objects.length;
-        this._lastReportedPct = -1;
-        this._reportProgress(0, total, 'Analyzing dependencies...');
+        this._reportProgress(database, 0, total, 'Analyzing dependencies...');
 
         for (let i = 0; i < total; i += IndexService.CONCURRENT_BATCH_SIZE) {
-            if (this._cancelRequested) {
+            if (this._builds.get(database)?.cancelRequested) {
                 throw Object.assign(new Error('Indexing cancelled'), { code: 'INDEXING_CANCELLED' });
             }
 
@@ -333,7 +380,7 @@ class IndexService {
             for (const objDependencies of batchResults) dependencies.push(...objDependencies);
 
             const last = batch[batch.length - 1];
-            this._reportProgress(i + batch.length, total, `${last.schema_name}.${last.name}`);
+            this._reportProgress(database, i + batch.length, total, `${last.schema_name}.${last.name}`);
         }
 
         return dependencies;
@@ -389,7 +436,12 @@ class IndexService {
         }
 
         if (wantsDefinition && definition) {
-            const refs = this._sqlParser.analyzeColumns(definition);
+            let refs = null;
+            try {
+                refs = await this._parserPool.analyzeColumns(definition);
+            } catch (error) {
+                console.warn(`[IndexService] Column parse failed for ${cleanQN}:`, error.message);
+            }
             if (refs && Object.keys(refs).length > 0) {
                 columnRefsOut[cleanQN] = refs;
                 for (const k of Object.keys(refs)) confidentSet.add(this._removeBrackets(k).toLowerCase());
@@ -468,9 +520,9 @@ class IndexService {
 
     _getCurrentServerName() { return this._connectionManager.getServerName(); }
 
-    _getIndexFilePath(database) {
+    _getIndexFilePath(database, server = this._getCurrentServerName()) {
         const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
-        return path.join(this._indexDir, `${slug(this._currentServer)}_${slug(database)}.json`);
+        return path.join(this._indexDir, `${slug(server)}_${slug(database)}.json`);
     }
 
     async _ensureIndexDir() {

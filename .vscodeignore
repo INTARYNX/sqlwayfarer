@@ -45,7 +45,13 @@ Thumbs.db
 
 # Keep these
 !dist/extension.js
+!dist/parseColumnsWorker.js
 !icon.png
 !package.json
 !readme.md
 !LICENSE.txt
+
+# piscina has no runtime dependencies of its own, but it resolves its worker
+# bootstrap script relative to its own package folder at runtime (not bundled
+# by webpack - see webpack.config.js externals), so it must ship as-is.
+!node_modules/piscina/**

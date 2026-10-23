@@ -246,10 +246,14 @@ class IndexingModalManager {
         this.progressText = document.getElementById('indexingProgressText');
         this.cancelBtn = document.getElementById('indexingCancelBtn');
         this._previousFocus = null;
+        this.database = null;
         this.cancelBtn.addEventListener('click', () => {
             this.cancelBtn.disabled = true;
             this.messageEl.textContent = 'Cancelling…';
-            vscode.postMessage({ command: 'cancelIndexing' });
+            // Cancel the build the modal actually shows, not whatever database
+            // the dropdown happens to be on right now (the user may have
+            // switched away while this indexing run kept going in the background).
+            vscode.postMessage({ command: 'cancelIndexing', database: this.database });
         });
         // Piège à focus : l'overlay bloque les clics mais pas le clavier — sans ça,
         // un Ctrl+Enter dans l'éditeur de requête exécuterait une requête sur la
@@ -264,7 +268,8 @@ class IndexingModalManager {
         }, true);
     }
 
-    show(message) {
+    show(message, database) {
+        this.database = database;
         this.messageEl.textContent = message;
         this.progressFill.style.width = '0%';
         this.progressText.textContent = '';
@@ -288,6 +293,7 @@ class IndexingModalManager {
             this._previousFocus.focus();
         }
         this._previousFocus = null;
+        this.database = null;
     }
 }
 
@@ -1989,7 +1995,7 @@ class MessageHandler {
                     this.objectsTabManager.onIndexingStarted(message.database, message.forced);
                 }
                 if (this.indexingModalManager) {
-                    this.indexingModalManager.show(message.forced ? 'Force reindexing started...' : 'Indexing started...');
+                    this.indexingModalManager.show(message.forced ? 'Force reindexing started...' : 'Indexing started...', message.database);
                 }
                 break;
 

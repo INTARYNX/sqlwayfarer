@@ -8,12 +8,12 @@ class IndexHandlers {
         this._indexService = indexService;
         this._dependencyService = dependencyService;
         this._getCurrentDatabase = getCurrentDatabase;
-        this._indexingInProgress = false;
     }
 
+    // Called when the panel itself is closing - stop every in-flight build,
+    // not just whichever database happens to be selected right now.
     cancel() {
-        this._indexingInProgress = false;
-        this._indexService.requestCancel();
+        this._indexService.requestCancelAll();
     }
 
     async handleConfirmForceReindex(database) {
@@ -63,16 +63,17 @@ class IndexHandlers {
         }
     }
 
-    async handleCancelIndexing() {
+    // database is the one the visible progress modal actually belongs to (sent
+    // by the webview, not resolved from "whatever's currently selected") -
+    // the user may have switched databases while a build is still running.
+    async handleCancelIndexing(database) {
         try {
-            console.log('Canceling indexing operation');
-            this._indexingInProgress = false;
-            this._indexService.requestCancel();
-
-            const currentDb = this._getCurrentDatabase();
-            if (currentDb) {
+            const targetDatabase = database || this._getCurrentDatabase();
+            console.log(`Canceling indexing operation for ${targetDatabase}`);
+            if (targetDatabase) {
+                this._indexService.requestCancel(targetDatabase);
                 try {
-                    await this._indexService.clearIndex(currentDb);
+                    await this._indexService.clearIndex(targetDatabase);
                 } catch (clearError) {
                     console.warn('Error clearing index during cancellation:', clearError);
                 }
@@ -94,7 +95,7 @@ class IndexHandlers {
             }
 
             const stats = await this._indexService.getIndexStats(targetDatabase);
-            stats.indexingInProgress = this._indexingInProgress;
+            stats.indexingInProgress = this._indexService.isBuildInProgress(targetDatabase);
             this._post({ command: 'indexStatsResult', database: targetDatabase, stats });
         } catch (error) {
             console.error('Error getting index stats:', error);
@@ -113,7 +114,6 @@ class IndexHandlers {
             return;
         }
 
-        this._indexingInProgress = true;
         try {
             const progressCallback = (progress) => {
                 this._post({ command: 'indexingProgress', database, progress: progress.progress, current: progress.current, total: progress.total, message: progress.message });
@@ -138,8 +138,6 @@ class IndexHandlers {
                         setTimeout(() => this.handleGetIndex(database), 2000);
                     }
                 });
-        } finally {
-            this._indexingInProgress = false;
         }
     }
 
