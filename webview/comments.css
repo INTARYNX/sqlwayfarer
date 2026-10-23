@@ -195,17 +195,19 @@
    border-radius: 3px;
    font-weight: bold;
    text-transform: uppercase;
-   color: black;
 }
 
+/* Fixed text colors instead of --vscode-terminal-background: that variable
+   isn't guaranteed to contrast against ansiYellow/ansiRed in every theme -
+   e.g. a light-ish terminal background made NULL badge text unreadable. */
 .nullable {
    background: var(--vscode-terminal-ansiYellow);
-   color: var(--vscode-terminal-background);
+   color: #1e1e1e;
 }
 
 .not-null {
    background: var(--vscode-terminal-ansiRed);
-   color: var(--vscode-terminal-background);
+   color: #ffffff;
 }
 
 .edit-btn-small {

@@ -875,10 +875,14 @@ class FilterManager {
         });
 
         const visibleBySchema = {};
+        // _objectItemsByName lives on ExplorerManager (which owns the actual
+        // .object-item elements via displayObjects), not on this FilterManager -
+        // a plain `this._objectItemsByName` here is undefined and throws on
+        // every filter change. Map lookup instead of a querySelector scan of
+        // the whole list - see the field's own comment for why that mattered.
+        const itemsByName = window.explorerManager._objectItemsByName;
         appState.filteredObjects.forEach(obj => {
-            // Map lookup instead of a querySelector scan of the whole list -
-            // see _objectItemsByName's comment for why that mattered.
-            const item = this._objectItemsByName.get(obj.name);
+            const item = itemsByName.get(obj.name);
             if (item) {
                 item.classList.remove('hidden');
             }
@@ -1499,10 +1503,10 @@ class ExplorerManager {
 
         Object.keys(grouped).forEach(schema => {
             grouped[schema].sort((a, b) => {
-                if (a.object_type !== b.object_type) {
-                    return a.object_type.localeCompare(b.object_type);
-                }
-                return a.name.localeCompare(b.name);
+                const typeA = a.object_type || '';
+                const typeB = b.object_type || '';
+                if (typeA !== typeB) return typeA.localeCompare(typeB);
+                return (a.name || '').localeCompare(b.name || '');
             });
         });
 
