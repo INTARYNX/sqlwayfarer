@@ -56,6 +56,8 @@ class ObjectsTabManager {
         this.currentDatabase = null;
         this.status = 'none'; // none | indexing | ready | error
         this._loadedForDatabase = null; // which database the displayed index belongs to
+        this._rawIndexData = null; // last index received, formatted lazily (see _renderJsonIfNeeded)
+        this._jsonRendered = false;
         this.initEventListeners();
     }
 
@@ -83,10 +85,26 @@ class ObjectsTabManager {
 
     openModal() {
         this.modalOverlay.classList.add('visible');
+        this._renderJsonIfNeeded();
     }
 
     closeModal() {
         this.modalOverlay.classList.remove('visible');
+    }
+
+    // Formatting the full index is a synchronous JSON.stringify that can take
+    // a noticeable moment on a database with a lot of objects, and it freezes
+    // the whole webview UI while it runs. Deferred until the modal is actually
+    // opened (instead of eagerly whenever an index result arrives), and pushed
+    // past the next paint so the overlay/"Formatting..." text is visible
+    // before that freeze happens instead of the click just appearing to hang.
+    _renderJsonIfNeeded() {
+        if (this._jsonRendered || !this._rawIndexData) return;
+        this.objectsJsonContent.textContent = 'Formatting…';
+        setTimeout(() => {
+            this.objectsJsonContent.textContent = JSON.stringify(this._rawIndexData, null, 2);
+            this._jsonRendered = true;
+        }, 0);
     }
 
     // Reflect index status on the top-bar indicator dot
@@ -190,10 +208,14 @@ class ObjectsTabManager {
         this.objectsJsonContent.innerHTML = '<p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>';
     }
 
-    // Display raw JSON index
+    // Store the raw JSON index; the (potentially expensive) formatting is
+    // deferred to _renderJsonIfNeeded, only once the modal is actually opened.
     displayIndex(indexData) {
         this.forceReindexBtn.disabled = false;
         if (window.explorerManager) window.explorerManager.setPanelsLocked(false);
+
+        this._rawIndexData = indexData;
+        this._jsonRendered = false;
 
         if (!indexData) {
             this.objectsJsonContent.innerHTML = '<p class="placeholder-text">No index data available.</p>';
@@ -204,9 +226,11 @@ class ObjectsTabManager {
         this._loadedForDatabase = this.currentDatabase;
         this.setStatus('ready', 'Index up to date');
 
-        // Format and display the raw JSON
-        const formattedJson = JSON.stringify(indexData, null, 2);
-        this.objectsJsonContent.textContent = formattedJson;
+        if (this.modalOverlay.classList.contains('visible')) {
+            this._renderJsonIfNeeded();
+        } else {
+            this.objectsJsonContent.innerHTML = '<p class="placeholder-text">Index ready - click to view.</p>';
+        }
     }
 
     // Handle indexing progress
@@ -247,6 +271,8 @@ class IndexingModalManager {
         this.cancelBtn = document.getElementById('indexingCancelBtn');
         this._previousFocus = null;
         this.database = null;
+        this._showTimer = null;
+        this._pendingShow = null;
         this.cancelBtn.addEventListener('click', () => {
             this.cancelBtn.disabled = true;
             this.messageEl.textContent = 'Cancelling…';
@@ -269,6 +295,7 @@ class IndexingModalManager {
     }
 
     show(message, database) {
+        this.cancelScheduledShow();
         this.database = database;
         this.messageEl.textContent = message;
         this.progressFill.style.width = '0%';
@@ -277,6 +304,24 @@ class IndexingModalManager {
         this.overlay.classList.add('visible');
         this._previousFocus = document.activeElement;
         this.cancelBtn.focus();
+    }
+
+    // Used for the plain (non-forced) getIndex path, where most calls resolve
+    // almost instantly off a valid cache - showing the modal immediately would
+    // just flash it open/closed on every ordinary tab/database switch. Only
+    // pops up for the slow case (real rebuild, or a big cached index to parse)
+    // that actually needs the feedback and the Cancel button.
+    scheduleShow(message, database) {
+        this._pendingShow = { message, database };
+        clearTimeout(this._showTimer);
+        this._showTimer = setTimeout(() => {
+            if (this._pendingShow) this.show(this._pendingShow.message, this._pendingShow.database);
+        }, 400);
+    }
+
+    cancelScheduledShow() {
+        clearTimeout(this._showTimer);
+        this._pendingShow = null;
     }
 
     updateProgress(progress, current, total, message) {
@@ -288,6 +333,7 @@ class IndexingModalManager {
     }
 
     hide() {
+        this.cancelScheduledShow();
         this.overlay.classList.remove('visible');
         if (this._previousFocus && typeof this._previousFocus.focus === 'function') {
             this._previousFocus.focus();
@@ -1948,6 +1994,12 @@ class MessageHandler {
                 if (this.objectsTabManager) {
                     this.objectsTabManager.displayIndex(message.indexData);
                 }
+                // handleGetIndex's plain path has no 'indexingCompleted' message of
+                // its own - this is the only signal that it's done, so hide (or
+                // cancel the still-pending scheduled show of) the progress modal here too.
+                if (this.indexingModalManager) {
+                    this.indexingModalManager.hide();
+                }
                 break;
 
             case 'indexingProgress':
@@ -1995,7 +2047,17 @@ class MessageHandler {
                     this.objectsTabManager.onIndexingStarted(message.database, message.forced);
                 }
                 if (this.indexingModalManager) {
-                    this.indexingModalManager.show(message.forced ? 'Force reindexing started...' : 'Indexing started...', message.database);
+                    const startMessage = message.forced ? 'Force reindexing started...' : 'Indexing started...';
+                    // Force reindex was explicitly requested by the user, so show
+                    // feedback immediately; the plain getIndex path (fired on every
+                    // Explorer/database switch) usually resolves off a valid cache
+                    // in well under a second, so it's debounced to avoid flashing
+                    // the modal open/closed on the common fast path.
+                    if (message.forced) {
+                        this.indexingModalManager.show(startMessage, message.database);
+                    } else {
+                        this.indexingModalManager.scheduleShow(startMessage, message.database);
+                    }
                 }
                 break;
 
