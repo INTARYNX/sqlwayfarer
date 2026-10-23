@@ -112,7 +112,9 @@ class ConnectionManager {
     // Centralise le `USE [database];` répété identiquement dans presque tous les services
     // pour éviter qu'une requête l'oublie et interroge la mauvaise base.
     async executeQueryInDatabase(database, query, params = null) {
-        return this.executeQuery(`USE [${database}];\n${query}`, params);
+        // ']' doublé pour fermer proprement l'identifiant entre crochets si le nom en contient un.
+        const escapedDatabase = database.replace(/]/g, ']]');
+        return this.executeQuery(`USE [${escapedDatabase}];\n${query}`, params);
     }
 
     async dispose() {

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src {{CSP_SOURCE}}; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}};">
     <title>SQL Wayfarer</title>
     <link href="{{CODICON_STYLES_URI}}" rel="stylesheet">
     <link href="{{STYLES_URI}}" rel="stylesheet">
@@ -398,9 +399,9 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
-    <!-- Vendored locally (no CDN): interactive footprint graph -->
+    <!-- Vendored locally (no CDN): dependency graph (viz.js) and interactive footprint graph -->
+    <script src="{{VIZ_URI}}"></script>
+    <script src="{{VIZ_RENDER_URI}}"></script>
     <script src="{{DAGRE_URI}}"></script>
     <script src="{{CYTOSCAPE_URI}}"></script>
     <script src="{{CYTOSCAPE_DAGRE_URI}}"></script>

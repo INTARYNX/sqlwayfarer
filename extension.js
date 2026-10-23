@@ -28,11 +28,7 @@ function activate(context) {
         setTimeout(() => vscode.commands.executeCommand('workbench.action.closeSidebar'), 200);
     });
 
-    const helloWorldDisposable = vscode.commands.registerCommand('sqlwayfarer.helloWorld', function () {
-        vscode.window.showInformationMessage('Hello World from SQL Wayfarer!');
-    });
-
-    context.subscriptions.push(sqlWayfarerDisposable, helloWorldDisposable);
+    context.subscriptions.push(sqlWayfarerDisposable);
 }
 
 function deactivate() {}

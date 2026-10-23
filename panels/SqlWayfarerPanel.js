@@ -223,6 +223,7 @@ class SqlWayfarerPanel {
         }
         html = html.replace('{{BUILD_TIME}}', buildTime);
 
+        html = html.replace(/\{\{CSP_SOURCE\}\}/g, w.cspSource);
         html = html.replace('{{CODICON_STYLES_URI}}',       u('webview', 'codicons', 'codicon.css'));
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
@@ -235,6 +236,8 @@ class SqlWayfarerPanel {
         html = html.replace('{{SQL_HIGHLIGHT_URI}}',        u('webview', 'sqlHighlight.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
+        html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
+        html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));
         html = html.replace('{{CYTOSCAPE_URI}}',            u('webview', 'vendor', 'cytoscape.min.js'));
         html = html.replace('{{CYTOSCAPE_DAGRE_URI}}',      u('webview', 'vendor', 'cytoscape-dagre.min.js'));
