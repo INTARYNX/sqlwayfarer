@@ -114,6 +114,11 @@ class IndexHandlers {
             return;
         }
 
+        // Lets the webview show the real progress modal (debounced there, so a
+        // fast cache-hit doesn't flash it open) instead of silently churning -
+        // this path previously never announced itself at all.
+        this._post({ command: 'indexingStarted', database, forced: false });
+
         try {
             const progressCallback = (progress) => {
                 this._post({ command: 'indexingProgress', database, progress: progress.progress, current: progress.current, total: progress.total, message: progress.message });
