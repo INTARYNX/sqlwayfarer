@@ -83,7 +83,8 @@
   },
   "dependencies": {
     "antlr4": "^4.13.2",
-    "mssql": "^10.0.1"
+    "mssql": "^10.0.1",
+    "piscina": "^5.3.2"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

@@ -1,5 +1,21 @@
 const assert = require('assert');
+const os = require('os');
+const path = require('path');
+const fs = require('fs').promises;
 const IndexService = require('../database/IndexServices');
+
+// _analyzeDependencies reports progress/checks cancellation through a build
+// entry in service._builds (see IndexServices.js) - tests that call it
+// directly (bypassing getIndex/forceReindex) need to register one first.
+function registerBuild(service, database, progressCallback) {
+	const build = {
+		forced: false, cancelRequested: false,
+		subscribers: new Set(progressCallback ? [progressCallback] : []),
+		lastReportedPct: -1, server: 'testserver'
+	};
+	service._builds.set(database, build);
+	return build;
+}
 
 // Mocked ConnectionManager for _analyzeDependencies: one dependency recordset
 // per object (keyed by the bracketed qualified name), or an error to test tolerance.
@@ -41,7 +57,7 @@ suite('IndexService dependency analysis', () => {
 		), null);
 
 		const reports = [];
-		service._progressCallback = p => reports.push(p);
+		registerBuild(service, 'Db', p => reports.push(p));
 
 		const dependencies = await service._analyzeDependencies('Db', [
 			makeObject('dbo', 'T1', 'U'), makeObject('dbo', 'P1', 'P')
@@ -63,7 +79,7 @@ suite('IndexService dependency analysis', () => {
 		const service = new IndexService(makeMockCm({}), null);
 
 		const reports = [];
-		service._progressCallback = p => reports.push(p);
+		registerBuild(service, 'Db', p => reports.push(p));
 
 		await service._analyzeDependencies('Db', objects);
 
@@ -114,7 +130,7 @@ suite('IndexService dependency analysis', () => {
 		const service = new IndexService(cm, null);
 
 		// Cancel as soon as the first progress report arrives
-		service._progressCallback = () => service.requestCancel();
+		registerBuild(service, 'Db', () => service.requestCancel('Db'));
 
 		await assert.rejects(
 			() => service._analyzeDependencies('Db', objects),
@@ -197,5 +213,125 @@ suite('IndexService incremental indexing', () => {
 
 		assert.strictEqual(cm.calls(), 0);
 		assert.strictEqual(index.totalObjects, 1);
+	});
+});
+
+// Mock ConnectionManager for the full getIndex/forceReindex path (unlike
+// makeMockCm, also answers _getLiveObjects' paramless query). Each database's
+// live-objects query blocks until release(database) is called, so two builds
+// can be driven into a deterministic "both in flight" state without relying
+// on timing.
+function makeGatedCm(liveObjectsByDb) {
+	const gates = new Map();
+	const gateFor = (database) => {
+		if (!gates.has(database)) {
+			let resolve;
+			const promise = new Promise(r => { resolve = r; });
+			gates.set(database, { promise, resolve });
+		}
+		return gates.get(database);
+	};
+	return {
+		getServerName: () => 'testserver',
+		executeQueryInDatabase: async (database, query, params) => {
+			if (!params) {
+				await gateFor(database).promise;
+				return { recordset: liveObjectsByDb[database] || [] };
+			}
+			return { recordset: [] };
+		},
+		release: (database) => gateFor(database).resolve()
+	};
+}
+
+suite('IndexService concurrency', () => {
+	let tempDir;
+
+	setup(() => {
+		tempDir = path.join(os.tmpdir(), `sqlwayfarer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+	});
+
+	teardown(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	});
+
+	test('concurrent getIndex builds for different databases do not cross-contaminate progress', async () => {
+		const objectsA = [makeObject('dbo', 'T1', 'U'), makeObject('dbo', 'T2', 'U'), makeObject('dbo', 'T3', 'U')];
+		const objectsB = [makeObject('dbo', 'X1', 'U')];
+		const cm = makeGatedCm({ A: objectsA, B: objectsB });
+		const service = new IndexService(cm, null);
+		service._indexDir = tempDir;
+
+		const reportsA = [];
+		const reportsB = [];
+		const promiseA = service.getIndex('A', p => reportsA.push(p));
+		const promiseB = service.getIndex('B', p => reportsB.push(p));
+
+		cm.release('B');
+		cm.release('A');
+		await Promise.all([promiseA, promiseB]);
+
+		assert.ok(reportsA.length > 0, 'A should have received progress reports');
+		assert.ok(reportsB.length > 0, 'B should have received progress reports');
+		assert.ok(reportsA.every(r => r.total === objectsA.length), "A's reports must only ever show A's own object count");
+		assert.ok(reportsB.every(r => r.total === objectsB.length), "B's reports must only ever show B's own object count");
+	});
+
+	test('forceReindex joins an in-flight forced build instead of restarting it', async () => {
+		const objectsA = [makeObject('dbo', 'T1', 'U')];
+		const cm = makeGatedCm({ A: objectsA });
+		let liveObjectsCalls = 0;
+		const baseExec = cm.executeQueryInDatabase;
+		cm.executeQueryInDatabase = async (database, query, params) => {
+			if (!params) liveObjectsCalls++;
+			return baseExec(database, query, params);
+		};
+		const service = new IndexService(cm, null);
+		service._indexDir = tempDir;
+
+		const promise1 = service.forceReindex('A', () => {});
+		const promise2 = service.forceReindex('A', () => {});
+
+		cm.release('A');
+		await Promise.all([promise1, promise2]);
+
+		assert.strictEqual(liveObjectsCalls, 1, 'a second forceReindex for the same in-flight database must join it, not start a duplicate rebuild');
+	});
+
+	test('getIndex joining an in-flight forceReindex reports progress to both subscribers', async () => {
+		const objectsA = [makeObject('dbo', 'T1', 'U'), makeObject('dbo', 'T2', 'U')];
+		const cm = makeGatedCm({ A: objectsA });
+		const service = new IndexService(cm, null);
+		service._indexDir = tempDir;
+
+		const reportsForce = [];
+		const reportsJoin = [];
+		const forcePromise = service.forceReindex('A', p => reportsForce.push(p));
+		const joinPromise = service.getIndex('A', p => reportsJoin.push(p));
+
+		cm.release('A');
+		await Promise.all([forcePromise, joinPromise]);
+
+		assert.ok(reportsForce.length > 0, 'the original forceReindex caller must still see progress');
+		assert.ok(reportsJoin.length > 0, "a joiner's callback must not be silently dropped");
+		assert.deepStrictEqual(reportsJoin, reportsForce, 'both subscribers see the same progress stream');
+	});
+
+	test('requestCancel only affects the targeted database', async () => {
+		const objectsA = [makeObject('dbo', 'T1', 'U'), makeObject('dbo', 'T2', 'U')];
+		const objectsB = [makeObject('dbo', 'X1', 'U'), makeObject('dbo', 'X2', 'U')];
+		const cm = makeGatedCm({ A: objectsA, B: objectsB });
+		const service = new IndexService(cm, null);
+		service._indexDir = tempDir;
+
+		const promiseA = service.getIndex('A', () => {});
+		const promiseB = service.getIndex('B', () => {});
+
+		service.requestCancel('A');
+		cm.release('A');
+		cm.release('B');
+
+		await assert.rejects(() => promiseA, err => err.code === 'INDEXING_CANCELLED');
+		await assert.doesNotReject(() => promiseB);
 	});
 });
