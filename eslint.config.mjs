@@ -1,6 +1,8 @@
 import globals from "globals";
 
 export default [{
+    ignores: ["dist/**", "webview/vendor/**", "webview/codicons/**", ".vscode-test/**", "database/generated/**"],
+}, {
     files: ["**/*.js"],
     languageOptions: {
         globals: {

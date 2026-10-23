@@ -1,15 +1,14 @@
 const assert = require('assert');
-
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
 const vscode = require('vscode');
-// const myExtension = require('../extension');
 
-suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
+suite('Extension activation', () => {
+	test('sqlwayfarer.sqlwayfarer command is registered', async () => {
+		const extension = vscode.extensions.getExtension('intarynx.sqlwayfarer');
+		if (extension && !extension.isActive) {
+			await extension.activate();
+		}
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
+		const commands = await vscode.commands.getCommands(true);
+		assert.ok(commands.includes('sqlwayfarer.sqlwayfarer'), 'sqlwayfarer.sqlwayfarer should be registered after activation');
 	});
 });

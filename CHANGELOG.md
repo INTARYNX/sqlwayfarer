@@ -4,6 +4,32 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.9.1] - 2026-10-23
+
+### Fixed
+
+- The dependency **Graph** tab loaded `viz.js` from `cdnjs.cloudflare.com` at runtime. On a machine without internet access, or behind a proxy/firewall that blocks that host (common on corporate networks), the graph silently failed to render. `viz.js` is now vendored locally alongside the other graph libraries (dagre, cytoscape).
+- Added a `Content-Security-Policy` to the webview, restricting scripts and styles to the extension's own bundled resources now that nothing is loaded from a CDN.
+- Removed a stray `"# sqlwayfarer"` line left over from the repository's initial GitHub setup, which rendered at the bottom of this README.
+
+### Changed
+
+- `USE [database]` now doubles a literal `]` in the database name before building the identifier, closing a theoretical injection vector if a database name itself contains `]`.
+
+## [0.9.0] - 2026-10-23
+
+### Added
+
+- **Tabbed multi-result-sets**: the Query tool now renders multiple result sets as tabs, with a hover tooltip naming the statement that produced each one.
+- **SQL syntax highlighting** in the query editor, via a lightweight overlay on the textarea.
+- **Cross-database autocomplete**: three-part `Database.Schema.Object` references now resolve across other databases on the same connection.
+
+### Changed
+
+- Autocomplete no longer suggests stored procedures outside an `EXEC` context.
+- The dependency index is no longer built automatically on every connection — it only starts when the user opens the Explorer tab. The per-object dependency scan now runs 8-way concurrent instead of one round-trip at a time.
+- **UI**: the top toolbar is now a single contextual bar whose action buttons swap between Explorer and Query depending on the active tab, reclaiming vertical space for the query editor. The app now lands on the Query tab after connecting, with Query ordered before Explorer.
+
 ## [0.8.9] - 2026-07-07
 
 ### Changed
