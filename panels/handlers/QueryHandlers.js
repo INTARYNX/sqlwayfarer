@@ -7,6 +7,101 @@ const HISTORY_LIMIT = 50;
 const DEFAULT_MAX_ROWS = 1000;
 const QUERY_TIMEOUT_MS = 5 * 60 * 1000;
 
+// T-SQL doesn't require a semicolon between statements, so a line starting
+// with one of these also ends whatever came before it - not just a ';' does.
+const STATEMENT_LEADER_RE = /^(select|with|insert|update|delete|merge|exec|execute)\b/i;
+
+// Best-effort split of a batch into top-level statements: on ';', and on a
+// line break into one of the keywords above, both only outside comments,
+// string literals, bracketed identifiers and parentheses (so a subquery or a
+// CTE's own body never causes a split). Not a real T-SQL parser - just enough
+// to label result sets with the statement that produced them when the counts
+// line up 1:1. A statement that itself contains nested newline-led keywords
+// at depth 0 (e.g. a CTE followed by its final SELECT) can still be split in
+// two; that only costs the label for that batch, never a wrong one, since
+// labels are applied solely when the split count matches the recordset count.
+function splitTopLevelStatements(sql) {
+    const statements = [];
+    let current = '';
+    let depth = 0;
+    let i = 0;
+    const n = sql.length;
+
+    const flush = () => {
+        if (current.trim()) statements.push(current.trim());
+        current = '';
+    };
+
+    while (i < n) {
+        const ch = sql[i];
+
+        if (ch === '-' && sql[i + 1] === '-') {
+            const end = sql.indexOf('\n', i);
+            const stop = end === -1 ? n : end + 1;
+            current += sql.slice(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === '/' && sql[i + 1] === '*') {
+            const end = sql.indexOf('*/', i + 2);
+            const stop = end === -1 ? n : end + 2;
+            current += sql.slice(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === "'") {
+            let j = i + 1;
+            while (j < n) {
+                if (sql[j] === "'") {
+                    if (sql[j + 1] === "'") { j += 2; continue; }
+                    j += 1;
+                    break;
+                }
+                j++;
+            }
+            current += sql.slice(i, j);
+            i = j;
+            continue;
+        }
+        if (ch === '[') {
+            const end = sql.indexOf(']', i + 1);
+            const stop = end === -1 ? n : end + 1;
+            current += sql.slice(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === '(') {
+            depth++;
+            current += ch;
+            i++;
+            continue;
+        }
+        if (ch === ')') {
+            depth = Math.max(0, depth - 1);
+            current += ch;
+            i++;
+            continue;
+        }
+        if (ch === ';' && depth === 0) {
+            flush();
+            i++;
+            continue;
+        }
+        if ((ch === '\n' || ch === '\r') && depth === 0 && current.trim()) {
+            const afterWs = sql.slice(i + 1).replace(/^[ \t\r\n]*/, '');
+            if (STATEMENT_LEADER_RE.test(afterWs)) {
+                flush();
+                i++;
+                continue;
+            }
+        }
+        current += ch;
+        i++;
+    }
+    flush();
+    return statements;
+}
+
 class QueryHandlers {
     constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null) {
         this._post = postMessage;
@@ -125,6 +220,14 @@ class QueryHandlers {
             return;
         }
 
+        // Label each result set with the statement that produced it - only when
+        // the split lines up 1:1 with the recordsets, so a mismatch (e.g. a proc
+        // call yielding several sets from one EXEC) never shows a wrong guess.
+        const statements = splitTopLevelStatements(query);
+        if (statements.length === resultSets.length) {
+            resultSets.forEach((set, i) => { set.sourceStatement = statements[i]; });
+        }
+
         await this._recordHistory(database, query, true, durationMs);
         this._post({ command: 'queryResult', resultSets, rowsAffected, messages, durationMs, maxRows: rowCap });
     }
@@ -164,4 +267,5 @@ class QueryHandlers {
     }
 }
 
+QueryHandlers.splitTopLevelStatements = splitTopLevelStatements;
 module.exports = QueryHandlers;

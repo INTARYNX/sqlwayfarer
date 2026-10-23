@@ -11,6 +11,11 @@ const BabelfishSqlParser = require('./BabelfishSqlParser');
 const INDEX_FORMAT_VERSION = 3;
 
 class IndexService {
+    // How many objects' dependency queries run concurrently during a build.
+    // mssql's default pool allows up to 10 simultaneous requests; this leaves
+    // some headroom for a query the user runs in the Query tab at the same time.
+    static CONCURRENT_BATCH_SIZE = 8;
+
     constructor(connectionManager, databaseService) {
         this._connectionManager = connectionManager;
         this._databaseService = databaseService;
@@ -303,9 +308,11 @@ class IndexService {
         return map;
     }
 
-    // One dm_sql_referenced_entities call per object, driven from Node instead of
-    // a single server-side cursor batch: this gives a real per-object progress
-    // bar and a cancellation checkpoint between every object.
+    // One dm_sql_referenced_entities call per object - round-trip latency, not
+    // server CPU, dominates this, so CONCURRENT_BATCH_SIZE objects are in
+    // flight at once (the mssql pool already supports it: each call gets its
+    // own Request) instead of one at a time. Progress/cancellation checkpoints
+    // move from per-object to per-batch - coarser, but still frequent.
     // The same batch also returns OBJECT_DEFINITION, parsed into per-column
     // lineage (columnRefsOut, keyed by clean qualified name) for code objects.
     async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null) {
@@ -314,70 +321,85 @@ class IndexService {
         this._lastReportedPct = -1;
         this._reportProgress(0, total, 'Analyzing dependencies...');
 
-        for (let i = 0; i < total; i++) {
+        for (let i = 0; i < total; i += IndexService.CONCURRENT_BATCH_SIZE) {
             if (this._cancelRequested) {
                 throw Object.assign(new Error('Indexing cancelled'), { code: 'INDEXING_CANCELLED' });
             }
 
-            const obj = objects[i];
-            const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
-            const cleanQN = this._removeBrackets(obj.qualified_name);
-            // Tables have no SQL module: skip the definition fetch entirely
-            const wantsDefinition = !!columnRefsOut && obj.type !== 'U';
-            let definition = null;
-            // Names this object references confidently (resolver + parser); excluded
-            // from the possible-ref scan so we only flag the *extra* text mentions.
-            const confidentSet = new Set();
-            try {
-                const result = await this._connectionManager.executeQueryInDatabase(database, `
-                    SELECT DISTINCT
-                        ISNULL(referenced_database_name + '.', '') + referenced_schema_name + '.' + referenced_entity_name AS dependency,
-                        ISNULL(referenced_database_name, DB_NAME()) AS dependency_database
-                    FROM sys.dm_sql_referenced_entities(@objectName, N'OBJECT')
-                    WHERE referenced_entity_name IS NOT NULL
-                      AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''
-                      AND referenced_entity_name != '' AND referenced_minor_id = 0;
-                    ${wantsDefinition ? "SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;" : ''}
-                `, { objectName: qualifiedName });
+            const batch = objects.slice(i, i + IndexService.CONCURRENT_BATCH_SIZE);
+            const batchResults = await Promise.all(
+                batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut))
+            );
+            for (const objDependencies of batchResults) dependencies.push(...objDependencies);
 
-                for (const row of result.recordset) {
-                    dependencies.push({
-                        object_name: qualifiedName, dependency: row.dependency,
-                        type: obj.type, dependency_database: row.dependency_database
-                    });
-                    confidentSet.add(this._removeBrackets(row.dependency).toLowerCase());
-                }
-                definition = result.recordsets?.[1]?.[0]?.definition || null;
-            } catch {
-                // Same tolerance as the old server-side BEGIN CATCH: objects with
-                // broken or unresolvable references get no dependencies recorded.
-                // The definition is still worth parsing (dm_sql_referenced_entities
-                // fails on broken references, the parser does not).
-                if (wantsDefinition) {
-                    try {
-                        const fallback = await this._connectionManager.executeQueryInDatabase(database, `
-                            SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;
-                        `, { objectName: qualifiedName });
-                        definition = fallback.recordset?.[0]?.definition || null;
-                    } catch { /* encrypted or gone - no lineage */ }
-                }
+            const last = batch[batch.length - 1];
+            this._reportProgress(i + batch.length, total, `${last.schema_name}.${last.name}`);
+        }
+
+        return dependencies;
+    }
+
+    // One object's worth of the old per-object loop body - independent of any
+    // other object's processing, so callable concurrently. Writes into the
+    // shared columnRefsOut/possibleRefsOut maps under this object's own
+    // (unique) key, and returns its dependency rows for the caller to merge.
+    async _analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut) {
+        const dependencies = [];
+        const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
+        const cleanQN = this._removeBrackets(obj.qualified_name);
+        // Tables have no SQL module: skip the definition fetch entirely
+        const wantsDefinition = !!columnRefsOut && obj.type !== 'U';
+        let definition = null;
+        // Names this object references confidently (resolver + parser); excluded
+        // from the possible-ref scan so we only flag the *extra* text mentions.
+        const confidentSet = new Set();
+        try {
+            const result = await this._connectionManager.executeQueryInDatabase(database, `
+                SELECT DISTINCT
+                    ISNULL(referenced_database_name + '.', '') + referenced_schema_name + '.' + referenced_entity_name AS dependency,
+                    ISNULL(referenced_database_name, DB_NAME()) AS dependency_database
+                FROM sys.dm_sql_referenced_entities(@objectName, N'OBJECT')
+                WHERE referenced_entity_name IS NOT NULL
+                  AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''
+                  AND referenced_entity_name != '' AND referenced_minor_id = 0;
+                ${wantsDefinition ? "SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;" : ''}
+            `, { objectName: qualifiedName });
+
+            for (const row of result.recordset) {
+                dependencies.push({
+                    object_name: qualifiedName, dependency: row.dependency,
+                    type: obj.type, dependency_database: row.dependency_database
+                });
+                confidentSet.add(this._removeBrackets(row.dependency).toLowerCase());
             }
-
-            if (wantsDefinition && definition) {
-                const refs = this._sqlParser.analyzeColumns(definition);
-                if (refs && Object.keys(refs).length > 0) {
-                    columnRefsOut[cleanQN] = refs;
-                    for (const k of Object.keys(refs)) confidentSet.add(this._removeBrackets(k).toLowerCase());
-                }
-                // Best-effort dynamic-SQL scan: qualified names of known objects in
-                // the text that weren't resolved confidently above.
-                if (nameMap && possibleRefsOut) {
-                    const possible = this._scanPossibleRefs(definition, nameMap, cleanQN.toLowerCase(), confidentSet);
-                    if (possible.length) possibleRefsOut[cleanQN] = possible;
-                }
+            definition = result.recordsets?.[1]?.[0]?.definition || null;
+        } catch {
+            // Same tolerance as the old server-side BEGIN CATCH: objects with
+            // broken or unresolvable references get no dependencies recorded.
+            // The definition is still worth parsing (dm_sql_referenced_entities
+            // fails on broken references, the parser does not).
+            if (wantsDefinition) {
+                try {
+                    const fallback = await this._connectionManager.executeQueryInDatabase(database, `
+                        SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;
+                    `, { objectName: qualifiedName });
+                    definition = fallback.recordset?.[0]?.definition || null;
+                } catch { /* encrypted or gone - no lineage */ }
             }
+        }
 
-            this._reportProgress(i + 1, total, `${obj.schema_name}.${obj.name}`);
+        if (wantsDefinition && definition) {
+            const refs = this._sqlParser.analyzeColumns(definition);
+            if (refs && Object.keys(refs).length > 0) {
+                columnRefsOut[cleanQN] = refs;
+                for (const k of Object.keys(refs)) confidentSet.add(this._removeBrackets(k).toLowerCase());
+            }
+            // Best-effort dynamic-SQL scan: qualified names of known objects in
+            // the text that weren't resolved confidently above.
+            if (nameMap && possibleRefsOut) {
+                const possible = this._scanPossibleRefs(definition, nameMap, cleanQN.toLowerCase(), confidentSet);
+                if (possible.length) possibleRefsOut[cleanQN] = possible;
+            }
         }
 
         return dependencies;

@@ -64,6 +64,43 @@ suite('QueryHandlers', () => {
 		assert.ok(hist && hist.history.length === 1 && hist.history[0].success === true);
 	});
 
+	test('labels each result set with the statement that produced it when counts line up', async () => {
+		const posts = [];
+		const handlers = new QueryHandlers(m => posts.push(m), {
+			createRequest: () => new FakeRequest(req => {
+				req.emit('recordset', { id: {} });
+				req.emit('row', { id: 1 });
+				req.emit('recordset', { name: {} });
+				req.emit('row', { name: 'a' });
+			})
+		}, makeState());
+
+		await handlers.handleExecuteQuery('MyDb', 'SELECT 1 AS id;\nSELECT 2 AS name;', 1000);
+
+		const result = posts.find(p => p.command === 'queryResult');
+		assert.strictEqual(result.resultSets[0].sourceStatement, 'SELECT 1 AS id');
+		assert.strictEqual(result.resultSets[1].sourceStatement, 'SELECT 2 AS name');
+	});
+
+	test('does not guess a sourceStatement when the statement count does not match', async () => {
+		const posts = [];
+		const handlers = new QueryHandlers(m => posts.push(m), {
+			createRequest: () => new FakeRequest(req => {
+				req.emit('recordset', { id: {} });
+				req.emit('row', { id: 1 });
+				req.emit('recordset', { name: {} });
+				req.emit('row', { name: 'a' });
+			})
+		}, makeState());
+
+		// One EXEC statement yields two recordsets - counts don't line up, so no guess is made.
+		await handlers.handleExecuteQuery('MyDb', 'EXEC dbo.uspGetTwoSets;', 1000);
+
+		const result = posts.find(p => p.command === 'queryResult');
+		assert.strictEqual(result.resultSets[0].sourceStatement, undefined);
+		assert.strictEqual(result.resultSets[1].sourceStatement, undefined);
+	});
+
 	test('shifts SQL error line numbers to compensate for the injected USE statement', async () => {
 		const posts = [];
 		const handlers = new QueryHandlers(m => posts.push(m), {
@@ -177,5 +214,66 @@ suite('QueryHandlers', () => {
 
 		release();
 		await first;
+	});
+});
+
+suite('QueryHandlers.splitTopLevelStatements', () => {
+	test('splits on top-level semicolons and trims whitespace', () => {
+		const statements = QueryHandlers.splitTopLevelStatements('SELECT 1;\n  SELECT 2;  ');
+		assert.deepStrictEqual(statements, ['SELECT 1', 'SELECT 2']);
+	});
+
+	test('ignores semicolons inside string literals, including escaped quotes', () => {
+		const statements = QueryHandlers.splitTopLevelStatements("SELECT 'a;b''c;d'; SELECT 2;");
+		assert.deepStrictEqual(statements, ["SELECT 'a;b''c;d'", 'SELECT 2']);
+	});
+
+	test('ignores semicolons inside line and block comments', () => {
+		const statements = QueryHandlers.splitTopLevelStatements(
+			'SELECT 1; -- a;b\nSELECT 2; /* c;d */ SELECT 3;'
+		);
+		// The comments' own semicolons must not cause extra splits - comment text
+		// itself is kept as-is, this isn't a full parser.
+		assert.strictEqual(statements.length, 3);
+		assert.ok(statements[2].includes('SELECT 3'), statements[2]);
+	});
+
+	test('ignores semicolons inside bracketed identifiers', () => {
+		const statements = QueryHandlers.splitTopLevelStatements('SELECT * FROM [a;b];');
+		assert.deepStrictEqual(statements, ['SELECT * FROM [a;b]']);
+	});
+
+	test('a trailing statement without a final semicolon is still included', () => {
+		const statements = QueryHandlers.splitTopLevelStatements('SELECT 1; SELECT 2');
+		assert.deepStrictEqual(statements, ['SELECT 1', 'SELECT 2']);
+	});
+
+	test('splits statements on a line break alone, with no semicolons at all', () => {
+		const statements = QueryHandlers.splitTopLevelStatements(
+			'SELECT TOP 5 * FROM sys.tables\nSELECT TOP 5 * FROM sys.columns'
+		);
+		assert.deepStrictEqual(statements, [
+			'SELECT TOP 5 * FROM sys.tables',
+			'SELECT TOP 5 * FROM sys.columns'
+		]);
+	});
+
+	test('does not split a single statement spanning multiple lines', () => {
+		const statements = QueryHandlers.splitTopLevelStatements('SELECT col1,\n col2\nFROM dbo.T');
+		assert.deepStrictEqual(statements, ['SELECT col1,\n col2\nFROM dbo.T']);
+	});
+
+	test('does not split on a leading keyword inside a parenthesized subquery', () => {
+		const statements = QueryHandlers.splitTopLevelStatements(
+			'SELECT *\nFROM t\nWHERE EXISTS (\n  SELECT 1\n  FROM u\n)'
+		);
+		assert.strictEqual(statements.length, 1);
+	});
+
+	test('recognizes EXEC, INSERT, UPDATE, DELETE and WITH as statement leaders', () => {
+		const statements = QueryHandlers.splitTopLevelStatements(
+			'EXEC dbo.uspFoo\nINSERT INTO t VALUES (1)\nUPDATE t SET x = 1\nDELETE FROM t\nWITH cte AS (SELECT 1 AS x) SELECT * FROM cte'
+		);
+		assert.strictEqual(statements.length, 5);
 	});
 });

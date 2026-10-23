@@ -23,6 +23,8 @@ class AppState {
         this.pendingVisualization = null;
         this.allObjects = [];
         this.filteredObjects = [];
+        this.databases = []; // every database on the connection, for cross-database autocompletion
+        this.foreignKeys = []; // whole-database FK edges, for join-condition autocompletion
         this.currentIndex = null; // Store the raw index data
         this.filters = {
             search: '',
@@ -53,6 +55,7 @@ class ObjectsTabManager {
         this.modalCloseBtn = document.getElementById('objectsModalCloseBtn');
         this.currentDatabase = null;
         this.status = 'none'; // none | indexing | ready | error
+        this._loadedForDatabase = null; // which database the displayed index belongs to
         this.initEventListeners();
     }
 
@@ -97,7 +100,9 @@ class ObjectsTabManager {
         }
     }
 
-    // Called when database changes
+    // Called when database changes. Does NOT fetch/build the index itself -
+    // that only happens from TabManager.onExplorerTabActivated, so switching
+    // databases while on the Query tab never pays an indexing cost.
     onDatabaseChanged(database) {
         this.currentDatabase = database;
 
@@ -111,13 +116,29 @@ class ObjectsTabManager {
 
         this.forceReindexBtn.disabled = false;
         this.indicatorBtn.disabled = false;
-        this.showLoading();
 
-        // Request index from backend
-        vscode.postMessage({
-            command: 'getIndex',
-            database: database
-        });
+        // Switching database while Explorer is already open should still index
+        // the new one; switching from Query/Configuration shouldn't fetch
+        // anything until the user actually opens Explorer (see requestIndex).
+        if (appState.activeTab === 'explorer') {
+            this.requestIndex(database);
+        } else {
+            this.showPlaceholder();
+            this.setStatus('none', 'Not indexed yet - open Explorer to index this database');
+        }
+    }
+
+    // Fetches/builds the index for `database` - cheap if already cached and
+    // the schema checksum hasn't changed, a real (progress-reported) build
+    // otherwise. Skipped if already showing that database's index.
+    requestIndex(database) {
+        if (!database || this._loadedForDatabase === database) return;
+        this.showLoading();
+        this.setStatus('indexing', 'Indexing...');
+        // Explorer's own object list/graph stay greyed out until displayIndex
+        // unlocks them - they'd otherwise read from a stale or half-built index.
+        if (window.explorerManager) window.explorerManager.setPanelsLocked(true);
+        vscode.postMessage({ command: 'getIndex', database });
     }
 
     // Handle force reindex button click
@@ -172,11 +193,16 @@ class ObjectsTabManager {
     // Display raw JSON index
     displayIndex(indexData) {
         this.forceReindexBtn.disabled = false;
+        if (window.explorerManager) window.explorerManager.setPanelsLocked(false);
 
         if (!indexData) {
             this.objectsJsonContent.innerHTML = '<p class="placeholder-text">No index data available.</p>';
+            this.setStatus(this.currentDatabase ? 'error' : 'none', 'Indexing failed or was cancelled');
             return;
         }
+
+        this._loadedForDatabase = this.currentDatabase;
+        this.setStatus('ready', 'Index up to date');
 
         // Format and display the raw JSON
         const formattedJson = JSON.stringify(indexData, null, 2);
@@ -363,8 +389,8 @@ class DatabaseSelectorManager {
             <span class="notification-text">Connected! Select a database to explore</span>
         `;
 
-        const headerSection = document.querySelector('.header-section');
-        headerSection.appendChild(notification);
+        const toolbar = document.querySelector('.app-toolbar');
+        toolbar.appendChild(notification);
 
         setTimeout(() => {
             if (notification.parentNode) {
@@ -869,8 +895,9 @@ class ExplorerManager {
         appState.currentDatabase = database;
         this.elements.exportDictionaryBtn.disabled = !database;
 
-        // Panels stay greyed out until this database finishes (re)indexing.
-        this.setPanelsLocked(true);
+        // Panels are no longer locked here - indexing (and the lock around it,
+        // see ObjectsTabManager.requestIndex) only starts once Explorer is
+        // actually opened for this database, not on every database switch.
 
         vscode.postMessage({
             command: 'setCurrentDatabase',
@@ -899,11 +926,16 @@ class ExplorerManager {
                 command: 'getObjects',
                 database: database
             });
+            vscode.postMessage({
+                command: 'getForeignKeys',
+                database: database
+            });
         } else {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">Select a database to view objects.</p>';
             this.elements.detailsContent.innerHTML = '<p>Select a database first.</p>';
             appState.allObjects = [];
             appState.filteredObjects = [];
+            appState.foreignKeys = [];
             this.filterManager.disableFilters();
             this.filterManager.updateObjectCount();
             window.commentsManager.onDatabaseChanged();
@@ -1007,6 +1039,7 @@ class ExplorerManager {
     }
 
     onDatabasesLoaded(databases) {
+        appState.databases = databases || [];
         this.elements.databaseSelect.disabled = false;
         this.elements.databaseSelect.innerHTML = '<option value="">Select a database...</option>';
 
@@ -1016,6 +1049,13 @@ class ExplorerManager {
             option.textContent = db;
             this.elements.databaseSelect.appendChild(option);
         });
+    }
+
+    // Stale responses (user switched database again before this arrived) are
+    // dropped, same guard as onTableStatsLoaded.
+    onForeignKeysLoaded(database, foreignKeys) {
+        if (database !== appState.currentDatabase) return;
+        appState.foreignKeys = foreignKeys || [];
     }
 
     onObjectsLoaded(objects) {
@@ -1815,8 +1855,9 @@ class MessageHandler {
                 this.connectionManager.onConnectionStatus(message);
                 if (message.success) {
                     this.databaseSelector.showReadyGlow();
-                    // Land directly on Explorer after every successful connection.
-                    this.tabManager.switchTab('explorer');
+                    // Land directly on Query after every successful connection -
+                    // Explorer (and its indexing) is opt-in, see TabManager.
+                    this.tabManager.switchTab('query');
                 }
                 break;
 
@@ -1832,14 +1873,29 @@ class MessageHandler {
                 if (this.codeViewManager) {
                     this.codeViewManager.onDatabaseChanged();
                 }
+                // Fires on every (re)connection - a fresh connection may point
+                // at a different server, see SqlAutocomplete.onConnected.
+                if (this.queryManager) {
+                    this.queryManager.onConnected();
+                }
                 break;
 
             case 'objectsLoaded':
                 this.explorerManager.onObjectsLoaded(message.objects);
                 break;
 
+            case 'autocompleteObjectsLoaded':
+                if (this.queryManager) {
+                    this.queryManager.onAutocompleteObjectsLoaded(message);
+                }
+                break;
+
             case 'tableStatsLoaded':
                 this.explorerManager.onTableStatsLoaded(message.database, message.stats);
+                break;
+
+            case 'foreignKeysLoaded':
+                this.explorerManager.onForeignKeysLoaded(message.database, message.foreignKeys);
                 break;
 
             case 'scriptGenerated':

@@ -37,6 +37,12 @@ suite('SqlAutocomplete.extractContext', () => {
 		const ctx = SqlAutocomplete.extractContext(text, 10); // right after "Emp"
 		assert.strictEqual(ctx.partial, 'Emp');
 	});
+
+	test('captures the keyword right before the token', () => {
+		assert.strictEqual(SqlAutocomplete.extractContext('SELECT us', 9).precedingKeyword, 'select');
+		assert.strictEqual(SqlAutocomplete.extractContext('EXEC us', 7).precedingKeyword, 'exec');
+		assert.strictEqual(SqlAutocomplete.extractContext('EXECUTE   us', 12).precedingKeyword, 'execute');
+	});
 });
 
 suite('SqlAutocomplete.wordAt', () => {
@@ -105,12 +111,12 @@ suite('SqlAutocomplete.buildSuggestions', () => {
 			ctx, objects, { e: 'dbo.Employee' }, noColumns
 		);
 		assert.strictEqual(items.length, 0);
-		assert.strictEqual(needsColumns, 'dbo.Employee');
+		assert.deepStrictEqual(needsColumns, { database: undefined, qualifiedName: 'dbo.Employee' });
 	});
 
 	test('alias prefix suggests cached columns filtered by partial', () => {
 		const ctx = { base: 'e', partial: 'Hi' };
-		const getColumns = q => q === 'dbo.Employee'
+		const getColumns = (database, q) => q === 'dbo.Employee'
 			? [{ name: 'HireDate', type: 'datetime' }, { name: 'ID', type: 'int' }]
 			: undefined;
 		const { items } = SqlAutocomplete.buildSuggestions(ctx, objects, { e: 'dbo.Employee' }, getColumns);
@@ -122,7 +128,25 @@ suite('SqlAutocomplete.buildSuggestions', () => {
 	test('table name used directly (no alias) also resolves to columns', () => {
 		const ctx = { base: 'Employee', partial: '' };
 		const { needsColumns } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
-		assert.strictEqual(needsColumns, 'dbo.Employee');
+		assert.deepStrictEqual(needsColumns, { database: undefined, qualifiedName: 'dbo.Employee' });
+	});
+
+	test('does not suggest stored procedures outside an EXEC context', () => {
+		const ctx = { base: '', partial: 'usp', precedingKeyword: 'select' };
+		const { items } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
+		assert.ok(!items.some(i => i.insert === 'uspGetEmployees'), 'procedure should not be offered after SELECT');
+	});
+
+	test('suggests stored procedures right after EXEC', () => {
+		const ctx = { base: '', partial: 'usp', precedingKeyword: 'exec' };
+		const { items } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
+		assert.ok(items.some(i => i.insert === 'uspGetEmployees'), 'procedure should be offered after EXEC');
+	});
+
+	test('suggests stored procedures right after EXECUTE', () => {
+		const ctx = { base: '', partial: 'usp', precedingKeyword: 'execute' };
+		const { items } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
+		assert.ok(items.some(i => i.insert === 'uspGetEmployees'), 'procedure should be offered after EXECUTE');
 	});
 
 	test('procedure prefix yields no column suggestions', () => {
@@ -130,5 +154,170 @@ suite('SqlAutocomplete.buildSuggestions', () => {
 		const { items, needsColumns } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
 		assert.strictEqual(items.length, 0);
 		assert.strictEqual(needsColumns, undefined);
+	});
+
+	test('top level also suggests known database names', () => {
+		const ctx = { base: '', partial: 'rep' };
+		const { items } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, {}, noColumns, { databases: ['ReportingDb', 'Sales'] }
+		);
+		assert.ok(items.some(i => i.insert === 'ReportingDb' && i.kind === 'Database'));
+	});
+
+	test('a known database name with nothing fetched yet asks for its objects', () => {
+		const ctx = { base: 'ReportingDb', partial: '' };
+		const { items, needsDatabaseObjects } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, {}, noColumns, { databases: ['ReportingDb'], currentDatabase: 'MainDb' }
+		);
+		assert.strictEqual(items.length, 0);
+		assert.strictEqual(needsDatabaseObjects, 'ReportingDb');
+	});
+
+	test('"Database." lists that database\'s own objects once fetched', () => {
+		const otherObjects = [
+			{ name: 'Metric', object_name: 'Metric', qualified_name: 'dbo.Metric', object_type: 'Table', schema_name: 'dbo' }
+		];
+		const ctx = { base: 'ReportingDb', partial: '' };
+		const { items } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, {}, noColumns,
+			{ databases: ['ReportingDb'], currentDatabase: 'MainDb', getDatabaseObjects: () => otherObjects }
+		);
+		assert.deepStrictEqual(items.map(i => i.insert), ['Metric']);
+	});
+
+	test('"Database.Schema." lists that schema\'s objects in the other database', () => {
+		const otherObjects = [
+			{ name: 'Metric', object_name: 'Metric', qualified_name: 'rpt.Metric', object_type: 'Table', schema_name: 'rpt' }
+		];
+		const ctx = { base: 'ReportingDb.rpt', partial: '' };
+		const { items } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, {}, noColumns,
+			{ databases: ['ReportingDb'], currentDatabase: 'MainDb', getDatabaseObjects: () => otherObjects }
+		);
+		assert.deepStrictEqual(items.map(i => i.insert), ['Metric']);
+	});
+
+	test('"Database.Schema.Table." asks for columns, naming the other database', () => {
+		const otherObjects = [
+			{ name: 'Metric', object_name: 'Metric', qualified_name: 'rpt.Metric', object_type: 'Table', schema_name: 'rpt' }
+		];
+		const ctx = { base: 'ReportingDb.rpt.Metric', partial: '' };
+		const { needsColumns } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, {}, noColumns,
+			{ databases: ['ReportingDb'], currentDatabase: 'MainDb', getDatabaseObjects: () => otherObjects }
+		);
+		assert.deepStrictEqual(needsColumns, { database: 'ReportingDb', qualifiedName: 'rpt.Metric' });
+	});
+
+	test('a database segment matching the current database reuses the live objects, no fetch', () => {
+		const ctx = { base: 'MainDb', partial: '' };
+		const { items } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, {}, noColumns,
+			{ databases: ['MainDb'], currentDatabase: 'MainDb', getDatabaseObjects: () => { throw new Error('should not fetch'); } }
+		);
+		assert.ok(items.some(i => i.insert === 'Sales.Orders'));
+	});
+
+	test('an alias pointing at a cross-database table resolves columns in that database', () => {
+		const otherObjects = [
+			{ name: 'Metric', object_name: 'Metric', qualified_name: 'dbo.Metric', object_type: 'Table', schema_name: 'dbo' }
+		];
+		const ctx = { base: 'm', partial: '' };
+		const aliases = { m: 'ReportingDb.dbo.Metric' };
+		const { needsColumns } = SqlAutocomplete.buildSuggestions(
+			ctx, objects, aliases, noColumns,
+			{ databases: ['ReportingDb'], currentDatabase: 'MainDb', getDatabaseObjects: () => otherObjects }
+		);
+		assert.deepStrictEqual(needsColumns, { database: 'ReportingDb', qualifiedName: 'dbo.Metric' });
+	});
+});
+
+suite('SqlAutocomplete.extractJoinOnContext', () => {
+	test('matches a plain JOIN right before ON', () => {
+		const text = 'SELECT * FROM dbo.Employee e JOIN Sales.Orders o ON';
+		const ctx = SqlAutocomplete.extractJoinOnContext(text, text.length);
+		assert.deepStrictEqual(ctx, { table: 'Sales.Orders', alias: 'o' });
+	});
+
+	test('matches with a join type keyword and no alias', () => {
+		const text = 'FROM dbo.Employee e LEFT OUTER JOIN Sales.Orders ON';
+		const ctx = SqlAutocomplete.extractJoinOnContext(text, text.length);
+		assert.deepStrictEqual(ctx, { table: 'Sales.Orders', alias: null });
+	});
+
+	test('tolerates trailing whitespace after ON', () => {
+		const text = 'FROM Employee e JOIN Orders o ON   ';
+		const ctx = SqlAutocomplete.extractJoinOnContext(text, text.length);
+		assert.strictEqual(ctx.table, 'Orders');
+	});
+
+	test('does not match once a condition follows ON', () => {
+		const text = 'FROM Employee e JOIN Orders o ON o.EmployeeID = e.ID';
+		assert.strictEqual(SqlAutocomplete.extractJoinOnContext(text, text.length), null);
+	});
+
+	test('does not match outside a JOIN clause', () => {
+		assert.strictEqual(SqlAutocomplete.extractJoinOnContext('SELECT * FROM Employee WHERE 1=1 ON', 36), null);
+	});
+});
+
+suite('SqlAutocomplete.buildJoinConditionSuggestions', () => {
+	const fks = [
+		{ fkName: 'FK_Orders_Employee', fromTable: 'Sales.Orders', fromColumn: 'EmployeeID', toTable: 'dbo.Employee', toColumn: 'ID' }
+	];
+	const compositeFks = [
+		{ fkName: 'FK_OrderLine_Orders', fromTable: 'Sales.OrderLine', fromColumn: 'OrderID', toTable: 'Sales.Orders', toColumn: 'ID' },
+		{ fkName: 'FK_OrderLine_Orders', fromTable: 'Sales.OrderLine', fromColumn: 'OrderYear', toTable: 'Sales.Orders', toColumn: 'Year' }
+	];
+
+	test('suggests the FK condition with aliases on the right sides', () => {
+		const joinCtx = { table: 'Sales.Orders', alias: 'o' };
+		const before = 'SELECT * FROM dbo.Employee e JOIN Sales.Orders o ON';
+		const items = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, before, fks);
+		assert.strictEqual(items.length, 1);
+		assert.strictEqual(items[0].insert, 'o.EmployeeID = e.ID');
+		assert.strictEqual(items[0].kind, 'joinCondition');
+		assert.ok(items[0].detail.includes('FK_Orders_Employee'));
+	});
+
+	test('works when the newly joined table is the FK referenced side', () => {
+		// Employee is the FK target (referenced) side; Orders (already in scope) is the FK owner.
+		const joinCtx = { table: 'dbo.Employee', alias: 'e' };
+		const before = 'SELECT * FROM Sales.Orders o JOIN dbo.Employee e ON';
+		const items = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, before, fks);
+		assert.strictEqual(items.length, 1);
+		assert.strictEqual(items[0].insert, 'o.EmployeeID = e.ID');
+	});
+
+	test('falls back to the bare table name as alias when none was typed', () => {
+		const joinCtx = { table: 'Sales.Orders', alias: null };
+		const before = 'SELECT * FROM dbo.Employee e JOIN Sales.Orders ON';
+		const items = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, before, fks);
+		assert.strictEqual(items[0].insert, 'Orders.EmployeeID = e.ID');
+	});
+
+	test('combines multi-column FKs with AND', () => {
+		const lineObjects = [
+			...objects,
+			{ name: 'Sales.OrderLine', object_name: 'OrderLine', qualified_name: 'Sales.OrderLine', object_type: 'Table', schema_name: 'Sales' }
+		];
+		const joinCtx = { table: 'Sales.OrderLine', alias: 'ol' };
+		const before = 'SELECT * FROM Sales.Orders o JOIN Sales.OrderLine ol ON';
+		const items = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, lineObjects, before, compositeFks);
+		assert.strictEqual(items.length, 1);
+		assert.strictEqual(items[0].insert, 'ol.OrderID = o.ID AND ol.OrderYear = o.Year');
+	});
+
+	test('no relationship between the two tables yields no suggestion', () => {
+		const joinCtx = { table: 'Sales.vOrderTotals', alias: 'v' };
+		const before = 'SELECT * FROM dbo.Employee e JOIN Sales.vOrderTotals v ON';
+		const items = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, before, fks);
+		assert.strictEqual(items.length, 0);
+	});
+
+	test('an unknown table (not in the object index) yields no suggestion', () => {
+		const joinCtx = { table: 'Nope', alias: 'n' };
+		const items = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, 'FROM Employee e JOIN Nope n ON', fks);
+		assert.strictEqual(items.length, 0);
 	});
 });

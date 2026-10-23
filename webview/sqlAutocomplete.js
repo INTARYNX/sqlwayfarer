@@ -26,8 +26,10 @@ class SqlAutocomplete {
         this.items = [];
         this.selectedIndex = 0;
         this.ctx = null;
-        this.columnsCache = {};       // qualified name (lower) -> [{ name, type }]
+        this.columnsCache = {};       // "database::qualifiedName" (lower) -> [{ name, type }]
         this.pendingColumns = new Set();
+        this.objectsCache = {};       // database (lower) -> objects[], for cross-database references
+        this.pendingObjectsDbs = new Set();
 
         this.initEventListeners();
     }
@@ -79,18 +81,38 @@ class SqlAutocomplete {
 
     // === Lifecycle ===
 
-    // Called when the database selector changes: cached columns belong to the old db.
+    // Called when the database selector changes. The column/object caches are
+    // keyed by database name already, so they stay valid across a switch -
+    // only the open dropdown (built against the old context) needs closing.
     reset() {
+        this.hide();
+    }
+
+    // Called on every (re)connection: a new connection may point at a
+    // different server, so previously cached cross-database objects/columns
+    // could now be wrong - unlike reset(), this does need to wipe them.
+    onConnected() {
+        this.objectsCache = {};
+        this.pendingObjectsDbs.clear();
         this.columnsCache = {};
         this.pendingColumns.clear();
         this.hide();
     }
 
-    onColumnsLoaded(objectName, columns) {
-        const key = (objectName || '').toLowerCase();
+    onColumnsLoaded(database, objectName, columns) {
+        const key = SqlAutocomplete._colKey(database, objectName);
         this.pendingColumns.delete(key);
         this.columnsCache[key] = columns || [];
         // Refresh only if the user is still typing in the editor.
+        if (document.activeElement === this.textarea) this.update();
+    }
+
+    // Objects of a database other than the one currently selected, fetched on
+    // demand for a three-part "Database.Schema.Object" reference.
+    onDatabaseObjectsLoaded(database, objects) {
+        const key = (database || '').toLowerCase();
+        this.pendingObjectsDbs.delete(key);
+        this.objectsCache[key] = objects || [];
         if (document.activeElement === this.textarea) this.update();
     }
 
@@ -98,7 +120,25 @@ class SqlAutocomplete {
 
     update(force = false) {
         const objects = (typeof appState !== 'undefined' && appState.allObjects) || [];
-        const ctx = SqlAutocomplete.extractContext(this.textarea.value, this.textarea.selectionStart);
+        const databases = (typeof appState !== 'undefined' && appState.databases) || [];
+        const currentDatabase = typeof appState !== 'undefined' ? appState.currentDatabase : null;
+        const text = this.textarea.value;
+        const caret = this.textarea.selectionStart;
+
+        // "... JOIN Orders o ON" just typed: offer the FK-based condition
+        // before falling back to plain keyword/object completion.
+        const joinCtx = SqlAutocomplete.extractJoinOnContext(text, caret);
+        if (joinCtx) {
+            const foreignKeys = (typeof appState !== 'undefined' && appState.foreignKeys) || [];
+            const joinItems = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, text.slice(0, caret), foreignKeys);
+            if (joinItems.length > 0) {
+                this.ctx = { partialStart: caret };
+                this.render(joinItems);
+                return;
+            }
+        }
+
+        const ctx = SqlAutocomplete.extractContext(text, caret);
 
         if (!ctx.base && !ctx.partial) {
             this.hide();
@@ -106,13 +146,19 @@ class SqlAutocomplete {
         }
 
         const aliases = SqlAutocomplete.parseAliases(this.textarea.value);
-        const { items, needsColumns } = SqlAutocomplete.buildSuggestions(
+        const { items, needsColumns, needsDatabaseObjects } = SqlAutocomplete.buildSuggestions(
             ctx, objects, aliases,
-            qualifiedName => this.columnsCache[qualifiedName.toLowerCase()],
-            { minLength: force ? 0 : 2 }
+            (database, qualifiedName) => this.columnsCache[SqlAutocomplete._colKey(database, qualifiedName)],
+            {
+                minLength: force ? 0 : 2,
+                databases,
+                currentDatabase,
+                getDatabaseObjects: database => this.objectsCache[(database || '').toLowerCase()]
+            }
         );
 
-        if (needsColumns) this.requestColumns(needsColumns);
+        if (needsColumns) this.requestColumns(needsColumns.database, needsColumns.qualifiedName);
+        if (needsDatabaseObjects) this.requestDatabaseObjects(needsDatabaseObjects);
 
         if (items.length === 0) {
             this.hide();
@@ -123,15 +169,18 @@ class SqlAutocomplete {
         this.render(items);
     }
 
-    requestColumns(qualifiedName) {
-        const key = qualifiedName.toLowerCase();
+    requestColumns(database, qualifiedName) {
+        const key = SqlAutocomplete._colKey(database, qualifiedName);
         if (this.pendingColumns.has(key) || this.columnsCache[key]) return;
         this.pendingColumns.add(key);
-        vscode.postMessage({
-            command: 'getObjectColumns',
-            database: appState.currentDatabase,
-            objectName: qualifiedName
-        });
+        vscode.postMessage({ command: 'getObjectColumns', database, objectName: qualifiedName });
+    }
+
+    requestDatabaseObjects(database) {
+        const key = (database || '').toLowerCase();
+        if (this.pendingObjectsDbs.has(key) || this.objectsCache[key]) return;
+        this.pendingObjectsDbs.add(key);
+        vscode.postMessage({ command: 'getAutocompleteObjects', database });
     }
 
     // === Rendering ===
@@ -225,6 +274,10 @@ class SqlAutocomplete {
         const caret = this.ctx.partialStart + item.insert.length;
         ta.setSelectionRange(caret, caret);
         this.hide();
+        // Setting .value directly doesn't fire 'input' - tell anything mirroring
+        // the text (the syntax highlight overlay) to resync, without re-opening
+        // the dropdown the way a real 'input' event would.
+        ta.dispatchEvent(new CustomEvent('sql:valuechange'));
     }
 
     isOpen() {
@@ -243,7 +296,9 @@ class SqlAutocomplete {
             case 'View': return '<i class="codicon codicon-eye"></i>';
             case 'Procedure': return '<i class="codicon codicon-gear"></i>';
             case 'Function': return '<i class="codicon codicon-wrench"></i>';
+            case 'Database': return '<i class="codicon codicon-database"></i>';
             case 'column': return '▪';
+            case 'joinCondition': return '<i class="codicon codicon-references"></i>';
             default: return '<i class="codicon codicon-symbol-keyword"></i>';
         }
     }
@@ -258,14 +313,24 @@ class SqlAutocomplete {
         const token = match ? match[0] : '';
         const tokenStart = caret - token.length;
         const lastDot = token.lastIndexOf('.');
+        // The keyword right before the token - "exec"/"execute" is what makes a
+        // bare procedure name a sensible suggestion instead of noise.
+        const precedingKeyword = SqlAutocomplete._wordBefore(text, tokenStart);
         if (lastDot === -1) {
-            return { base: '', partial: token, partialStart: tokenStart };
+            return { base: '', partial: token, partialStart: tokenStart, precedingKeyword };
         }
         return {
             base: token.slice(0, lastDot),
             partial: token.slice(lastDot + 1),
-            partialStart: tokenStart + lastDot + 1
+            partialStart: tokenStart + lastDot + 1,
+            precedingKeyword
         };
+    }
+
+    // Nearest word immediately before a position, lowercased ("" if none).
+    static _wordBefore(text, pos) {
+        const m = text.slice(0, pos).match(/(\w+)\s*$/);
+        return m ? m[1].toLowerCase() : '';
     }
 
     // Full identifier (dots and brackets included) around an arbitrary position:
@@ -280,30 +345,129 @@ class SqlAutocomplete {
         return word || null;
     }
 
-    // Scan FROM/JOIN/UPDATE/INTO clauses for "source [AS] alias" pairs.
-    static parseAliases(text) {
-        const aliases = {};
+    // Scan FROM/JOIN/UPDATE/INTO clauses for every "source [AS] alias" pair,
+    // alias included even when absent (needed by the join-condition lookup,
+    // which must also find unaliased tables already in scope).
+    static scanTableRefs(text) {
+        const refs = [];
         const re = /\b(?:from|join|update|into)\s+((?:\[[^\]]+\]|\w+)(?:\s*\.\s*(?:\[[^\]]+\]|\w+))*)(?:\s+(?:as\s+)?(\[[^\]]+\]|\w+))?/gi;
         let m;
         while ((m = re.exec(text)) !== null) {
             const source = m[1].replace(/[[\]\s]/g, '');
-            const alias = m[2] ? m[2].replace(/[[\]]/g, '') : null;
-            if (alias && !SqlAutocomplete.RESERVED.has(alias.toLowerCase())) {
-                aliases[alias.toLowerCase()] = source;
-            }
+            let alias = m[2] ? m[2].replace(/[[\]]/g, '') : null;
+            if (alias && SqlAutocomplete.RESERVED.has(alias.toLowerCase())) alias = null;
+            refs.push({ source, alias });
+        }
+        return refs;
+    }
+
+    // alias (lowercase) -> source, for refs that actually have one.
+    static parseAliases(text) {
+        const aliases = {};
+        for (const { source, alias } of SqlAutocomplete.scanTableRefs(text)) {
+            if (alias) aliases[alias.toLowerCase()] = source;
         }
         return aliases;
     }
 
+    // Resolve a bare/schema-qualified name typed in the editor to the matching
+    // entry in the explorer's object index.
+    static _resolveObjectRef(ref, objects) {
+        const target = ref.replace(/[[\]]/g, '').toLowerCase();
+        return objects.find(o =>
+            o.qualified_name.toLowerCase() === target ||
+            (o.object_name || '').toLowerCase() === target ||
+            (o.name || '').toLowerCase() === target
+        );
+    }
+
+    // Detect "... [INNER|LEFT|RIGHT|FULL|CROSS] JOIN <table> [[AS] alias] ON"
+    // with nothing typed after ON yet - the moment to offer a FK-based condition.
+    static extractJoinOnContext(text, caret) {
+        const before = text.slice(0, caret);
+        const re = /\b(?:(?:inner|cross)\s+|(?:left|right|full)\s+(?:outer\s+)?)?join\s+((?:\[[^\]]+\]|\w+)(?:\s*\.\s*(?:\[[^\]]+\]|\w+))*)(?:\s+(?:as\s+)?(\[[^\]]+\]|\w+))?\s+on\s*$/i;
+        const m = re.exec(before);
+        if (!m) return null;
+        return {
+            table: m[1].replace(/[[\]\s]/g, ''),
+            alias: m[2] ? m[2].replace(/[[\]]/g, '') : null
+        };
+    }
+
+    // Raw FK rows (one per column) between two tables, direction-agnostic,
+    // grouped back into one edge per constraint for composite keys.
+    static _fkEdgesBetween(foreignKeys, tableA, tableB) {
+        const a = tableA.toLowerCase();
+        const b = tableB.toLowerCase();
+        const byName = new Map();
+        for (const fk of foreignKeys || []) {
+            const from = (fk.fromTable || '').toLowerCase();
+            const to = (fk.toTable || '').toLowerCase();
+            if (!((from === a && to === b) || (from === b && to === a))) continue;
+            if (!byName.has(fk.fkName)) {
+                byName.set(fk.fkName, { fkName: fk.fkName, fromTable: fk.fromTable, toTable: fk.toTable, pairs: [] });
+            }
+            byName.get(fk.fkName).pairs.push({ fromColumn: fk.fromColumn, toColumn: fk.toColumn });
+        }
+        return [...byName.values()];
+    }
+
+    // "a.Col1 = b.Col1 AND a.Col2 = b.Col2", aliases placed on the side that
+    // matches the FK's own direction (not insertion order).
+    static _formatJoinCondition(edge, newTable, newAlias, otherAlias) {
+        const fromIsNew = edge.fromTable.toLowerCase() === newTable.toLowerCase();
+        const fromAlias = fromIsNew ? newAlias : otherAlias;
+        const toAlias = fromIsNew ? otherAlias : newAlias;
+        return edge.pairs.map(p => `${fromAlias}.${p.fromColumn} = ${toAlias}.${p.toColumn}`).join(' AND ');
+    }
+
+    // One suggestion per FK relationship found between the table just joined
+    // and any table already in scope - exactly SQL Prompt's "join suggestion".
+    static buildJoinConditionSuggestions(joinCtx, objects, textBeforeCaret, foreignKeys) {
+        if (!foreignKeys || foreignKeys.length === 0) return [];
+
+        const newObj = SqlAutocomplete._resolveObjectRef(joinCtx.table, objects);
+        if (!newObj) return [];
+        // Without an explicit alias, SQL Server's implicit correlation name is
+        // the bare table name - not whatever schema prefix the user typed.
+        const newAlias = joinCtx.alias || newObj.object_name || newObj.name;
+        const newTableLower = joinCtx.table.replace(/[[\]]/g, '').toLowerCase();
+
+        const priorRefs = SqlAutocomplete.scanTableRefs(textBeforeCaret)
+            .filter(r => r.source.toLowerCase() !== newTableLower);
+
+        const items = [];
+        const seenFk = new Set();
+        for (const ref of priorRefs) {
+            const otherObj = SqlAutocomplete._resolveObjectRef(ref.source, objects);
+            if (!otherObj || otherObj.qualified_name.toLowerCase() === newObj.qualified_name.toLowerCase()) continue;
+            const otherAlias = ref.alias || otherObj.object_name || otherObj.name;
+
+            for (const edge of SqlAutocomplete._fkEdgesBetween(foreignKeys, newObj.qualified_name, otherObj.qualified_name)) {
+                if (seenFk.has(edge.fkName)) continue;
+                seenFk.add(edge.fkName);
+                const condition = SqlAutocomplete._formatJoinCondition(edge, newObj.qualified_name, newAlias, otherAlias);
+                items.push({ label: condition, insert: condition, kind: 'joinCondition', detail: `FK ${edge.fkName}` });
+            }
+        }
+        return items;
+    }
+
     // Build the suggestion list for a given context.
-    // getColumns(qualifiedName) returns cached columns or undefined; when undefined
-    // is hit, needsColumns tells the caller which object to fetch.
+    // getColumns(database, qualifiedName) returns cached columns or undefined;
+    // when undefined is hit, needsColumns tells the caller which {database,
+    // qualifiedName} to fetch. options.databases/currentDatabase/
+    // getDatabaseObjects(database) are what make a three-part
+    // "Database.Schema.Object" reference work - see _resolveWithinDatabase.
     static buildSuggestions(ctx, objects, aliases, getColumns, options = {}) {
         const minLength = options.minLength === undefined ? 2 : options.minLength;
         const partial = (ctx.partial || '').toLowerCase();
         const items = [];
+        // A bare procedure name only makes sense right after EXEC/EXECUTE -
+        // offering it after SELECT/WHERE/etc. is just noise.
+        const execContext = SqlAutocomplete.EXEC_KEYWORDS.has(ctx.precedingKeyword);
 
-        // Top level: keywords + object names
+        // Top level: keywords + database names + object names
         if (!ctx.base) {
             if (partial.length < minLength) return { items };
             for (const kw of SqlAutocomplete.KEYWORDS) {
@@ -311,17 +475,65 @@ class SqlAutocomplete {
                     items.push({ label: kw, insert: kw, kind: 'keyword' });
                 }
             }
-            for (const obj of objects) {
-                const bareName = (obj.object_name || obj.name || '').toLowerCase();
-                if ((partial && bareName.startsWith(partial)) || obj.qualified_name.toLowerCase().startsWith(partial)) {
-                    // obj.name is already schema-qualified except for dbo - exactly what we want to insert
-                    items.push({ label: obj.name, insert: obj.name, kind: obj.object_type, detail: obj.object_type });
+            for (const db of options.databases || []) {
+                if (db.toLowerCase().startsWith(partial)) {
+                    items.push({ label: db, insert: db, kind: 'Database', detail: 'Database' });
                 }
             }
+            items.push(...SqlAutocomplete._flatObjectItems(objects, partial, execContext));
             return { items: items.slice(0, SqlAutocomplete.MAX_ITEMS) };
         }
 
         const base = ctx.base.replace(/[[\]]/g, '');
+        const baseLower = base.toLowerCase();
+        // An alias may itself point at a cross-database table ("FROM
+        // OtherDb.dbo.Orders o" then "o.") - resolve it before checking for a
+        // leading database segment, not after.
+        const resolvedBase = (aliases[baseLower] || base).replace(/[[\]]/g, '');
+        const segments = resolvedBase.split('.');
+        const databases = options.databases || [];
+        const firstLower = segments[0].toLowerCase();
+        const isCrossDb = databases.some(db => db.toLowerCase() === firstLower);
+
+        if (isCrossDb) {
+            const database = segments[0];
+            const remainder = segments.slice(1).join('.');
+            const isCurrent = (options.currentDatabase || '').toLowerCase() === firstLower;
+            const dbObjects = isCurrent ? objects : (options.getDatabaseObjects && options.getDatabaseObjects(database));
+            if (!dbObjects) return { items: [], needsDatabaseObjects: database };
+
+            return SqlAutocomplete._resolveWithinDatabase(database, remainder, partial, dbObjects, {}, getColumns, execContext);
+        }
+
+        return SqlAutocomplete._resolveWithinDatabase(options.currentDatabase, base, partial, objects, aliases, getColumns, execContext);
+    }
+
+    // Every non-Procedure object matching partial, plus Procedures too when
+    // execContext is set (right after EXEC/EXECUTE). Shared by the top-level
+    // branch and the empty-remainder case of a "Database." reference.
+    static _flatObjectItems(objects, partial, execContext) {
+        const items = [];
+        for (const obj of objects) {
+            if (obj.object_type === 'Procedure' && !execContext) continue;
+            const bareName = (obj.object_name || obj.name || '').toLowerCase();
+            if ((partial && bareName.startsWith(partial)) || obj.qualified_name.toLowerCase().startsWith(partial)) {
+                // obj.name is already schema-qualified except for dbo - exactly what we want to insert
+                items.push({ label: obj.name, insert: obj.name, kind: obj.object_type, detail: obj.object_type });
+            }
+        }
+        return items;
+    }
+
+    // Resolves what comes after a dot within one database's object list:
+    // nothing yet ("Database.|") lists everything, a schema name lists that
+    // schema's objects, and a table/alias lists its columns (needsColumns
+    // includes which database to fetch them from).
+    static _resolveWithinDatabase(database, base, partial, objects, aliases, getColumns, execContext) {
+        if (!base) {
+            return { items: SqlAutocomplete._flatObjectItems(objects, partial, execContext).slice(0, SqlAutocomplete.MAX_ITEMS) };
+        }
+
+        const items = [];
         const baseLower = base.toLowerCase();
 
         // "schema." -> objects of that schema
@@ -336,16 +548,11 @@ class SqlAutocomplete {
         }
 
         // "table." or "alias." -> columns
-        const target = (aliases[baseLower] || base).toLowerCase();
-        const obj = objects.find(o =>
-            o.qualified_name.toLowerCase() === target ||
-            (o.object_name || '').toLowerCase() === target ||
-            (o.name || '').toLowerCase() === target
-        );
+        const obj = SqlAutocomplete._resolveObjectRef(aliases[baseLower] || base, objects);
         if (!obj || (obj.object_type !== 'Table' && obj.object_type !== 'View')) return { items };
 
-        const columns = getColumns(obj.qualified_name);
-        if (!columns) return { items, needsColumns: obj.qualified_name };
+        const columns = getColumns(database, obj.qualified_name);
+        if (!columns) return { items, needsColumns: { database, qualifiedName: obj.qualified_name } };
 
         for (const col of columns) {
             if (!partial || col.name.toLowerCase().startsWith(partial)) {
@@ -354,9 +561,16 @@ class SqlAutocomplete {
         }
         return { items: items.slice(0, SqlAutocomplete.MAX_ITEMS) };
     }
+
+    static _colKey(database, qualifiedName) {
+        return `${(database || '').toLowerCase()}::${(qualifiedName || '').toLowerCase()}`;
+    }
 }
 
 SqlAutocomplete.MAX_ITEMS = 15;
+
+// Keywords after which a bare procedure name is a sensible suggestion.
+SqlAutocomplete.EXEC_KEYWORDS = new Set(['exec', 'execute']);
 
 SqlAutocomplete.KEYWORDS = [
     'SELECT', 'FROM', 'WHERE', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',

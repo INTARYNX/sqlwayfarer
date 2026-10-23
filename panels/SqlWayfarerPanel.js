@@ -40,7 +40,7 @@ class SqlWayfarerPanel {
         this._dependencyService = new DependencyService();
         this._commentsService = new CommentsService(this._connectionManager);
         this._dataDictionaryService = new DataDictionaryService(this._connectionManager, this._indexService);
-        this._writeFootprintService = new WriteFootprintService(this._connectionManager, this._indexService);
+        this._writeFootprintService = new WriteFootprintService(this._connectionManager, this._indexService, this._databaseService);
 
         const post = msg => this._panel.webview.postMessage(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -145,10 +145,10 @@ class SqlWayfarerPanel {
             // Database
             case 'setCurrentDatabase':          this._currentSelectedDatabase = message.database; break;
             case 'getDatabases':                await d.handleGetDatabases(); break;
-            case 'getObjects':
-                await d.handleGetObjects(message.database);
-                if (!ix.isIndexing) ix.startBackgroundIndexing(message.database).catch(e => console.error('Background indexing setup failed:', e));
-                break;
+            // No background indexing here anymore - the dependency index is
+            // only ever built when the user opens the Explorer tab (see
+            // 'getIndex' below), not just from picking a database.
+            case 'getObjects':                  await d.handleGetObjects(message.database); break;
             case 'getTableDetails':             await d.handleGetTableDetails(message.database, message.table); break;
             case 'getColumnUsage':              await d.handleGetColumnUsage(message.database, message.table); break;
             case 'getObjectDetails':            await d.handleGetObjectDetails(message.database, message.objectName, message.objectType); break;
@@ -156,6 +156,8 @@ class SqlWayfarerPanel {
             case 'getTableRowCount':            await d.handleGetTableRowCount(message.database, message.tableName); break;
             case 'getTableSampleData':          await d.handleGetTableSampleData(message.database, message.tableName, message.limit); break;
             case 'getObjectColumns':            await d.handleGetObjectColumns(message.database, message.objectName); break;
+            case 'getAutocompleteObjects':       await d.handleGetAutocompleteObjects(message.database); break;
+            case 'getForeignKeys':               await d.handleGetForeignKeys(message.database); break;
             case 'searchDefinitions':           await d.handleSearchDefinitions(message.database, message.searchText); break;
             case 'getDependencyTree':           await d.handleGetDependencyTree(message.database, message.objectName, message.maxDepth); break;
             case 'getImpactAnalysis':           await d.handleGetImpactAnalysis(message.database, message.objectName); break;
@@ -230,6 +232,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
+        html = html.replace('{{SQL_HIGHLIGHT_URI}}',        u('webview', 'sqlHighlight.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));

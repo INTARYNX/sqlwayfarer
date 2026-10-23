@@ -11,66 +11,9 @@ class IndexHandlers {
         this._indexingInProgress = false;
     }
 
-    get isIndexing() {
-        return this._indexingInProgress;
-    }
-
     cancel() {
         this._indexingInProgress = false;
         this._indexService.requestCancel();
-    }
-
-    async startBackgroundIndexing(database) {
-        if (this._indexingInProgress) {
-            console.log('Indexing already in progress, skipping');
-            return;
-        }
-
-        this._indexingInProgress = true;
-
-        try {
-            this._post({ command: 'indexingStarted', database });
-
-            const progressCallback = (progress) => {
-                try {
-                    this._post({ command: 'indexingProgress', database, progress: progress.progress, current: progress.current, total: progress.total, message: progress.message });
-                } catch (err) {
-                    console.error('Error sending progress update:', err);
-                }
-            };
-
-            // Pas de timeout global ici : il déclarait l'indexation échouée au bout de
-            // 5 min sans l'annuler réellement (elle continuait en arrière-plan pendant
-            // que la modale affichait une erreur). Une base volumineuse peut légitimement
-            // dépasser 5 min ; le bouton Cancel et le requestTimeout par requête suffisent.
-            await this._indexService.getIndex(database, progressCallback);
-
-            this._post({ command: 'indexingCompleted', database, success: true, message: 'Database indexing completed successfully' });
-            console.log(`Background indexing completed successfully for database: ${database}`);
-
-        } catch (error) {
-            // User cancellation is not a failure: handleCancelIndexing already
-            // notified the webview, so just stop quietly.
-            if (error.code === 'INDEXING_CANCELLED') {
-                console.log(`Background indexing cancelled for database: ${database}`);
-                return;
-            }
-            console.error('Background indexing failed:', error);
-            this._post({ command: 'indexingCompleted', database, success: false, message: `Indexing failed: ${error.message}` });
-
-            const errorMsg = this._getUserFriendlyIndexingError(error);
-            vscode.window.showWarningMessage(`Database indexing failed: ${errorMsg}`, 'Retry', 'Ignore')
-                .then(selection => {
-                    if (selection === 'Retry') {
-                        setTimeout(() => {
-                            this._indexingInProgress = false;
-                            this.startBackgroundIndexing(database);
-                        }, 2000);
-                    }
-                });
-        } finally {
-            this._indexingInProgress = false;
-        }
     }
 
     async handleConfirmForceReindex(database) {
@@ -159,13 +102,19 @@ class IndexHandlers {
         }
     }
 
+    // The only entry point that builds/loads the dependency index now - fired
+    // once when the user opens the Explorer tab (or switches database while
+    // already there), never automatically on connect. Cheap when the cached
+    // index's schema checksum still matches; a real (progress-reported) build
+    // otherwise.
     async handleGetIndex(database) {
-        try {
-            if (!database) {
-                this._post({ command: 'error', message: 'No database specified for indexing' });
-                return;
-            }
+        if (!database) {
+            this._post({ command: 'error', message: 'No database specified for indexing' });
+            return;
+        }
 
+        this._indexingInProgress = true;
+        try {
             const progressCallback = (progress) => {
                 this._post({ command: 'indexingProgress', database, progress: progress.progress, current: progress.current, total: progress.total, message: progress.message });
             };
@@ -181,7 +130,16 @@ class IndexHandlers {
             }
             console.error('Error getting index:', error);
             this._post({ command: 'indexResult', indexData: null });
-            this._post({ command: 'error', message: `Failed to get index: ${error.message}` });
+
+            const errorMsg = this._getUserFriendlyIndexingError(error);
+            vscode.window.showWarningMessage(`Database indexing failed: ${errorMsg}`, 'Retry', 'Ignore')
+                .then(selection => {
+                    if (selection === 'Retry') {
+                        setTimeout(() => this.handleGetIndex(database), 2000);
+                    }
+                });
+        } finally {
+            this._indexingInProgress = false;
         }
     }
 
