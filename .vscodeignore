@@ -25,6 +25,7 @@ scripts/**
 
 # Scratch/dev files that don't belong in the published package
 fix_sqlerrm.sql
+large_db_test.sql
 
 # Dev/CI
 .vscode/**
