@@ -568,6 +568,17 @@ label {
     position: sticky;
     top: 0;
     z-index: 5;
+    cursor: pointer;
+    user-select: none;
+}
+
+.schema-chevron {
+    margin-right: 2px;
+    transition: transform 0.1s ease;
+}
+
+.schema-header.collapsed .schema-chevron {
+    transform: rotate(-90deg);
 }
 
 .schema-count {
@@ -604,6 +615,7 @@ label {
 }
 
 .object-item.hidden,
+.object-item.schema-collapsed,
 .schema-header.hidden,
 .placeholder-text.hidden {
     display: none;

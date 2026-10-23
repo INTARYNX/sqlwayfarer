@@ -876,7 +876,9 @@ class FilterManager {
 
         const visibleBySchema = {};
         appState.filteredObjects.forEach(obj => {
-            const item = objectList.querySelector(`[data-name="${obj.name}"]`);
+            // Map lookup instead of a querySelector scan of the whole list -
+            // see _objectItemsByName's comment for why that mattered.
+            const item = this._objectItemsByName.get(obj.name);
             if (item) {
                 item.classList.remove('hidden');
             }
@@ -957,6 +959,16 @@ class ExplorerManager {
         this.filterManager = new FilterManager();
         // qualified_name -> { row_count, reserved_kb }, filled by tableStatsLoaded
         this.tableStats = new Map();
+        // Schema names collapsed in the Objects list - kept across re-renders
+        // (filter changes, reindex refreshes) instead of resetting every time,
+        // so a long object list stays navigable on a database with a lot of objects.
+        this._collapsedSchemas = new Set();
+        // obj.name -> its .object-item element, rebuilt on every displayObjects()
+        // call. Filtering (updateObjectDisplay) looks up one element per object
+        // on every keystroke - without this index it used querySelector in that
+        // loop, an O(n) DOM scan per object, i.e. O(n^2) overall, which is what
+        // froze the Explorer on a database with a lot of objects.
+        this._objectItemsByName = new Map();
     }
 
     initDOMElements() {
@@ -1021,7 +1033,7 @@ class ExplorerManager {
         if (window.tabManager) {
             window.tabManager.switchTab('explorer');
         }
-        const element = this.elements.objectList.querySelector(`[data-name="${CSS.escape(obj.name)}"]`);
+        const element = this._objectItemsByName.get(obj.name);
         if (element) {
             element.scrollIntoView({ block: 'center' });
             this.handleObjectClick(element, obj);
@@ -1346,6 +1358,7 @@ class ExplorerManager {
 
     displayObjects(objects) {
         this.elements.objectList.innerHTML = '';
+        this._objectItemsByName.clear();
 
         if (objects.length === 0) {
             this.elements.objectList.innerHTML = '<p class="placeholder-text">No objects found in this database.</p>';
@@ -1362,9 +1375,10 @@ class ExplorerManager {
                 schemaHeader.dataset.schema = schema;
                 schemaHeader.dataset.total = objectsBySchema[schema].length;
                 schemaHeader.innerHTML = `
-                <span class="schema-name"><i class="codicon codicon-folder"></i> ${schema}</span>
+                <span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${schema}</span>
                 <span class="schema-count">(${objectsBySchema[schema].length})</span>
             `;
+                schemaHeader.addEventListener('click', () => this._toggleSchemaCollapse(schema));
                 this.elements.objectList.appendChild(schemaHeader);
             }
 
@@ -1386,6 +1400,7 @@ class ExplorerManager {
                 div.dataset.qualifiedName = obj.qualified_name || obj.name;
                 div.dataset.type = obj.object_type;
                 div.dataset.schema = obj.schema_name || 'dbo';
+                this._objectItemsByName.set(obj.name, div);
 
                 if (obj.object_type === 'Table') {
                     const badge = this._buildStatsBadge(div.dataset.qualifiedName);
@@ -1428,6 +1443,31 @@ class ExplorerManager {
         noMatches.className = 'placeholder-text hidden';
         noMatches.textContent = 'No objects match the current search.';
         this.elements.objectList.appendChild(noMatches);
+
+        // Re-apply whichever schemas were already collapsed - displayObjects
+        // rebuilds the whole list (new DOM nodes) on every call, so the
+        // collapsed/expanded state itself lives in _collapsedSchemas, not the DOM.
+        this._applySchemaCollapseState();
+    }
+
+    _toggleSchemaCollapse(schema) {
+        if (this._collapsedSchemas.has(schema)) {
+            this._collapsedSchemas.delete(schema);
+        } else {
+            this._collapsedSchemas.add(schema);
+        }
+        this._applySchemaCollapseState();
+    }
+
+    _applySchemaCollapseState() {
+        this.elements.objectList.querySelectorAll('.schema-header').forEach(header => {
+            header.classList.toggle('collapsed', this._collapsedSchemas.has(header.dataset.schema));
+        });
+        // A separate class from .hidden (used by the search/type filter) so the
+        // two stay independent - an item is visible only when neither hides it.
+        this.elements.objectList.querySelectorAll('.object-item').forEach(item => {
+            item.classList.toggle('schema-collapsed', this._collapsedSchemas.has(item.dataset.schema));
+        });
     }
 
     _getObjectTypeIcon(objectType) {
