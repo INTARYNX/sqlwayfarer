@@ -17,9 +17,10 @@
 // The heavy lifting (analyzeFootprint) is a pure function over the cached index
 // plus a trigger→parent map, so it is fully unit-testable without a database.
 class WriteFootprintService {
-    constructor(connectionManager, indexService) {
+    constructor(connectionManager, indexService, databaseService) {
         this._connectionManager = connectionManager;
         this._indexService = indexService;
+        this._databaseService = databaseService;
     }
 
     // Live entry point: pulls the cached index and a fresh trigger→parent map,
@@ -29,35 +30,12 @@ class WriteFootprintService {
         const triggers = await this._getTriggerParents(database);
         const footprint = WriteFootprintService.analyzeFootprint({ index, triggers, target: objectName });
         if (footprint.found && footprint.tables.length > 0) {
-            const allFks = await this._getForeignKeys(database);
+            const allFks = await this._databaseService.getForeignKeys(database);
             footprint.relationships = WriteFootprintService.foreignKeysAmong(allFks, footprint.tables);
         } else {
             footprint.relationships = [];
         }
         return footprint;
-    }
-
-    // All FK edges in the database; filtered to the footprint tables in JS
-    // (foreignKeysAmong) so the query stays simple and cache-friendly.
-    async _getForeignKeys(database) {
-        const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT fk.name AS fk_name,
-                   s1.name + '.' + t1.name AS from_table, c1.name AS from_column,
-                   s2.name + '.' + t2.name AS to_table, c2.name AS to_column
-            FROM sys.foreign_keys fk
-            JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
-            JOIN sys.tables t1 ON t1.object_id = fk.parent_object_id
-            JOIN sys.schemas s1 ON s1.schema_id = t1.schema_id
-            JOIN sys.columns c1 ON c1.object_id = fkc.parent_object_id AND c1.column_id = fkc.parent_column_id
-            JOIN sys.tables t2 ON t2.object_id = fk.referenced_object_id
-            JOIN sys.schemas s2 ON s2.schema_id = t2.schema_id
-            JOIN sys.columns c2 ON c2.object_id = fkc.referenced_object_id AND c2.column_id = fkc.referenced_column_id
-        `);
-        return result.recordset.map(r => ({
-            fkName: r.fk_name,
-            fromTable: r.from_table, fromColumn: r.from_column,
-            toTable: r.to_table, toColumn: r.to_column
-        }));
     }
 
     // Keep only FK edges whose both endpoints are in the footprint (pure).

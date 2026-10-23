@@ -64,10 +64,37 @@ class DatabaseHandlers {
     async handleGetObjectColumns(database, objectName) {
         try {
             const columns = await this._databaseService.getObjectColumns(database, objectName);
-            this._post({ command: 'objectColumnsLoaded', objectName, columns });
+            this._post({ command: 'objectColumnsLoaded', database, objectName, columns });
         } catch (error) {
             console.warn('Failed to get columns for autocomplete:', error.message);
-            this._post({ command: 'objectColumnsLoaded', objectName, columns: [] });
+            this._post({ command: 'objectColumnsLoaded', database, objectName, columns: [] });
+        }
+    }
+
+    // Object list of a database other than the one currently selected, for a
+    // "Database.Schema.Object" reference typed in the query editor. Same
+    // lightweight sys.objects query as handleGetObjects, minus the Explorer
+    // side effects (table stats follow-up, appState.allObjects) - those only
+    // make sense for the database the user actually has open.
+    async handleGetAutocompleteObjects(database) {
+        try {
+            const objects = await this._databaseService.getObjects(database);
+            this._post({ command: 'autocompleteObjectsLoaded', database, objects });
+        } catch (error) {
+            console.warn('Failed to get objects for cross-database autocomplete:', error.message);
+            this._post({ command: 'autocompleteObjectsLoaded', database, objects: [] });
+        }
+    }
+
+    // Whole-database FK list for join-condition autocompletion. Best-effort,
+    // same spirit as handleGetObjectColumns: fail quiet, no popup mid-typing.
+    async handleGetForeignKeys(database) {
+        try {
+            const foreignKeys = await this._databaseService.getForeignKeys(database);
+            this._post({ command: 'foreignKeysLoaded', database, foreignKeys });
+        } catch (error) {
+            console.warn('Failed to get foreign keys for autocomplete:', error.message);
+            this._post({ command: 'foreignKeysLoaded', database, foreignKeys: [] });
         }
     }
 

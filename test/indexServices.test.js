@@ -84,6 +84,29 @@ suite('IndexService dependency analysis', () => {
 		assert.strictEqual(dependencies[0].object_name, '[dbo].[P1]');
 	});
 
+	test('processes CONCURRENT_BATCH_SIZE objects at once instead of one at a time', async () => {
+		let inFlight = 0;
+		let maxInFlight = 0;
+		const objects = [];
+		for (let i = 0; i < 20; i++) objects.push(makeObject('dbo', `T${i}`, 'U'));
+
+		const cm = {
+			getServerName: () => 'testserver',
+			executeQueryInDatabase: async () => {
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				await new Promise(resolve => setTimeout(resolve, 5));
+				inFlight--;
+				return { recordset: [] };
+			}
+		};
+		const service = new IndexService(cm, null);
+
+		await service._analyzeDependencies('Db', objects);
+
+		assert.strictEqual(maxInFlight, IndexService.CONCURRENT_BATCH_SIZE, 'batches should overlap in flight, not run one by one');
+	});
+
 	test('requestCancel stops the loop with an INDEXING_CANCELLED error', async () => {
 		const objects = [];
 		for (let i = 0; i < 10; i++) objects.push(makeObject('dbo', `T${i}`, 'U'));

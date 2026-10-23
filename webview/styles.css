@@ -7,7 +7,7 @@ body {
     height: 100%;
     box-sizing: border-box;
     font-family: var(--vscode-font-family);
-    padding: 20px;
+    padding: 10px 20px;
     color: var(--vscode-foreground);
     background-color: var(--vscode-editor-background);
     display: flex;
@@ -46,28 +46,24 @@ h4:has(> .codicon),
     gap: 0.4em;
 }
 
-/* === HEADER SECTION === */
-.header-section {
+/* === APP TOOLBAR (tabs + actions, single line) === */
+.app-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-bottom: 16px;
+    padding-bottom: 6px;
     border-bottom: 1px solid var(--vscode-input-border);
     position: relative;
-}
-
-.header-section h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 500;
-    color: var(--vscode-foreground);
 }
 
 .header-actions {
     display: flex;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
 }
 
 .objects-indicator {
@@ -147,7 +143,6 @@ h4:has(> .codicon),
 
 /* === TAB SYSTEM === */
 .tab-container {
-    margin-top: 20px;
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -156,18 +151,17 @@ h4:has(> .codicon),
 
 .tab-nav {
     display: flex;
-    border-bottom: 1px solid var(--vscode-input-border);
-    margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 .tab-button {
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    padding: 12px 20px;
+    padding: 6px 14px;
     cursor: pointer;
     color: var(--vscode-foreground);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     transition: all 0.2s ease;
     margin: 0;
@@ -995,18 +989,20 @@ th {
     word-wrap: break-word;
 }
 
-.query-toolbar {
+/* Shared by #explorerToolbarActions and #queryToolbarActions - only one of
+   the two is visible at a time, toggled by TabManager.updateToolbarActions. */
+.toolbar-actions {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 /* Globals give selects a vertical margin and labels bold + margin-bottom;
    reset them here so every control sits on the same centered line. */
-.query-toolbar button,
-.query-toolbar select,
-.query-toolbar label {
+.toolbar-actions button,
+.toolbar-actions select,
+.toolbar-actions label {
     width: auto;
     margin: 0;
     font-weight: normal;
@@ -1078,18 +1074,64 @@ th {
     color: var(--vscode-terminal-ansiRed);
 }
 
-.query-input {
+/* Holds the textarea and its syntax-highlight overlay stacked on top of each
+   other; sizing/resizing (the .query-splitter drag bar) targets this wrapper
+   so both children can just fill it with inset:0. */
+.query-input-wrap {
+    position: relative;
     flex-shrink: 0;
     height: 140px;
     min-height: 80px;
-    /* resizing is handled by the .query-splitter drag bar below */
-    resize: none;
+}
+
+.query-input,
+.sql-highlight-overlay {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 6px 8px;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 2px;
     font-family: var(--vscode-editor-font-family);
     font-size: var(--vscode-editor-font-size, 13px);
-    background: var(--vscode-textCodeBlock-background);
-    color: var(--vscode-editor-foreground);
+    line-height: normal;
     white-space: pre;
 }
+
+.query-input {
+    /* resizing is handled by the .query-splitter drag bar below */
+    resize: none;
+    background: var(--vscode-textCodeBlock-background);
+    color: var(--vscode-editor-foreground);
+}
+
+/* Highlighting is on, textarea text becomes invisible - only the caret and
+   selection remain, the colored overlay behind it is what's actually seen. */
+.query-input.query-input-transparent {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--vscode-editor-foreground);
+}
+
+.sql-highlight-overlay {
+    /* No z-index needed: it's inserted right before the textarea in the DOM,
+       so normal paint order already puts it underneath. */
+    overflow: hidden;
+    pointer-events: none;
+    border: 1px solid transparent;
+    background: var(--vscode-textCodeBlock-background);
+    color: var(--vscode-editor-foreground);
+}
+
+.sql-tok-keyword { color: var(--vscode-terminal-ansiBlue, #569cd6); font-weight: 600; }
+.sql-tok-function { color: var(--vscode-terminal-ansiCyan, #4ec9b0); }
+.sql-tok-string { color: var(--vscode-terminal-ansiGreen, #ce9178); }
+.sql-tok-number { color: var(--vscode-terminal-ansiMagenta, #b5cea8); }
+.sql-tok-comment { color: var(--vscode-descriptionForeground); font-style: italic; }
+.sql-tok-variable { color: var(--vscode-terminal-ansiYellow, #9cdcfe); }
+.sql-tok-bracket { color: var(--vscode-editor-foreground); }
 
 /* Drag bar between the SQL editor and the results grid */
 .query-splitter {
@@ -1108,10 +1150,20 @@ th {
 #queryResultsContainer {
     flex: 1;
     min-height: 100px;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     border: 1px solid var(--vscode-input-border);
     border-radius: 4px;
     background: var(--vscode-editor-background);
+}
+
+/* The one scrolling element - sits below the (non-scrolling) tab strip so
+   the tabs and the sticky table header never fight over top:0. */
+.result-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
 }
 
 #queryResultsContainer table {
@@ -1122,6 +1174,43 @@ th {
     padding: 40px 20px;
 }
 
+/* One tab per result set when there's more than one. Horizontal scroll
+   instead of wrapping keeps it usable with many result sets. */
+.result-tabs {
+    flex-shrink: 0;
+    display: flex;
+    overflow-x: auto;
+    background: var(--vscode-textCodeBlock-background);
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.result-tab {
+    width: auto;
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    background: transparent;
+    color: var(--vscode-foreground);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.result-tab:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.result-tab.active {
+    border-bottom-color: var(--vscode-button-background);
+    background: var(--vscode-list-activeSelectionBackground);
+}
+
+.result-tab-count {
+    opacity: 0.7;
+}
+
 .result-set-actions {
     display: flex;
     align-items: center;
@@ -1130,11 +1219,6 @@ th {
     font-size: 12px;
     background: var(--vscode-textCodeBlock-background);
     border-bottom: 1px solid var(--vscode-input-border);
-}
-
-.result-set-actions:not(:first-child) {
-    border-top: 1px solid var(--vscode-input-border);
-    margin-top: 12px;
 }
 
 .result-set-actions .rs-label {
@@ -1735,7 +1819,7 @@ table.fp-cols .fp-center { text-align: center; }
 
 /* === RESPONSIVE DESIGN === */
 @media (max-width: 768px) {
-    .header-section {
+    .app-toolbar {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;

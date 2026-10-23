@@ -98,6 +98,33 @@ class DatabaseService {
         }));
     }
 
+    // Every FK edge in the database, one row per column (multi-column FKs span
+    // several rows sharing fk_name). Cheap enough to call on every database
+    // switch - used by the write footprint graph and by join-condition
+    // autocompletion, so it lives here rather than duplicated in each caller.
+    async getForeignKeys(database) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT fk.name AS fk_name,
+                   s1.name + '.' + t1.name AS from_table, c1.name AS from_column,
+                   s2.name + '.' + t2.name AS to_table, c2.name AS to_column
+            FROM sys.foreign_keys fk
+            JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+            JOIN sys.tables t1 ON t1.object_id = fk.parent_object_id
+            JOIN sys.schemas s1 ON s1.schema_id = t1.schema_id
+            JOIN sys.columns c1 ON c1.object_id = fkc.parent_object_id AND c1.column_id = fkc.parent_column_id
+            JOIN sys.tables t2 ON t2.object_id = fk.referenced_object_id
+            JOIN sys.schemas s2 ON s2.schema_id = t2.schema_id
+            JOIN sys.columns c2 ON c2.object_id = fkc.referenced_object_id AND c2.column_id = fkc.referenced_column_id
+        `);
+        return result.recordset.map(r => ({
+            fkName: r.fk_name,
+            fromTable: r.from_table, fromColumn: r.from_column,
+            toTable: r.to_table, toColumn: r.to_column
+        }));
+    }
+
     // Lightweight column list for query autocompletion - getTableDetails is far
     // too heavy (indexes, FKs, dependencies) to call on every completion request.
     async getObjectColumns(database, objectName) {

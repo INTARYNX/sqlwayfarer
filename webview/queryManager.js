@@ -23,6 +23,7 @@ class QueryManager {
         this.isRunning = false;
         this.splitter = document.getElementById('querySplitter');
         this.autocomplete = new SqlAutocomplete(this.input);
+        this.highlighter = new SqlHighlighter(this.input);
         this.initEventListeners();
         this.initSplitter();
         vscode.postMessage({ command: 'getQueryHistory' });
@@ -42,9 +43,15 @@ class QueryManager {
         this.input.addEventListener('click', (e) => {
             if (e.ctrlKey || e.metaKey) this.goToDefinition();
         });
-        // Copy / CSV buttons are re-rendered with every result set: one delegated
-        // listener on the container instead of per-button bindings.
+        // Tabs and Copy / CSV buttons are re-rendered with every result set: one
+        // delegated listener on the container instead of per-element bindings.
         this.resultsContainer.addEventListener('click', (e) => {
+            const tab = e.target.closest('button[data-rs-tab]');
+            if (tab) {
+                this.showResultSet(Number(tab.dataset.rsTab));
+                return;
+            }
+
             const button = e.target.closest('button[data-rs-action]');
             if (!button) return;
             const index = Number(button.dataset.rsIndex);
@@ -105,16 +112,19 @@ class QueryManager {
     }
 
     // Drag the bar between editor and results to resize the SQL input;
-    // double-click resets to the default height.
+    // double-click resets to the default height. Resizes the wrapper, not the
+    // textarea itself - the highlight overlay fills it via inset:0 and would
+    // otherwise fall out of sync with the textarea's own height.
     initSplitter() {
         const DEFAULT_HEIGHT = 140;
         const MIN_HEIGHT = 80;
+        const wrap = this.input.parentElement;
 
         this.splitter.addEventListener('mousedown', (e) => {
             e.preventDefault();
             const startY = e.clientY;
-            const startHeight = this.input.offsetHeight;
-            const section = this.input.parentElement;
+            const startHeight = wrap.offsetHeight;
+            const section = wrap.parentElement;
             this.splitter.classList.add('dragging');
             document.body.style.userSelect = 'none';
 
@@ -122,7 +132,7 @@ class QueryManager {
                 // keep at least 100px for the results pane below
                 const maxHeight = section.clientHeight - 100;
                 const height = Math.min(Math.max(startHeight + ev.clientY - startY, MIN_HEIGHT), maxHeight);
-                this.input.style.height = `${height}px`;
+                wrap.style.height = `${height}px`;
             };
             const onUp = () => {
                 document.removeEventListener('mousemove', onMove);
@@ -135,13 +145,23 @@ class QueryManager {
         });
 
         this.splitter.addEventListener('dblclick', () => {
-            this.input.style.height = `${DEFAULT_HEIGHT}px`;
+            wrap.style.height = `${DEFAULT_HEIGHT}px`;
         });
     }
 
-    // Cached columns belong to the previous database - drop them on change
     onObjectColumnsLoaded(message) {
-        this.autocomplete.onColumnsLoaded(message.objectName, message.columns);
+        this.autocomplete.onColumnsLoaded(message.database, message.objectName, message.columns);
+    }
+
+    // Objects of a database other than the currently selected one, fetched on
+    // demand for a "Database.Schema.Object" reference in the query editor.
+    onAutocompleteObjectsLoaded(message) {
+        this.autocomplete.onDatabaseObjectsLoaded(message.database, message.objects);
+    }
+
+    // A fresh connection may point at a different server - see SqlAutocomplete.onConnected.
+    onConnected() {
+        this.autocomplete.onConnected();
     }
 
     // Called by ExplorerManager whenever the shared database selector changes
@@ -149,7 +169,7 @@ class QueryManager {
         this.autocomplete.reset();
         this.runBtn.disabled = !database || this.isRunning;
         if (!this.isRunning) {
-            this.setStatus(database ? '' : 'Select a database in Explorer to run queries.', '');
+            this.setStatus(database ? '' : 'Select a database above to run queries.', '');
         }
     }
 
@@ -157,12 +177,14 @@ class QueryManager {
     // (used by the per-object "Top 10" shortcut in Explorer).
     runQueryText(sql) {
         this.input.value = sql;
+        this.highlighter.render();
         this.runQuery();
     }
 
     // Fill the editor without running (used by the Explorer script generator)
     setQueryText(sql) {
         this.input.value = sql;
+        this.highlighter.render();
         this.input.focus();
         this.input.setSelectionRange(0, 0);
         this.input.scrollTop = 0;
@@ -175,7 +197,7 @@ class QueryManager {
 
         if (this.isRunning) return;
         if (!database) {
-            this.setStatus('Select a database in Explorer first.', 'error');
+            this.setStatus('Select a database above first.', 'error');
             return;
         }
         if (!query) {
@@ -185,7 +207,7 @@ class QueryManager {
 
         this.setRunning(true);
         this.setStatus('Running...', '');
-        this.resultsContainer.innerHTML = '<p class="placeholder-text">Running query...</p>';
+        this.setResultsHtml('<p class="placeholder-text">Running query...</p>');
 
         vscode.postMessage({
             command: 'executeQuery',
@@ -220,7 +242,7 @@ class QueryManager {
                 : 0;
             let html = `<p class="placeholder-text">Query executed successfully. ${affected} row(s) affected.</p>`;
             html += this.buildMessagesBlock(message.messages);
-            this.resultsContainer.innerHTML = html;
+            this.setResultsHtml(html);
             this.setStatus(`Done in ${duration} — ${affected} row(s) affected.`, 'success');
             return;
         }
@@ -236,52 +258,93 @@ class QueryManager {
 
     onQueryError(message) {
         this.setRunning(false);
-        this.resultsContainer.innerHTML = `<pre class="query-error-box">${this.escapeHtml(message.message)}</pre>`;
+        this.setResultsHtml(`<pre class="query-error-box">${this.escapeHtml(message.message)}</pre>`);
         const duration = message.durationMs ? ` after ${this.formatDuration(message.durationMs)}` : '';
         this.setStatus(message.cancelled ? `Query cancelled${duration}.` : `Query failed${duration}.`, 'error');
     }
 
+    // Every innerHTML write on the results pane goes through here so the
+    // scrollable area is always the same element - needed for the sticky
+    // table header and for the tab strip above it to stay put while it scrolls.
+    setResultsHtml(bodyHtml, tabsHtml = '') {
+        this.resultsContainer.innerHTML = tabsHtml + `<div class="result-scroll">${bodyHtml}</div>`;
+    }
+
     displayResultSets(resultSets, messages) {
+        this.activeResultIndex = 0;
+
+        const tabsHtml = resultSets.length > 1 ? this.buildTabsHtml(resultSets) : '';
+
         let html = '';
-
         resultSets.forEach((set, index) => {
-            const label = resultSets.length > 1
-                ? `Result ${index + 1} — ${set.totalRows} row(s)`
-                : `${set.totalRows} row(s)`;
-            html += `<div class="result-set-actions">`
-                + `<span class="rs-label">${label}</span>`
-                + `<span class="rs-spacer"></span>`
-                + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
-                + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
-                + `</div>`;
-
-            if (set.rows.length < set.totalRows) {
-                html += `<p class="truncation-note"><i class="codicon codicon-warning"></i> Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`;
-            }
-
-            if (set.rows.length === 0) {
-                html += '<p class="placeholder-text">No rows.</p>';
-                return;
-            }
-
-            html += '<table><thead><tr>';
-            set.columns.forEach(col => {
-                html += `<th>${this.escapeHtml(col)}</th>`;
-            });
-            html += '</tr></thead><tbody>';
-
-            set.rows.forEach(row => {
-                html += '<tr>';
-                set.columns.forEach(col => {
-                    html += `<td>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
-                });
-                html += '</tr>';
-            });
-            html += '</tbody></table>';
+            html += `<div class="result-set-pane" data-rs-pane="${index}"${index === 0 ? '' : ' style="display:none;"'}>`
+                + this.buildResultSetActionsHtml(set, index)
+                + this.buildResultSetTableHtml(set)
+                + '</div>';
         });
-
         html += this.buildMessagesBlock(messages);
-        this.resultsContainer.innerHTML = html;
+
+        this.setResultsHtml(html, tabsHtml);
+    }
+
+    // One tab per result set, each labelled with its row count and - when the
+    // backend could match it 1:1 to a statement - a tooltip naming that query.
+    buildTabsHtml(resultSets) {
+        let html = '<div class="result-tabs" role="tablist">';
+        resultSets.forEach((set, index) => {
+            const title = set.sourceStatement ? QueryManager.truncate(set.sourceStatement, 180) : '';
+            html += `<button type="button" class="result-tab${index === 0 ? ' active' : ''}" `
+                + `data-rs-tab="${index}" role="tab"${title ? ` title="${this.escapeHtml(title)}"` : ''}>`
+                + `Result ${index + 1} <span class="result-tab-count">${set.totalRows}</span>`
+                + (title ? ' <i class="codicon codicon-info"></i>' : '')
+                + '</button>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    buildResultSetActionsHtml(set, index) {
+        return `<div class="result-set-actions">`
+            + `<span class="rs-label">${set.totalRows} row(s)</span>`
+            + `<span class="rs-spacer"></span>`
+            + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
+            + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
+            + `</div>`
+            + (set.rows.length < set.totalRows
+                ? `<p class="truncation-note"><i class="codicon codicon-warning"></i> Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`
+                : '');
+    }
+
+    buildResultSetTableHtml(set) {
+        if (set.rows.length === 0) return '<p class="placeholder-text">No rows.</p>';
+
+        let html = '<table><thead><tr>';
+        set.columns.forEach(col => {
+            html += `<th>${this.escapeHtml(col)}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        set.rows.forEach(row => {
+            html += '<tr>';
+            set.columns.forEach(col => {
+                html += `<td>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+
+    // Switch which result set's tab/pane is visible; the tables for every
+    // result set are already in the DOM, so this only toggles display.
+    showResultSet(index) {
+        this.activeResultIndex = index;
+        this.resultsContainer.querySelectorAll('.result-tab').forEach((tab, i) => {
+            tab.classList.toggle('active', i === index);
+        });
+        this.resultsContainer.querySelectorAll('.result-set-pane').forEach(pane => {
+            pane.style.display = Number(pane.dataset.rsPane) === index ? '' : 'none';
+        });
     }
 
     // PRINT / RAISERROR informational output, shown under the results like SSMS "Messages"
@@ -327,6 +390,7 @@ class QueryManager {
         const entry = this.history[Number(value)];
         if (entry) {
             this.input.value = entry.query;
+            this.highlighter.render();
             this.input.focus();
         }
     }
@@ -353,6 +417,12 @@ class QueryManager {
             lines.push(set.columns.map(col => escapeField(row[col])).join(separator));
         }
         return lines.join('\r\n');
+    }
+
+    // Collapse to one line and cap length, for a tooltip that stays readable.
+    static truncate(text, maxLength) {
+        const flat = text.replace(/\s+/g, ' ').trim();
+        return flat.length > maxLength ? `${flat.slice(0, maxLength - 1)}…` : flat;
     }
 
     formatDuration(ms) {

@@ -12,7 +12,10 @@ class TabManager {
     constructor() {
         this.tabButtons = document.querySelectorAll('.tab-button');
         this.tabContents = document.querySelectorAll('.tab-content');
+        this.explorerToolbarActions = document.getElementById('explorerToolbarActions');
+        this.queryToolbarActions = document.getElementById('queryToolbarActions');
         this.initEventListeners();
+        this.updateToolbarActions(appState.activeTab);
     }
 
     initEventListeners() {
@@ -43,9 +46,23 @@ class TabManager {
             content.classList.toggle('active', content.id === `${tabName}Tab`);
         });
 
+        this.updateToolbarActions(tabName);
+
         // Specific actions when changing tabs
         if (tabName === 'explorer') {
             this.onExplorerTabActivated();
+        }
+    }
+
+    // The single top toolbar shows different controls per tab: Dictionary/Full/
+    // Objects for Explorer, Run Query/Max rows/History for Query, nothing extra
+    // for Configuration (the database selector itself is always visible).
+    updateToolbarActions(tabName) {
+        if (this.explorerToolbarActions) {
+            this.explorerToolbarActions.style.display = tabName === 'explorer' ? '' : 'none';
+        }
+        if (this.queryToolbarActions) {
+            this.queryToolbarActions.style.display = tabName === 'query' ? '' : 'none';
         }
     }
 
@@ -53,8 +70,13 @@ class TabManager {
         // Reload databases if necessary
         if (!appState.currentDatabase) {
             vscode.postMessage({ command: 'getDatabases' });
+            return;
         }
-        // No forced database selection - user decides when to explore
+        // The dependency index is only ever built from here, not on connect -
+        // a big database shouldn't pay the indexing cost just to run a query.
+        if (window.objectsTabManager) {
+            window.objectsTabManager.requestIndex(appState.currentDatabase);
+        }
     }
 
     showStatus(message, type) {
