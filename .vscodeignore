@@ -14,11 +14,17 @@ node_modules/**
 webpack.config.js
 package-lock.json
 deploy.ps1
+commit.ps1
 .vscode-test.mjs
 eslint.config.mjs
 jsconfig.json
 tsconfig.json
 .eslintrc*
+vsc-extension-quickstart.md
+scripts/**
+
+# Scratch/dev files that don't belong in the published package
+fix_sqlerrm.sql
 
 # Dev/CI
 .vscode/**
