@@ -338,6 +338,11 @@ class QueryFileManager {
         if (!tab) return;
         tab.content = this.queryManager.getEditorContent();
 
+        // Mirrors the Save button's disabled state - Ctrl+S on a clean tab
+        // (or an empty draft) is a no-op instead of a pointless write/prompt.
+        const dirty = tab.fileName ? tab.content !== tab.savedContent : tab.content.trim() !== '';
+        if (!dirty) return;
+
         if (tab.fileName) {
             vscode.postMessage({ command: 'saveSqlFile', path: tab.filePath, content: tab.content });
         } else {
@@ -383,6 +388,7 @@ class QueryFileManager {
     // === Crash-recovery snapshot for unsaved drafts only ===
 
     onEditorInput() {
+        this.updateSaveButtonState();
         clearTimeout(this._draftTimer);
         this._draftTimer = setTimeout(() => this.persistDraftsNow(), 1500);
     }
@@ -437,6 +443,17 @@ class QueryFileManager {
         const active = this._activeTab();
         this.activeTabLabel.textContent = active ? (active.fileName || active.draftLabel) : '';
         if (this.tabsDropdown.classList.contains('visible')) this.renderTabsDropdown();
+        this.updateSaveButtonState();
+    }
+
+    // Disabled whenever the active tab has nothing worth writing: an empty
+    // draft, or a file whose content still matches what's on disk.
+    updateSaveButtonState() {
+        const tab = this._activeTab();
+        if (!tab) { this.saveBtn.disabled = true; return; }
+        const content = this.queryManager.getEditorContent();
+        const dirty = tab.fileName ? content !== tab.savedContent : content.trim() !== '';
+        this.saveBtn.disabled = !dirty;
     }
 
     renderTabsDropdown() {
