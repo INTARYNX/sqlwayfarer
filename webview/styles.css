@@ -119,6 +119,7 @@ h4:has(> .codicon),
     align-items: center;
     gap: 8px;
     min-width: 250px;
+    margin-left: auto;
 }
 
 .database-selector-inline label {
@@ -177,6 +178,23 @@ h4:has(> .codicon),
     color: var(--vscode-button-foreground);
     border-bottom-color: var(--vscode-button-background);
     background: var(--vscode-list-activeSelectionBackground);
+}
+
+.tab-folder-icon {
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    margin: 0;
+    width: auto;
+    cursor: pointer;
+    color: var(--vscode-foreground);
+    opacity: 0.7;
+    align-self: center;
+}
+
+.tab-folder-icon:hover {
+    opacity: 1;
+    background: var(--vscode-list-hoverBackground);
 }
 
 .tab-content {
@@ -1167,14 +1185,16 @@ th {
     background: var(--vscode-button-secondaryHoverBackground);
 }
 
-/* html-query-plan draws black connecting lines and assumes a light page -
-   force a white backdrop here regardless of the active VS Code theme, or the
-   lines (and the classic yellow SSMS-style nodes) go illegible in dark mode. */
+/* Light-mode backdrop; overridden for dark mode further down. min-height:
+   100% fills the whole pane even when the plan itself is short, so the
+   backdrop doesn't float in a patch of the app's own background below it -
+   fine since .result-scroll (the single scrolling element for the whole
+   results pane) still grows past 100% and scrolls for a taller plan. */
 .query-plan-container {
+    min-height: 100%;
+    box-sizing: border-box;
     padding: 12px;
-    overflow: auto;
     background: #ffffff;
-    border-radius: 4px;
 }
 
 .query-plan-item {
@@ -1189,15 +1209,117 @@ th {
     border-bottom: none;
 }
 
-/* VS Code adds vscode-dark/vscode-light/vscode-high-contrast to <body>. The
-   plan itself can't be retheme'd (it's vendored, third-party markup), so in
-   dark mode the whole container is inverted + hue-rotated back - the classic
-   trick for embedding a light-only widget without it looking like a hole
-   punched in the page. Icons (qp_icons.png) and the forced white backdrop
-   invert right along with everything else and still read correctly. */
+/* html-query-plan's own palette is barely legible (pale #FFFFCC nodes on
+   white, thin black-on-black text/borders, 11px type) - override it with
+   real contrast instead of fighting it with filters. Safe to change sizing
+   here too: all CSS is applied before QP.showPlan() measures node positions
+   to draw the connecting lines, so nothing drifts out of sync with them. */
+.query-plan-container .qp-node {
+    background-color: #eef2f7 !important;
+    border: 1.5px solid #3b5f8a !important;
+    border-radius: 3px;
+    font-size: 13px;
+    color: #1a1a1a !important;
+}
+
+.query-plan-container .qp-node > div {
+    color: #1a1a1a !important;
+}
+
+.query-plan-container .qp-statement-header {
+    border-color: #3b5f8a !important;
+    color: #1a1a1a !important;
+    font-size: 13px;
+}
+
+.query-plan-container .qp-root polyline {
+    stroke: #3b5f8a !important;
+}
+
+/* The tooltip (.qp-tt) is appended straight to <body> by the library, not
+   nested in .query-plan-container, so it needs its own unscoped rule.
+   !important throughout: nothing here should be able to lose a cascade
+   fight with qp.css (loaded after this stylesheet) or VS Code's own
+   injected webview defaults. */
+.qp-tt {
+    background-color: #ffffff !important;
+    border: 1.5px solid #3b5f8a !important;
+    color: #1a1a1a !important;
+    font-size: 13px !important;
+}
+
+.qp-tt td,
+.qp-tt th {
+    background-color: #ffffff !important;
+    color: #1a1a1a !important;
+    border-bottom-color: #ccc !important;
+}
+
+.qp-tt-header {
+    background-color: #3b5f8a !important;
+    color: #ffffff !important;
+}
+
+/* A real dark variant, not a CSS filter: since every color above is already
+   an explicit override (not html-query-plan's own low-contrast palette),
+   swapping in a second explicit set of colors for dark mode costs nothing
+   extra and avoids the "invert a low-contrast pair, still low-contrast"
+   trap a filter(invert()) trick fell into earlier. */
 body.vscode-dark .query-plan-container,
 body.vscode-high-contrast .query-plan-container {
-    filter: invert(1) hue-rotate(180deg);
+    background: #1e1e1e;
+}
+
+body.vscode-dark .query-plan-container .qp-node,
+body.vscode-high-contrast .query-plan-container .qp-node {
+    background-color: #2a3a4a !important;
+    border-color: #6ca0d8 !important;
+    color: #e8e8e8 !important;
+}
+
+body.vscode-dark .query-plan-container .qp-node > div,
+body.vscode-high-contrast .query-plan-container .qp-node > div {
+    color: #e8e8e8 !important;
+}
+
+body.vscode-dark .query-plan-container .qp-statement-header,
+body.vscode-high-contrast .query-plan-container .qp-statement-header {
+    border-color: #6ca0d8 !important;
+    color: #e8e8e8 !important;
+}
+
+body.vscode-dark .query-plan-container .qp-root polyline,
+body.vscode-high-contrast .query-plan-container .qp-root polyline {
+    stroke: #6ca0d8 !important;
+}
+
+body.vscode-dark .query-plan-item,
+body.vscode-high-contrast .query-plan-item {
+    border-bottom-color: #3f3f46;
+}
+
+/* Tooltip, same reasoning as its light-mode rule: appended to <body>, needs
+   its own unscoped selector rather than nesting under .query-plan-container. */
+body.vscode-dark .qp-tt,
+body.vscode-high-contrast .qp-tt {
+    background-color: #252526 !important;
+    border-color: #6ca0d8 !important;
+    color: #e8e8e8 !important;
+}
+
+body.vscode-dark .qp-tt td,
+body.vscode-dark .qp-tt th,
+body.vscode-high-contrast .qp-tt td,
+body.vscode-high-contrast .qp-tt th {
+    background-color: #252526 !important;
+    color: #e8e8e8 !important;
+    border-bottom-color: #3f3f46 !important;
+}
+
+body.vscode-dark .qp-tt-header,
+body.vscode-high-contrast .qp-tt-header {
+    background-color: #2a3a4a !important;
+    color: #ffffff !important;
 }
 
 .query-plan-raw-xml {
@@ -1212,14 +1334,6 @@ body.vscode-high-contrast .query-plan-container {
     border: 1px solid var(--vscode-input-border);
     border-radius: 4px;
     color: var(--vscode-descriptionForeground);
-}
-
-/* Our own diagnostic text, not part of the vendored widget - re-invert it
-   back to normal so it isn't caught by the container's dark-mode inversion
-   above (two inversions of the same kind cancel out). */
-body.vscode-dark .query-plan-raw-xml,
-body.vscode-high-contrast .query-plan-raw-xml {
-    filter: invert(1) hue-rotate(180deg);
 }
 
 .query-option {
@@ -1244,6 +1358,16 @@ body.vscode-high-contrast .query-plan-raw-xml {
 .query-status {
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
+}
+
+.query-result-footer {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-top: 1px solid var(--vscode-input-border);
+    background: var(--vscode-textCodeBlock-background);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .search-scope {
@@ -1356,6 +1480,13 @@ body.vscode-high-contrast .query-plan-raw-xml {
     background-color: var(--vscode-focusBorder, #007ACC);
 }
 
+.query-results-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 #queryResultsContainer {
     flex: 1;
     min-height: 100px;
@@ -1368,11 +1499,24 @@ body.vscode-high-contrast .query-plan-raw-xml {
 }
 
 /* The one scrolling element - sits below the (non-scrolling) tab strip so
-   the tabs and the sticky table header never fight over top:0. */
+   the tabs and the sticky table header never fight over top:0. display:flex
+   so the single visible .result-set-pane (siblings are display:none) can
+   flex: 1 to the real available height - percentage heights don't reliably
+   resolve against a flex-grown height, flex-grow on the child does. */
 .result-scroll {
     flex: 1;
     min-height: 0;
     overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Lets a pane's own background (e.g. .query-plan-container's white backdrop)
+   fill the whole tab instead of shrink-wrapping its content, so there's
+   never a patch of the dark app background showing through underneath. */
+.result-set-pane {
+    flex: 1;
+    min-height: 0;
 }
 
 #queryResultsContainer table {
@@ -1420,6 +1564,160 @@ body.vscode-high-contrast .query-plan-raw-xml {
     opacity: 0.7;
 }
 
+/* Query tab button + its vertical sub-tabs dropdown (Draft/file buffers) */
+.query-tab-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.query-active-tab-label {
+    margin-left: 6px;
+    opacity: 0.7;
+    font-weight: normal;
+    font-size: 11px;
+}
+
+.query-tabs-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 240px;
+    max-width: 360px;
+    z-index: 50;
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.query-tabs-dropdown.visible {
+    display: block;
+}
+
+.query-tabs-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.query-tabs-dropdown-item:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.query-tabs-dropdown-item.active {
+    background: var(--vscode-list-activeSelectionBackground);
+}
+
+.query-tabs-dropdown-item .qtab-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.query-tabs-dropdown-item .qtab-dirty-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--vscode-button-background);
+    flex-shrink: 0;
+}
+
+.query-tabs-dropdown-item .qtab-close {
+    background: transparent;
+    border: none;
+    color: inherit;
+    opacity: 0.6;
+    width: auto;
+    margin: 0;
+    padding: 0 2px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.query-tabs-dropdown-item .qtab-close:hover {
+    opacity: 1;
+}
+
+.query-tabs-dropdown-add {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    padding: 7px 10px;
+    margin: 0;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.query-tabs-dropdown-add:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+/* Query tab layout: optional left file-browser panel + the editor/results column */
+.query-tab-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.sql-files-panel {
+    display: none;
+    flex-direction: column;
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--vscode-input-border);
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    overflow: hidden;
+}
+
+.sql-files-panel.visible {
+    display: flex;
+}
+
+.sql-files-panel-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.sql-files-panel-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.sql-files-filter {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    width: 100%;
+    margin: 0;
+    padding: 4px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: none;
+    border-bottom: 1px solid var(--vscode-input-border);
+    border-radius: 0;
+    font-size: 12px;
+}
+
+.sql-files-tree {
+    flex: 1;
+    overflow-y: auto;
+}
+
 .result-set-actions {
     display: flex;
     align-items: center;
@@ -1437,6 +1735,31 @@ body.vscode-high-contrast .query-plan-raw-xml {
 
 .result-set-actions .rs-spacer {
     flex: 1;
+}
+
+.result-set-actions .rs-filter {
+    box-sizing: border-box;
+    width: 200px;
+    margin: 0;
+    padding: 3px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+th.rs-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+th.rs-sortable:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+th.rs-sortable.sorted {
+    color: var(--vscode-button-background);
 }
 
 .result-set-actions button {

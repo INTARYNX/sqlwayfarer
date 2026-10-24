@@ -24,6 +24,7 @@ class QueryManager {
         this.history = [];
         this.customSnippets = [];
         this.lastResultSets = [];
+        this._gridState = [];
         this.isRunning = false;
         this.splitter = document.getElementById('querySplitter');
         this.autocomplete = new SqlAutocomplete(this.input);
@@ -61,6 +62,12 @@ class QueryManager {
                 return;
             }
 
+            const th = e.target.closest('th[data-sort-col]');
+            if (th) {
+                this.sortResultSet(Number(th.dataset.rsIndex), th.dataset.sortCol);
+                return;
+            }
+
             const button = e.target.closest('button[data-rs-action]');
             if (!button) return;
             const index = Number(button.dataset.rsIndex);
@@ -68,6 +75,15 @@ class QueryManager {
             if (!set) return;
             if (button.dataset.rsAction === 'copy') this.copyResultSet(set);
             else this.exportResultSetCsv(set, index);
+        });
+
+        // Separate listener (not delegated through the click one above) so
+        // typing in a filter box never re-creates the box itself - only the
+        // table wrap it sits next to gets rebuilt, see rerenderResultTable.
+        this.resultsContainer.addEventListener('input', (e) => {
+            const input = e.target.closest('input[data-rs-filter]');
+            if (!input) return;
+            this.filterResultSet(Number(input.dataset.rsFilter), input.value);
         });
     }
 
@@ -209,6 +225,19 @@ class QueryManager {
         this.input.value = sql;
         this.highlighter.render();
         this.runQuery();
+    }
+
+    // Current editor text - used by QueryFileManager to snapshot a sub-tab
+    // before switching away from it.
+    getEditorContent() {
+        return this.input.value;
+    }
+
+    // Swap the editor's content when switching between Query sub-tabs - no
+    // focus/caret/status side effects, unlike setQueryText below.
+    loadEditorContent(text) {
+        this.input.value = text;
+        this.highlighter.render();
     }
 
     // Fill the editor without running (used by the Explorer script generator)
@@ -377,6 +406,9 @@ class QueryManager {
 
     displayResultSets(resultSets, timeline, planXmls = []) {
         this.activeResultIndex = 0;
+        // Filter/sort are per-grid view state, not data - every fresh run
+        // starts clean instead of carrying over the previous run's filter.
+        this._gridState = resultSets.map(() => ({ filterText: '', sortCol: null, sortDir: 1 }));
         const hasMessages = !!(timeline && timeline.some(entry => entry.type === 'message'));
         const hasPlan = planXmls && planXmls.length > 0;
 
@@ -391,8 +423,9 @@ class QueryManager {
         resultSets.forEach((set, index) => {
             html += `<div class="result-set-pane" data-rs-pane="${index}"${index === 0 ? '' : ' style="display:none;"'}>`
                 + this.buildResultSetActionsHtml(set, index)
-                + this.buildResultSetTableHtml(set)
-                + '</div>';
+                + `<div class="result-set-table-wrap" data-rs-table="${index}">`
+                + this.buildResultSetTableHtml(this.visibleRows(set, index), set.columns, index)
+                + '</div></div>';
         });
 
         let nextIndex = resultSets.length;
@@ -483,6 +516,7 @@ class QueryManager {
     buildResultSetActionsHtml(set, index) {
         return `<div class="result-set-actions">`
             + `<span class="rs-label">${set.totalRows} row(s)</span>`
+            + `<input type="text" class="rs-filter" data-rs-filter="${index}" placeholder="Filter rows…" spellcheck="false">`
             + `<span class="rs-spacer"></span>`
             + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
             + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
@@ -492,24 +526,84 @@ class QueryManager {
                 : '');
     }
 
-    buildResultSetTableHtml(set) {
-        if (set.rows.length === 0) return '<p class="placeholder-text">No rows.</p>';
+    // rows is already filtered/sorted (see visibleRows) - this only renders.
+    buildResultSetTableHtml(rows, columns, index) {
+        if (rows.length === 0) {
+            const state = this._gridState[index];
+            return state && state.filterText
+                ? '<p class="placeholder-text">No rows match this filter.</p>'
+                : '<p class="placeholder-text">No rows.</p>';
+        }
 
+        const state = this._gridState[index] || {};
         let html = '<table><thead><tr>';
-        set.columns.forEach(col => {
-            html += `<th>${this.escapeHtml(col)}</th>`;
+        columns.forEach(col => {
+            const sorted = state.sortCol === col;
+            const arrow = sorted ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
+            html += `<th data-sort-col="${this.escapeHtml(col)}" data-rs-index="${index}" `
+                + `class="rs-sortable${sorted ? ' sorted' : ''}" title="Click to sort">${this.escapeHtml(col)}${arrow}</th>`;
         });
         html += '</tr></thead><tbody>';
 
-        set.rows.forEach(row => {
+        rows.forEach(row => {
             html += '<tr>';
-            set.columns.forEach(col => {
+            columns.forEach(col => {
                 html += `<td>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
             });
             html += '</tr>';
         });
         html += '</tbody></table>';
         return html;
+    }
+
+    // Client-side view only - the underlying result set (and what Copy/CSV
+    // export) is untouched.
+    visibleRows(set, index) {
+        const state = this._gridState[index];
+        if (!state) return set.rows;
+
+        let rows = set.rows;
+        if (state.filterText) {
+            const needle = state.filterText.toLowerCase();
+            rows = rows.filter(row => set.columns.some(col => this.formatValue(row[col]).toLowerCase().includes(needle)));
+        }
+        if (state.sortCol) {
+            const col = state.sortCol;
+            const dir = state.sortDir;
+            rows = [...rows].sort((a, b) => {
+                const av = a[col];
+                const bv = b[col];
+                if (av === bv) return 0;
+                if (av === null || av === undefined) return 1;
+                if (bv === null || bv === undefined) return -1;
+                return (av < bv ? -1 : 1) * dir;
+            });
+        }
+        return rows;
+    }
+
+    sortResultSet(index, column) {
+        const state = this._gridState[index];
+        if (!state) return;
+        if (state.sortCol === column) state.sortDir *= -1;
+        else { state.sortCol = column; state.sortDir = 1; }
+        this.rerenderResultTable(index);
+    }
+
+    filterResultSet(index, filterText) {
+        const state = this._gridState[index];
+        if (!state) return;
+        state.filterText = filterText;
+        this.rerenderResultTable(index);
+    }
+
+    // Replaces only the table (not the surrounding actions bar, which holds
+    // the filter <input> itself) so typing/sorting never steals its focus.
+    rerenderResultTable(index) {
+        const wrap = this.resultsContainer.querySelector(`.result-set-table-wrap[data-rs-table="${index}"]`);
+        const set = this.lastResultSets[index];
+        if (!wrap || !set) return;
+        wrap.innerHTML = this.buildResultSetTableHtml(this.visibleRows(set, index), set.columns, index);
     }
 
     // Switch which result set's tab/pane is visible; the tables for every

@@ -2081,7 +2081,7 @@ class ExplorerManager {
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager, indexingModalManager, queryManager) {
+    constructor(connectionManager, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager, indexingModalManager, queryManager, queryFileManager) {
         this.connectionManager = connectionManager;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
@@ -2091,6 +2091,7 @@ class MessageHandler {
         this.objectsTabManager = objectsTabManager;
         this.indexingModalManager = indexingModalManager;
         this.queryManager = queryManager;
+        this.queryFileManager = queryFileManager;
         this.databaseSelector = new DatabaseSelectorManager();
     }
 
@@ -2337,6 +2338,34 @@ class MessageHandler {
                 }
                 break;
 
+            case 'sqlFilesListed':
+                if (this.queryFileManager) this.queryFileManager.onSqlFilesListed(message);
+                break;
+
+            case 'sqlFileOpened':
+                if (this.queryFileManager) this.queryFileManager.onSqlFileOpened(message);
+                break;
+
+            case 'sqlFileError':
+                if (this.queryFileManager) this.queryFileManager.onSqlFileError(message);
+                break;
+
+            case 'sqlFileSaved':
+                if (this.queryFileManager) this.queryFileManager.onSqlFileSaved(message);
+                break;
+
+            case 'sqlFileSavedAs':
+                if (this.queryFileManager) this.queryFileManager.onSqlFileSavedAs(message);
+                break;
+
+            case 'draftRecoveryLoaded':
+                if (this.queryFileManager) this.queryFileManager.onDraftRecoveryLoaded(message);
+                break;
+
+            case 'discardConfirmed':
+                if (this.queryFileManager) this.queryFileManager.onDiscardConfirmed(message);
+                break;
+
             case 'objectColumnsLoaded':
                 if (this.queryManager) {
                     this.queryManager.onObjectColumnsLoaded(message);
@@ -2385,6 +2414,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const objectsTabManager = new ObjectsTabManager();
     const indexingModalManager = new IndexingModalManager();
     const queryManager = new QueryManager();
+    const queryFileManager = new QueryFileManager(queryManager);
     const footprintManager = new FootprintManager();
     const snippetManager = new SnippetManager();
 
@@ -2397,7 +2427,8 @@ document.addEventListener('DOMContentLoaded', function () {
         codeViewManager,
         objectsTabManager,
         indexingModalManager,
-        queryManager
+        queryManager,
+        queryFileManager
     );
 
     // Make managers available globally
@@ -2407,6 +2438,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.detailsTabManager = detailsTabManager;
     window.objectsTabManager = objectsTabManager;
     window.queryManager = queryManager;
+    window.queryFileManager = queryFileManager;
     window.tabManager = tabManager;
     window.footprintManager = footprintManager;
     window.snippetManager = snippetManager;

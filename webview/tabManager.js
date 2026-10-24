@@ -20,10 +20,10 @@ class TabManager {
 
     initEventListeners() {
         this.tabButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                const tabName = e.target.dataset.tab;
-                this.switchTab(tabName);
-            });
+            // button.dataset, not e.target.dataset - the Query button can contain
+            // a child label (active sub-tab name), which would otherwise be the
+            // click target and carry no data-tab of its own.
+            button.addEventListener('click', () => this.switchTab(button.dataset.tab));
         });
     }
 
