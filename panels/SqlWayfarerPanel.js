@@ -24,6 +24,7 @@ const QueryHandlers = require('./handlers/QueryHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
 const FootprintHandlers = require('./handlers/FootprintHandlers');
+const SnippetHandlers = require('./handlers/SnippetHandlers');
 
 class SqlWayfarerPanel {
     constructor(panel, extensionUri, context) {
@@ -55,6 +56,7 @@ class SqlWayfarerPanel {
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
+        this._snippets = new SnippetHandlers(post, context.globalState);
 
         this._initialize();
     }
@@ -152,6 +154,7 @@ class SqlWayfarerPanel {
             case 'getTableDetails':             await d.handleGetTableDetails(message.database, message.table); break;
             case 'getColumnUsage':              await d.handleGetColumnUsage(message.database, message.table); break;
             case 'getObjectDetails':            await d.handleGetObjectDetails(message.database, message.objectName, message.objectType); break;
+            case 'getObjectDetailsAuto':         await d.handleGetObjectDetailsAuto(message.database, message.objectName); break;
             case 'searchObjects':               await d.handleSearchObjects(message.database, message.searchPattern, message.objectTypes); break;
             case 'getTableRowCount':            await d.handleGetTableRowCount(message.database, message.tableName); break;
             case 'getTableSampleData':          await d.handleGetTableSampleData(message.database, message.tableName, message.limit); break;
@@ -180,12 +183,22 @@ class SqlWayfarerPanel {
 
             // Query tool
             case 'executeQuery':                await q.handleExecuteQuery(message.database, message.query, message.maxRows); break;
+            case 'getEstimatedPlan':            await q.handleGetEstimatedPlan(message.database, message.query); break;
+            case 'getActualPlan':               await q.handleGetActualPlan(message.database, message.query, message.maxRows); break;
             case 'cancelQuery':                 q.handleCancelQuery(); break;
             case 'getQueryHistory':             await q.handleGetQueryHistory(); break;
             case 'clearQueryHistory':           await q.handleClearQueryHistory(); break;
 
+            // SQL snippets
+            case 'getSnippets':                 await this._snippets.handleGetSnippets(); break;
+            case 'addSnippet':                  await this._snippets.handleAddSnippet(message.name, message.sql); break;
+            case 'updateSnippet':               await this._snippets.handleUpdateSnippet(message.oldName, message.newName, message.sql); break;
+            case 'deleteSnippet':               await this._snippets.handleDeleteSnippet(message.name); break;
+            case 'promptSnippetName':           await this._snippets.handlePromptSnippetName(); break;
+            case 'promptDeleteSnippet':         await this._snippets.handlePromptDeleteSnippet(); break;
+
             // Script generator
-            case 'generateScript':              await this._script.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType); break;
+            case 'generateScript':              await this._script.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType, message.preview); break;
 
             // Write footprint (tables read/written by an object, trigger cascades included)
             case 'getWriteFootprint':           await this._footprint.handleGetWriteFootprint(message.database, message.objectName); break;
@@ -228,6 +241,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
         html = html.replace('{{CODE_VIEW_STYLES_URI}}',     u('webview', 'codeView.css'));
+        html = html.replace('{{QUERY_PLAN_STYLES_URI}}',    u('webview', 'vendor', 'html-query-plan', 'qp.css'));
         html = html.replace('{{TAB_MANAGER_URI}}',          u('webview', 'tabManager.js'));
         html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
@@ -236,11 +250,13 @@ class SqlWayfarerPanel {
         html = html.replace('{{SQL_HIGHLIGHT_URI}}',        u('webview', 'sqlHighlight.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
+        html = html.replace('{{SNIPPET_MANAGER_URI}}',       u('webview', 'snippetManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));
         html = html.replace('{{CYTOSCAPE_URI}}',            u('webview', 'vendor', 'cytoscape.min.js'));
         html = html.replace('{{CYTOSCAPE_DAGRE_URI}}',      u('webview', 'vendor', 'cytoscape-dagre.min.js'));
+        html = html.replace('{{QUERY_PLAN_URI}}',           u('webview', 'vendor', 'html-query-plan', 'qp.min.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 
         return html;

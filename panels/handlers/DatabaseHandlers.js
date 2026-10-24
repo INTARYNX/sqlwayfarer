@@ -140,6 +140,27 @@ class DatabaseHandlers {
         }
     }
 
+    // Same as getTableDetails/getObjectDetails, but the caller doesn't know
+    // the object's type yet - e.g. a 3-part "database.schema.object" reference
+    // in the query editor, pointing at a database whose object list was never
+    // loaded into the Explorer tree. Resolves the type first, then delegates.
+    async handleGetObjectDetailsAuto(database, objectName) {
+        try {
+            const objectInfo = await this._databaseService.getObjectInfo(database, objectName);
+            if (!objectInfo) {
+                this._post({ command: 'error', message: `Object not found: ${database}.${objectName}` });
+                return;
+            }
+            if (objectInfo.object_type === 'Table') {
+                await this.handleGetTableDetails(database, objectName);
+            } else {
+                await this.handleGetObjectDetails(database, objectName, objectInfo.object_type);
+            }
+        } catch (error) {
+            this._post({ command: 'error', message: `Failed to get object details: ${error.message}` });
+        }
+    }
+
     async handleSearchObjects(database, searchPattern, objectTypes) {
         try {
             const objects = await this._databaseService.searchObjects(database, searchPattern, objectTypes);

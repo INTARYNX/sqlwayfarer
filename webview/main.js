@@ -1044,6 +1044,27 @@ class ExplorerManager {
         }
     }
 
+    // Jump to an object in a database other than the one currently selected
+    // (e.g. a 3-part "otherDb.schema.object" reference in the query editor).
+    // That database's object list was never loaded into the tree, so there's
+    // no node to select/scroll to and the object's type isn't known yet -
+    // ask the backend to resolve it and fetch its details in one round trip.
+    revealExternalObject(database, schema, name) {
+        if (window.tabManager) {
+            window.tabManager.switchTab('explorer');
+        }
+        const prevSelected = this.elements.objectList.querySelector('.selected');
+        if (prevSelected) prevSelected.classList.remove('selected');
+
+        const qualifiedName = `${schema}.${name}`;
+        this._currentDetailsDatabase = database;
+        appState.selectedObject = { name: qualifiedName, qualified_name: qualifiedName, object_name: name, schema_name: schema, database };
+        this.elements.detailsContent.innerHTML =
+            `<p class="placeholder-text">Loading ${this.escapeHtml(database)}.${this.escapeHtml(qualifiedName)}…</p>`;
+
+        vscode.postMessage({ command: 'getObjectDetailsAuto', database, objectName: qualifiedName });
+    }
+
     // UTILITY METHODS FOR CONSISTENT OBJECT NAME HANDLING
     _getQualifiedName(obj) {
         return obj.qualified_name || obj.name;
@@ -1119,6 +1140,7 @@ class ExplorerManager {
 
         element.classList.add('selected');
         appState.selectedObject = obj;
+        this._currentDetailsDatabase = appState.currentDatabase;
 
         const objectNameForBackend = this._getQualifiedName(obj);
 
@@ -1520,10 +1542,12 @@ class ExplorerManager {
         this._currentDetailsTable = tableName;
 
         // Column lineage comes from the in-memory index - fetched separately
-        // so the details view never waits on it
+        // so the details view never waits on it. Uses the database these
+        // details were actually fetched from, not necessarily the one
+        // currently selected (e.g. a cross-database reference).
         vscode.postMessage({
             command: 'getColumnUsage',
-            database: appState.currentDatabase,
+            database: this._currentDetailsDatabase || appState.currentDatabase,
             table: tableName
         });
 
@@ -1567,6 +1591,15 @@ class ExplorerManager {
                 </button>
             </div>`;
         }
+        // Procedures/functions get an auto-generated call snippet (EXEC/SELECT
+        // template) so you don't have to dig into the object list's script menu.
+        const canCallSnippet = ['Procedure', 'Function'].includes(ftType);
+        if (canCallSnippet) {
+            html += `<div class="call-snippet-section" id="callSnippetSection">
+                <div class="section-header">Call snippet</div>
+                <p class="placeholder-text">Generating…</p>
+            </div>`;
+        }
         html += this.buildDependenciesSection(dependencies);
         this.elements.detailsContent.innerHTML = html;
 
@@ -1574,6 +1607,18 @@ class ExplorerManager {
             const btn = document.getElementById('writeFootprintBtn');
             if (btn) btn.addEventListener('click', () => {
                 if (window.footprintManager) window.footprintManager.open(objectName);
+            });
+        }
+
+        if (canCallSnippet) {
+            this._pendingCallSnippetFor = objectName;
+            vscode.postMessage({
+                command: 'generateScript',
+                database: this._currentDetailsDatabase || appState.currentDatabase,
+                objectName,
+                objectType: ftType,
+                scriptType: ftType === 'Function' ? 'select' : 'exec',
+                preview: true
             });
         }
 
@@ -1588,6 +1633,37 @@ class ExplorerManager {
         }
 
         this.checkPendingVisualization(objectName, dependencies);
+    }
+
+    // Renders the auto-generated call snippet (EXEC/SELECT template) requested
+    // from onObjectDetailsLoaded. Guards against a stale response landing after
+    // the user has since selected a different object.
+    onScriptGenerated(objectName, script) {
+        if (objectName !== this._pendingCallSnippetFor) return;
+        const section = document.getElementById('callSnippetSection');
+        if (!section) return;
+
+        section.innerHTML = `
+            <div class="section-header">Call snippet</div>
+            <div class="call-snippet-actions">
+                <button type="button" id="copyCallSnippetBtn" title="Copy to clipboard"><i class="codicon codicon-copy"></i> Copy</button>
+                <button type="button" id="insertCallSnippetBtn" title="Insert into the query editor"><i class="codicon codicon-insert"></i> Insert in editor</button>
+            </div>
+            <pre class="call-snippet-code">${this.escapeHtml(script)}</pre>
+        `;
+
+        document.getElementById('copyCallSnippetBtn').addEventListener('click', (e) => {
+            navigator.clipboard.writeText(script).then(() => {
+                const btn = e.currentTarget;
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="codicon codicon-check"></i> Copied';
+                setTimeout(() => { btn.innerHTML = original; }, 1500);
+            });
+        });
+        document.getElementById('insertCallSnippetBtn').addEventListener('click', () => {
+            if (window.tabManager) window.tabManager.switchTab('query');
+            if (window.queryManager) window.queryManager.setQueryText(script);
+        });
     }
 
     // NEW METHOD: Display dependency graph in the graph tab
@@ -2090,7 +2166,9 @@ class MessageHandler {
                 break;
 
             case 'scriptGenerated':
-                if (this.queryManager) {
+                if (message.preview) {
+                    this.explorerManager.onScriptGenerated(message.objectName, message.script);
+                } else if (this.queryManager) {
                     this.tabManager.switchTab('query');
                     this.queryManager.setQueryText(message.script);
                 }
@@ -2226,6 +2304,12 @@ class MessageHandler {
                 }
                 break;
 
+            case 'planResult':
+                if (this.queryManager) {
+                    this.queryManager.onPlanResult(message);
+                }
+                break;
+
             case 'queryError':
                 if (this.queryManager) {
                     this.queryManager.onQueryError(message);
@@ -2235,6 +2319,21 @@ class MessageHandler {
             case 'queryHistoryLoaded':
                 if (this.queryManager) {
                     this.queryManager.onHistoryLoaded(message.history);
+                }
+                break;
+
+            case 'snippetsLoaded':
+                if (this.queryManager) {
+                    this.queryManager.onSnippetsLoaded(message.snippets);
+                }
+                if (window.snippetManager) {
+                    window.snippetManager.onSnippetsLoaded(message.snippets);
+                }
+                break;
+
+            case 'snippetNamePrompted':
+                if (this.queryManager) {
+                    this.queryManager.onSnippetNamePrompted(message.name);
                 }
                 break;
 
@@ -2287,6 +2386,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const indexingModalManager = new IndexingModalManager();
     const queryManager = new QueryManager();
     const footprintManager = new FootprintManager();
+    const snippetManager = new SnippetManager();
 
     const messageHandler = new MessageHandler(
         connectionManager,
@@ -2309,6 +2409,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.queryManager = queryManager;
     window.tabManager = tabManager;
     window.footprintManager = footprintManager;
+    window.snippetManager = snippetManager;
 
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
 

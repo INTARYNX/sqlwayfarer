@@ -57,11 +57,40 @@ suite('QueryHandlers', () => {
 		assert.strictEqual(result.resultSets[0].totalRows, 2);
 		assert.strictEqual(result.resultSets[1].rows.length, 5, 'rows beyond the cap are discarded');
 		assert.strictEqual(result.resultSets[1].totalRows, 10, 'total row count is still reported');
-		assert.deepStrictEqual(result.messages, ['hello from PRINT']);
+		assert.deepStrictEqual(result.timeline, [
+			{ type: 'resultSet', index: 0 },
+			{ type: 'resultSet', index: 1 },
+			{ type: 'message', text: 'hello from PRINT' }
+		]);
 		assert.strictEqual(typeof result.durationMs, 'number');
 
 		const hist = posts.find(p => p.command === 'queryHistoryLoaded');
 		assert.ok(hist && hist.history.length === 1 && hist.history[0].success === true);
+	});
+
+	test('actual plan: separates the STATISTICS XML plan recordset from real result sets', async () => {
+		const posts = [];
+		// Mirrors the shape mssql's own createColumns() builds for the special
+		// chunked-XML recordset: keyed by the magic colName, type is a function
+		// named "Xml" (mssql.TYPES.Xml is a named function, not a plain object).
+		const XmlType = function Xml() {};
+		const handlers = new QueryHandlers(m => posts.push(m), {
+			createRequest: () => new FakeRequest(req => {
+				req.emit('recordset', { id: { type: function Int() {} } });
+				req.emit('row', { id: 1 });
+				req.emit('rowsaffected', 1);
+				req.emit('recordset', { 'XML_F52E2B61-18A1-11d1-B105-00805F49916B': { type: XmlType } });
+				req.emit('row', { 'XML_F52E2B61-18A1-11d1-B105-00805F49916B': '<ShowPlanXML>plan</ShowPlanXML>' });
+			})
+		}, makeState());
+
+		await handlers.handleGetActualPlan('MyDb', 'SELECT 1 AS id', 1000);
+
+		const result = posts.find(p => p.command === 'queryResult');
+		assert.ok(result, 'queryResult should be posted');
+		assert.strictEqual(result.resultSets.length, 1, 'the plan recordset must not be counted as a data result set');
+		assert.deepStrictEqual(result.resultSets[0].columns, ['id']);
+		assert.deepStrictEqual(result.planXmls, ['<ShowPlanXML>plan</ShowPlanXML>']);
 	});
 
 	test('labels each result set with the statement that produced it when counts line up', async () => {

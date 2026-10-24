@@ -98,6 +98,14 @@ class ConnectionManager {
         return this._activeConnection.request();
     }
 
+    // Expose the pool itself for callers that need several requests pinned to
+    // the exact same physical connection (e.g. a Transaction), not just any
+    // connection the pool happens to hand out per-request.
+    getPool() {
+        if (!this._activeConnection) throw new Error('No active connection');
+        return this._activeConnection;
+    }
+
     async executeQuery(query, params = null) {
         if (!this._activeConnection) throw new Error('No active connection');
         const request = this._activeConnection.request();

@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src {{CSP_SOURCE}}; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}};">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src {{CSP_SOURCE}}; img-src {{CSP_SOURCE}}; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}};">
     <title>SQL Wayfarer</title>
     <link href="{{CODICON_STYLES_URI}}" rel="stylesheet">
     <link href="{{STYLES_URI}}" rel="stylesheet">
     <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
     <link href="{{CODE_VIEW_STYLES_URI}}" rel="stylesheet">
+    <link href="{{QUERY_PLAN_STYLES_URI}}" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -33,7 +34,9 @@
                 </div>
                 <!-- Shown only while the Query tab is active -->
                 <div id="queryToolbarActions" class="toolbar-actions" style="display: none;">
-                    <button id="runQueryBtn" disabled>▶ Run Query</button>
+                    <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (Ctrl+Enter)"><i class="codicon codicon-play"></i></button>
+                    <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><i class="codicon codicon-graph-line"></i></button>
+                    <button id="actualPlanBtn" class="icon-btn plan-btn" disabled title="Actual Plan - run the query and show its execution plan"><i class="codicon codicon-graph"></i></button>
                     <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;">⏹ Cancel</button>
                     <label class="query-option">Max rows
                         <select id="maxRowsSelect">
@@ -45,6 +48,9 @@
                     </label>
                     <select id="queryHistorySelect" class="query-history-select" title="Recent queries">
                         <option value="">🕘 History…</option>
+                    </select>
+                    <select id="querySnippetsSelect" class="query-history-select" title="Insert a SQL snippet at the cursor">
+                        <option value="">📋 Snippets…</option>
                     </select>
                     <span id="queryStatus" class="query-status">Select a database above to run queries.</span>
                 </div>
@@ -62,6 +68,7 @@
 
             <!-- Configuration Tab -->
             <div id="configurationTab" class="tab-content active">
+                <div class="configuration-columns">
                 <div class="connection-section">
                     <h2>Connection</h2>
                     <div id="buildInfo" style="font-size: 0.8em; opacity: 0.6; margin-bottom: 8px;">Build: {{BUILD_TIME}}</div>
@@ -146,6 +153,18 @@
                     </div>
                     
                     <div id="connectionStatus"></div>
+                </div>
+
+                <div class="snippet-manager-section">
+                    <h2>SQL Snippets</h2>
+                    <p class="snippet-manager-hint">Reusable SQL templates, available from the 📋 Snippets dropdown in the Query editor.</p>
+
+                    <div class="snippet-manager-toolbar">
+                        <button id="newSnippetBtn">+ New Snippet</button>
+                    </div>
+
+                    <div id="snippetManagerList" class="snippet-manager-list"></div>
+                </div>
                 </div>
             </div>
 
@@ -380,6 +399,32 @@
         </div>
     </div>
 
+    <!-- Snippet Add/Edit Modal: a dialog instead of an inline form, so the
+         list above it stays readable once there are many snippets. -->
+    <div id="snippetFormOverlay" class="modal-overlay snippet-form-modal-overlay">
+        <div class="modal-dialog modal-dialog-snippet-form">
+            <div class="modal-header">
+                <h3 id="snippetFormTitle">New Snippet</h3>
+                <button id="snippetFormCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="snippetNameInput">Name:</label>
+                    <input type="text" id="snippetNameInput" placeholder="e.g. Select top 100">
+                </div>
+                <div class="input-group">
+                    <label for="snippetSqlInput">SQL:</label>
+                    <textarea id="snippetSqlInput" rows="10" placeholder="SELECT TOP 100 *&#10;FROM "></textarea>
+                </div>
+                <div id="snippetFormStatus"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSnippetBtn" class="btn-primary">Save Snippet</button>
+                <button id="cancelSnippetFormBtn" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Indexing Progress Modal (blocking) -->
     <div id="indexingModalOverlay" class="modal-overlay indexing-modal-overlay">
         <div class="modal-dialog modal-dialog-small">
@@ -405,6 +450,7 @@
     <script src="{{DAGRE_URI}}"></script>
     <script src="{{CYTOSCAPE_URI}}"></script>
     <script src="{{CYTOSCAPE_DAGRE_URI}}"></script>
+    <script src="{{QUERY_PLAN_URI}}"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
@@ -413,6 +459,7 @@
     <script src="{{SQL_HIGHLIGHT_URI}}"></script>
     <script src="{{QUERY_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
+    <script src="{{SNIPPET_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>
