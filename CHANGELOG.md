@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.11.3] - 2026-10-24
+
+### Changed
+
+- README: added a Table Footprint screenshot near the top, showing a procedure that only mentions two tables in its own code touching five through a trigger cascade. No functional change.
+
 ## [0.11.2] - 2026-10-24
 
 ### Fixed
