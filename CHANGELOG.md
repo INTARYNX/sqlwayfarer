@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.11.1] - 2026-10-24
+
+### Changed
+
+- README reorganized to lead with what actually sets the extension apart (column-level lineage, trigger-aware Table Footprint, dependency analysis) instead of opening with generic connection/browsing features shared by every SQL client. No functional change.
+
 ## [0.11.0] - 2026-10-24
 
 ### Added
