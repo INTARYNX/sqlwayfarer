@@ -137,30 +137,32 @@ class WriteFootprintService {
         const ensureRec = (entry) => {
             const qn = WriteFootprintService._clean(entry.qualifiedName);
             let rec = tableAcc.get(qn);
-            if (!rec) { rec = { entry, write: false, confident: false, possible: false, direct: false, viaTrigger: false }; tableAcc.set(qn, rec); }
+            if (!rec) { rec = { entry, write: false, confident: false, possible: false, direct: false, viaTrigger: false, viaCause: null }; tableAcc.set(qn, rec); }
             return rec;
         };
-        // Confident read/write from the resolver + parser.
-        const recordTable = (entry, isWrite, viaTrigger) => {
+        // cause is null for a direct reference, or { table, trigger } naming the
+        // write + trigger that led here - first attribution wins when a table is
+        // reachable through more than one trigger path.
+        const recordTable = (entry, isWrite, cause) => {
             const rec = ensureRec(entry);
             rec.confident = true;
             if (isWrite) rec.write = true;
-            if (viaTrigger) rec.viaTrigger = true; else rec.direct = true;
+            if (cause) { rec.viaTrigger = true; if (!rec.viaCause) rec.viaCause = cause; } else rec.direct = true;
         };
         // Low-confidence table mentioned only via the dynamic-SQL name scan.
-        const recordPossible = (entry, viaTrigger) => {
+        const recordPossible = (entry, cause) => {
             const rec = ensureRec(entry);
             rec.possible = true;
-            if (viaTrigger) rec.viaTrigger = true; else rec.direct = true;
+            if (cause) { rec.viaTrigger = true; if (!rec.viaCause) rec.viaCause = cause; } else rec.direct = true;
         };
 
         // BFS over code objects. An object may be reached both directly and via a
         // trigger; we expand it at most once per context so the two taints are
         // both recorded, while still terminating on cycles (trigger loops).
-        const queue = [{ entry: targetEntry, viaTrigger: false, depth: 0 }];
+        const queue = [{ entry: targetEntry, cause: null, depth: 0 }];
         while (queue.length) {
-            const { entry, viaTrigger, depth } = queue.shift();
-            const vkey = `${WriteFootprintService._clean(entry.qualifiedName)}|${viaTrigger ? 1 : 0}`;
+            const { entry, cause, depth } = queue.shift();
+            const vkey = `${WriteFootprintService._clean(entry.qualifiedName)}|${cause ? 1 : 0}`;
             if (visited.has(vkey)) continue;
             visited.add(vkey);
             if (depth > maxDepth) { truncated = true; continue; }
@@ -171,7 +173,7 @@ class WriteFootprintService {
                 const te = resolveTable(tableKey);
                 if (!te || te.type !== 'U') { unresolved.add(WriteFootprintService._clean(tableKey)); continue; }
                 const isWrite = Object.values(cols || {}).some(c => c && c.write);
-                recordTable(te, isWrite, viaTrigger);
+                recordTable(te, isWrite, cause);
                 if (isWrite) writtenTables.push(te);
             }
 
@@ -180,9 +182,9 @@ class WriteFootprintService {
                 const de = resolve(dep);
                 if (!de) { unresolved.add(WriteFootprintService._clean(dep)); continue; }
                 if (de.type === 'U') {
-                    if (!tableAcc.has(WriteFootprintService._clean(de.qualifiedName))) recordTable(de, false, viaTrigger);
+                    if (!tableAcc.has(WriteFootprintService._clean(de.qualifiedName))) recordTable(de, false, cause);
                 } else if (WriteFootprintService._isCodeType(de.type)) {
-                    queue.push({ entry: de, viaTrigger, depth: depth + 1 });
+                    queue.push({ entry: de, cause, depth: depth + 1 });
                 }
             }
 
@@ -190,11 +192,13 @@ class WriteFootprintService {
             // recursed (too speculative) and never fire triggers (access unknown).
             for (const pref of entry.possibleRefs || []) {
                 const pe = resolve(pref);
-                if (pe && pe.type === 'U') recordPossible(pe, viaTrigger);
+                if (pe && pe.type === 'U') recordPossible(pe, cause);
             }
 
             // Trigger cascade: writing a table fires its enabled triggers, whose
-            // own footprint is tainted "via trigger".
+            // own footprint is tainted "via trigger" - attributed to this table
+            // and this trigger specifically, even if we're already inside another
+            // trigger's cascade (nested cascades blame the innermost cause).
             for (const te of writtenTables) {
                 const trigs = trigByParent[WriteFootprintService._clean(te.qualifiedName)] || [];
                 for (const tg of trigs) {
@@ -202,19 +206,25 @@ class WriteFootprintService {
                     const tgEntry = byQN[tg.key];
                     if (!tgEntry) { unresolved.add(tg.key); continue; }
                     triggersFired.add(tgEntry.qualifiedName);
-                    queue.push({ entry: tgEntry, viaTrigger: true, depth: depth + 1 });
+                    queue.push({ entry: tgEntry, cause: { table: te.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
                 }
             }
         }
 
-        const tables = [...tableAcc.values()].map(r => ({
-            qualifiedName: r.entry.qualifiedName,
-            schema: r.entry.schema,
-            name: r.entry.name,
-            // Confident write/read wins over a mere name mention.
-            access: r.write ? 'write' : (r.confident ? 'read' : 'possible'),
-            viaTriggerOnly: r.confident && r.viaTrigger && !r.direct
-        })).sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName));
+        const tables = [...tableAcc.values()].map(r => {
+            const viaTriggerOnly = r.confident && r.viaTrigger && !r.direct;
+            return {
+                qualifiedName: r.entry.qualifiedName,
+                schema: r.entry.schema,
+                name: r.entry.name,
+                // Confident write/read wins over a mere name mention.
+                access: r.write ? 'write' : (r.confident ? 'read' : 'possible'),
+                viaTriggerOnly,
+                // Which table's write fired which trigger to reach this one -
+                // only meaningful (and only ever set) when viaTriggerOnly is true.
+                viaTriggerFrom: viaTriggerOnly ? r.viaCause : null
+            };
+        }).sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName));
 
         return {
             found: true,

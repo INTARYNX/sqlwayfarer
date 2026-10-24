@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.11.2] - 2026-10-24
+
+### Fixed
+
+- Table Footprint graph: tables reached only through a trigger cascade were drawn as disconnected floating nodes, with no edge showing how they were reached. The graph now draws an edge from the table whose write actually fired the trigger to the cascaded table, labelled with the trigger's name, so the cascade is visible instead of implied by the node color alone.
+
 ## [0.11.1] - 2026-10-24
 
 ### Changed
