@@ -1,11 +1,22 @@
 'use strict';
 
 const vscode = require('vscode');
+const sql = require('mssql');
 
 const HISTORY_KEY = 'sqlwayfarer.queryHistory';
 const HISTORY_LIMIT = 50;
 const DEFAULT_MAX_ROWS = 1000;
 const QUERY_TIMEOUT_MS = 5 * 60 * 1000;
+
+// SQL Server's showplan XML starts with <?xml version="1.0" encoding="utf-16"?>
+// and can carry a leading BOM. Both are meaningless once the driver has
+// already decoded the column into a JS string, but the webview's DOMParser
+// chokes on them (silently producing an empty document, no <ShowPlanXML>
+// root, which is what html-query-plan needs) - strip them before sending.
+function sanitizePlanXml(xmlText) {
+    const text = typeof xmlText === 'string' ? xmlText : String(xmlText);
+    return text.replace(/^﻿/, '').replace(/^<\?xml[^>]*\?>\s*/i, '');
+}
 
 // T-SQL doesn't require a semicolon between statements, so a line starting
 // with one of these also ends whatever came before it - not just a ';' does.
@@ -122,7 +133,13 @@ class QueryHandlers {
         return selection === 'Execute';
     }
 
-    async handleExecuteQuery(database, query, maxRows) {
+    // actualPlan wraps the batch in SET STATISTICS XML ON/OFF: the query still
+    // really executes (destructive statements included - same risk check
+    // applies), but each statement gets an extra recordset appended right
+    // after its own results, containing that statement's XML showplan with
+    // real row counts. Detected by shape (a lone Xml-typed column) rather
+    // than trusting column names, which SQL Server doesn't guarantee.
+    async handleExecuteQuery(database, query, maxRows, actualPlan = false) {
         if (!database) {
             this._post({ command: 'queryError', message: 'No database selected.' });
             return;
@@ -167,22 +184,43 @@ class QueryHandlers {
         request.stream = true;
 
         const resultSets = [];
-        const messages = [];
+        // Chronological record of everything the batch produced - a grid
+        // starting or a PRINT/RAISERROR message - in the exact order SQL
+        // Server emitted them, so the UI can show the real interleaving
+        // instead of guessing which message belongs to which grid.
+        const timeline = [];
         const rowsAffected = [];
         const errors = [];
+        const planXmls = [];
         let currentSet = null;
+        let currentIsPlan = false;
 
         request.on('recordset', columns => {
-            currentSet = { columns: Object.keys(columns), rows: [], totalRows: 0 };
+            const keys = Object.keys(columns);
+            currentIsPlan = actualPlan && keys.length === 1 && columns[keys[0]]?.type?.name === 'Xml';
+            if (actualPlan) {
+                console.log('[QueryHandlers] actual-plan recordset:', keys.map(k => `${JSON.stringify(k)}:${columns[k]?.type?.name}`), 'detected as plan:', currentIsPlan);
+            }
+            if (currentIsPlan) {
+                currentSet = null;
+                return;
+            }
+            currentSet = { columns: keys, rows: [], totalRows: 0 };
+            timeline.push({ type: 'resultSet', index: resultSets.length });
             resultSets.push(currentSet);
         });
         request.on('row', row => {
+            if (currentIsPlan) {
+                const xml = Object.values(row)[0];
+                if (xml) planXmls.push(sanitizePlanXml(xml));
+                return;
+            }
             if (!currentSet) return;
             currentSet.totalRows++;
             if (currentSet.rows.length < rowCap) currentSet.rows.push(row);
         });
         request.on('info', info => {
-            if (info && info.message) messages.push(info.message);
+            if (info && info.message) timeline.push({ type: 'message', text: info.message });
         });
         request.on('rowsaffected', count => rowsAffected.push(count));
         request.on('error', err => errors.push(err));
@@ -195,7 +233,10 @@ class QueryHandlers {
         try {
             // In stream mode data arrives through events; the promise only signals
             // completion. Errors may surface here, as 'error' events, or both.
-            await request.query(`USE [${database}];\n${query}`);
+            const batch = actualPlan
+                ? `SET STATISTICS XML ON;\nUSE [${database}];\n${query}\nSET STATISTICS XML OFF;`
+                : `USE [${database}];\n${query}`;
+            await request.query(batch);
         } catch (error) {
             errors.push(error);
         } finally {
@@ -229,7 +270,65 @@ class QueryHandlers {
         }
 
         await this._recordHistory(database, query, true, durationMs);
-        this._post({ command: 'queryResult', resultSets, rowsAffected, messages, durationMs, maxRows: rowCap });
+        this._post({
+            command: 'queryResult',
+            resultSets, rowsAffected, timeline, durationMs, maxRows: rowCap,
+            planXmls: actualPlan ? planXmls : undefined
+        });
+    }
+
+    handleGetActualPlan(database, query, maxRows) {
+        return this.handleExecuteQuery(database, query, maxRows, true);
+    }
+
+    // SET SHOWPLAN_XML must be the only statement in its batch, and the batch
+    // it governs is never executed - just planned - so none of the normal
+    // execution machinery (streaming, risk confirmation, history) applies
+    // here. The 3 statements (ON / query / OFF) have to land on the exact
+    // same physical connection - node-mssql only guarantees that via a
+    // Transaction, since a plain pooled Request can be handed any connection.
+    async handleGetEstimatedPlan(database, query) {
+        if (!database) {
+            this._post({ command: 'queryError', message: 'No database selected.' });
+            return;
+        }
+        if (!query || !query.trim()) {
+            this._post({ command: 'queryError', message: 'Query is empty.' });
+            return;
+        }
+
+        let transaction;
+        try {
+            transaction = new sql.Transaction(this._connectionManager.getPool());
+        } catch (error) {
+            this._post({ command: 'queryError', message: error.message });
+            return;
+        }
+
+        try {
+            await transaction.begin();
+            await new sql.Request(transaction).query('SET SHOWPLAN_XML ON');
+            let result;
+            try {
+                result = await new sql.Request(transaction).query(`USE [${database}];\n${query}`);
+            } finally {
+                // Always turn it back off, even on failure, so this connection
+                // isn't left stuck in plan-only mode once it's released to the pool.
+                await new sql.Request(transaction).query('SET SHOWPLAN_XML OFF');
+            }
+            await transaction.commit();
+
+            const row = result.recordset && result.recordset[0];
+            const xml = row && Object.values(row)[0];
+            if (!xml) {
+                this._post({ command: 'queryError', message: 'No execution plan was returned.' });
+                return;
+            }
+            this._post({ command: 'planResult', planXmls: [sanitizePlanXml(xml)] });
+        } catch (error) {
+            try { await transaction.rollback(); } catch { /* connection may already be gone */ }
+            this._post({ command: 'queryError', message: `Failed to get estimated plan: ${this._formatSqlError(error)}` });
+        }
     }
 
     handleCancelQuery() {

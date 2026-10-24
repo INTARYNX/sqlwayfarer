@@ -239,8 +239,18 @@ label {
 }
 
 /* === CONNECTION SECTION === */
+/* Side by side with the snippet manager when there's room; wraps to stacked
+   on a narrow panel. */
+.configuration-columns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px;
+}
+
 .connection-section {
-    max-width: 800px;
+    flex: 1 1 420px;
+    max-width: 480px;
     background: var(--vscode-editor-background);
     border: 1px solid var(--vscode-input-border);
     border-radius: 4px;
@@ -266,6 +276,117 @@ label {
     padding: 15px;
     margin-top: 15px;
     background: var(--vscode-input-background);
+}
+
+/* === SNIPPET MANAGER SECTION (Configuration tab) === */
+.snippet-manager-section {
+    flex: 1 1 360px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.snippet-manager-hint {
+    margin: -4px 0 12px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.snippet-manager-toolbar {
+    margin-bottom: 12px;
+}
+
+/* Flat divided list, same convention as the Explorer's #objectList/.object-item:
+   hover highlight + left accent border, row actions fade in on hover. */
+.snippet-manager-list {
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.snippet-group-label {
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-textCodeBlock-background);
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.snippet-manager-list .placeholder-text {
+    padding: 10px 12px;
+}
+
+.snippet-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--vscode-input-border);
+    border-left: 2px solid transparent;
+    transition: background-color 0.1s ease;
+}
+
+.snippet-row:last-child {
+    border-bottom: none;
+}
+
+.snippet-row:hover {
+    background: var(--vscode-list-hoverBackground);
+    border-left-color: var(--vscode-button-background);
+}
+
+.snippet-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.snippet-row-name {
+    font-size: 13px;
+}
+
+.snippet-row-preview {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.snippet-row-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+}
+
+.snippet-row:hover .snippet-row-actions {
+    opacity: 1;
+}
+
+.snippet-row-actions button {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 2px 6px;
+    font-size: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    width: auto;
+    margin: 0;
+}
+
+.snippet-row-actions button:hover {
+    background: var(--vscode-button-secondaryBackground);
+    border-color: var(--vscode-input-border);
+}
+
+.modal-dialog.modal-dialog-snippet-form {
+    max-width: 560px;
 }
 
 .section-header {
@@ -1025,6 +1146,82 @@ th {
     color: #ffffff;
 }
 
+/* Icon-only toolbar buttons (Run/Estimated/Actual Plan): the label moves to
+   the title tooltip so the whole toolbar keeps fitting on one line instead
+   of wrapping once History/Snippets/status share the row. */
+.icon-btn {
+    padding: 5px 8px;
+}
+
+.icon-btn .codicon {
+    font-size: 15px;
+}
+
+.plan-btn {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-input-border);
+}
+
+.plan-btn:hover:not(:disabled) {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* html-query-plan draws black connecting lines and assumes a light page -
+   force a white backdrop here regardless of the active VS Code theme, or the
+   lines (and the classic yellow SSMS-style nodes) go illegible in dark mode. */
+.query-plan-container {
+    padding: 12px;
+    overflow: auto;
+    background: #ffffff;
+    border-radius: 4px;
+}
+
+.query-plan-item {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #ccc;
+}
+
+.query-plan-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+/* VS Code adds vscode-dark/vscode-light/vscode-high-contrast to <body>. The
+   plan itself can't be retheme'd (it's vendored, third-party markup), so in
+   dark mode the whole container is inverted + hue-rotated back - the classic
+   trick for embedding a light-only widget without it looking like a hole
+   punched in the page. Icons (qp_icons.png) and the forced white backdrop
+   invert right along with everything else and still read correctly. */
+body.vscode-dark .query-plan-container,
+body.vscode-high-contrast .query-plan-container {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+.query-plan-raw-xml {
+    margin: 8px 0 0;
+    padding: 8px;
+    max-height: 200px;
+    overflow: auto;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    white-space: pre-wrap;
+    background: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* Our own diagnostic text, not part of the vendored widget - re-invert it
+   back to normal so it isn't caught by the container's dark-mode inversion
+   above (two inversions of the same kind cancel out). */
+body.vscode-dark .query-plan-raw-xml,
+body.vscode-high-contrast .query-plan-raw-xml {
+    filter: invert(1) hue-rotate(180deg);
+}
+
 .query-option {
     display: flex;
     align-items: center;
@@ -1257,17 +1454,41 @@ th {
 }
 
 .query-messages {
-    border-top: 1px solid var(--vscode-input-border);
-    margin-top: 12px;
     padding: 8px 10px;
 }
 
-.query-messages pre {
-    margin: 0;
+.placeholder-text + .query-messages {
+    border-top: 1px solid var(--vscode-input-border);
+    margin-top: 12px;
+}
+
+.message-line {
+    padding: 2px 0;
     font-family: var(--vscode-editor-font-family);
     font-size: 12px;
     white-space: pre-wrap;
     color: var(--vscode-descriptionForeground);
+}
+
+.message-rs-marker {
+    padding: 4px 0;
+}
+
+.message-rs-link {
+    width: auto;
+    margin: 0;
+    padding: 1px 8px;
+    font-size: 11px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.message-rs-link:hover {
+    background: var(--vscode-button-hoverBackground);
+    color: var(--vscode-button-foreground);
 }
 
 .query-error-box {
@@ -1303,14 +1524,16 @@ th {
 .modal-overlay.objects-modal-overlay,
 .modal-overlay.indexing-modal-overlay,
 .modal-overlay.column-usage-modal-overlay,
-.modal-overlay.footprint-modal-overlay {
+.modal-overlay.footprint-modal-overlay,
+.modal-overlay.snippet-form-modal-overlay {
     display: none;
 }
 
 .modal-overlay.objects-modal-overlay.visible,
 .modal-overlay.indexing-modal-overlay.visible,
 .modal-overlay.column-usage-modal-overlay.visible,
-.modal-overlay.footprint-modal-overlay.visible {
+.modal-overlay.footprint-modal-overlay.visible,
+.modal-overlay.snippet-form-modal-overlay.visible {
     display: flex;
 }
 
@@ -1492,6 +1715,34 @@ table.fp-cols .fp-center { text-align: center; }
 
 .details-actions {
     margin: 8px 0;
+}
+
+.call-snippet-section {
+    margin: 8px 0 16px;
+}
+
+.call-snippet-actions {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 6px;
+}
+
+.call-snippet-actions button {
+    width: auto;
+    margin: 0;
+    padding: 2px 10px;
+    font-size: 12px;
+}
+
+.call-snippet-code {
+    margin: 0;
+    padding: 8px 10px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    white-space: pre-wrap;
+    background: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
 }
 
 /* Doubled class for specificity: comments.css (loaded after this sheet) sets
