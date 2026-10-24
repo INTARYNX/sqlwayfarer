@@ -85,6 +85,17 @@ suite('WriteFootprintService.analyzeFootprint', () => {
         assert.ok(r.triggersFired.includes('app.trg2'), 'trg2 fired (A written via trigger)');
     });
 
+    test('attributes a trigger-only table to the write and trigger that reached it', () => {
+        const a = run().tables.find(x => x.qualifiedName === 'app.A');
+        assert.deepStrictEqual(a.viaTriggerFrom, { table: 'app.T', trigger: 'app.trg' });
+    });
+
+    test('viaTriggerFrom is null for directly-reached tables', () => {
+        const r = run();
+        assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.T').viaTriggerFrom, null);
+        assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.W').viaTriggerFrom, null);
+    });
+
     test('does not fire disabled triggers', () => {
         assert.ok(!run().triggersFired.includes('app.trgR'));
     });

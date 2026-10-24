@@ -120,7 +120,15 @@ class FootprintManager {
 
             if (kind === 'possible') {
                 elements.push({ data: { id: `acc::${t.qualifiedName}`, source: targetId, target: `tbl::${t.qualifiedName}`, edge: 'access-possible' } });
-            } else if (!t.viaTriggerOnly) {
+            } else if (kind === 'trigger') {
+                // Edge from the table whose write actually fired the trigger (not
+                // from the analyzed object) so the graph shows *why* this table is
+                // here, labelled with the trigger itself instead of leaving it
+                // floating with no visible cause.
+                const from = t.viaTriggerFrom ? `tbl::${t.viaTriggerFrom.table}` : targetId;
+                const label = t.viaTriggerFrom ? FootprintManager._shortName(t.viaTriggerFrom.trigger) : '';
+                elements.push({ data: { id: `acc::${t.qualifiedName}`, source: from, target: `tbl::${t.qualifiedName}`, edge: 'access-trigger', label } });
+            } else {
                 elements.push({ data: { id: `acc::${t.qualifiedName}`, source: targetId, target: `tbl::${t.qualifiedName}`,
                     edge: t.access === 'write' ? 'access-write' : 'access-read' } });
             }
@@ -297,6 +305,13 @@ class FootprintManager {
         return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     }
 
+    // 'dbo.trg_Inventory_LowStock' -> 'trg_Inventory_LowStock', for a trigger-cascade
+    // edge label that doesn't repeat the schema already shown on both endpoints.
+    static _shortName(qualifiedName) {
+        const s = String(qualifiedName || '');
+        return s.includes('.') ? s.slice(s.indexOf('.') + 1) : s;
+    }
+
     static _graphStyle() {
         const node = (bg) => ({
             'background-color': bg, 'label': 'data(label)', 'color': '#fff',
@@ -314,7 +329,12 @@ class FootprintManager {
             { selector: 'edge[edge = "fk"]', style: { 'line-color': '#8892a0', 'target-arrow-color': '#8892a0' } },
             { selector: 'edge[edge = "access-write"]', style: { 'line-color': '#c0392b', 'target-arrow-color': '#c0392b', 'width': 2 } },
             { selector: 'edge[edge = "access-read"]', style: { 'line-color': '#6b7684', 'target-arrow-color': '#6b7684', 'line-style': 'dashed' } },
-            { selector: 'edge[edge = "access-possible"]', style: { 'line-color': '#8892a0', 'line-style': 'dotted', 'target-arrow-shape': 'none', 'opacity': 0.7 } }
+            { selector: 'edge[edge = "access-possible"]', style: { 'line-color': '#8892a0', 'line-style': 'dotted', 'target-arrow-shape': 'none', 'opacity': 0.7 } },
+            { selector: 'edge[edge = "access-trigger"]', style: {
+                'line-color': '#e8a33d', 'target-arrow-color': '#e8a33d', 'line-style': 'dashed', 'width': 2,
+                'label': 'data(label)', 'font-size': 9, 'color': '#e8a33d',
+                'text-background-color': '#1e1e1e', 'text-background-opacity': 0.85, 'text-background-padding': 2
+            } }
         ];
     }
 

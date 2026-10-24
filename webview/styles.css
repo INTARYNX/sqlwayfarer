@@ -2011,6 +2011,7 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-line-write    { border-top: 2px solid #c0392b; }
 .fp-line-read     { border-top: 2px dashed #6b7684; }
 .fp-line-fk       { border-top: 2px solid #8892a0; }
+.fp-line-trigger  { border-top: 2px dashed #e8a33d; }
 .fp-line-possible { border-top: 2px dotted #8892a0; }
 
 .fp-toggle {
