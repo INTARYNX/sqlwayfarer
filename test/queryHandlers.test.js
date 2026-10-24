@@ -70,17 +70,16 @@ suite('QueryHandlers', () => {
 
 	test('actual plan: separates the STATISTICS XML plan recordset from real result sets', async () => {
 		const posts = [];
-		// Mirrors the shape mssql's own createColumns() builds for the special
-		// chunked-XML recordset: keyed by the magic colName, type is a function
-		// named "Xml" (mssql.TYPES.Xml is a named function, not a plain object).
-		const XmlType = function Xml() {};
+		// Confirmed against a real SQL Server response: the plan recordset's
+		// single column is literally named "Microsoft SQL Server 2005 XML
+		// Showplan" (a fixed legacy name) and reported as NVarChar, not Xml.
 		const handlers = new QueryHandlers(m => posts.push(m), {
 			createRequest: () => new FakeRequest(req => {
 				req.emit('recordset', { id: { type: function Int() {} } });
 				req.emit('row', { id: 1 });
 				req.emit('rowsaffected', 1);
-				req.emit('recordset', { 'XML_F52E2B61-18A1-11d1-B105-00805F49916B': { type: XmlType } });
-				req.emit('row', { 'XML_F52E2B61-18A1-11d1-B105-00805F49916B': '<ShowPlanXML>plan</ShowPlanXML>' });
+				req.emit('recordset', { 'Microsoft SQL Server 2005 XML Showplan': { type: function NVarChar() {} } });
+				req.emit('row', { 'Microsoft SQL Server 2005 XML Showplan': '<ShowPlanXML>plan</ShowPlanXML>' });
 			})
 		}, makeState());
 

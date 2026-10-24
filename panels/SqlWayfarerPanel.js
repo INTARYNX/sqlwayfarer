@@ -21,6 +21,7 @@ const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
 const QueryHandlers = require('./handlers/QueryHandlers');
+const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
 const FootprintHandlers = require('./handlers/FootprintHandlers');
@@ -53,6 +54,7 @@ class SqlWayfarerPanel {
         const riskParser = new BabelfishSqlParser();
         riskParser.setEnabled(true);
         this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser));
+        this._queryFiles = new QueryFileHandlers(post, context.workspaceState);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
@@ -113,8 +115,8 @@ class SqlWayfarerPanel {
     }
 
     async _handleMessage(message) {
-        const { conn: c, db: d, comments: cm, idx: ix, query: q } = {
-            conn: this._conn, db: this._db, comments: this._comments, idx: this._idx, query: this._query
+        const { conn: c, db: d, comments: cm, idx: ix, query: q, queryFiles: qf } = {
+            conn: this._conn, db: this._db, comments: this._comments, idx: this._idx, query: this._query, queryFiles: this._queryFiles
         };
 
         switch (message.command) {
@@ -189,6 +191,15 @@ class SqlWayfarerPanel {
             case 'getQueryHistory':             await q.handleGetQueryHistory(); break;
             case 'clearQueryHistory':           await q.handleClearQueryHistory(); break;
 
+            // Query tool - file-backed tabs
+            case 'listSqlFiles':                await qf.handleListSqlFiles(); break;
+            case 'openSqlFile':                  await qf.handleOpenSqlFile(message.path); break;
+            case 'saveSqlFile':                  await qf.handleSaveSqlFile(message.path, message.content); break;
+            case 'saveSqlFileAs':                await qf.handleSaveSqlFileAs(message.content, message.suggestedName); break;
+            case 'getDraftRecovery':            await qf.handleGetDraftRecovery(); break;
+            case 'saveDraftRecovery':           qf.handleSaveDraftRecovery(message.drafts); break;
+            case 'confirmDiscardChanges':       await qf.handleConfirmDiscardChanges(message.name); break;
+
             // SQL snippets
             case 'getSnippets':                 await this._snippets.handleGetSnippets(); break;
             case 'addSnippet':                  await this._snippets.handleAddSnippet(message.name, message.sql); break;
@@ -249,6 +260,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
         html = html.replace('{{SQL_HIGHLIGHT_URI}}',        u('webview', 'sqlHighlight.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
+        html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{SNIPPET_MANAGER_URI}}',       u('webview', 'snippetManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));

@@ -173,7 +173,10 @@ class QueryHandlers {
             return;
         }
 
-        const rowCap = Number(maxRows) > 0 ? Number(maxRows) : DEFAULT_MAX_ROWS;
+        // 0 is the explicit "Unlimited" choice in the Max rows selector - keep
+        // every row instead of falling back to the default cap.
+        const rowCap = Number(maxRows) === 0 ? Infinity
+            : Number(maxRows) > 0 ? Number(maxRows) : DEFAULT_MAX_ROWS;
         const startedAt = Date.now();
 
         this._currentRequest = request;
@@ -197,10 +200,10 @@ class QueryHandlers {
 
         request.on('recordset', columns => {
             const keys = Object.keys(columns);
-            currentIsPlan = actualPlan && keys.length === 1 && columns[keys[0]]?.type?.name === 'Xml';
-            if (actualPlan) {
-                console.log('[QueryHandlers] actual-plan recordset:', keys.map(k => `${JSON.stringify(k)}:${columns[k]?.type?.name}`), 'detected as plan:', currentIsPlan);
-            }
+            // SQL Server names this recordset's single column "Microsoft SQL
+            // Server 2005 XML Showplan" (a fixed legacy name, unrelated to
+            // the actual server version) and reports it as NVarChar, not Xml.
+            currentIsPlan = actualPlan && keys.length === 1 && keys[0] === 'Microsoft SQL Server 2005 XML Showplan';
             if (currentIsPlan) {
                 currentSet = null;
                 return;
@@ -284,9 +287,11 @@ class QueryHandlers {
     // SET SHOWPLAN_XML must be the only statement in its batch, and the batch
     // it governs is never executed - just planned - so none of the normal
     // execution machinery (streaming, risk confirmation, history) applies
-    // here. The 3 statements (ON / query / OFF) have to land on the exact
-    // same physical connection - node-mssql only guarantees that via a
-    // Transaction, since a plain pooled Request can be handed any connection.
+    // here. The 2 statements (ON / USE+query) have to land on the exact same
+    // physical connection, or ON lands on one pooled connection while the
+    // query runs for real on another - pin one directly via the pool's own
+    // acquire/release (verified against a real server; see the .batch() note
+    // below for the other, equally load-bearing half of this fix).
     async handleGetEstimatedPlan(database, query) {
         if (!database) {
             this._post({ command: 'queryError', message: 'No database selected.' });
@@ -297,26 +302,47 @@ class QueryHandlers {
             return;
         }
 
-        let transaction;
+        let pool;
         try {
-            transaction = new sql.Transaction(this._connectionManager.getPool());
+            pool = this._connectionManager.getPool();
         } catch (error) {
             this._post({ command: 'queryError', message: error.message });
             return;
         }
 
+        let connection;
         try {
-            await transaction.begin();
-            await new sql.Request(transaction).query('SET SHOWPLAN_XML ON');
+            connection = await pool.acquire();
+            // Minimal shape sql.Request's parent needs: acquire/release -
+            // always hands back this one already-acquired connection instead
+            // of letting the pool pick a different one per request - plus the
+            // handful of properties mssql's Request reads directly off the
+            // parent outside the acquire callback (this.stream/arrayRowMode
+            // via parent.config, a parent.connected guard, parent.collation
+            // for parameterized queries - unused here, but cheap to forward).
+            const pinned = {
+                config: pool.config,
+                connected: true,
+                collation: pool.collation,
+                acquire: (requester, cb) => cb(null, connection, pool.config),
+                release: () => {}
+            };
+
+            // .batch() is required here, not .query(): mssql's .query() sends
+            // the SQL via tedious's execSql (an RPC call wrapping it, in
+            // effect, in a system stored procedure), and SET SHOWPLAN_XML is
+            // explicitly documented as not working inside a stored procedure
+            // - the query just ran for real instead of being planned. .batch()
+            // sends it as a plain SQL batch, which showplan mode does respect.
+            await new sql.Request(pinned).batch('SET SHOWPLAN_XML ON');
             let result;
             try {
-                result = await new sql.Request(transaction).query(`USE [${database}];\n${query}`);
+                result = await new sql.Request(pinned).batch(`USE [${database}];\n${query}`);
             } finally {
                 // Always turn it back off, even on failure, so this connection
                 // isn't left stuck in plan-only mode once it's released to the pool.
-                await new sql.Request(transaction).query('SET SHOWPLAN_XML OFF');
+                await new sql.Request(pinned).batch('SET SHOWPLAN_XML OFF');
             }
-            await transaction.commit();
 
             const row = result.recordset && result.recordset[0];
             const xml = row && Object.values(row)[0];
@@ -326,8 +352,9 @@ class QueryHandlers {
             }
             this._post({ command: 'planResult', planXmls: [sanitizePlanXml(xml)] });
         } catch (error) {
-            try { await transaction.rollback(); } catch { /* connection may already be gone */ }
             this._post({ command: 'queryError', message: `Failed to get estimated plan: ${this._formatSqlError(error)}` });
+        } finally {
+            if (connection) pool.release(connection);
         }
     }
 
