@@ -15,6 +15,10 @@ Every change to a database raises the same question: what else does this touch? 
 
 Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema browsing, a multi-buffer query editor, script generation, and Markdown documentation export, without leaving your editor.
 
+![Table Footprint: a procedure that only mentions two tables in its own code, shown touching five through two trigger cascades](table-footprint.jpg)
+
+*`usp_PlaceOrder` only mentions `Orders` and `Inventory`. The Table Footprint graph follows the triggers it fires and shows the other three tables it actually touches.*
+
 ---
 
 ## Features
