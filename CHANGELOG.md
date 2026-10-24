@@ -4,6 +4,55 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.11.0] - 2026-10-24
+
+### Added
+
+- **Multiple buffers in the Query tab**: a dropdown under "Query" lists every open buffer — a draft, or a `.sql` file on disk that can be saved straight back to it (`Ctrl+S` or a Save button, greyed out when there's nothing to save). Each buffer remembers which database it was last run against.
+- **Workspace SQL file browser**: a collapsible side panel (folder icon next to the Query tab) lists every `.sql` file in the workspace, recursing into subfolders, with a filter box, per-folder collapse/expand, and a collapse-all toggle.
+- **Crash recovery for the Query tab**: unsaved drafts and in-progress edits to an open file are snapshotted continuously and restored automatically after an unexpected close — only the in-editor buffer is touched, files on disk are never auto-written.
+- **Result grid filtering and sorting**: a per-grid row filter and clickable column-header sorting, reset on every new run.
+- **Unlimited row cap** option alongside the existing 100 / 1,000 / 5,000 / 10,000 choices.
+- **Messages tab**: `PRINT` / `RAISERROR` output now collects in its own tab, interleaved in the order it actually happened relative to each result set, instead of attaching to whichever grid happened to be active.
+- **Execution plans**: Estimated Plan and Actual Plan buttons render the plan inline via a vendored `html-query-plan`, with dark-mode support.
+- **SQL Snippets**: a quick-insert dropdown in the Query toolbar (built-in templates plus custom ones), with a full add/edit/delete manager in the Configuration tab.
+- **Go to definition** now also triggers on double-click (in addition to `Ctrl+Click`), and resolves 3-part `database.schema.object` references in another database on the same connection.
+- Procedures and functions in the Explorer auto-show a generated call snippet (`EXEC`/`SELECT` template) in the Structure tab.
+
+### Changed
+
+- The query status line ("Done in … — N row(s)") moved from the toolbar to the bottom of the results pane, and the database selector is now pinned to the right of the toolbar — the toolbar no longer wraps to a second line as controls are added.
+
+## [0.10.2] - 2026-10-24
+
+### Fixed
+
+- Toggling a type filter (Tables/Views/…) crashed the Objects list with a `TypeError`, leaving it stuck on "Loading objects…" — a lookup map introduced for collapsible schema groups was read from the wrong manager instance.
+- The "NULL" nullability badge was unreadable in themes where the terminal background isn't dark; both nullability badges now use fixed, guaranteed-contrast colors.
+
+## [0.10.1] - 2026-10-24
+
+### Added
+
+- Collapsible schema groups in the Explorer's Objects list — click a schema header to collapse/expand it, state persists across filter and reindex re-renders.
+
+### Fixed
+
+- Unchecking a type filter on a database with many objects did an O(n²) DOM scan to find each row, freezing the UI (~400ms+ on 9,000 objects, worse every keystroke). Replaced with a name → element map built once per render.
+
+## [0.10.0] - 2026-10-24
+
+### Added
+
+- The Objects (raw JSON index) modal is now a collapsible tree instead of a flat pretty-printed dump: containers start collapsed with a one-line preview and expand on click, with children built lazily so opening the modal stays cheap regardless of database size.
+
+## [0.9.2] - 2026-10-23
+
+### Fixed
+
+- Objects-view responsiveness on large databases.
+- `large_db_test.sql` (a manual test fixture) is now excluded from the packaged VSIX.
+
 ## [0.9.1] - 2026-10-23
 
 ### Fixed
