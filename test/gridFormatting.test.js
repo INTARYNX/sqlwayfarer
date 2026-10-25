@@ -32,3 +32,45 @@ suite('QueryManager.formatValue', () => {
 		assert.strictEqual(formatValue('hello'), 'hello');
 	});
 });
+
+// The grid draws a prefix of a big result set: the webview builds the whole
+// table as one HTML string, and 200 000 rows x 10 columns is tens of
+// megabytes of markup - enough to freeze the tab. The data itself is
+// untouched (Copy/CSV export use the full result set).
+suite('QueryManager grid rendering', () => {
+	function makeGrid(rows) {
+		const grid = Object.create(QueryManager.prototype);
+		grid._gridState = [{ filterText: '', sortCol: null, sortDir: 1 }];
+		return grid.buildResultSetTableHtml(rows, ['id'], 0);
+	}
+
+	function makeRows(count) {
+		const rows = [];
+		for (let i = 0; i < count; i++) rows.push({ id: i });
+		return rows;
+	}
+
+	test('draws every row of a small result set', () => {
+		const html = makeGrid(makeRows(10));
+
+		// 10 rows + the header row.
+		assert.strictEqual((html.match(/<tr>/g) || []).length, 11);
+		assert.ok(!html.includes('truncation-note'));
+	});
+
+	test('draws a prefix of a huge result set and says so', () => {
+		const html = makeGrid(makeRows(QueryManager.MAX_RENDERED_ROWS + 500));
+
+		// +1 for the header row.
+		assert.strictEqual((html.match(/<tr>/g) || []).length, QueryManager.MAX_RENDERED_ROWS + 1);
+		assert.ok(html.includes('truncation-note'));
+		assert.ok(html.includes(`first ${QueryManager.MAX_RENDERED_ROWS} of ${QueryManager.MAX_RENDERED_ROWS + 500} rows`));
+	});
+
+	test('a result set exactly at the limit is drawn whole', () => {
+		const html = makeGrid(makeRows(QueryManager.MAX_RENDERED_ROWS));
+
+		assert.strictEqual((html.match(/<tr>/g) || []).length, QueryManager.MAX_RENDERED_ROWS + 1);
+		assert.ok(!html.includes('truncation-note'));
+	});
+});

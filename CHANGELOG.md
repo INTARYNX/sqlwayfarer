@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - **Ctrl+Enter in the query editor**: no longer inserts a blank line while running the query, and accepting an autocomplete suggestion no longer adds a newline.
 - **Editor focus frame**: the frame around the query editor now surrounds the line numbers as well - the line-number gutter is painted over the editor's own outline.
 - **Tab state**: a tab that is rebuilt (page reload, window reload) comes back on the database it was working in, and on the tab it was showing. The database selector is rebuilt from scratch every time the list of databases is sent, which wiped the selection; the panel now remembers it per connection and sends it back with the list.
+- **Big result sets**: the grid draws the first 2 000 rows of a result set instead of building the whole table at once - 200 000 rows x 10 columns was tens of megabytes of markup, which froze the tab and could take the renderer down. Copy and CSV export still export every row.
 
 ### Changed
 

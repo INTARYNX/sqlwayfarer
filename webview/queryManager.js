@@ -19,6 +19,14 @@ function builtinSnippets() {
 // Query tool: runs free-form SQL against the currently selected database.
 // Supports multiple result sets, row cap, cancellation and a persisted history.
 class QueryManager {
+    // Rows drawn in the grid. The extension caps what it fetches (200 000
+    // rows), but the webview builds the whole table as one HTML string:
+    // 200 000 rows x 10 columns is tens of megabytes of markup, which
+    // freezes the tab and can take the renderer down with it. The data
+    // itself is untouched - Copy and CSV export work on the full result
+    // set, only the grid shows a prefix of it.
+    static MAX_RENDERED_ROWS = 2000;
+
     constructor() {
         this.runBtn = document.getElementById('runQueryBtn');
         this.estimatedPlanBtn = document.getElementById('estimatedPlanBtn');
@@ -570,6 +578,11 @@ class QueryManager {
         }
 
         const state = this._gridState[index] || {};
+        // Only a prefix of the rows is drawn - see MAX_RENDERED_ROWS.
+        const drawn = rows.length > QueryManager.MAX_RENDERED_ROWS
+            ? rows.slice(0, QueryManager.MAX_RENDERED_ROWS)
+            : rows;
+
         let html = '<table><thead><tr>';
         columns.forEach(col => {
             const sorted = state.sortCol === col;
@@ -579,7 +592,7 @@ class QueryManager {
         });
         html += '</tr></thead><tbody>';
 
-        rows.forEach(row => {
+        drawn.forEach(row => {
             html += '<tr>';
             columns.forEach(col => {
                 html += `<td>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
@@ -587,6 +600,12 @@ class QueryManager {
             html += '</tr>';
         });
         html += '</tbody></table>';
+
+        if (drawn.length < rows.length) {
+            html += `<p class="truncation-note"><i class="codicon codicon-warning"></i> `
+                + `The grid shows the first ${drawn.length} of ${rows.length} rows - `
+                + `Copy and CSV export all of them.</p>`;
+        }
         return html;
     }
 
