@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.2] - 2026-10-25
+
+### Fixed
+
+- **Marketplace banner**: the banner added in 0.12.1 carried a hand-drawn copy of the compass instead of the real icon. It now uses the extension's own logo.
+
 ## [0.12.1] - 2026-10-25
 
 ### Added
