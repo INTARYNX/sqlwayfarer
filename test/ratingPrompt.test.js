@@ -9,6 +9,13 @@ suite('Rating prompt', () => {
 		assert.strictEqual(shouldAsk({ successfulQueries: MIN_QUERIES, lastAskedAt: 0 }), true);
 	});
 
+	// The threshold has to be low enough that a real user actually reaches
+	// it, otherwise the prompt never fires and the page keeps showing zero.
+	test('fires after five successful queries', () => {
+		assert.strictEqual(shouldAsk({ successfulQueries: 5, lastAskedAt: 0 }), true);
+		assert.strictEqual(shouldAsk({ successfulQueries: 4, lastAskedAt: 0 }), false);
+	});
+
 	test('does not ask twice within the cooldown', () => {
 		const now = Date.now();
 		assert.strictEqual(shouldAsk({ successfulQueries: 50, lastAskedAt: now - 1000, now }), false);

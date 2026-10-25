@@ -6,11 +6,13 @@ const STATE_KEY = 'sqlwayfarer.ratingPrompt';
 const MARKETPLACE_URL = 'https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer';
 
 // Only ask once the tool has actually proven itself - a rating request
-// thrown at someone who just installed the extension is noise.
-const MIN_QUERIES = 10;
-// And never more than once a month: a review is worth more if it comes from
-// someone who likes the tool than from someone annoyed by a second popup.
-const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+// thrown at someone who just installed the extension is noise. Five
+// successful queries is where the tool has clearly been put to work.
+const MIN_QUERIES = 5;
+// And never more than once every three weeks: a rating is worth more if it
+// comes from someone who likes the tool than from someone annoyed by a
+// second popup.
+const COOLDOWN_MS = 21 * 24 * 60 * 60 * 1000;
 
 // Whether the "leave a review" nudge is due. Pure, so the rule can be
 // tested without VS Code.
@@ -22,11 +24,11 @@ function shouldAsk({ successfulQueries, lastAskedAt, now = Date.now(), minQuerie
 
 async function defaultShow() {
     const choice = await vscode.window.showInformationMessage(
-        'Enjoying SQL Wayfarer? A short review on the Marketplace helps other developers find it.',
-        'Leave a review',
+        'Enjoying SQL Wayfarer? A rating on the Marketplace helps other developers find it - a star is enough.',
+        'Rate it',
         'Not now'
     );
-    return choice === 'Leave a review' ? 'review' : 'later';
+    return choice === 'Rate it' ? 'review' : 'later';
 }
 
 // Asks the user, once in a while, to rate the extension on the Marketplace.

@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.5] - 2026-10-25
+
+### Changed
+
+- **Rating prompt**: the request for a Marketplace rating now comes after five successful queries instead of ten, and no more than once every three weeks. It also asks for a rating rather than a written review - a star is enough to make the number of ratings show up in the search results, which is the one thing the extension page is missing.
+
 ## [0.12.4] - 2026-10-25
 
 ### Fixed
