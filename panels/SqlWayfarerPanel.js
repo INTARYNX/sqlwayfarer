@@ -421,6 +421,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
         html = html.replace('{{SQL_EDITOR_URI}}',           u('dist', 'webview', 'sqlEditor.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
+        html = html.replace('{{FILE_TREE_URI}}',            u('webview', 'fileTree.js'));
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));

@@ -1727,7 +1727,8 @@ body.vscode-high-contrast .qp-tt-header {
 .sql-files-panel {
     display: none;
     flex-direction: column;
-    width: 240px;
+    width: 260px;
+    min-width: 180px;
     flex-shrink: 0;
     border-right: 1px solid var(--vscode-input-border);
     background: var(--vscode-sideBar-background, var(--vscode-editor-background));
@@ -1743,15 +1744,60 @@ body.vscode-high-contrast .qp-tt-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding: 6px 10px;
     font-size: 12px;
     font-weight: 600;
     border-bottom: 1px solid var(--vscode-input-border);
 }
 
+.sql-files-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+/* How many files the workspace holds - the tree itself only shows the count
+   of each folder. */
+.sql-files-total {
+    font-weight: normal;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
 .sql-files-panel-actions {
     display: flex;
     gap: 2px;
+    flex-shrink: 0;
+}
+
+/* Icon-only actions in the panel header: ghost buttons, not the blue
+   primary ones - three of them side by side is too much blue. */
+.sql-files-panel-actions .icon-btn {
+    background: transparent;
+    color: var(--vscode-foreground);
+}
+
+.sql-files-panel-actions .icon-btn:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: var(--vscode-foreground);
+}
+
+/* Drag bar on the right edge of the panel - widen the tree, double-click to
+   put it back to the default width. */
+.sql-files-splitter {
+    flex-shrink: 0;
+    width: 4px;
+    cursor: ew-resize;
+    background: transparent;
+}
+
+.sql-files-splitter:hover,
+.sql-files-splitter.dragging {
+    background: var(--vscode-focusBorder, #007ACC);
 }
 
 .sql-files-filter {
@@ -1771,6 +1817,71 @@ body.vscode-high-contrast .qp-tt-header {
 .sql-files-tree {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 8px;
+}
+
+/* === FILE TREE === */
+/* Folders nested by path segment, each row showing its own name and the
+   number of files it holds. The rows are NOT sticky: a stack of sticky
+   headers covers the files underneath and swallows their clicks. */
+.sql-file-folder,
+.sql-file-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    padding: 4px 8px 4px calc(8px + var(--depth, 0) * 12px);
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.sql-file-folder:hover,
+.sql-file-item:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.sql-file-folder {
+    font-weight: 600;
+    border-top: 1px solid var(--vscode-input-border);
+}
+
+.sql-file-folder-name,
+.sql-file-item-name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* The name gives up what it needs to, the count never shrinks - that is the
+   whole point of the badge. */
+.sql-file-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.sql-file-chevron {
+    flex-shrink: 0;
+    transition: transform 0.1s ease;
+}
+
+.sql-file-folder.collapsed .sql-file-chevron {
+    transform: rotate(-90deg);
+}
+
+.sql-file-count {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: normal;
+    color: var(--vscode-badge-foreground);
+    background: var(--vscode-badge-background);
+    padding: 1px 6px;
+    border-radius: 10px;
 }
 
 .result-set-actions {

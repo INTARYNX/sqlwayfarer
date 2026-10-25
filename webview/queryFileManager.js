@@ -33,6 +33,8 @@ class QueryFileManager {
         this.folderBtn = document.getElementById('queryFilesBtn');
         this.filesPanel = document.getElementById('sqlFilesPanel');
         this.filesTree = document.getElementById('sqlFilesTree');
+        this.filesSplitter = document.getElementById('sqlFilesSplitter');
+        this.filesTotalEl = document.getElementById('sqlFilesTotal');
         this.filesRefreshBtn = document.getElementById('sqlFilesRefreshBtn');
         this.filesCollapseAllBtn = document.getElementById('sqlFilesCollapseAllBtn');
         this.filesHideBtn = document.getElementById('sqlFilesHideBtn');
@@ -50,6 +52,7 @@ class QueryFileManager {
         this._draftTimer = null;
 
         this.initEventListeners();
+        this.initSplitter();
         this.render();
         vscode.postMessage({ command: 'getDraftRecovery' });
     }
@@ -263,49 +266,42 @@ class QueryFileManager {
     renderFilesTree() {
         if (this._allFiles.length === 0) {
             this.filesTree.innerHTML = '<p class="placeholder-text">No .sql files found in this workspace.</p>';
+            this._updateFilesTotal(null);
             return;
         }
 
         const filtering = this._filterText !== '';
-        const visibleFiles = filtering
-            ? this._allFiles.filter(f => f.name.toLowerCase().includes(this._filterText)
-                || f.relativeDir.toLowerCase().includes(this._filterText))
-            : this._allFiles;
+        const visibleFiles = FileTree.filterFiles(this._allFiles, this._filterText);
 
         if (visibleFiles.length === 0) {
             this.filesTree.innerHTML = '<p class="placeholder-text">No files match this filter.</p>';
+            this._updateFilesTotal(null);
             return;
         }
 
-        // Group by relativeDir ('' = workspace root, shown ungrouped at the top).
-        const byDir = new Map();
-        for (const file of visibleFiles) {
-            if (!byDir.has(file.relativeDir)) byDir.set(file.relativeDir, []);
-            byDir.get(file.relativeDir).push(file);
-        }
-
-        let html = '';
-        const rootFiles = byDir.get('') || [];
-        rootFiles.forEach(file => { html += this._fileRowHtml(file); });
-
-        [...byDir.keys()].filter(dir => dir !== '').sort().forEach(dir => {
-            const files = byDir.get(dir);
-            // While filtering, matches stay expanded regardless of collapse
-            // state - a collapsed group would otherwise hide its own results.
-            const collapsed = !filtering && this._collapsedDirs.has(dir);
-            html += `<div class="schema-header${collapsed ? ' collapsed' : ''}" data-dir-toggle="${this.escapeHtml(dir)}">`
-                + `<span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${this.escapeHtml(dir)}</span>`
-                + `<span class="schema-count">(${files.length})</span></div>`;
-            if (!collapsed) files.forEach(file => { html += this._fileRowHtml(file); });
+        // The real hierarchy: folders nested by path segment, each row showing
+        // its own name and the number of files it holds.
+        const tree = FileTree.buildFileTree(visibleFiles);
+        this.filesTree.innerHTML = FileTree.renderFileTree(tree, {
+            collapsed: this._collapsedDirs,
+            filtering
         });
-
-        this.filesTree.innerHTML = html;
+        this._updateFilesTotal(tree);
     }
 
-    _fileRowHtml(file) {
-        return `<div class="object-item" data-file-path="${this.escapeHtml(file.path)}" title="${this.escapeHtml(file.path)}">`
-            + `<span class="object-name-with-icon"><i class="codicon codicon-file"></i> ${this.escapeHtml(file.name)}</span>`
-            + '</div>';
+    // "N files in M folders" in the panel header: the tree only shows the
+    // count of each folder, so the workspace total has to live somewhere.
+    _updateFilesTotal(tree) {
+        if (!this.filesTotalEl) return;
+        if (!tree) {
+            this.filesTotalEl.textContent = '';
+            this.filesTotalEl.removeAttribute('title');
+            return;
+        }
+        const files = FileTree.countSubtree(tree);
+        const folders = Math.max(0, FileTree.countFolders(tree) - 1);
+        this.filesTotalEl.textContent = `${files} file${files === 1 ? '' : 's'}`;
+        this.filesTotalEl.setAttribute('title', `${files} file${files === 1 ? '' : 's'} in ${folders} folder${folders === 1 ? '' : 's'}`);
     }
 
     _toggleDirCollapse(dir) {
@@ -314,13 +310,88 @@ class QueryFileManager {
         this.renderFilesTree();
     }
 
-    // One button for both directions: collapse every folder group, or (once
-    // they're all collapsed) expand them all back.
+    // One button for both directions: collapse every folder, or (once they're
+    // all collapsed) expand them all back.
     toggleCollapseAllDirs() {
-        const allDirs = [...new Set(this._allFiles.map(f => f.relativeDir).filter(Boolean))];
+        const tree = FileTree.buildFileTree(this._allFiles);
+        const allDirs = [];
+        const collect = (node) => {
+            for (const child of node.folders.values()) {
+                allDirs.push(child.path);
+                collect(child);
+            }
+        };
+        collect(tree);
+
         const allCollapsed = allDirs.length > 0 && allDirs.every(d => this._collapsedDirs.has(d));
         this._collapsedDirs = allCollapsed ? new Set() : new Set(allDirs);
         this.renderFilesTree();
+    }
+
+    // Drag the bar on the right edge of the panel to widen it; double-click
+    // puts it back to the default. The width is remembered between sessions.
+    initSplitter() {
+        const splitter = this.filesSplitter;
+        const panel = this.filesPanel;
+        if (!splitter || !panel) return;
+
+        const MIN_WIDTH = 180;
+        const DEFAULT_WIDTH = 260;
+        const STORAGE_KEY = 'sqlwayfarer.sqlFilesPanelWidth';
+
+        const readStoredWidth = () => {
+            try {
+                const stored = parseInt(window.localStorage.getItem(STORAGE_KEY), 10);
+                return Number.isFinite(stored) && stored > 0 ? stored : null;
+            } catch {
+                return null;
+            }
+        };
+        const storeWidth = (width) => {
+            try {
+                window.localStorage.setItem(STORAGE_KEY, String(Math.round(width)));
+            } catch {
+                // Storage can be unavailable (private mode, sandboxed webview):
+                // the width just won't be remembered.
+            }
+        };
+
+        const stored = readStoredWidth();
+        if (stored) panel.style.width = `${Math.max(MIN_WIDTH, stored)}px`;
+
+        splitter.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const startX = e.clientX;
+            const startWidth = panel.getBoundingClientRect().width;
+            splitter.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+
+            const onMove = (ev) => {
+                const host = panel.parentElement;
+                const maxWidth = host ? Math.max(MIN_WIDTH, host.clientWidth * 0.6) : 900;
+                const next = Math.min(Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)), maxWidth);
+                panel.style.width = `${next}px`;
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                splitter.classList.remove('dragging');
+                document.body.style.userSelect = '';
+                storeWidth(panel.getBoundingClientRect().width);
+            };
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        splitter.addEventListener('dblclick', () => {
+            panel.style.width = `${DEFAULT_WIDTH}px`;
+            try {
+                window.localStorage.removeItem(STORAGE_KEY);
+            } catch {
+                // Nothing to clean up.
+            }
+        });
     }
 
     onSqlFileOpened(message) {

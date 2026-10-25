@@ -347,9 +347,12 @@
                     <!-- Left panel: workspace .sql files (including subfolders), toggled by the folder icon in the tab bar -->
                     <div id="sqlFilesPanel" class="sql-files-panel">
                         <div class="sql-files-panel-header">
-                            <span><i class="codicon codicon-folder-opened"></i> SQL Files</span>
+                            <span class="sql-files-panel-title">
+                                <i class="codicon codicon-folder-opened"></i> SQL Files
+                                <span id="sqlFilesTotal" class="sql-files-total"></span>
+                            </span>
                             <span class="sql-files-panel-actions">
-                                <button id="sqlFilesCollapseAllBtn" class="icon-btn" title="Collapse all folders"><i class="codicon codicon-collapse-all"></i></button>
+                                <button id="sqlFilesCollapseAllBtn" class="icon-btn" title="Collapse all folders (click again to expand them)"><i class="codicon codicon-collapse-all"></i></button>
                                 <button id="sqlFilesRefreshBtn" class="icon-btn" title="Refresh"><i class="codicon codicon-refresh"></i></button>
                                 <button id="sqlFilesHideBtn" class="icon-btn" title="Hide this panel"><i class="codicon codicon-chevron-left"></i></button>
                             </span>
@@ -359,6 +362,7 @@
                             <p class="placeholder-text">Loading…</p>
                         </div>
                     </div>
+                    <div id="sqlFilesSplitter" class="sql-files-splitter" title="Drag to resize — double-click to reset"></div>
                     <div class="query-section">
                         <div class="query-input-wrap">
                             <div id="queryInput" class="query-input"></div>
@@ -502,6 +506,7 @@
     <script src="{{SQL_EDITOR_URI}}"></script>
     <script src="{{SQL_AUTOCOMPLETE_URI}}"></script>
     <script src="{{QUERY_MANAGER_URI}}"></script>
+    <script src="{{FILE_TREE_URI}}"></script>
     <script src="{{QUERY_FILE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
