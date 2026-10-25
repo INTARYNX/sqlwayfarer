@@ -2116,7 +2116,7 @@ class MessageHandler {
 
         switch (message.command) {
             case 'savedConnectionsLoaded':
-                this.connectionManager.onSavedConnectionsLoaded(message.connections, message.lastConnection, message.autoConnect);
+                this.connectionManager.onSavedConnectionsLoaded(message.connections, message.lastConnection, message.autoConnect, message.busyConnection);
                 break;
 
             case 'connectionLoadedForDisplay':

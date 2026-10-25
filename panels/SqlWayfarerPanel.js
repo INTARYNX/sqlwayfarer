@@ -34,6 +34,9 @@ class SqlWayfarerPanel {
         this._context = context;
         this._disposables = [];
         this._currentSelectedDatabase = null;
+        // Set when the panel is disposed, so the async initialization can
+        // bail out instead of touching a disposed webview.
+        this._disposed = false;
         // Set once a connect succeeds (see ConnectionHandlers) - null while
         // disconnected. Used to refuse a second tab on the same server+login
         // (PanelRegistry.findByConnectionIdentity) and to scope this panel's
@@ -65,6 +68,10 @@ class SqlWayfarerPanel {
         const panelController = {
             findDuplicate: identity => this._panelRegistry.findByConnectionIdentity(identity, this),
             reveal: panel => panel.reveal(),
+            // Shown as a VS Code notification: the refused tab's own status
+            // line is easy to miss, and the focus has just moved to the
+            // other tab.
+            notify: message => vscode.window.showInformationMessage(message),
             onConnectionChanged: (identity, label) => {
                 this.connectionIdentity = identity;
                 this.connectionLabel = label || null;
@@ -85,6 +92,12 @@ class SqlWayfarerPanel {
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
         this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
+
+        // Something has to be on screen from the very first tick: the real
+        // UI can only be built once the connection storage has been read
+        // (see _initialize), and until then the tab used to stay blank -
+        // with no clue of whether it was loading or simply broken.
+        this._panel.webview.html = this._getLoadingHtml();
 
         this._initialize();
     }
@@ -120,11 +133,15 @@ class SqlWayfarerPanel {
     async _initialize() {
         try {
             await this._connectionStorage.initialize();
+            if (this._disposed) return;
             this._dependencyService.setIndexService(this._indexService);
             this._dependencyService.setConnectionManager(this._connectionManager);
             console.log('IndexService connected to DependencyService');
-            this._update();
+            // The message handler goes in *before* the real HTML is set: the
+            // webview posts as soon as it loads, and a message that arrives
+            // before the listener exists is lost for good.
             this._setupEventHandlers();
+            this._update();
             console.log('SqlWayfarerPanel initialized successfully');
         } catch (error) {
             console.error('Error initializing SqlWayfarerPanel:', error);
@@ -267,6 +284,44 @@ class SqlWayfarerPanel {
         this._panel.webview.html = this._getHtmlForWebview();
     }
 
+    // Shown while the panel initializes - the real UI can only be built once
+    // the connection storage has been read, and a blank tab in the meantime
+    // gives no clue about whether it is loading or simply broken.
+    _getLoadingHtml() {
+        const w = this._panel.webview;
+        const csp = `default-src 'none'; style-src ${w.cspSource} 'unsafe-inline'; font-src ${w.cspSource};`;
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="${csp}">
+    <title>SQL Wayfarer</title>
+    <style>
+        body {
+            display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;
+            font-family: var(--vscode-font-family, sans-serif);
+            color: var(--vscode-foreground, #ccc);
+            background: var(--vscode-editor-background, #1e1e1e);
+        }
+        .loading { display: flex; align-items: center; gap: 12px; font-size: 13px; opacity: 0.85; }
+        .spinner {
+            width: 16px; height: 16px; box-sizing: border-box;
+            border: 2px solid var(--vscode-progressBar-background, #3794ff);
+            border-top-color: transparent; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>SQL Wayfarer is starting&hellip;</span>
+    </div>
+</body>
+</html>`;
+    }
+
     _updateTitle() {
         this._panel.title = this.connectionLabel ? `SQL Wayfarer — ${this.connectionLabel}` : 'SQL Wayfarer';
     }
@@ -317,6 +372,7 @@ class SqlWayfarerPanel {
     }
 
     async dispose() {
+        this._disposed = true;
         this._panelRegistry.unregister(this);
         this._panel.dispose();
 

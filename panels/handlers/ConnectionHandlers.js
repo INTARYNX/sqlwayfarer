@@ -5,7 +5,8 @@ const { connectionIdentity } = require('../../database/connectionIdentity');
 const NOOP_PANEL_CONTROLLER = {
     findDuplicate: () => null,
     reveal: () => {},
-    onConnectionChanged: () => {}
+    onConnectionChanged: () => {},
+    notify: () => {}
 };
 
 class ConnectionHandlers {
@@ -16,20 +17,34 @@ class ConnectionHandlers {
         this._panelController = panelController;
     }
 
-    // true (and a 'connectionStatus' failure posted) when another open tab
-    // already has this exact server+login connected - the caller reveals
-    // that tab instead of letting a second physical connection to it open.
-    _refuseDuplicate(identity) {
+    // One tab per server+login: a second connection to the same server would
+    // make the per-connection query history ambiguous (and share the
+    // per-connection draft bucket), so it is refused and the other tab is
+    // revealed instead. The tab that tried has to say so plainly - a silent
+    // refusal leaves it looking broken.
+    _refuseDuplicate(identity, label) {
         const duplicate = this._panelController.findDuplicate(identity);
         if (!duplicate) return false;
         this._panelController.reveal(duplicate);
-        this._post({ command: 'connectionStatus', success: false, message: 'This connection is already open in another tab - switched to it.' });
+        const name = label ? `'${label}'` : 'This connection';
+        const message = `${name} is already open in another tab - a server + login can only be used by one tab at a time. Switched to that tab.`;
+        this._post({ command: 'connectionStatus', success: false, message });
+        this._notify(message);
         return true;
+    }
+
+    // Surface the reason as a VS Code notification too: the status line of
+    // the tab that was refused is easy to miss, especially since the focus
+    // has just moved to the other tab.
+    _notify(message) {
+        if (typeof this._panelController.notify === 'function') {
+            this._panelController.notify(message);
+        }
     }
 
     async handleConnect(connectionConfig) {
         const identity = connectionIdentity(connectionConfig);
-        if (this._refuseDuplicate(identity)) return false;
+        if (this._refuseDuplicate(identity, connectionConfig.name)) return false;
 
         try {
             await this._connectionManager.connect(connectionConfig);
@@ -57,7 +72,7 @@ class ConnectionHandlers {
     async handleConnectWithSaved(connectionName) {
         const saved = this._connectionStorage.getConnection(connectionName);
         const identity = saved && connectionIdentity(saved);
-        if (this._refuseDuplicate(identity)) return false;
+        if (this._refuseDuplicate(identity, connectionName)) return false;
 
         try {
             await this._connectionManager.connectWithSaved(connectionName);
@@ -97,12 +112,32 @@ class ConnectionHandlers {
     async handleLoadConnections() {
         try {
             const connections = this._connectionStorage.getSavedConnections();
+            const lastConnection = this._connectionStorage.getLastConnectionName();
+            let autoConnect = this._connectionStorage.getAutoConnectEnabled();
+            // The connection auto-connect would pick may already be open in
+            // another tab: connecting to it would be refused, and the refusal
+            // used to leave this tab empty and unusable. Skip the auto-connect
+            // instead, and say why - the tab stays usable, with the busy
+            // connection preselected and an explicit message.
+            let busyConnection = null;
+            if (autoConnect && lastConnection) {
+                const saved = this._connectionStorage.getConnection(lastConnection);
+                const identity = saved && connectionIdentity(saved);
+                if (identity && this._panelController.findDuplicate(identity)) {
+                    autoConnect = false;
+                    busyConnection = lastConnection;
+                }
+            }
             this._post({
                 command: 'savedConnectionsLoaded',
                 connections,
-                lastConnection: this._connectionStorage.getLastConnectionName(),
-                autoConnect: this._connectionStorage.getAutoConnectEnabled()
+                lastConnection,
+                autoConnect,
+                busyConnection
             });
+            if (busyConnection) {
+                this._notify(`'${busyConnection}' is already open in another tab - a server + login can only be used by one tab at a time. Pick another connection here.`);
+            }
         } catch (error) {
             console.error('Error loading saved connections:', error);
             this._post({ command: 'error', message: 'Failed to load saved connections' });

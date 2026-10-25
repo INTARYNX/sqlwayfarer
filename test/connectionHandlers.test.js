@@ -104,3 +104,59 @@ suite('ConnectionHandlers - no two tabs on the same connection', () => {
 		assert.strictEqual(changed[0], 'Prod');
 	});
 });
+
+// A second tab on the same server+login is not allowed (it would make the
+// per-connection query history ambiguous). Auto-connect must therefore not
+// even be attempted in that case: the attempt was refused, and the refusal
+// used to leave the new tab empty and unusable.
+suite('ConnectionHandlers - auto-connect in a new tab', () => {
+	function storageWith(connections, lastConnection) {
+		return {
+			getSavedConnections: () => connections.map(c => ({ name: c.name, ...c })),
+			getLastConnectionName: () => lastConnection,
+			getAutoConnectEnabled: () => true,
+			getConnection: name => connections.find(c => c.name === name) || null
+		};
+	}
+
+	test('skips the auto-connect and names the busy connection', async () => {
+		const posts = [];
+		const notified = [];
+		const other = { label: 'other-panel' };
+		const panelController = {
+			findDuplicate: identity => (identity === 'srv:1433:sa' ? other : null),
+			reveal: () => {},
+			onConnectionChanged: () => {},
+			notify: message => notified.push(message)
+		};
+		const storage = storageWith([{ name: 'Prod', server: 'srv', port: 1433, username: 'sa' }], 'Prod');
+		const handlers = new ConnectionHandlers(m => posts.push(m), fakeConnectionManager(), storage, panelController);
+
+		await handlers.handleLoadConnections();
+
+		const message = posts.pop();
+		assert.strictEqual(message.command, 'savedConnectionsLoaded');
+		assert.strictEqual(message.autoConnect, false, 'must not auto-connect to a connection another tab already has');
+		assert.strictEqual(message.busyConnection, 'Prod');
+		assert.ok(notified.length === 1 && notified[0].includes('Prod'), 'the user must be told which connection is busy');
+		assert.ok(notified[0].includes('one tab at a time'), 'the rule must be stated');
+	});
+
+	test('auto-connects normally when no other tab has the connection', async () => {
+		const posts = [];
+		const panelController = {
+			findDuplicate: () => null,
+			reveal: () => {},
+			onConnectionChanged: () => {},
+			notify: () => { throw new Error('must not notify'); }
+		};
+		const storage = storageWith([{ name: 'Prod', server: 'srv', port: 1433, username: 'sa' }], 'Prod');
+		const handlers = new ConnectionHandlers(m => posts.push(m), fakeConnectionManager(), storage, panelController);
+
+		await handlers.handleLoadConnections();
+
+		const message = posts.pop();
+		assert.strictEqual(message.autoConnect, true);
+		assert.strictEqual(message.busyConnection, null);
+	});
+});

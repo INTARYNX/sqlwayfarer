@@ -483,6 +483,14 @@ label {
     color: var(--vscode-terminal-background);
 }
 
+/* Informational, not a failure - e.g. "this connection is already open in
+   another tab". */
+.status.info {
+    background: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-input-border, transparent);
+    color: var(--vscode-foreground);
+}
+
 /* === EXPLORER SECTION === */
 .explorer-section {
     position: relative;

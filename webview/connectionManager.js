@@ -257,7 +257,7 @@ class ConnectionManager {
     }
 
     // Gestionnaires de messages
-    onSavedConnectionsLoaded(connections, lastConnection = null, autoConnect = true) {
+    onSavedConnectionsLoaded(connections, lastConnection = null, autoConnect = true, busyConnection = null) {
         appState.savedConnections = connections;
         this.elements.autoConnectChk.checked = autoConnect;
 
@@ -287,6 +287,18 @@ class ConnectionManager {
                 this._autoConnectDone = true;
                 this.handleConnect();
             }
+        }
+
+        // The connection auto-connect would have picked is already open in
+        // another tab, so the extension skipped it (a second tab on the same
+        // server + login is not allowed - it would make the per-connection
+        // query history ambiguous). Say so here: otherwise the tab just
+        // looks like it silently failed to connect.
+        if (busyConnection) {
+            this.showStatus(
+                `'${busyConnection}' is already open in another tab - a server + login can only be used by one tab at a time. Pick another connection here.`,
+                'info'
+            );
         }
     }
 
