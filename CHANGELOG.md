@@ -4,6 +4,16 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.3] - 2026-10-25
+
+### Changed
+
+- **README**: the extension page on the Marketplace now opens on the project banner. The Marketplace has no banner slot of its own - the README is what visitors actually see.
+
+### Removed
+
+- The banner image is no longer packaged in the VSIX: nothing on the Marketplace ever displayed it. It stays in the repository, where it is useful for sharing the extension.
+
 ## [0.12.2] - 2026-10-25
 
 ### Fixed
