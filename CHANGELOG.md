@@ -4,6 +4,22 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.6] - 2026-10-25
+
+### Fixed
+
+- **SQL Files panel**: some files would not open when they were clicked. The folder headers of the list were sticky, so on a long list they piled up over the files underneath and swallowed the clicks.
+- **Toolbar icons**: the icons of the tab bar (settings, files, new tab) sat lower than the labels next to them. They now have the same height and the same box as the text tabs.
+- **Snippets sidebar**: "Open SQL Wayfarer tab" was styled as a link, so it looked like plain text. It is a button now.
+
+### Changed
+
+- **SQL Files panel**: the list is now a real tree - folders nested by path, each row showing only its own name, indented under its parent, with the number of files it holds. The number of files of the workspace is shown in the panel header. The panel can be resized by dragging its right edge, and the width is remembered.
+
+### Removed
+
+- The emoji in front of the History and Snippets dropdowns, replaced by real icons.
+
 ## [0.12.5] - 2026-10-25
 
 ### Changed
