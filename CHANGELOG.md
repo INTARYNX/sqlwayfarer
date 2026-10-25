@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.4] - 2026-10-25
+
+### Fixed
+
+- **Marketplace header**: the extension page header lost its dark blue colour when the banner was dropped from the package. The banner block is back - colour, theme and artwork - and the artwork ships in the VSIX again.
+
 ## [0.12.3] - 2026-10-25
 
 ### Changed

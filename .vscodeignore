@@ -29,8 +29,7 @@ large_db_test.sql
 REVIEW.md
 EDITOR_EVALUATION.md
 
-# Project assets, not extension assets (the banner is used for sharing, and
-# the Marketplace has no banner slot - its page shows the icon).
+# Project assets, not extension assets
 images/**
 
 # Dev/CI
@@ -55,6 +54,7 @@ Thumbs.db
 !dist/parseColumnsWorker.js
 !dist/webview/sqlEditor.js
 !icon.png
+!images/banner.png
 !package.json
 !readme.md
 !LICENSE.txt
