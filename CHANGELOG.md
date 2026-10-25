@@ -4,7 +4,7 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.12.0] - 2026-10-25
 
 ### Added
 
