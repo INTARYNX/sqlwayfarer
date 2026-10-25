@@ -2,6 +2,8 @@
 
 **See exactly what a SQL Server change will break — down to the column — directly inside VS Code.**
 
+It is built for the day you inherit a legacy SQL Server database — no documentation, no tests, triggers nobody remembers — and have to change it without breaking anything.
+
 ![SQL Wayfarer: a procedure that only mentions two tables, shown touching five through the triggers it fires](images/banner.png)
 
 [![VS Code Marketplace](https://vsmarketplacebadges.dev/version/intarynx.sqlwayfarer.svg)](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)

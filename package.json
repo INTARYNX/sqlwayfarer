@@ -42,7 +42,20 @@
     "table footprint",
     "database diagram",
     "column dependencies",
-    "sql client"
+    "sql client",
+    "legacy database",
+    "legacy sql",
+    "existing database",
+    "unknown schema",
+    "database reverse engineering",
+    "schema audit",
+    "database refactoring",
+    "technical debt",
+    "brownfield",
+    "migration impact",
+    "change impact",
+    "sql documentation",
+    "sql server tools"
   ],
   "galleryBanner": {
     "color": "#0E2A3F",
