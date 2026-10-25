@@ -7,8 +7,12 @@ const BabelfishSqlParser = require('./BabelfishSqlParser');
 
 // How many consecutive pool failures (worker crash, timeout, spawn failure...)
 // before we stop trying the pool for the rest of the session and parse
-// in-process instead. A single flaky run shouldn't degrade a whole reindex.
-const MAX_CONSECUTIVE_FAILURES = 3;
+// in-process instead. A single flaky run shouldn't degrade a whole reindex -
+// IndexService analyzes CONCURRENT_BATCH_SIZE (8) objects in parallel, so one
+// transient blip can fail several calls at once; the threshold is set above
+// that concurrency so a single bad batch can never trip it on its own, only
+// genuinely sustained failures across more than one batch can.
+const MAX_CONSECUTIVE_FAILURES = 10;
 
 // Parses T-SQL definitions for column lineage across a small pool of worker
 // threads, so the CPU-bound ANTLR parse (40-550ms per object) doesn't
@@ -19,9 +23,11 @@ class ParserWorkerPool {
         this._piscina = null;
         this._consecutiveFailures = 0;
         this._fallbackParser = null;
+        this._disposed = false;
     }
 
     _ensurePool() {
+        if (this._disposed) return null;
         if (this._piscina || this._consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return this._piscina;
         try {
             this._piscina = new Piscina({
@@ -66,6 +72,7 @@ class ParserWorkerPool {
     }
 
     async dispose() {
+        this._disposed = true;
         if (this._piscina) {
             await this._piscina.destroy().catch(() => {});
             this._piscina = null;
@@ -74,3 +81,4 @@ class ParserWorkerPool {
 }
 
 module.exports = ParserWorkerPool;
+ParserWorkerPool.MAX_CONSECUTIVE_FAILURES = MAX_CONSECUTIVE_FAILURES;

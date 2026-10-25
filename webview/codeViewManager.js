@@ -15,6 +15,24 @@ class CodeViewManager {
         this.currentObjectType = null;
         this.currentDefinition = null;
         this.showLineNumbers = false;
+        this._attachActionDelegation();
+    }
+
+    // codeContainer is static (defined in index.html) - displayCode() only ever
+    // replaces its innerHTML, never the container itself - so one delegated
+    // listener set up once here covers every future render. The CSP has no
+    // 'unsafe-inline' on script-src, so onclick="" attributes (the previous
+    // approach) are silently never invoked.
+    _attachActionDelegation() {
+        const container = document.getElementById('codeContainer');
+        if (!container) return;
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            if (btn.dataset.action === 'copyCode') this.copyCode();
+            else if (btn.dataset.action === 'formatCode') this.formatCode();
+            else if (btn.dataset.action === 'toggleLineNumbers') this.toggleLineNumbers();
+        });
     }
 
     // Called when an object is selected in the Explorer
@@ -65,13 +83,13 @@ class CodeViewManager {
                         <span>${this.escapeHtml(this.currentObject)}</span>
                     </div>
                     <div class="code-actions">
-                        <button class="code-action-btn copy-btn" onclick="window.codeViewManager.copyCode()" title="Copy code">
+                        <button class="code-action-btn copy-btn" data-action="copyCode" title="Copy code">
                             Copy
                         </button>
-                        <button class="code-action-btn format-btn" onclick="window.codeViewManager.formatCode()" title="Format SQL">
+                        <button class="code-action-btn format-btn" data-action="formatCode" title="Format SQL">
                             Format
                         </button>
-                        <button class="code-action-btn" onclick="window.codeViewManager.toggleLineNumbers()" title="Toggle line numbers">
+                        <button class="code-action-btn" data-action="toggleLineNumbers" title="Toggle line numbers">
                             ${this.showLineNumbers ? 'Hide Lines' : 'Show Lines'}
                         </button>
                     </div>
@@ -309,10 +327,10 @@ class CodeViewManager {
     }
 
     escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        if (text === null || text === undefined) return '';
+        return String(text).replace(/[&<>"']/g, ch => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+        ));
     }
 
     // Reset when database changes

@@ -22,7 +22,6 @@ class SqlAutocomplete {
         this.dropdown.style.display = 'none';
         this.container.appendChild(this.dropdown);
 
-        this.mirror = null;
         this.items = [];
         this.selectedIndex = 0;
         this.ctx = null;
@@ -224,33 +223,18 @@ class SqlAutocomplete {
         this.position();
     }
 
-    // Position the dropdown under the caret using the classic mirror-div trick.
+    // Position the dropdown under the caret. coordsAtOffset (sqlEditor.js,
+    // backed by CodeMirror's coordsAtPos) returns pixel coordinates already
+    // relative to the editor container, which exactly fills query-input-wrap
+    // (inset:0, no border/padding of its own) - the same element this.dropdown
+    // is anchored to, so no extra translation is needed.
     position() {
         const ta = this.textarea;
-        if (!this.mirror) {
-            this.mirror = document.createElement('div');
-            this.mirror.className = 'sql-autocomplete-mirror';
-            this.container.appendChild(this.mirror);
-        }
+        const coords = ta.coordsAtOffset(ta.selectionStart);
+        if (!coords) return;
 
-        const style = getComputedStyle(ta);
-        ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
-            'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-            'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
-            'boxSizing'].forEach(prop => { this.mirror.style[prop] = style[prop]; });
-        this.mirror.style.width = ta.clientWidth + 'px';
-
-        this.mirror.textContent = ta.value.slice(0, ta.selectionStart);
-        const marker = document.createElement('span');
-        marker.textContent = '​'; // zero-width space: measurable but invisible
-        this.mirror.appendChild(marker);
-
-        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.3;
-        const top = ta.offsetTop + marker.offsetTop + lineHeight - ta.scrollTop;
-        const left = ta.offsetLeft + marker.offsetLeft;
-
-        this.dropdown.style.top = `${top}px`;
-        this.dropdown.style.left = `${Math.max(0, Math.min(left, this.container.clientWidth - 260))}px`;
+        this.dropdown.style.top = `${coords.bottom}px`;
+        this.dropdown.style.left = `${Math.max(0, Math.min(coords.left, this.container.clientWidth - 260))}px`;
     }
 
     select(index) {
@@ -274,10 +258,6 @@ class SqlAutocomplete {
         const caret = this.ctx.partialStart + item.insert.length;
         ta.setSelectionRange(caret, caret);
         this.hide();
-        // Setting .value directly doesn't fire 'input' - tell anything mirroring
-        // the text (the syntax highlight overlay) to resync, without re-opening
-        // the dropdown the way a real 'input' event would.
-        ta.dispatchEvent(new CustomEvent('sql:valuechange'));
     }
 
     isOpen() {

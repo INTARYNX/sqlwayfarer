@@ -60,7 +60,8 @@
       "sql-wayfarer-container": [
         {
           "id": "sqlWayfarerView",
-          "name": "SQL Wayfarer"
+          "name": "SQL Snippets",
+          "type": "webview"
         }
       ]
     },
@@ -87,12 +88,19 @@
     "piscina": "^5.3.2"
   },
   "devDependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-sql": "^6.10.0",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.100.0",
     "@vscode/codicons": "^0.0.45",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.5.2",
+    "codemirror": "^6.0.2",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
     "dagre": "^0.8.5",

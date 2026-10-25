@@ -7,10 +7,13 @@
  */
 'use strict';
 
-// Full CRUD view of SQL snippets, in the Configuration tab: lists built-in
-// snippets (read-only, duplicate-to-customize) alongside custom ones
-// (edit/duplicate/delete), backed by the same addSnippet/deleteSnippet/
-// updateSnippet commands the Query editor's quick "Snippets" dropdown uses.
+// Full CRUD view of SQL snippets, hosted in the activity bar sidebar (see
+// panels/SnippetSidebarProvider.js) so it's reachable without a SQL Wayfarer
+// tab open: lists built-in snippets (read-only, duplicate-to-customize)
+// alongside custom ones (edit/duplicate/delete), backed by the same
+// addSnippet/deleteSnippet/updateSnippet commands the Query editor's own
+// quick "Snippets" dropdown uses - snippets are global, so an edit made here
+// is broadcast to every open tab's dropdown too (see SnippetHandlers).
 class SnippetManager {
     constructor() {
         this.customSnippets = [];
@@ -71,7 +74,7 @@ class SnippetManager {
     }
 
     renderList() {
-        const builtinRows = QueryManager.BUILTIN_SNIPPETS.map(s => this.buildRowHtml(s.name, s.sql, true)).join('');
+        const builtinRows = BUILTIN_SNIPPETS.map(s => this.buildRowHtml(s.name, s.sql, true)).join('');
         const customRows = this.customSnippets.length > 0
             ? this.customSnippets.map(s => this.buildRowHtml(s.name, s.sql, false)).join('')
             : '<p class="placeholder-text">No custom snippets yet - click "+ New Snippet" to add one.</p>';
@@ -123,7 +126,7 @@ class SnippetManager {
 
     duplicateSnippet(name, isBuiltin) {
         const source = isBuiltin
-            ? QueryManager.BUILTIN_SNIPPETS.find(s => s.name === name)
+            ? BUILTIN_SNIPPETS.find(s => s.name === name)
             : this.customSnippets.find(s => s.name === name);
         if (!source) return;
 
@@ -149,9 +152,15 @@ class SnippetManager {
             this.showFormStatus('SQL is required.', 'error');
             return;
         }
-        const clashesWithBuiltin = QueryManager.BUILTIN_SNIPPETS.some(s => s.name === name);
+        const clashesWithBuiltin = BUILTIN_SNIPPETS.some(s => s.name === name);
         if (clashesWithBuiltin && name !== this.editingOriginalName) {
             this.showFormStatus('That name is already used by a built-in snippet.', 'error');
+            return;
+        }
+
+        const clashesWithCustom = this.customSnippets.some(s => s.name === name && s.name !== this.editingOriginalName);
+        if (clashesWithCustom) {
+            this.showFormStatus('A custom snippet with that name already exists.', 'error');
             return;
         }
 

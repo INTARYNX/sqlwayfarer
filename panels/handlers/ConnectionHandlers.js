@@ -1,15 +1,42 @@
 'use strict';
 
+const { connectionIdentity } = require('../../database/connectionIdentity');
+
+const NOOP_PANEL_CONTROLLER = {
+    findDuplicate: () => null,
+    reveal: () => {},
+    onConnectionChanged: () => {}
+};
+
 class ConnectionHandlers {
-    constructor(postMessage, connectionManager, connectionStorage) {
+    constructor(postMessage, connectionManager, connectionStorage, panelController = NOOP_PANEL_CONTROLLER) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._connectionStorage = connectionStorage;
+        this._panelController = panelController;
+    }
+
+    // true (and a 'connectionStatus' failure posted) when another open tab
+    // already has this exact server+login connected - the caller reveals
+    // that tab instead of letting a second physical connection to it open.
+    _refuseDuplicate(identity) {
+        const duplicate = this._panelController.findDuplicate(identity);
+        if (!duplicate) return false;
+        this._panelController.reveal(duplicate);
+        this._post({ command: 'connectionStatus', success: false, message: 'This connection is already open in another tab - switched to it.' });
+        return true;
     }
 
     async handleConnect(connectionConfig) {
+        const identity = connectionIdentity(connectionConfig);
+        if (this._refuseDuplicate(identity)) return false;
+
         try {
             await this._connectionManager.connect(connectionConfig);
+            // No connectionConfig.name on a plain ad-hoc "Connect" (only
+            // saveConnection/testConnection set it) - fall back to the
+            // server address so the tab title still reads as something.
+            this._panelController.onConnectionChanged(identity, connectionConfig.name || connectionConfig.server);
             this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
             return true;
         } catch (error) {
@@ -28,10 +55,15 @@ class ConnectionHandlers {
     }
 
     async handleConnectWithSaved(connectionName) {
+        const saved = this._connectionStorage.getConnection(connectionName);
+        const identity = saved && connectionIdentity(saved);
+        if (this._refuseDuplicate(identity)) return false;
+
         try {
             await this._connectionManager.connectWithSaved(connectionName);
             // Remember for auto-connect on next startup.
             await this._connectionStorage.setLastConnectionName(connectionName);
+            this._panelController.onConnectionChanged(identity, connectionName);
             this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
             return true;
         } catch (error) {

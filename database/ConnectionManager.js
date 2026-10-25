@@ -1,12 +1,18 @@
 'use strict';
 
 const sql = require('mssql');
+const { bracketIdentifier } = require('./sqlIdentifier');
 
 class ConnectionManager {
     constructor(connectionStorage) {
         this._connectionStorage = connectionStorage;
         this._activeConnection = null;
         this._activeConfig = null;
+        // Survives disconnect (unlike _activeConfig, cleared on dispose) so
+        // getServerName() stays correct for whoever's mid-reconnect instead of
+        // falling back to 'unknown' - see IndexService._getIndexFilePath, which
+        // keys the on-disk cache by server name.
+        this._lastKnownServer = null;
     }
 
     // Objet de config natif mssql plutôt qu'une connection string concaténée à la main —
@@ -66,12 +72,17 @@ class ConnectionManager {
     }
 
     async connect(connectionConfig) {
+        // Connect the new one first - if it fails (bad password, unreachable
+        // server), the old connection stays usable instead of leaving the
+        // extension with none at all.
+        const newConnection = await sql.connect(await this.buildConnectionConfig(connectionConfig));
+
         if (this._activeConnection) {
-            await this._activeConnection.close();
-            this._activeConnection = null;
+            await this._activeConnection.close().catch(() => { /* already gone */ });
         }
-        this._activeConnection = await sql.connect(await this.buildConnectionConfig(connectionConfig));
+        this._activeConnection = newConnection;
         this._activeConfig = connectionConfig;
+        this._lastKnownServer = connectionConfig.server;
     }
 
     async connectWithSaved(connectionName) {
@@ -89,7 +100,7 @@ class ConnectionManager {
     }
 
     getServerName() {
-        return this._activeConfig?.server || 'unknown';
+        return this._activeConfig?.server || this._lastKnownServer || 'unknown';
     }
 
     // Expose a raw request so callers can stream results or cancel a long query.
@@ -104,6 +115,35 @@ class ConnectionManager {
     getPool() {
         if (!this._activeConnection) throw new Error('No active connection');
         return this._activeConnection;
+    }
+
+    // Pins one physical connection out of the pool and returns a factory for
+    // Requests bound to it, so a caller running several statements in
+    // sequence (e.g. a GO-separated multi-batch script, or SET SHOWPLAN_XML
+    // ON/plan/OFF) sees them land on the exact same session - a `USE`, SET
+    // option or #temp table from an earlier statement stays visible to a
+    // later one, instead of silently vanishing if the pool happened to hand
+    // out a different physical connection per request.
+    async acquireConnection() {
+        const pool = this.getPool();
+        const connection = await pool.acquire();
+        // Minimal shape sql.Request's parent needs: acquire/release - always
+        // hands back this one already-acquired connection instead of letting
+        // the pool pick a different one per request - plus the handful of
+        // properties mssql's Request reads directly off the parent outside
+        // the acquire callback (this.stream/arrayRowMode via parent.config, a
+        // parent.connected guard, parent.collation for parameterized queries).
+        const pinned = {
+            config: pool.config,
+            connected: true,
+            collation: pool.collation,
+            acquire: (requester, cb) => cb(null, connection, pool.config),
+            release: () => {}
+        };
+        return {
+            createRequest: () => new sql.Request(pinned),
+            release: () => pool.release(connection)
+        };
     }
 
     async executeQuery(query, params = null) {
@@ -121,8 +161,7 @@ class ConnectionManager {
     // pour éviter qu'une requête l'oublie et interroge la mauvaise base.
     async executeQueryInDatabase(database, query, params = null) {
         // ']' doublé pour fermer proprement l'identifiant entre crochets si le nom en contient un.
-        const escapedDatabase = database.replace(/]/g, ']]');
-        return this.executeQuery(`USE [${escapedDatabase}];\n${query}`, params);
+        return this.executeQuery(`USE ${bracketIdentifier(database)};\n${query}`, params);
     }
 
     async dispose() {

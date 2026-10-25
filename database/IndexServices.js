@@ -82,15 +82,24 @@ class IndexService {
             subscribers: new Set(progressCallback ? [progressCallback] : []),
             lastReportedPct: -1, server: this._getCurrentServerName()
         };
-        build.promise = this._runGetIndex(database, build).finally(() => this._builds.delete(database));
+        // Only delete the map entry if it's still THIS build - two concurrent
+        // callers that both missed the dedup check above (plain getIndex racing
+        // forceReindex, or two forceReindex calls - see below) can each end up
+        // creating their own build and overwriting the other's map entry; without
+        // this guard, the first one to finish would delete the SECOND (still
+        // running) build's entry, making isBuildInProgress() lie and letting a
+        // third caller start yet another redundant build.
+        build.promise = this._runGetIndex(database, build).finally(() => {
+            if (this._builds.get(database) === build) this._builds.delete(database);
+        });
         this._builds.set(database, build);
         return build.promise;
     }
 
     async _runGetIndex(database, build) {
-        await this._ensureIndexDir();
-
         const indexFile = this._getIndexFilePath(database, build.server);
+        await this._ensureIndexDir(path.dirname(indexFile));
+
         const liveObjects = await this._getLiveObjects(database);
         const liveChecksum = this._checksumFromObjects(liveObjects);
         let index = await this._loadIndex(indexFile);
@@ -127,15 +136,16 @@ class IndexService {
             subscribers: new Set(progressCallback ? [progressCallback] : []),
             lastReportedPct: -1, server: this._getCurrentServerName()
         };
-        build.promise = this._runForceReindex(database, build).finally(() => this._builds.delete(database));
+        build.promise = this._runForceReindex(database, build).finally(() => {
+            if (this._builds.get(database) === build) this._builds.delete(database);
+        });
         this._builds.set(database, build);
         return build.promise;
     }
 
     async _runForceReindex(database, build) {
-        await this._ensureIndexDir();
-
         const indexFile = this._getIndexFilePath(database, build.server);
+        await this._ensureIndexDir(path.dirname(indexFile));
         try { await fs.unlink(indexFile); } catch { /* file may not exist yet */ }
 
         const liveObjects = await this._getLiveObjects(database);
@@ -272,9 +282,11 @@ class IndexService {
         const columnRefs = {};
         const possibleRefs = {};
         const nameMap = this._buildNameMap(objects);
-        this._attachDependencies(index.objects, await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs));
+        const { dependencies, failedKeys } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs);
+        this._attachDependencies(index.objects, dependencies);
         this._attachColumnRefs(index.objects, columnRefs);
         this._attachPossibleRefs(index.objects, possibleRefs);
+        this._markIncompleteDependencies(index.objects, failedKeys);
 
         index.totalObjects = Object.keys(index.objects).length;
         console.log(`Index complete: ${index.totalObjects} objects`);
@@ -293,7 +305,14 @@ class IndexService {
             const key = this._removeBrackets(obj.qualified_name);
             const cached = cachedIndex.objects[key];
             const checksum = this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`);
-            if (cached && cached.checksum === checksum) {
+            // A previous run's dm_sql_referenced_entities call can fail because
+            // it referenced an object that didn't exist YET (e.g. a stored
+            // procedure created before a table it SELECTs from). Creating that
+            // table later never changes the procedure's own modify_date, so
+            // without this flag the empty, cached "no dependencies" result would
+            // be reused forever - re-analyze flagged entries on every incremental
+            // update until a run actually succeeds.
+            if (cached && cached.checksum === checksum && !cached.dependenciesIncomplete) {
                 objects[key] = cached;
             } else {
                 objects[key] = this._makeIndexEntry(obj);
@@ -309,9 +328,11 @@ class IndexService {
         const possibleRefs = {};
         // Name map spans ALL live objects so mentions of unchanged tables are caught.
         const nameMap = this._buildNameMap(liveObjects);
-        this._attachDependencies(objects, await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs));
+        const { dependencies, failedKeys } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs);
+        this._attachDependencies(objects, dependencies);
         this._attachColumnRefs(objects, columnRefs);
         this._attachPossibleRefs(objects, possibleRefs);
+        this._markIncompleteDependencies(objects, failedKeys);
 
         return {
             database, server,
@@ -346,6 +367,15 @@ class IndexService {
         }
     }
 
+    // Flags entries whose dependency analysis failed this run, so the next
+    // incremental update retries them instead of trusting their (empty) cached
+    // dependencies forever - see the comment in _updateIndexIncrementally.
+    _markIncompleteDependencies(indexObjects, failedKeys) {
+        for (const key of failedKeys) {
+            if (indexObjects[key]) indexObjects[key].dependenciesIncomplete = true;
+        }
+    }
+
     // lower(qualified name) -> canonical qualified name, for the possible-ref scan.
     _buildNameMap(objects) {
         const map = new Map();
@@ -365,6 +395,7 @@ class IndexService {
     // lineage (columnRefsOut, keyed by clean qualified name) for code objects.
     async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null) {
         const dependencies = [];
+        const failedKeys = new Set();
         const total = objects.length;
         this._reportProgress(database, 0, total, 'Analyzing dependencies...');
 
@@ -377,13 +408,17 @@ class IndexService {
             const batchResults = await Promise.all(
                 batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut))
             );
-            for (const objDependencies of batchResults) dependencies.push(...objDependencies);
+            batch.forEach((obj, idx) => {
+                const { dependencies: objDependencies, depsFailed } = batchResults[idx];
+                dependencies.push(...objDependencies);
+                if (depsFailed) failedKeys.add(this._removeBrackets(obj.qualified_name));
+            });
 
             const last = batch[batch.length - 1];
             this._reportProgress(database, i + batch.length, total, `${last.schema_name}.${last.name}`);
         }
 
-        return dependencies;
+        return { dependencies, failedKeys };
     }
 
     // One object's worth of the old per-object loop body - independent of any
@@ -397,6 +432,10 @@ class IndexService {
         // Tables have no SQL module: skip the definition fetch entirely
         const wantsDefinition = !!columnRefsOut && obj.type !== 'U';
         let definition = null;
+        // Set when dm_sql_referenced_entities itself fails (e.g. a reference to
+        // an object that doesn't exist yet) - as opposed to the object simply
+        // having no dependencies, which is a normal, cacheable result.
+        let depsFailed = false;
         // Names this object references confidently (resolver + parser); excluded
         // from the possible-ref scan so we only flag the *extra* text mentions.
         const confidentSet = new Set();
@@ -425,6 +464,7 @@ class IndexService {
             // broken or unresolvable references get no dependencies recorded.
             // The definition is still worth parsing (dm_sql_referenced_entities
             // fails on broken references, the parser does not).
+            depsFailed = true;
             if (wantsDefinition) {
                 try {
                     const fallback = await this._connectionManager.executeQueryInDatabase(database, `
@@ -454,7 +494,7 @@ class IndexService {
             }
         }
 
-        return dependencies;
+        return { dependencies, depsFailed };
     }
 
     /**
@@ -520,13 +560,17 @@ class IndexService {
 
     _getCurrentServerName() { return this._connectionManager.getServerName(); }
 
+    // Server and database are separate path segments (not concatenated into
+    // one filename) so e.g. server "SERVER\INSTANCE" + db "MyDb" can never
+    // collide with server "SERVER" + db "INSTANCE_MyDb" - slug() alone can't
+    // tell those apart once joined into a single string.
     _getIndexFilePath(database, server = this._getCurrentServerName()) {
         const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
-        return path.join(this._indexDir, `${slug(server)}_${slug(database)}.json`);
+        return path.join(this._indexDir, slug(server), `${slug(database)}.json`);
     }
 
-    async _ensureIndexDir() {
-        try { await fs.mkdir(this._indexDir, { recursive: true }); } catch (error) {
+    async _ensureIndexDir(dir = this._indexDir) {
+        try { await fs.mkdir(dir, { recursive: true }); } catch (error) {
             if (error.code !== 'EEXIST') throw error;
         }
     }

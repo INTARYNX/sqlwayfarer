@@ -59,13 +59,14 @@ suite('IndexService dependency analysis', () => {
 		const reports = [];
 		registerBuild(service, 'Db', p => reports.push(p));
 
-		const dependencies = await service._analyzeDependencies('Db', [
+		const { dependencies, failedKeys } = await service._analyzeDependencies('Db', [
 			makeObject('dbo', 'T1', 'U'), makeObject('dbo', 'P1', 'P')
 		]);
 
 		assert.deepStrictEqual(dependencies, [{
 			object_name: '[dbo].[P1]', dependency: 'dbo.T1', type: 'P', dependency_database: 'Db'
 		}]);
+		assert.strictEqual(failedKeys.size, 0, 'nothing failed, so nothing should be flagged incomplete');
 
 		assert.strictEqual(reports[0].progress, 0);
 		assert.strictEqual(reports[reports.length - 1].progress, 100);
@@ -93,11 +94,16 @@ suite('IndexService dependency analysis', () => {
 			{ failFor: '[dbo].[Broken]' }
 		), null);
 
-		const dependencies = await service._analyzeDependencies('Db', [
+		const { dependencies, failedKeys } = await service._analyzeDependencies('Db', [
 			makeObject('dbo', 'Broken', 'V'), makeObject('dbo', 'P1', 'P')
 		]);
 		assert.strictEqual(dependencies.length, 1);
 		assert.strictEqual(dependencies[0].object_name, '[dbo].[P1]');
+		// The failed object is flagged so a later incremental update retries it
+		// instead of trusting its empty dependency list forever (see IndexServices
+		// ._updateIndexIncrementally and the "dependenciesIncomplete" tests below).
+		assert.ok(failedKeys.has('dbo.Broken'), 'the object whose DMV call failed must be flagged for retry');
+		assert.strictEqual(failedKeys.size, 1);
 	});
 
 	test('processes CONCURRENT_BATCH_SIZE objects at once instead of one at a time', async () => {
@@ -197,6 +203,32 @@ suite('IndexService incremental indexing', () => {
 		assert.strictEqual(index.schemaChecksum, 'newchecksum');
 		assert.strictEqual(index.lastFullIndex, '2026-07-01T00:00:00.000Z', 'full-index timestamp preserved');
 		assert.ok(index.lastIncrementalUpdate, 'incremental timestamp recorded');
+	});
+
+	test('an entry flagged dependenciesIncomplete is re-analyzed even with an unchanged checksum', async () => {
+		const service0 = new IndexService(makeMockCm({}), null);
+		const objP1 = makeObject('dbo', 'P1', 'P');
+
+		// Simulates a previous run where P1's dm_sql_referenced_entities call
+		// failed (e.g. it references a table that didn't exist yet) - cached
+		// with an empty dependency list and the incomplete flag set.
+		const cachedIndex = {
+			database: 'Db', lastFullIndex: 'x', schemaChecksum: 'old',
+			objects: {
+				'dbo.P1': { ...service0._makeIndexEntry(objP1), dependencies: [], dependenciesIncomplete: true }
+			}
+		};
+
+		// Live state: P1 unchanged (same modify_date/checksum) - the table it
+		// references now exists, so this run's DMV call succeeds.
+		const cm = makeMockCm({ '[dbo].[P1]': [{ dependency: 'dbo.T1', dependency_database: 'Db' }] });
+		const service = new IndexService(cm, null);
+
+		const index = await service._updateIndexIncrementally('Db', cachedIndex, [objP1], 'new');
+
+		assert.strictEqual(cm.calls(), 1, 'the flagged entry must be re-analyzed despite its checksum matching');
+		assert.deepStrictEqual(index.objects['dbo.P1'].dependencies, ['dbo.T1']);
+		assert.ok(!index.objects['dbo.P1'].dependenciesIncomplete, 'a successful re-analysis clears the flag');
 	});
 
 	test('no changes means zero database calls for dependencies', async () => {

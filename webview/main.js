@@ -289,6 +289,9 @@ class ObjectsTabManager {
     // Handle indexing cancelled
     onIndexingCancelled(result) {
         this.forceReindexBtn.disabled = false;
+        // A cancellation for a database the user has since switched away from
+        // shouldn't stomp on whatever's now shown for the current one.
+        if (result.database && result.database !== this.currentDatabase) return;
         this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${result.message}</p>`;
         this.setStatus(this.currentDatabase ? 'error' : 'none', result.message);
     }
@@ -305,20 +308,31 @@ class ObjectsTabManager {
 
     // Store the raw JSON index; the (potentially expensive) formatting is
     // deferred to _renderJsonIfNeeded, only once the modal is actually opened.
-    displayIndex(indexData) {
+    // database is whichever database this result actually belongs to (may not
+    // be this.currentDatabase anymore if the user switched database while the
+    // build was in flight) - tracking it separately from the displayed data is
+    // what lets requestIndex tell "already loaded" apart from "stale result".
+    displayIndex(indexData, database = this.currentDatabase) {
         this.forceReindexBtn.disabled = false;
         if (window.explorerManager) window.explorerManager.setPanelsLocked(false);
 
-        this._rawIndexData = indexData;
-        this._jsonRendered = false;
-
         if (!indexData) {
-            this.objectsJsonContent.innerHTML = '<p class="placeholder-text">No index data available.</p>';
-            this.setStatus(this.currentDatabase ? 'error' : 'none', 'Indexing failed or was cancelled');
+            if (database === this.currentDatabase) {
+                this.objectsJsonContent.innerHTML = '<p class="placeholder-text">No index data available.</p>';
+                this.setStatus(this.currentDatabase ? 'error' : 'none', 'Indexing failed or was cancelled');
+            }
             return;
         }
 
-        this._loadedForDatabase = this.currentDatabase;
+        this._loadedForDatabase = database;
+
+        // A result for a database the user has since switched away from -
+        // keep it cached (requestIndex won't refetch it needlessly later) but
+        // don't overwrite what's currently on screen for a different database.
+        if (database !== this.currentDatabase) return;
+
+        this._rawIndexData = indexData;
+        this._jsonRendered = false;
         this.setStatus('ready', 'Index up to date');
 
         if (this.modalOverlay.classList.contains('visible')) {
@@ -1211,7 +1225,9 @@ class ExplorerManager {
     handlePeekTop10(obj) {
         const bracketed = this._getQualifiedName(obj)
             .split('.')
-            .map(part => `[${part}]`)
+            // ']' must be doubled to close the bracketed identifier properly
+            // ([Foo]]Bar]) - otherwise a name containing ']' breaks out of it.
+            .map(part => `[${part.replace(/]/g, ']]')}]`)
             .join('.');
         const sql = `SELECT TOP 10 * FROM ${bracketed}`;
 
@@ -1419,7 +1435,7 @@ class ExplorerManager {
 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'object-name-with-icon';
-                nameSpan.innerHTML = `${icon} ${objectDisplayName}`;
+                nameSpan.innerHTML = `${icon} ${this.escapeHtml(objectDisplayName)}`;
 
                 div.appendChild(nameSpan);
                 div.dataset.name = obj.name;
@@ -1752,7 +1768,7 @@ class ExplorerManager {
         }
 
         const treeText = buildTree(treeData);
-        container.innerHTML = `<pre>${treeText}</pre>`;
+        container.innerHTML = `<pre>${this.escapeHtml(treeText)}</pre>`;
     }
 
     // Row count and disk usage summary line shown under the table header.
@@ -2072,10 +2088,10 @@ class ExplorerManager {
     }
 
     escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        if (text === null || text === undefined) return '';
+        return String(text).replace(/[&<>"']/g, ch => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+        ));
     }
 }
 
@@ -2210,7 +2226,7 @@ class MessageHandler {
             // Index-related messages
             case 'indexResult':
                 if (this.objectsTabManager) {
-                    this.objectsTabManager.displayIndex(message.indexData);
+                    this.objectsTabManager.displayIndex(message.indexData, message.database);
                 }
                 // handleGetIndex's plain path has no 'indexingCompleted' message of
                 // its own - this is the only signal that it's done, so hide (or
@@ -2327,9 +2343,6 @@ class MessageHandler {
                 if (this.queryManager) {
                     this.queryManager.onSnippetsLoaded(message.snippets);
                 }
-                if (window.snippetManager) {
-                    window.snippetManager.onSnippetsLoaded(message.snippets);
-                }
                 break;
 
             case 'snippetNamePrompted':
@@ -2416,7 +2429,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const queryManager = new QueryManager();
     const queryFileManager = new QueryFileManager(queryManager);
     const footprintManager = new FootprintManager();
-    const snippetManager = new SnippetManager();
 
     const messageHandler = new MessageHandler(
         connectionManager,
@@ -2441,7 +2453,6 @@ document.addEventListener('DOMContentLoaded', function () {
     window.queryFileManager = queryFileManager;
     window.tabManager = tabManager;
     window.footprintManager = footprintManager;
-    window.snippetManager = snippetManager;
 
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
 

@@ -10,14 +10,37 @@ const DRAFTS_KEY = 'sqlwayfarer.queryDrafts';
 // file-backed sub-tabs, plus a crash-recovery snapshot for unsaved drafts
 // (file-backed tabs don't need it - their content already lives on disk).
 class QueryFileHandlers {
-    constructor(postMessage, workspaceState) {
+    constructor(postMessage, workspaceState, getConnectionIdentity = () => null) {
         this._post = postMessage;
         this._workspaceState = workspaceState;
+        this._getConnectionIdentity = getConnectionIdentity;
+    }
+
+    // Scoped per connection so two tabs on different servers never share, or
+    // clobber, each other's autosaved drafts - see connectionIdentity. Falls
+    // back to one shared bucket before any connection exists (narrow window:
+    // handleGetDraftRecovery fires at webview load, before auto-connect's
+    // round trip can possibly have resolved yet).
+    _draftsKey() {
+        return `${DRAFTS_KEY}::${this._getConnectionIdentity() || '(disconnected)'}`;
     }
 
     _workspaceRoot() {
         const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
         return folder ? folder.uri.fsPath : null;
+    }
+
+    // handleListSqlFiles only ever returns paths already under a workspace
+    // folder, but the webview sends the path straight back for open/save - the
+    // trust boundary is the extension host, not the webview, so re-check it
+    // here rather than assuming the round-trip can't be tampered with.
+    _isInsideWorkspace(filePath) {
+        const folders = vscode.workspace.workspaceFolders || [];
+        const resolved = path.resolve(filePath);
+        return folders.some(folder => {
+            const root = path.resolve(folder.uri.fsPath);
+            return resolved === root || resolved.startsWith(root + path.sep);
+        });
     }
 
     // root defaults to the workspace folder; overridable so tests can point
@@ -66,6 +89,10 @@ class QueryFileHandlers {
     }
 
     async handleOpenSqlFile(filePath) {
+        if (!this._isInsideWorkspace(filePath)) {
+            this._post({ command: 'sqlFileError', message: `Refusing to open a file outside the workspace: ${filePath}` });
+            return;
+        }
         try {
             const content = await fs.readFile(filePath, 'utf8');
             this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content });
@@ -75,6 +102,10 @@ class QueryFileHandlers {
     }
 
     async handleSaveSqlFile(filePath, content) {
+        if (!this._isInsideWorkspace(filePath)) {
+            this._post({ command: 'sqlFileSaved', path: filePath, success: false, message: `Refusing to save a file outside the workspace: ${filePath}` });
+            return;
+        }
         try {
             await fs.writeFile(filePath, content, 'utf8');
             this._post({ command: 'sqlFileSaved', path: filePath, success: true });
@@ -115,11 +146,25 @@ class QueryFileHandlers {
     }
 
     async handleGetDraftRecovery() {
-        this._post({ command: 'draftRecoveryLoaded', drafts: this._workspaceState.get(DRAFTS_KEY, []) });
+        this._post({ command: 'draftRecoveryLoaded', drafts: this._workspaceState.get(this._draftsKey(), []) });
     }
 
     async handleSaveDraftRecovery(drafts) {
-        await this._workspaceState.update(DRAFTS_KEY, Array.isArray(drafts) ? drafts : []);
+        await this._workspaceState.update(this._draftsKey(), Array.isArray(drafts) ? drafts : []);
+    }
+
+    // Called after a successful connect (see SqlWayfarerPanel's
+    // panelController.onConnectionChanged): handleGetDraftRecovery already
+    // ran at webview load, before this panel had a connection (and so before
+    // _draftsKey() could resolve to anything but the shared pre-connect
+    // bucket) - re-check now that the real per-connection bucket is
+    // resolvable, so a previous crashed session on this same server is still
+    // recoverable. The webview only applies this if its tabs are still
+    // pristine, so it can never clobber SQL the user already typed.
+    async maybeOfferRecoveryForCurrentIdentity() {
+        const drafts = this._workspaceState.get(this._draftsKey(), []);
+        if (drafts.length === 0) return;
+        this._post({ command: 'draftRecoveryLoaded', drafts });
     }
 }
 

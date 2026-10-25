@@ -14,6 +14,7 @@ class TabManager {
         this.tabContents = document.querySelectorAll('.tab-content');
         this.explorerToolbarActions = document.getElementById('explorerToolbarActions');
         this.queryToolbarActions = document.getElementById('queryToolbarActions');
+        this.newPanelBtn = document.getElementById('newPanelBtn');
         this.initEventListeners();
         this.updateToolbarActions(appState.activeTab);
     }
@@ -25,6 +26,13 @@ class TabManager {
             // click target and carry no data-tab of its own.
             button.addEventListener('click', () => this.switchTab(button.dataset.tab));
         });
+        if (this.newPanelBtn) {
+            // Opens a brand-new SQL Wayfarer tab with its own independent
+            // connection (see SqlWayfarerPanel.createOrShow) - unlike the
+            // internal Configuration/Query/Explorer tabs above, this isn't
+            // local UI state, so it goes through the extension host.
+            this.newPanelBtn.addEventListener('click', () => vscode.postMessage({ command: 'openNewPanel' }));
+        }
     }
 
     switchTab(tabName) {

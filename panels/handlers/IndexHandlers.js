@@ -48,7 +48,7 @@ class IndexHandlers {
             };
 
             const index = await this._indexService.forceReindex(database, progressCallback);
-            this._post({ command: 'indexResult', indexData: index });
+            this._post({ command: 'indexResult', indexData: index, database });
             this._post({ command: 'indexingCompleted', database, success: true, forced: true, message: 'Force reindex completed successfully' });
             console.log(`Force reindex completed for database: ${database}`);
 
@@ -79,10 +79,10 @@ class IndexHandlers {
                 }
             }
 
-            this._post({ command: 'indexingCancelled', message: 'Indexing operation cancelled', success: true });
+            this._post({ command: 'indexingCancelled', message: 'Indexing operation cancelled', success: true, database: targetDatabase });
         } catch (error) {
             console.error('Error cancelling indexing:', error);
-            this._post({ command: 'indexingCancelled', message: `Error cancelling indexing: ${error.message}`, success: false });
+            this._post({ command: 'indexingCancelled', message: `Error cancelling indexing: ${error.message}`, success: false, database });
         }
     }
 
@@ -125,16 +125,16 @@ class IndexHandlers {
             };
 
             const index = await this._indexService.getIndex(database, progressCallback);
-            this._post({ command: 'indexResult', indexData: index });
+            this._post({ command: 'indexResult', indexData: index, database });
             console.log(`Index retrieved for database: ${database}`);
 
         } catch (error) {
             if (error.code === 'INDEXING_CANCELLED') {
-                this._post({ command: 'indexResult', indexData: null });
+                this._post({ command: 'indexResult', indexData: null, database });
                 return;
             }
             console.error('Error getting index:', error);
-            this._post({ command: 'indexResult', indexData: null });
+            this._post({ command: 'indexResult', indexData: null, database });
 
             const errorMsg = this._getUserFriendlyIndexingError(error);
             vscode.window.showWarningMessage(`Database indexing failed: ${errorMsg}`, 'Retry', 'Ignore')
@@ -142,7 +142,8 @@ class IndexHandlers {
                     if (selection === 'Retry') {
                         setTimeout(() => this.handleGetIndex(database), 2000);
                     }
-                });
+                })
+                .catch(err => console.error('Failed to show indexing-failed prompt:', err.message));
         }
     }
 

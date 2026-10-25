@@ -8,9 +8,14 @@ const SNIPPETS_KEY = 'sqlwayfarer.customSnippets';
 // project, so they're stored in globalState (unlike query history, which is
 // workspaceState-scoped on purpose).
 class SnippetHandlers {
-    constructor(postMessage, globalState) {
+    constructor(postMessage, globalState, broadcast = postMessage) {
         this._post = postMessage;
         this._globalState = globalState;
+        // Snippets live in globalState - already shared by every open tab -
+        // but each tab also keeps its own in-memory copy fetched once at
+        // load, so a change made in one tab needs to be pushed to every
+        // other open tab too, not just posted back to whichever tab made it.
+        this._broadcast = broadcast;
     }
 
     async handleGetSnippets() {
@@ -47,25 +52,34 @@ class SnippetHandlers {
         snippets.push({ name: name.trim(), sql, createdAt: Date.now() });
         snippets.sort((a, b) => a.name.localeCompare(b.name));
         await this._globalState.update(SNIPPETS_KEY, snippets);
-        this._post({ command: 'snippetsLoaded', snippets });
+        this._broadcast({ command: 'snippetsLoaded', snippets });
     }
 
-    // Rename and/or content update in one go: drops both the old and the new
-    // name before re-adding, so a rename never leaves the old entry behind
-    // and never collides with an existing snippet already using the new name.
+    // Rename and/or content update in one go. The webview already refuses to
+    // submit a name collision, but never trust that as the only guard against
+    // silently destroying a different snippet - if the target name is already
+    // used by another snippet, refuse instead of dropping it.
     async handleUpdateSnippet(oldName, newName, sql) {
         if (!newName || !newName.trim() || !sql || !sql.trim()) return;
-        const snippets = this._getSnippets().filter(s => s.name !== oldName && s.name !== newName.trim());
-        snippets.push({ name: newName.trim(), sql, createdAt: Date.now() });
-        snippets.sort((a, b) => a.name.localeCompare(b.name));
-        await this._globalState.update(SNIPPETS_KEY, snippets);
-        this._post({ command: 'snippetsLoaded', snippets });
+        const trimmedNew = newName.trim();
+        const snippets = this._getSnippets();
+
+        if (trimmedNew !== oldName && snippets.some(s => s.name === trimmedNew)) {
+            this._post({ command: 'snippetsLoaded', snippets });
+            return;
+        }
+
+        const updated = snippets.filter(s => s.name !== oldName);
+        updated.push({ name: trimmedNew, sql, createdAt: Date.now() });
+        updated.sort((a, b) => a.name.localeCompare(b.name));
+        await this._globalState.update(SNIPPETS_KEY, updated);
+        this._broadcast({ command: 'snippetsLoaded', snippets: updated });
     }
 
     async handleDeleteSnippet(name) {
         const snippets = this._getSnippets().filter(s => s.name !== name);
         await this._globalState.update(SNIPPETS_KEY, snippets);
-        this._post({ command: 'snippetsLoaded', snippets });
+        this._broadcast({ command: 'snippetsLoaded', snippets });
     }
 
     _getSnippets() {

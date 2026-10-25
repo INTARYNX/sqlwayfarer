@@ -63,10 +63,10 @@ class QueryFileManager {
         });
         this.input.addEventListener('input', () => this.onEditorInput());
 
-        // Toggling is independent of TabManager's own click listener on the
-        // same button (which switches the actual tab content) - both just
-        // run off the same click.
-        this.queryTabButton.addEventListener('click', (e) => {
+        // A single click only switches to the Query tab (TabManager's own
+        // click listener on this same button) - the sub-tabs dropdown opens
+        // on double-click instead, so a normal click never pops it open.
+        this.queryTabButton.addEventListener('dblclick', (e) => {
             e.stopPropagation();
             this.toggleTabsDropdown();
         });
@@ -220,7 +220,21 @@ class QueryFileManager {
 
     // === Left panel: browsing workspace .sql files ===
 
+    // queryFilesBtn lives in the global tab-nav (next to the tab buttons
+    // themselves), not inside the Query tab's own toolbar, so it's reachable
+    // (and not disabled) from Configuration/Explorer too - but the panel it
+    // toggles only exists inside #queryTab, which is display:none unless
+    // that tab is active. Toggling the 'visible' class alone from another
+    // tab was a silent no-op: switch to the Query tab and force the panel
+    // open instead, rather than only ever toggling it.
     toggleFilesPanel() {
+        if (appState.activeTab !== 'query') {
+            if (window.tabManager) window.tabManager.switchTab('query');
+            this.filesPanel.classList.add('visible');
+            this.loadFilesTree();
+            return;
+        }
+
         const willShow = !this.filesPanel.classList.contains('visible');
         this.filesPanel.classList.toggle('visible', willShow);
         if (willShow) this.loadFilesTree();
@@ -406,9 +420,23 @@ class QueryFileManager {
         vscode.postMessage({ command: 'saveDraftRecovery', drafts });
     }
 
+    // Called both at startup and, now that drafts are scoped per connection
+    // (see QueryFileHandlers.maybeOfferRecoveryForCurrentIdentity), again
+    // after a successful connect - only ever applied while every open tab is
+    // still pristine, so a recovery offer can never overwrite SQL the user
+    // has already typed in this session.
+    _isPristine() {
+        const active = this._activeTab();
+        return this.tabs.every(t => {
+            if (t.fileName) return false;
+            const content = t === active ? this.queryManager.getEditorContent() : (t.content || '');
+            return content.trim() === '';
+        });
+    }
+
     onDraftRecoveryLoaded(message) {
         const drafts = message.drafts || [];
-        if (drafts.length === 0) return;
+        if (drafts.length === 0 || !this._isPristine()) return;
 
         this.tabs = drafts.map(d => {
             const content = typeof d === 'string' ? d : (d.content || '');

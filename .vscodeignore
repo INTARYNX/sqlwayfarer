@@ -47,6 +47,7 @@ Thumbs.db
 # Keep these
 !dist/extension.js
 !dist/parseColumnsWorker.js
+!dist/webview/sqlEditor.js
 !icon.png
 !package.json
 !readme.md

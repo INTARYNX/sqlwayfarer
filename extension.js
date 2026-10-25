@@ -2,30 +2,28 @@
 
 const vscode = require('vscode');
 const SqlWayfarerPanel = require('./panels/SqlWayfarerPanel');
-
-// Minimal tree view provider — single entry point to open the panel
-class SqlWayfarerViewProvider {
-    getTreeItem(element) { return element; }
-
-    getChildren(element) {
-        if (!element) {
-            const item = new vscode.TreeItem('SQL Wayfarer', vscode.TreeItemCollapsibleState.None);
-            item.iconPath = new vscode.ThemeIcon('compass');
-            item.description = 'Click to open';
-            item.command = { command: 'sqlwayfarer.sqlwayfarer', title: 'Open SQL Wayfarer' };
-            return [item];
-        }
-        return [];
-    }
-}
+const PanelRegistry = require('./panels/PanelRegistry');
+const SnippetSidebarProvider = require('./panels/SnippetSidebarProvider');
 
 function activate(context) {
-    vscode.window.registerTreeDataProvider('sqlWayfarerView', new SqlWayfarerViewProvider());
+    // One registry for the whole extension host, shared by every panel
+    // opened during this session, and by the sidebar's snippet manager - see
+    // PanelRegistry.
+    const panelRegistry = new PanelRegistry();
+
+    const sidebarProvider = new SnippetSidebarProvider(context.extensionUri, context, panelRegistry);
+    context.subscriptions.push(
+        // retainContextWhenHidden: without it, VS Code tears down this view's
+        // webview content (and its in-memory snippet list) every time it's
+        // hidden - switching to a different activity bar icon and back - and
+        // nothing reliably reloads it, which is exactly "snippets disappear".
+        vscode.window.registerWebviewViewProvider('sqlWayfarerView', sidebarProvider, {
+            webviewOptions: { retainContextWhenHidden: true }
+        })
+    );
 
     const sqlWayfarerDisposable = vscode.commands.registerCommand('sqlwayfarer.sqlwayfarer', function () {
-        SqlWayfarerPanel.createOrShow(context.extensionUri, context);
-        // Small delay lets the panel open before the sidebar closes, avoiding focus issues
-        setTimeout(() => vscode.commands.executeCommand('workbench.action.closeSidebar'), 200);
+        SqlWayfarerPanel.createOrShow(context.extensionUri, context, panelRegistry);
     });
 
     context.subscriptions.push(sqlWayfarerDisposable);

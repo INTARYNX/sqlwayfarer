@@ -60,11 +60,16 @@ class WriteFootprintService {
     // and whether it is currently enabled (disabled triggers never fire).
     async _getTriggerParents(database) {
         const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT SCHEMA_NAME(o.schema_id) + '.' + tr.name AS trigger_name,
+            SELECT SCHEMA_NAME(trObj.schema_id) + '.' + tr.name AS trigger_name,
                    SCHEMA_NAME(o.schema_id) + '.' + o.name AS parent_table,
                    tr.is_disabled
             FROM sys.triggers tr
             JOIN sys.objects o ON o.object_id = tr.parent_id
+            -- The trigger's own schema can differ from its parent table's (a
+            -- trigger is created as schema.trigger_name, independently of the
+            -- table it's attached to) - sys.triggers itself has no schema_id,
+            -- so resolve it through the trigger's own sys.objects row instead.
+            JOIN sys.objects trObj ON trObj.object_id = tr.object_id
             WHERE tr.parent_class = 1 AND tr.is_ms_shipped = 0
         `);
         return result.recordset.map(r => ({

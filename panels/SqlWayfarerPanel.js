@@ -28,12 +28,23 @@ const FootprintHandlers = require('./handlers/FootprintHandlers');
 const SnippetHandlers = require('./handlers/SnippetHandlers');
 
 class SqlWayfarerPanel {
-    constructor(panel, extensionUri, context) {
+    constructor(panel, extensionUri, context, panelRegistry) {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._context = context;
         this._disposables = [];
         this._currentSelectedDatabase = null;
+        // Set once a connect succeeds (see ConnectionHandlers) - null while
+        // disconnected. Used to refuse a second tab on the same server+login
+        // (PanelRegistry.findByConnectionIdentity) and to scope this panel's
+        // query history / draft recovery to "whichever connection is active".
+        this.connectionIdentity = null;
+        // Human-readable form of the above (saved connection name, or the
+        // server address for an unsaved ad-hoc connection) - shown in the
+        // VS Code tab title so several open tabs can be told apart.
+        this.connectionLabel = null;
+        this._panelRegistry = panelRegistry;
+        this._panelRegistry.register(this);
 
         this._connectionStorage = new ConnectionStorage(context);
         this._connectionManager = new ConnectionManager(this._connectionStorage);
@@ -44,32 +55,47 @@ class SqlWayfarerPanel {
         this._dataDictionaryService = new DataDictionaryService(this._connectionManager, this._indexService);
         this._writeFootprintService = new WriteFootprintService(this._connectionManager, this._indexService, this._databaseService);
 
-        const post = msg => this._panel.webview.postMessage(msg);
+        const post = msg => this.post(msg);
         const getDb = () => this._currentSelectedDatabase;
+        const getConnectionIdentity = () => this.connectionIdentity;
+        const broadcast = msg => this._panelRegistry.broadcast(msg);
+        // Handed to ConnectionHandlers so it can refuse connecting to a
+        // server+login another open tab already has, and reveal that tab
+        // instead - see PanelRegistry.findByConnectionIdentity.
+        const panelController = {
+            findDuplicate: identity => this._panelRegistry.findByConnectionIdentity(identity, this),
+            reveal: panel => panel.reveal(),
+            onConnectionChanged: (identity, label) => {
+                this.connectionIdentity = identity;
+                this.connectionLabel = label || null;
+                this._updateTitle();
+                this._queryFiles.maybeOfferRecoveryForCurrentIdentity();
+            }
+        };
 
-        this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage);
+        this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage, panelController);
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
         const riskParser = new BabelfishSqlParser();
         riskParser.setEnabled(true);
-        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser));
-        this._queryFiles = new QueryFileHandlers(post, context.workspaceState);
+        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity);
+        this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
-        this._snippets = new SnippetHandlers(post, context.globalState);
+        this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
 
         this._initialize();
     }
 
-    static createOrShow(extensionUri, context) {
+    // One call = one new tab, each with its own independent connection -
+    // unlike the single-panel-reused-forever design this replaced, there is
+    // no "reveal the existing one" shortcut here; PanelRegistry is what lets
+    // these multiple instances still coordinate (shared snippets, no two
+    // tabs on the same connection) without being a singleton themselves.
+    static createOrShow(extensionUri, context, panelRegistry) {
         const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
-
-        if (SqlWayfarerPanel.currentPanel) {
-            SqlWayfarerPanel.currentPanel._panel.reveal(column);
-            return;
-        }
 
         const panel = vscode.window.createWebviewPanel(
             'sqlwayfarer-sqlwayfarer',
@@ -80,7 +106,15 @@ class SqlWayfarerPanel {
             { enableScripts: true, localResourceRoots: [extensionUri], enableFindWidget: true }
         );
 
-        SqlWayfarerPanel.currentPanel = new SqlWayfarerPanel(panel, extensionUri, context);
+        return new SqlWayfarerPanel(panel, extensionUri, context, panelRegistry);
+    }
+
+    post(message) {
+        this._panel.webview.postMessage(message);
+    }
+
+    reveal() {
+        this._panel.reveal();
     }
 
     async _initialize() {
@@ -145,6 +179,10 @@ class SqlWayfarerPanel {
             case 'setAutoConnect':              await c.handleSetAutoConnect(message.enabled); break;
             case 'loadConnectionForDisplay':    await c.handleLoadConnectionForDisplay(message.connectionName); break;
             case 'testConnection':              await c.handleTestConnection(message.connectionConfig); break;
+            // Re-runs the same command the activity bar/command palette use,
+            // rather than duplicating createOrShow's wiring here - it already
+            // has extensionUri/context/panelRegistry in closure (extension.js).
+            case 'openNewPanel':                 await vscode.commands.executeCommand('sqlwayfarer.sqlwayfarer'); break;
 
             // Database
             case 'setCurrentDatabase':          this._currentSelectedDatabase = message.database; break;
@@ -225,8 +263,12 @@ class SqlWayfarerPanel {
     }
 
     _update() {
-        this._panel.title = 'SQL Wayfarer';
+        this._updateTitle();
         this._panel.webview.html = this._getHtmlForWebview();
+    }
+
+    _updateTitle() {
+        this._panel.title = this.connectionLabel ? `SQL Wayfarer — ${this.connectionLabel}` : 'SQL Wayfarer';
     }
 
     _getHtmlForWebview() {
@@ -257,12 +299,12 @@ class SqlWayfarerPanel {
         html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
+        html = html.replace('{{BUILTIN_SNIPPETS_URI}}',      u('webview', 'builtinSnippets.js'));
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
-        html = html.replace('{{SQL_HIGHLIGHT_URI}}',        u('webview', 'sqlHighlight.js'));
+        html = html.replace('{{SQL_EDITOR_URI}}',           u('dist', 'webview', 'sqlEditor.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
-        html = html.replace('{{SNIPPET_MANAGER_URI}}',       u('webview', 'snippetManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));
@@ -275,7 +317,7 @@ class SqlWayfarerPanel {
     }
 
     async dispose() {
-        SqlWayfarerPanel.currentPanel = undefined;
+        this._panelRegistry.unregister(this);
         this._panel.dispose();
 
         this._idx.cancel();
@@ -301,5 +343,4 @@ class SqlWayfarerPanel {
     }
 }
 
-SqlWayfarerPanel.currentPanel = undefined;
 module.exports = SqlWayfarerPanel;

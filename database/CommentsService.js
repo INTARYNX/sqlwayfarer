@@ -11,7 +11,7 @@ class CommentsService {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const { schema, objectName } = parseObjectName(tableName);
-        const qualifiedTableName = `${schema}.${objectName}`;
+        const objectIdExpr = "OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))";
 
         const tableDescResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT ep.value as table_description
@@ -19,8 +19,8 @@ class CommentsService {
             INNER JOIN sys.objects o ON ep.major_id = o.object_id
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
             WHERE ep.minor_id = 0 AND ep.name = 'MS_Description'
-            AND s.name = '${schema}' AND o.name = '${objectName}'
-        `);
+            AND s.name = @schema AND o.name = @objectName
+        `, { schema, objectName });
 
         const columnsResult = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
@@ -35,12 +35,12 @@ class CommentsService {
                 CASE WHEN ep.value IS NOT NULL THEN 1 ELSE 0 END as hasDescription
             FROM INFORMATION_SCHEMA.COLUMNS c
             LEFT JOIN sys.extended_properties ep
-                ON ep.major_id = OBJECT_ID('${qualifiedTableName}')
+                ON ep.major_id = ${objectIdExpr}
                 AND ep.minor_id = c.ORDINAL_POSITION
                 AND ep.name = 'MS_Description'
-            WHERE c.TABLE_SCHEMA = '${schema}' AND c.TABLE_NAME = '${objectName}'
+            WHERE c.TABLE_SCHEMA = @schema AND c.TABLE_NAME = @objectName
             ORDER BY c.ORDINAL_POSITION
-        `);
+        `, { schema, objectName });
 
         const tableDescription = tableDescResult.recordset[0]?.table_description || null;
         const allColumns = columnsResult.recordset.map(row => ({
@@ -75,8 +75,8 @@ class CommentsService {
             INNER JOIN sys.objects o ON ep.major_id = o.object_id
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
             WHERE ep.minor_id = 0 AND ep.name = 'MS_Description'
-            AND s.name = '${schema}' AND o.name = '${parsedName}'
-        `);
+            AND s.name = @schema AND o.name = @objectName
+        `, { schema, objectName: parsedName });
 
         const description = result.recordset[0]?.description || null;
         return { objectName, objectType, description, hasDescription: description !== null };
@@ -126,26 +126,24 @@ class CommentsService {
                 INNER JOIN sys.objects o ON ep.major_id = o.object_id
                 INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
                 INNER JOIN INFORMATION_SCHEMA.COLUMNS c ON c.TABLE_SCHEMA = s.name
-                    AND c.TABLE_NAME = o.name AND c.COLUMN_NAME = '${columnName}'
+                    AND c.TABLE_NAME = o.name AND c.COLUMN_NAME = @columnName
                     AND ep.minor_id = c.ORDINAL_POSITION
-                WHERE ep.name = 'MS_Description' AND s.name = '${schema}' AND o.name = '${objectName}'
+                WHERE ep.name = 'MS_Description' AND s.name = @schema AND o.name = @objectName
             )`
             : `EXISTS (
                 SELECT 1 FROM sys.extended_properties ep
                 INNER JOIN sys.objects o ON ep.major_id = o.object_id
                 INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
                 WHERE ep.minor_id = 0 AND ep.name = 'MS_Description'
-                AND s.name = '${schema}' AND o.name = '${objectName}'
+                AND s.name = @schema AND o.name = @objectName
             )`;
 
-        const level2clause = columnName
-            ? `@level2type = N'COLUMN', @level2name = N'${columnName}'`
-            : '';
+        const level2clause = columnName ? `@level2type = N'COLUMN', @level2name = @columnName` : '';
 
         const commonParams = `
             @name = N'MS_Description',
-            @level0type = N'SCHEMA', @level0name = N'${schema}',
-            @level1type = N'${level1type}', @level1name = N'${objectName}'
+            @level0type = N'SCHEMA', @level0name = @schema,
+            @level1type = @level1type, @level1name = @objectName
             ${columnName ? ', ' + level2clause : ''}
         `;
 
@@ -164,16 +162,23 @@ class CommentsService {
             `;
         }
 
-        await this._connectionManager.executeQueryInDatabase(database, sql, hasDescription ? { descValue: description } : null);
+        const params = { schema, objectName, level1type };
+        if (columnName) params.columnName = columnName;
+        if (hasDescription) params.descValue = description;
+
+        await this._connectionManager.executeQueryInDatabase(database, sql, params);
     }
 
     _mapObjectTypeToLevel1(objectType) {
         const map = {
-            'Table':     'TABLE',
-            'View':      'VIEW',
-            'Procedure': 'PROCEDURE',
-            'Function':  'FUNCTION',
-            'Trigger':   'TRIGGER'
+            'Table':       'TABLE',
+            'View':        'VIEW',
+            'Procedure':   'PROCEDURE',
+            'Function':    'FUNCTION',
+            'Trigger':     'TRIGGER',
+            // DatabaseService falls back to o.type_desc for triggers (no CASE
+            // branch for type 'TR'), which SQL Server reports as this string.
+            'SQL TRIGGER': 'TRIGGER'
         };
         if (!map[objectType]) throw new Error(`Unknown object type for extended properties: '${objectType}'`);
         return map[objectType];

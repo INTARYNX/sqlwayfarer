@@ -7,18 +7,32 @@
  */
 'use strict';
 
+// webview/builtinSnippets.js is loaded first (see index.html) and declares
+// BUILTIN_SNIPPETS as a bare script-scope global, the same way sqlAutocomplete.js's
+// SqlAutocomplete class is referenced below without an import - classic
+// <script> tags share one global scope. Under Node (require()'d by tests),
+// there is no such shared scope, so pull it in explicitly there instead.
+function builtinSnippets() {
+    return (typeof module !== 'undefined' && module.exports) ? require('./builtinSnippets') : BUILTIN_SNIPPETS;
+}
+
 // Query tool: runs free-form SQL against the currently selected database.
 // Supports multiple result sets, row cap, cancellation and a persisted history.
 class QueryManager {
     constructor() {
         this.runBtn = document.getElementById('runQueryBtn');
         this.estimatedPlanBtn = document.getElementById('estimatedPlanBtn');
-        this.actualPlanBtn = document.getElementById('actualPlanBtn');
+        this.includeActualPlanToggle = document.getElementById('includeActualPlanToggle');
+        // SSMS-style "Include Actual Execution Plan" toggle (Ctrl+M) - when on,
+        // Run Query also captures the real plan instead of needing a separate action.
+        this.includeActualPlan = false;
         this.cancelBtn = document.getElementById('cancelQueryBtn');
         this.maxRowsSelect = document.getElementById('maxRowsSelect');
         this.historySelect = document.getElementById('queryHistorySelect');
         this.snippetsSelect = document.getElementById('querySnippetsSelect');
-        this.input = document.getElementById('queryInput');
+        this.input = window.SqlCodeMirror.attach(document.getElementById('queryInput'), {
+            placeholder: 'SELECT TOP 100 * FROM ...'
+        });
         this.status = document.getElementById('queryStatus');
         this.resultsContainer = document.getElementById('queryResultsContainer');
         this.history = [];
@@ -28,7 +42,6 @@ class QueryManager {
         this.isRunning = false;
         this.splitter = document.getElementById('querySplitter');
         this.autocomplete = new SqlAutocomplete(this.input);
-        this.highlighter = new SqlHighlighter(this.input);
         this.initEventListeners();
         this.initSplitter();
         vscode.postMessage({ command: 'getQueryHistory' });
@@ -38,7 +51,7 @@ class QueryManager {
     initEventListeners() {
         this.runBtn.addEventListener('click', () => this.runQuery());
         this.estimatedPlanBtn.addEventListener('click', () => this.runEstimatedPlan());
-        this.actualPlanBtn.addEventListener('click', () => this.runActualPlan());
+        this.includeActualPlanToggle.addEventListener('click', () => this.toggleIncludeActualPlan());
         this.cancelBtn.addEventListener('click', () => this.cancelQuery());
         this.historySelect.addEventListener('change', () => this.applyHistorySelection());
         this.snippetsSelect.addEventListener('change', () => this.applySnippetSelection());
@@ -47,6 +60,15 @@ class QueryManager {
                 e.preventDefault();
                 this.runQuery();
             }
+        });
+        // F5 is SSMS's own "Execute" shortcut - matched here regardless of which
+        // widget inside the Query tab has focus (editor, grid, max rows...), the
+        // same reach F5 has in SSMS. Scoped to the Query tab being active so it
+        // doesn't fire while the user is on Explorer/Configuration.
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'F5' || appState.activeTab !== 'query') return;
+            e.preventDefault();
+            this.runQuery();
         });
         // Ctrl+Click or double-click on an object name jumps to its definition in the Explorer
         this.input.addEventListener('click', (e) => {
@@ -97,6 +119,11 @@ class QueryManager {
 
     exportResultSetCsv(set, index) {
         const suffix = this.lastResultSets.length > 1 ? `-${index + 1}` : '';
+        // set is already capped to the Max rows limit by the time it gets here -
+        // the CSV can only ever contain what's in it, never the full result set.
+        this._pendingCsvTruncation = set.rows.length < set.totalRows
+            ? { shown: set.rows.length, total: set.totalRows }
+            : null;
         vscode.postMessage({
             command: 'exportCsv',
             csv: QueryManager.toDelimited(set, ','),
@@ -105,8 +132,13 @@ class QueryManager {
     }
 
     onCsvExported(message) {
+        const truncation = this._pendingCsvTruncation;
+        this._pendingCsvTruncation = null;
         if (message.success) {
-            this.setStatus(`CSV saved to ${message.path}`, 'success');
+            const note = truncation
+                ? ` (showing ${truncation.shown} of ${truncation.total} rows - raise Max rows to export more)`
+                : '';
+            this.setStatus(`CSV saved to ${message.path}${note}`, 'success');
         } else if (message.cancelled) {
             this.setStatus('CSV export cancelled.', '');
         } else {
@@ -157,8 +189,7 @@ class QueryManager {
 
     // Drag the bar between editor and results to resize the SQL input;
     // double-click resets to the default height. Resizes the wrapper, not the
-    // textarea itself - the highlight overlay fills it via inset:0 and would
-    // otherwise fall out of sync with the textarea's own height.
+    // editor itself - CodeMirror fills it via height:100% on its own.
     initSplitter() {
         const DEFAULT_HEIGHT = 140;
         const MIN_HEIGHT = 80;
@@ -213,7 +244,7 @@ class QueryManager {
         this.autocomplete.reset();
         this.runBtn.disabled = !database || this.isRunning;
         this.estimatedPlanBtn.disabled = !database || this.isRunning;
-        this.actualPlanBtn.disabled = !database || this.isRunning;
+        this.includeActualPlanToggle.disabled = !database || this.isRunning;
         if (!this.isRunning) {
             this.setStatus(database ? '' : 'Select a database above to run queries.', '');
         }
@@ -223,7 +254,6 @@ class QueryManager {
     // (used by the per-object "Top 10" shortcut in Explorer).
     runQueryText(sql) {
         this.input.value = sql;
-        this.highlighter.render();
         this.runQuery();
     }
 
@@ -237,19 +267,21 @@ class QueryManager {
     // focus/caret/status side effects, unlike setQueryText below.
     loadEditorContent(text) {
         this.input.value = text;
-        this.highlighter.render();
     }
 
     // Fill the editor without running (used by the Explorer script generator)
     setQueryText(sql) {
         this.input.value = sql;
-        this.highlighter.render();
         this.input.focus();
         this.input.setSelectionRange(0, 0);
         this.input.scrollTop = 0;
         this.setStatus('Script inserted - review and run when ready.', '');
     }
 
+    // The single entry point for the Run button, Ctrl+Enter and F5. Whether
+    // this also captures the actual execution plan (SET STATISTICS XML, an
+    // extra plan recordset per statement) depends only on the toggle - same
+    // model as SSMS's Ctrl+M, instead of a separate "run with plan" action.
     runQuery() {
         const database = appState.currentDatabase;
         const query = this.input.value.trim();
@@ -265,15 +297,23 @@ class QueryManager {
         }
 
         this.setRunning(true);
-        this.setStatus('Running...', '');
+        this.setStatus(this.includeActualPlan ? 'Running with actual execution plan...' : 'Running...', '');
         this.setResultsHtml('<p class="placeholder-text">Running query...</p>');
 
         vscode.postMessage({
-            command: 'executeQuery',
+            command: this.includeActualPlan ? 'getActualPlan' : 'executeQuery',
             database,
             query,
             maxRows: Number(this.maxRowsSelect.value)
         });
+    }
+
+    toggleIncludeActualPlan() {
+        this.includeActualPlan = !this.includeActualPlan;
+        this.includeActualPlanToggle.classList.toggle('active', this.includeActualPlan);
+        this.includeActualPlanToggle.title = this.includeActualPlan
+            ? 'Include Actual Execution Plan: ON - Run Query (F5 / Ctrl+Enter) also captures the real plan'
+            : 'Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan';
     }
 
     // SET SHOWPLAN_XML ON never executes the query - just compiles and plans
@@ -299,34 +339,6 @@ class QueryManager {
         vscode.postMessage({ command: 'getEstimatedPlan', database, query });
     }
 
-    // SET STATISTICS XML ON: the query actually runs (same risk check as a
-    // normal run), with an extra plan recordset appended per statement.
-    runActualPlan() {
-        const database = appState.currentDatabase;
-        const query = this.input.value.trim();
-
-        if (this.isRunning) return;
-        if (!database) {
-            this.setStatus('Select a database above first.', 'error');
-            return;
-        }
-        if (!query) {
-            this.setStatus('Enter a query first.', 'error');
-            return;
-        }
-
-        this.setRunning(true);
-        this.setStatus('Running with actual execution plan...', '');
-        this.setResultsHtml('<p class="placeholder-text">Running query...</p>');
-
-        vscode.postMessage({
-            command: 'getActualPlan',
-            database,
-            query,
-            maxRows: Number(this.maxRowsSelect.value)
-        });
-    }
-
     cancelQuery() {
         if (!this.isRunning) return;
         this.setStatus('Cancelling...', '');
@@ -339,7 +351,7 @@ class QueryManager {
         this.isRunning = running;
         this.runBtn.disabled = running || !appState.currentDatabase;
         this.estimatedPlanBtn.disabled = running || !appState.currentDatabase;
-        this.actualPlanBtn.disabled = running || !appState.currentDatabase;
+        this.includeActualPlanToggle.disabled = running || !appState.currentDatabase;
         this.cancelBtn.style.display = (running && showCancel) ? '' : 'none';
     }
 
@@ -387,12 +399,29 @@ class QueryManager {
             return;
         }
         this.displayResultSets([], [], planXmls);
-        this.setStatus('Estimated execution plan generated.', 'success');
+        // A GO-separated script is planned one batch at a time - some batches
+        // can fail to plan (e.g. referencing an object only a later batch
+        // creates) while others still produce a usable plan.
+        const failedNote = message.planErrors?.length ? ` (${message.planErrors.length} batch(es) could not be planned)` : '';
+        this.setStatus(`Estimated execution plan generated${failedNote}.`, 'success');
     }
 
     onQueryError(message) {
         this.setRunning(false);
-        this.setResultsHtml(`<pre class="query-error-box">${this.escapeHtml(message.message)}</pre>`);
+        const errorHtml = `<pre class="query-error-box">${this.escapeHtml(message.message)}</pre>`;
+
+        if (Array.isArray(message.resultSets) && message.resultSets.length > 0) {
+            // The batch failed partway through - show whatever it produced
+            // before the error, with the error itself pinned above it, instead
+            // of discarding results the user already paid the round-trip for.
+            this.lastResultSets = message.resultSets;
+            this.displayResultSets(message.resultSets, message.timeline || [], []);
+            const scroll = this.resultsContainer.querySelector('.result-scroll');
+            if (scroll) scroll.insertAdjacentHTML('afterbegin', errorHtml);
+        } else {
+            this.setResultsHtml(errorHtml);
+        }
+
         const duration = message.durationMs ? ` after ${this.formatDuration(message.durationMs)}` : '';
         this.setStatus(message.cancelled ? `Query cancelled${duration}.` : `Query failed${duration}.`, 'error');
     }
@@ -675,7 +704,6 @@ class QueryManager {
         const entry = this.history[Number(value)];
         if (entry) {
             this.input.value = entry.query;
-            this.highlighter.render();
             this.input.focus();
         }
     }
@@ -692,7 +720,7 @@ class QueryManager {
 
         const builtinGroup = document.createElement('optgroup');
         builtinGroup.label = 'Built-in';
-        QueryManager.BUILTIN_SNIPPETS.forEach((snippet, index) => {
+        builtinSnippets().forEach((snippet, index) => {
             const option = document.createElement('option');
             option.value = `builtin:${index}`;
             option.textContent = snippet.name;
@@ -743,7 +771,7 @@ class QueryManager {
 
         let sql = null;
         if (value.startsWith('builtin:')) {
-            const snippet = QueryManager.BUILTIN_SNIPPETS[Number(value.slice('builtin:'.length))];
+            const snippet = builtinSnippets()[Number(value.slice('builtin:'.length))];
             sql = snippet && snippet.sql;
         } else if (value.startsWith('custom:')) {
             const name = value.slice('custom:'.length);
@@ -784,8 +812,7 @@ class QueryManager {
 
     // Splices text into the editor at the current caret (or over the current
     // selection) instead of replacing the whole query, like SqlAutocomplete's
-    // own accept() does for a completion - same sql:valuechange event so the
-    // syntax highlighter overlay stays in sync.
+    // own accept() does for a completion.
     insertAtCursor(text) {
         const ta = this.input;
         ta.focus();
@@ -794,7 +821,6 @@ class QueryManager {
         ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
         const caret = start + text.length;
         ta.setSelectionRange(caret, caret);
-        ta.dispatchEvent(new CustomEvent('sql:valuechange'));
     }
 
     // === Formatting helpers ===
@@ -802,12 +828,19 @@ class QueryManager {
     // RFC 4180-style: quote fields containing the separator, quotes or newlines.
     // Used with '\t' for clipboard (pastes into Excel) and ',' for CSV export.
     static toDelimited(set, separator) {
+        // Excel/LibreOffice/Sheets treat a cell starting with one of these as a
+        // formula to evaluate on open - prefix with a literal quote (Excel's own
+        // "force text" convention) so a result value like "=cmd|'/C calc'!A0"
+        // never executes. Quoting the field for the separator/newline rule below
+        // isn't enough on its own: Excel still evaluates a quoted leading '='.
+        const FORMULA_LEADING_RE = /^[=+\-@\t\r]/;
         const escapeField = (value) => {
             let text;
             if (value === null || value === undefined) text = '';
             else if (value instanceof Date) text = value.toISOString();
             else if (typeof value === 'object') text = JSON.stringify(value);
             else text = String(value);
+            if (FORMULA_LEADING_RE.test(text)) text = `'${text}`;
             if (text.includes(separator) || text.includes('"') || text.includes('\n') || text.includes('\r')) {
                 text = `"${text.replace(/"/g, '""')}"`;
             }
@@ -834,7 +867,13 @@ class QueryManager {
 
     formatValue(value) {
         if (value === null || value === undefined) return 'NULL';
-        if (value instanceof Date) return value.toISOString();
+        // SSMS-style "2008-04-30 00:00:00.000" instead of ISO 8601's
+        // "2008-04-30T00:00:00.000Z" - same UTC instant (tedious already
+        // returns datetime/datetime2 values as the exact stored wall-clock
+        // value in UTC, not shifted), just reformatted for how it reads in
+        // the grid. CSV/clipboard export (toDelimited) deliberately keeps
+        // the unambiguous ISO form instead, for round-tripping into other tools.
+        if (value instanceof Date) return value.toISOString().replace('T', ' ').replace('Z', '');
         if (typeof value === 'object') return JSON.stringify(value);
         return String(value);
     }
@@ -852,20 +891,6 @@ class QueryManager {
         ));
     }
 }
-
-// Ready-made snippets offered alongside any custom ones the user saves.
-QueryManager.BUILTIN_SNIPPETS = [
-    { name: 'SELECT TOP 100', sql: 'SELECT TOP 100 *\nFROM ' },
-    { name: 'COUNT rows', sql: 'SELECT COUNT(*) AS row_count\nFROM ' },
-    { name: 'INSERT INTO', sql: 'INSERT INTO table_name (column1, column2)\nVALUES (value1, value2);' },
-    { name: 'UPDATE ... WHERE', sql: 'UPDATE table_name\nSET column1 = value1\nWHERE condition;' },
-    { name: 'DELETE ... WHERE', sql: 'DELETE FROM table_name\nWHERE condition;' },
-    { name: 'CREATE TABLE', sql: 'CREATE TABLE table_name (\n    id INT IDENTITY(1,1) PRIMARY KEY,\n    column1 NVARCHAR(100) NOT NULL\n);' },
-    { name: 'GROUP BY ... HAVING', sql: 'SELECT column1, COUNT(*) AS cnt\nFROM table_name\nGROUP BY column1\nHAVING COUNT(*) > 1;' },
-    { name: 'ROW_NUMBER window function', sql: 'SELECT *,\n    ROW_NUMBER() OVER (PARTITION BY column1 ORDER BY column2) AS rn\nFROM table_name;' },
-    { name: 'Temp table', sql: 'CREATE TABLE #temp (\n    id INT\n);\n\nDROP TABLE #temp;' },
-    { name: 'BEGIN TRAN / COMMIT', sql: 'BEGIN TRAN;\n\n\nCOMMIT TRAN;\n-- ROLLBACK TRAN;' }
-];
 
 // Allow unit tests to require() this file; in the webview `module` is undefined.
 if (typeof module !== 'undefined' && module.exports) {

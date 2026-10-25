@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src {{CSP_SOURCE}}; img-src {{CSP_SOURCE}}; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}};">
+    <title>SQL Snippets</title>
+    <link href="{{CODICON_STYLES_URI}}" rel="stylesheet">
+    <link href="{{STYLES_URI}}" rel="stylesheet">
+    <!-- The snippet form modal's chrome (.modal-dialog/.modal-header/.btn-primary/
+         etc.) lives in comments.css, not styles.css - shared with the Comments tab's
+         own modals in the main panel. -->
+    <link href="{{COMMENTS_STYLES_URI}}" rel="stylesheet">
+</head>
+<body>
+    <div class="sidebar-snippets">
+        <button id="openPanelBtn" class="sidebar-open-panel-link"><i class="codicon codicon-add"></i> Open SQL Wayfarer tab</button>
+
+        <p class="snippet-manager-hint">Reusable SQL templates, available from the 📋 Snippets dropdown in any open Query tab.</p>
+
+        <div class="snippet-manager-toolbar">
+            <button id="newSnippetBtn">+ New Snippet</button>
+        </div>
+
+        <div id="snippetManagerList" class="snippet-manager-list"></div>
+    </div>
+
+    <!-- Snippet Add/Edit Modal -->
+    <div id="snippetFormOverlay" class="modal-overlay snippet-form-modal-overlay">
+        <div class="modal-dialog modal-dialog-snippet-form">
+            <div class="modal-header">
+                <h3 id="snippetFormTitle">New Snippet</h3>
+                <button id="snippetFormCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="snippetNameInput">Name:</label>
+                    <input type="text" id="snippetNameInput" placeholder="e.g. Select top 100">
+                </div>
+                <div class="input-group">
+                    <label for="snippetSqlInput">SQL:</label>
+                    <textarea id="snippetSqlInput" rows="10" placeholder="SELECT TOP 100 *&#10;FROM "></textarea>
+                </div>
+                <div id="snippetFormStatus"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSnippetBtn" class="btn-primary">Save Snippet</button>
+                <button id="cancelSnippetFormBtn" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{BUILTIN_SNIPPETS_URI}}"></script>
+    <script src="{{SNIPPET_MANAGER_URI}}"></script>
+    <script src="{{SIDEBAR_MAIN_URI}}"></script>
+</body>
+</html>

@@ -261,18 +261,26 @@ class DataDictionaryService {
             triggers = triggersResult.recordset;
 
             // Row counts / size from allocation metadata (same formulas as
-            // sp_spaceused — instant even on huge tables).
-            const statsResult = await cm.executeQueryInDatabase(database, `
-                SELECT s.name AS schema_name, o.name AS object_name,
-                       SUM(CASE WHEN ps.index_id IN (0, 1) THEN ps.row_count ELSE 0 END) AS row_count,
-                       SUM(ps.reserved_page_count) * 8 AS reserved_kb
-                FROM sys.dm_db_partition_stats ps
-                JOIN sys.objects o ON o.object_id = ps.object_id
-                JOIN sys.schemas s ON s.schema_id = o.schema_id
-                WHERE o.type = 'U' AND o.is_ms_shipped = 0
-                GROUP BY s.name, o.name
-            `);
-            tableStats = statsResult.recordset;
+            // sp_spaceused — instant even on huge tables). Best-effort, same
+            // spirit as DatabaseHandlers.handleGetTableDetails: needs VIEW
+            // DATABASE STATE, which not every login has - without it, the rest
+            // of a "full" export is still worth generating.
+            try {
+                const statsResult = await cm.executeQueryInDatabase(database, `
+                    SELECT s.name AS schema_name, o.name AS object_name,
+                           SUM(CASE WHEN ps.index_id IN (0, 1) THEN ps.row_count ELSE 0 END) AS row_count,
+                           SUM(ps.reserved_page_count) * 8 AS reserved_kb
+                    FROM sys.dm_db_partition_stats ps
+                    JOIN sys.objects o ON o.object_id = ps.object_id
+                    JOIN sys.schemas s ON s.schema_id = o.schema_id
+                    WHERE o.type = 'U' AND o.is_ms_shipped = 0
+                    GROUP BY s.name, o.name
+                `);
+                tableStats = statsResult.recordset;
+            } catch (error) {
+                console.warn('Failed to get table stats for data dictionary (likely missing VIEW DATABASE STATE):', error.message);
+                tableStats = [];
+            }
 
             const typesResult = await cm.executeQueryInDatabase(database, `
                 SELECT s.name AS schema_name, t.name AS type_name,

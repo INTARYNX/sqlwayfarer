@@ -88,7 +88,8 @@ class ExportHandlers {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc);
                 }
-            });
+            })
+            .catch(error => console.error('Failed to open exported data dictionary:', error.message));
     }
 
     async _exportDataDictionaryFolder(database, title) {
@@ -128,7 +129,7 @@ class ExportHandlers {
                 const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(indexPath));
                 await vscode.window.showTextDocument(doc);
             }
-        });
+        }).catch(error => console.error('Failed to open exported data dictionary:', error.message));
     }
 
     _defaultDir() {

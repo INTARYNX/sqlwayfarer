@@ -15,6 +15,24 @@ class CommentsManager {
         this.currentObjectType = null;
         this.currentProperties = null;
         this.editingMode = false;
+        this._attachActionDelegation();
+    }
+
+    // commentsContainer is static (defined in index.html) - displayTableComments/
+    // displayObjectComments only ever replace its innerHTML, never the container
+    // itself - so one delegated listener set up once here covers every future
+    // render. The CSP has no 'unsafe-inline' on script-src, so onclick=""
+    // attributes (the previous approach) are silently never invoked.
+    _attachActionDelegation() {
+        const container = document.getElementById('commentsContainer');
+        if (!container) return;
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            if (btn.dataset.action === 'editTableDescription') this.editTableDescription();
+            else if (btn.dataset.action === 'editObjectDescription') this.editObjectDescription();
+            else if (btn.dataset.action === 'editColumnDescription') this.editColumnDescription(btn.dataset.column);
+        });
     }
 
     // Called when an object is selected in the Explorer
@@ -65,7 +83,7 @@ class CommentsManager {
             <div class="comment-section">
                 <div class="comment-section-header">
                     <h4><i class="codicon codicon-note"></i> Table Description</h4>
-                    ${this.editingMode ? '<button class="edit-btn" onclick="window.commentsManager.editTableDescription()">Edit</button>' : ''}
+                    ${this.editingMode ? '<button class="edit-btn" data-action="editTableDescription">Edit</button>' : ''}
                 </div>
                 <div class="comment-display">
                     ${this.formatDescriptionBox(properties.tableDescription, 'No description set for this table.')}
@@ -127,7 +145,7 @@ class CommentsManager {
                         </td>
                         ${this.editingMode ? `
                             <td class="text-center action-cell">
-                                <button class="edit-btn-small" onclick="window.commentsManager.editColumnDescription('${this.escapeHtml(column.columnName)}')" title="Edit description">
+                                <button class="edit-btn-small" data-action="editColumnDescription" data-column="${this.escapeHtml(column.columnName)}" title="Edit description">
                                     <i class="codicon codicon-edit"></i> Edit
                                 </button>
                             </td>
@@ -194,7 +212,7 @@ class CommentsManager {
                 <div class="comment-section">
                     <div class="comment-section-header">
                         <h4><i class="codicon codicon-note"></i> ${properties.objectType} Description</h4>
-                        ${this.editingMode ? '<button class="edit-btn" onclick="window.commentsManager.editObjectDescription()">Edit</button>' : ''}
+                        ${this.editingMode ? '<button class="edit-btn" data-action="editObjectDescription">Edit</button>' : ''}
                     </div>
                     <div class="comment-display">
                         ${this.formatDescriptionBox(properties.description, `No description set for this ${properties.objectType.toLowerCase()}.`)}
@@ -492,10 +510,10 @@ class CommentsManager {
    }
 
    escapeHtml(text) {
-       if (!text) return '';
-       const div = document.createElement('div');
-       div.textContent = text;
-       return div.innerHTML;
+       if (text === null || text === undefined) return '';
+       return String(text).replace(/[&<>"']/g, ch => (
+           { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+       ));
    }
 
    // Reset when database changes

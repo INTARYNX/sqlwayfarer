@@ -1,6 +1,7 @@
 const path = require('path');
 
-module.exports = {
+const extensionConfig = {
+  name: 'extension',
   target: 'node',
   entry: {
     extension: './extension.js',
@@ -25,3 +26,30 @@ module.exports = {
   },
   mode: 'production'
 };
+
+// Everything else under webview/ is loaded as-is by SqlWayfarerPanel.js (no
+// bundler, plain <script> tags under the webview's CSP). CodeMirror 6 is the
+// one exception: it ships as ~15 modular ESM packages, not something you can
+// vendor as a single script by hand, so webview-build/sqlEditor.js is bundled
+// here (target 'web', unlike the extension host's 'node' config above) into
+// dist/webview/sqlEditor.js and loaded the same way as any other vendored script.
+const webviewConfig = {
+  name: 'webview',
+  target: 'web',
+  entry: {
+    sqlEditor: './webview-build/sqlEditor.js'
+  },
+  output: {
+    path: path.resolve(__dirname, 'dist', 'webview'),
+    filename: '[name].js'
+  },
+  resolve: {
+    extensions: ['.js']
+  },
+  mode: 'production',
+  // Served locally from disk to a webview, not fetched over a network -
+  // webpack's web-page-sized performance budget doesn't apply here.
+  performance: { hints: false }
+};
+
+module.exports = [extensionConfig, webviewConfig];

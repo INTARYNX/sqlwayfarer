@@ -52,6 +52,14 @@ class DependencyService {
                 opsMap = await this._getOperationsFromSql(database, cleanName, objectData.type);
             }
 
+            // sys.dm_sql_referenced_entities reports a dependency's name using the
+            // casing from the SOURCE TEXT that referenced it (e.g. "DBO.orders"),
+            // not the catalog's actual casing ("dbo.Orders") that index.objects is
+            // keyed by - so a case-sensitive lookup here would silently resolve to
+            // "Object" instead of the real type. Build a case-insensitive lookup
+            // once instead of per-dependency.
+            const lowerIndex = new Map(Object.entries(index.objects).map(([k, v]) => [k.toLowerCase(), v]));
+
             const dependsOn = (objectData.dependencies || []).map(dep => {
                 const depClean = dep.replace(/[\[\]]/g, '').toLowerCase();
                 // Le parser SQL qualifie ses clés (schema.table, voire db.schema.table) quand le SQL
@@ -60,9 +68,10 @@ class DependencyService {
                 // sans schéma (résolution implicite), le parser n'a que le nom nu : on retombe alors
                 // sur un match par dernier segment, avec le risque de collision inter-schéma que ça implique.
                 const operations = opsMap?.[depClean] || opsMap?.[depClean.split('.').pop()] || ['REFERENCE'];
+                const depObj = index.objects[dep] || lowerIndex.get(depClean);
                 return {
                     referenced_object: dep,
-                    referenced_object_type: this._getTypeFromCode(index.objects[dep]?.type),
+                    referenced_object_type: this._getTypeFromCode(depObj?.type),
                     dependency_type: 'REFERENCE',
                     operations: operations,
                     is_selected: operations.includes('SELECT') || operations.includes('MERGE') ? 1 : 0,
@@ -72,13 +81,21 @@ class DependencyService {
                 };
             });
 
+            // If the caller passed an unqualified name (e.g. 'Orders' instead of
+            // 'dbo.Orders'), every dependency string below is fully qualified and
+            // would never equal it - fall back to matching on the last segment,
+            // same tradeoff getColumnUsage/DependencyService's ops lookup already make.
+            const bareTarget = cleanName.includes('.') ? null : cleanName.toLowerCase();
+
             const referencedBy = [];
             for (const [key, obj] of Object.entries(index.objects)) {
                 if (!obj.dependencies?.length) continue;
                 const matches = obj.dependencies.some(dep => {
                     const clean = dep.replace(/[\[\]]/g, '');
-                    return clean === cleanName || clean.toLowerCase() === cleanName.toLowerCase() ||
-                        dep === objectName || dep === cleanName;
+                    const cleanLower = clean.toLowerCase();
+                    return clean === cleanName || cleanLower === cleanName.toLowerCase() ||
+                        dep === objectName || dep === cleanName ||
+                        (bareTarget !== null && cleanLower.split('.').pop() === bareTarget);
                 });
                 if (matches) {
                     referencedBy.push({

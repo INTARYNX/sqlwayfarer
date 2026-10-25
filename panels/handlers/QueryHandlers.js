@@ -1,12 +1,16 @@
 'use strict';
 
 const vscode = require('vscode');
-const sql = require('mssql');
+const { bracketIdentifier } = require('../../database/sqlIdentifier');
 
 const HISTORY_KEY = 'sqlwayfarer.queryHistory';
 const HISTORY_LIMIT = 50;
 const DEFAULT_MAX_ROWS = 1000;
 const QUERY_TIMEOUT_MS = 5 * 60 * 1000;
+// "Unlimited" still needs a ceiling - without one, a multi-million-row SELECT
+// accumulates entirely in the extension host (and then in one postMessage to
+// the webview), risking an OOM that kills every open tab.
+const UNLIMITED_SAFETY_CAP = 200000;
 
 // SQL Server's showplan XML starts with <?xml version="1.0" encoding="utf-16"?>
 // and can carry a leading BOM. Both are meaningless once the driver has
@@ -113,14 +117,117 @@ function splitTopLevelStatements(sql) {
     return statements;
 }
 
+// SSMS/sqlcmd's "GO" batch separator - not real T-SQL, so it must never
+// reach the server as part of a batch's text. A line counts as a separator
+// only when it contains nothing but "GO" (optionally a repeat count, "GO 3",
+// and/or a trailing line comment), outside comments, string literals and
+// bracketed identifiers - same tokenizing rigor as splitTopLevelStatements.
+const GO_LINE_RE = /^[ \t]*go[ \t]*(\d+)?[ \t]*(--.*)?\r?$/i;
+
+// Splits a script into separate batches on standalone GO lines. Unlike a
+// semicolon (which only separates statements WITHIN one batch/request), each
+// GO-delimited batch is sent to the server as its own, separate round trip -
+// variables and SET options from one batch don't carry over to the next,
+// exactly as in SSMS. Returns [{ sql, repeat, startLine }]: repeat is the
+// count after "GO N" (defaulting to 1, meaning run this batch that many times
+// in a row), and startLine is the batch's 1-indexed line number in the
+// ORIGINAL script - needed to translate a server-reported error line (always
+// relative to just that one batch's own text) back into the line the user
+// actually sees in the editor, the same correction SSMS itself makes.
+function splitBatches(sql) {
+    const batches = [];
+    let current = '';
+    let currentStartLine = 1;
+    let lineBuffer = '';
+    let lineNo = 1;
+    let i = 0;
+    const n = sql.length;
+
+    const countNewlines = (text) => (text.match(/\n/g) || []).length;
+
+    const flushLine = (newlineChar) => {
+        const match = GO_LINE_RE.exec(lineBuffer);
+        if (match) {
+            const repeat = match[1] ? Math.max(1, parseInt(match[1], 10)) : 1;
+            if (current.trim()) batches.push({ sql: current, repeat, startLine: currentStartLine });
+            current = '';
+            currentStartLine = lineNo + 1;
+        } else {
+            current += lineBuffer + (newlineChar || '');
+        }
+        lineBuffer = '';
+    };
+
+    while (i < n) {
+        const ch = sql[i];
+
+        if (ch === '-' && sql[i + 1] === '-') {
+            const end = sql.indexOf('\n', i);
+            const stop = end === -1 ? n : end;
+            lineBuffer += sql.slice(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === '/' && sql[i + 1] === '*') {
+            const end = sql.indexOf('*/', i + 2);
+            const stop = end === -1 ? n : end + 2;
+            lineNo += countNewlines(sql.slice(i, stop));
+            lineBuffer += sql.slice(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === "'") {
+            let j = i + 1;
+            while (j < n) {
+                if (sql[j] === "'") {
+                    if (sql[j + 1] === "'") { j += 2; continue; }
+                    j += 1;
+                    break;
+                }
+                j++;
+            }
+            lineNo += countNewlines(sql.slice(i, j));
+            lineBuffer += sql.slice(i, j);
+            i = j;
+            continue;
+        }
+        if (ch === '[') {
+            const end = sql.indexOf(']', i + 1);
+            const stop = end === -1 ? n : end + 1;
+            lineNo += countNewlines(sql.slice(i, stop));
+            lineBuffer += sql.slice(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === '\n') {
+            flushLine('\n');
+            lineNo++;
+            i++;
+            continue;
+        }
+        lineBuffer += ch;
+        i++;
+    }
+    flushLine('');
+    if (current.trim()) batches.push({ sql: current, repeat: 1, startLine: currentStartLine });
+
+    return batches;
+}
+
 class QueryHandlers {
-    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null) {
+    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._workspaceState = workspaceState;
         this._riskAnalyzer = riskAnalyzer;
+        this._getConnectionIdentity = getConnectionIdentity;
         this._currentRequest = null;
         this._cancelReason = null;
+        // Set synchronously before the (now async) connection acquire, so a
+        // second call arriving during that brief await window is still
+        // rejected - _currentRequest alone can't guard that gap, since it's
+        // only set once a request actually exists, one batch in.
+        this._executing = false;
     }
 
     // Modal confirmation for destructive statements; overridable in tests.
@@ -139,6 +246,15 @@ class QueryHandlers {
     // after its own results, containing that statement's XML showplan with
     // real row counts. Detected by shape (a lone Xml-typed column) rather
     // than trusting column names, which SQL Server doesn't guarantee.
+    //
+    // A script containing GO batches runs each one as its own separate
+    // request, sequentially, on one pinned connection shared across all of
+    // them (see acquireConnection()) - so a `USE`, SET option or #temp table
+    // from an earlier batch is still visible to a later one, same as SSMS.
+    // Results feed into the same shared resultSets/timeline/rowsAffected so
+    // the UI sees one continuous result - exactly as if GO were invisible to
+    // it. A batch that errors does NOT stop the rest of the script (SSMS
+    // itself doesn't either); only a user cancel or a timeout does.
     async handleExecuteQuery(database, query, maxRows, actualPlan = false) {
         if (!database) {
             this._post({ command: 'queryError', message: 'No database selected.' });
@@ -148,14 +264,16 @@ class QueryHandlers {
             this._post({ command: 'queryError', message: 'Query is empty.' });
             return;
         }
-        if (this._currentRequest) {
+        if (this._currentRequest || this._executing) {
             this._post({ command: 'queryError', message: 'A query is already running. Cancel it first.' });
             return;
         }
+        this._executing = true;
 
         if (this._riskAnalyzer) {
             const risks = this._riskAnalyzer.analyze(query);
             if (risks.length > 0 && !(await this._confirmRisks(risks))) {
+                this._executing = false;
                 this._post({
                     command: 'queryError',
                     message: `Execution cancelled — potentially destructive statements:\n${risks.join('\n')}`,
@@ -165,36 +283,136 @@ class QueryHandlers {
             }
         }
 
-        let request;
-        try {
-            request = this._connectionManager.createRequest();
-        } catch (error) {
-            this._post({ command: 'queryError', message: error.message });
+        const batches = splitBatches(query);
+        if (batches.length === 0) {
+            // The whole script was just GO line(s) with no actual SQL around them.
+            this._executing = false;
+            this._post({ command: 'queryError', message: 'Query is empty.' });
             return;
         }
 
         // 0 is the explicit "Unlimited" choice in the Max rows selector - keep
-        // every row instead of falling back to the default cap.
-        const rowCap = Number(maxRows) === 0 ? Infinity
+        // every row up to a safety cap instead of either falling back to the
+        // default cap or accumulating truly unbounded memory.
+        const rowCap = Number(maxRows) === 0 ? UNLIMITED_SAFETY_CAP
             : Number(maxRows) > 0 ? Number(maxRows) : DEFAULT_MAX_ROWS;
         const startedAt = Date.now();
-
-        this._currentRequest = request;
         this._cancelReason = null;
 
+        const resultSets = [];
+        // Chronological record of everything the whole script produced - a grid
+        // starting or a PRINT/RAISERROR message - in the exact order SQL
+        // Server emitted them, across every batch, so the UI can show the real
+        // interleaving instead of guessing which message belongs to which grid.
+        const timeline = [];
+        const rowsAffected = [];
+        const planXmls = [];
+        const formattedErrors = [];
+
+        let conn;
+        try {
+            conn = await this._connectionManager.acquireConnection();
+        } catch (error) {
+            this._executing = false;
+            this._post({ command: 'queryError', message: error.message });
+            return;
+        }
+
+        try {
+            // All GO-separated batches (and GO-N repetitions) share this one
+            // pinned connection, exactly like SSMS does for a multi-batch
+            // script - otherwise a `USE`, SET option or #temp table from an
+            // earlier batch would silently vanish the moment a later batch
+            // landed on a different pooled connection.
+            let isFirstBatch = true;
+            batchLoop:
+            for (const batch of batches) {
+                // A cancel can arrive while still acquiring the connection,
+                // before any batch - or any _currentRequest - exists yet;
+                // catch that here so the script never starts at all instead
+                // of silently ignoring it (see handleCancelQuery).
+                if (this._cancelReason) break batchLoop;
+                for (let rep = 0; rep < batch.repeat; rep++) {
+                    // The USE prefix only needs to run once, to establish the
+                    // database selected in the dropdown as the starting
+                    // context - after that, the connection's own context
+                    // (whatever the script itself has done since) carries
+                    // forward untouched, same as SSMS.
+                    const prefixLines = (isFirstBatch ? 1 : 0) + (actualPlan ? 1 : 0);
+                    const errors = await this._executeOneBatch(
+                        conn, database, batch.sql, isFirstBatch, actualPlan, rowCap,
+                        resultSets, timeline, rowsAffected, planXmls
+                    );
+                    isFirstBatch = false;
+                    if (this._cancelReason) break batchLoop;
+                    for (const err of errors) {
+                        formattedErrors.push(this._formatSqlError(err, prefixLines, batch.startLine));
+                    }
+                    // SSMS doesn't stop a script after one batch fails - the next
+                    // GO-separated batch (or repetition) still runs.
+                }
+            }
+        } finally {
+            this._currentRequest = null;
+            this._executing = false;
+            conn.release();
+        }
+
+        const durationMs = Date.now() - startedAt;
+
+        if (this._cancelReason || formattedErrors.length > 0) {
+            let message;
+            if (this._cancelReason === 'timeout') {
+                message = `Query timed out after ${QUERY_TIMEOUT_MS / 1000}s and was cancelled.`;
+            } else if (this._cancelReason === 'cancelled') {
+                message = 'Query cancelled.';
+            } else {
+                // Same error can arrive as both an event and a rejection - dedupe on text.
+                message = [...new Set(formattedErrors)].join('\n');
+            }
+            await this._recordHistory(database, query, false, durationMs);
+            this._post({
+                command: 'queryError', message, durationMs, cancelled: this._cancelReason === 'cancelled',
+                // Whatever the script produced before stopping/failing - lets the
+                // UI show the partial results instead of just the error.
+                resultSets: resultSets.length > 0 ? resultSets : undefined,
+                rowsAffected: rowsAffected.length > 0 ? rowsAffected : undefined,
+                timeline: timeline.length > 0 ? timeline : undefined
+            });
+            return;
+        }
+
+        // Label each result set with the statement that produced it - only when
+        // the split lines up 1:1 with the recordsets, so a mismatch (e.g. a proc
+        // call yielding several sets from one EXEC, or a multi-batch GO script)
+        // never shows a wrong guess.
+        const statements = splitTopLevelStatements(query);
+        if (statements.length === resultSets.length) {
+            resultSets.forEach((set, i) => { set.sourceStatement = statements[i]; });
+        }
+
+        await this._recordHistory(database, query, true, durationMs);
+        this._post({
+            command: 'queryResult',
+            resultSets, rowsAffected, timeline, durationMs, maxRows: rowCap,
+            planXmls: actualPlan ? planXmls : undefined
+        });
+    }
+
+    // Runs one GO-separated batch (or one repetition of a "GO N" batch)
+    // against the server, with the same streaming event wiring
+    // handleExecuteQuery has always used, feeding results into the shared
+    // accumulators so multiple batches read as one continuous result in the
+    // UI. Returns the batch's raw (unformatted) errors, if any - formatting
+    // needs batch.startLine, which only the caller knows.
+    async _executeOneBatch(conn, database, batchSql, applyUsePrefix, actualPlan, rowCap, resultSets, timeline, rowsAffected, planXmls) {
+        const request = conn.createRequest();
+        this._currentRequest = request;
         // Streaming keeps memory bounded: rows beyond the cap are counted but
         // discarded instead of accumulating in the extension host.
         request.stream = true;
 
-        const resultSets = [];
-        // Chronological record of everything the batch produced - a grid
-        // starting or a PRINT/RAISERROR message - in the exact order SQL
-        // Server emitted them, so the UI can show the real interleaving
-        // instead of guessing which message belongs to which grid.
-        const timeline = [];
-        const rowsAffected = [];
         const errors = [];
-        const planXmls = [];
         let currentSet = null;
         let currentIsPlan = false;
 
@@ -236,48 +454,18 @@ class QueryHandlers {
         try {
             // In stream mode data arrives through events; the promise only signals
             // completion. Errors may surface here, as 'error' events, or both.
-            const batch = actualPlan
-                ? `SET STATISTICS XML ON;\nUSE [${database}];\n${query}\nSET STATISTICS XML OFF;`
-                : `USE [${database}];\n${query}`;
-            await request.query(batch);
+            const usePrefix = applyUsePrefix ? `USE ${bracketIdentifier(database)};\n` : '';
+            const sent = actualPlan
+                ? `SET STATISTICS XML ON;\n${usePrefix}${batchSql}\nSET STATISTICS XML OFF;`
+                : `${usePrefix}${batchSql}`;
+            await request.query(sent);
         } catch (error) {
             errors.push(error);
         } finally {
             clearTimeout(timeout);
-            this._currentRequest = null;
         }
 
-        const durationMs = Date.now() - startedAt;
-
-        if (errors.length > 0) {
-            let message;
-            if (this._cancelReason === 'timeout') {
-                message = `Query timed out after ${QUERY_TIMEOUT_MS / 1000}s and was cancelled.`;
-            } else if (this._cancelReason === 'cancelled') {
-                message = 'Query cancelled.';
-            } else {
-                // Same error can arrive as both an event and a rejection - dedupe on text.
-                message = [...new Set(errors.map(e => this._formatSqlError(e)))].join('\n');
-            }
-            await this._recordHistory(database, query, false, durationMs);
-            this._post({ command: 'queryError', message, durationMs, cancelled: this._cancelReason === 'cancelled' });
-            return;
-        }
-
-        // Label each result set with the statement that produced it - only when
-        // the split lines up 1:1 with the recordsets, so a mismatch (e.g. a proc
-        // call yielding several sets from one EXEC) never shows a wrong guess.
-        const statements = splitTopLevelStatements(query);
-        if (statements.length === resultSets.length) {
-            resultSets.forEach((set, i) => { set.sourceStatement = statements[i]; });
-        }
-
-        await this._recordHistory(database, query, true, durationMs);
-        this._post({
-            command: 'queryResult',
-            resultSets, rowsAffected, timeline, durationMs, maxRows: rowCap,
-            planXmls: actualPlan ? planXmls : undefined
-        });
+        return errors;
     }
 
     handleGetActualPlan(database, query, maxRows) {
@@ -289,9 +477,15 @@ class QueryHandlers {
     // execution machinery (streaming, risk confirmation, history) applies
     // here. The 2 statements (ON / USE+query) have to land on the exact same
     // physical connection, or ON lands on one pooled connection while the
-    // query runs for real on another - pin one directly via the pool's own
-    // acquire/release (verified against a real server; see the .batch() note
-    // below for the other, equally load-bearing half of this fix).
+    // query runs for real on another - acquireConnection() pins one, same as
+    // handleExecuteQuery (verified against a real server; see the .batch()
+    // note below for the other, equally load-bearing half of this fix).
+    //
+    // A GO-separated script is planned one batch at a time on that same
+    // pinned connection (ON/plan/OFF per batch), same as SSMS's own "Display
+    // Estimated Execution Plan" on a multi-batch script - one plan per batch.
+    // Only the first batch gets the USE prefix - same reasoning as
+    // handleExecuteQuery: the user's own USE (if any) must carry forward.
     async handleGetEstimatedPlan(database, query) {
         if (!database) {
             this._post({ command: 'queryError', message: 'No database selected.' });
@@ -302,66 +496,75 @@ class QueryHandlers {
             return;
         }
 
-        let pool;
+        const batches = splitBatches(query);
+        if (batches.length === 0) {
+            this._post({ command: 'queryError', message: 'Query is empty.' });
+            return;
+        }
+
+        let conn;
         try {
-            pool = this._connectionManager.getPool();
+            conn = await this._connectionManager.acquireConnection();
         } catch (error) {
             this._post({ command: 'queryError', message: error.message });
             return;
         }
 
-        let connection;
         try {
-            connection = await pool.acquire();
-            // Minimal shape sql.Request's parent needs: acquire/release -
-            // always hands back this one already-acquired connection instead
-            // of letting the pool pick a different one per request - plus the
-            // handful of properties mssql's Request reads directly off the
-            // parent outside the acquire callback (this.stream/arrayRowMode
-            // via parent.config, a parent.connected guard, parent.collation
-            // for parameterized queries - unused here, but cheap to forward).
-            const pinned = {
-                config: pool.config,
-                connected: true,
-                collation: pool.collation,
-                acquire: (requester, cb) => cb(null, connection, pool.config),
-                release: () => {}
-            };
+            const planXmls = [];
+            const planErrors = [];
+            let isFirstBatch = true;
 
-            // .batch() is required here, not .query(): mssql's .query() sends
-            // the SQL via tedious's execSql (an RPC call wrapping it, in
-            // effect, in a system stored procedure), and SET SHOWPLAN_XML is
-            // explicitly documented as not working inside a stored procedure
-            // - the query just ran for real instead of being planned. .batch()
-            // sends it as a plain SQL batch, which showplan mode does respect.
-            await new sql.Request(pinned).batch('SET SHOWPLAN_XML ON');
-            let result;
-            try {
-                result = await new sql.Request(pinned).batch(`USE [${database}];\n${query}`);
-            } finally {
-                // Always turn it back off, even on failure, so this connection
-                // isn't left stuck in plan-only mode once it's released to the pool.
-                await new sql.Request(pinned).batch('SET SHOWPLAN_XML OFF');
+            for (const batch of batches) {
+                for (let rep = 0; rep < batch.repeat; rep++) {
+                    const prefixLines = isFirstBatch ? 1 : 0;
+                    const usePrefix = isFirstBatch ? `USE ${bracketIdentifier(database)};\n` : '';
+                    isFirstBatch = false;
+                    // .batch() is required here, not .query(): mssql's .query() sends
+                    // the SQL via tedious's execSql (an RPC call wrapping it, in
+                    // effect, in a system stored procedure), and SET SHOWPLAN_XML is
+                    // explicitly documented as not working inside a stored procedure
+                    // - the query just ran for real instead of being planned. .batch()
+                    // sends it as a plain SQL batch, which showplan mode does respect.
+                    await conn.createRequest().batch('SET SHOWPLAN_XML ON');
+                    try {
+                        const result = await conn.createRequest().batch(`${usePrefix}${batch.sql}`);
+                        const row = result.recordset && result.recordset[0];
+                        const xml = row && Object.values(row)[0];
+                        if (xml) planXmls.push(sanitizePlanXml(xml));
+                        else planErrors.push(`Line ${batch.startLine}: no execution plan was returned for this batch.`);
+                    } catch (error) {
+                        planErrors.push(this._formatSqlError(error, prefixLines, batch.startLine));
+                    } finally {
+                        // Always turn it back off, even on failure, so this connection
+                        // isn't left stuck in plan-only mode once it's released to the pool.
+                        await conn.createRequest().batch('SET SHOWPLAN_XML OFF');
+                    }
+                }
             }
 
-            const row = result.recordset && result.recordset[0];
-            const xml = row && Object.values(row)[0];
-            if (!xml) {
-                this._post({ command: 'queryError', message: 'No execution plan was returned.' });
+            if (planXmls.length === 0) {
+                this._post({ command: 'queryError', message: planErrors.length ? planErrors.join('\n') : 'No execution plan was returned.' });
                 return;
             }
-            this._post({ command: 'planResult', planXmls: [sanitizePlanXml(xml)] });
+            this._post({ command: 'planResult', planXmls, planErrors: planErrors.length > 0 ? planErrors : undefined });
         } catch (error) {
             this._post({ command: 'queryError', message: `Failed to get estimated plan: ${this._formatSqlError(error)}` });
         } finally {
-            if (connection) pool.release(connection);
+            conn.release();
         }
     }
 
     handleCancelQuery() {
-        if (!this._currentRequest) return;
+        // _executing (not _currentRequest) covers the whole run, including
+        // the moment the connection is still being acquired from the pool -
+        // a real async step now that GO-batches share one pinned connection,
+        // not the synchronous createRequest() this used to race against.
+        if (!this._executing) return;
         this._cancelReason = 'cancelled';
-        try { this._currentRequest.cancel(); } catch { /* request already finished */ }
+        if (this._currentRequest) {
+            try { this._currentRequest.cancel(); } catch { /* request already finished */ }
+        }
     }
 
     async handleGetQueryHistory() {
@@ -369,18 +572,32 @@ class QueryHandlers {
     }
 
     async handleClearQueryHistory() {
-        await this._workspaceState.update(HISTORY_KEY, []);
+        await this._workspaceState.update(this._historyKey(), []);
         this._post({ command: 'queryHistoryLoaded', history: [] });
     }
 
-    _formatSqlError(error) {
+    // prefixLines is 1 for a plain batch (USE [db];) or 2 for an actualPlan
+    // batch (SET STATISTICS XML ON; + USE [db];) - whatever was prefixed
+    // onto THIS specific batch's own text before sending it. batchStartLine
+    // is that batch's 1-indexed line in the ORIGINAL script (1 when there's
+    // no GO at all), translating the server's batch-relative line number
+    // back to the line the user actually sees in the editor - the same
+    // correction SSMS itself makes for a multi-batch script.
+    _formatSqlError(error, prefixLines = 1, batchStartLine = 1) {
         const line = error.lineNumber || (error.originalError && error.originalError.info && error.originalError.info.lineNumber);
-        // The injected `USE [database];` line shifts user SQL down by one.
-        return line > 1 ? `Line ${line - 1}: ${error.message}` : error.message;
+        if (!(line > prefixLines)) return error.message;
+        const originalLine = batchStartLine + (line - prefixLines) - 1;
+        return `Line ${originalLine}: ${error.message}`;
+    }
+
+    // Scoped per connection (server+login) so two tabs on different servers
+    // never share, or clobber, each other's history - see connectionIdentity.
+    _historyKey() {
+        return `${HISTORY_KEY}::${this._getConnectionIdentity() || '(disconnected)'}`;
     }
 
     _getHistory() {
-        return this._workspaceState.get(HISTORY_KEY, []);
+        return this._workspaceState.get(this._historyKey(), []);
     }
 
     // Prepend the query, dropping any older identical entry so re-runs don't pile up.
@@ -388,10 +605,11 @@ class QueryHandlers {
         const history = this._getHistory().filter(e => !(e.query === query && e.database === database));
         history.unshift({ query, database, success, durationMs, timestamp: Date.now() });
         if (history.length > HISTORY_LIMIT) history.length = HISTORY_LIMIT;
-        await this._workspaceState.update(HISTORY_KEY, history);
+        await this._workspaceState.update(this._historyKey(), history);
         this._post({ command: 'queryHistoryLoaded', history });
     }
 }
 
 QueryHandlers.splitTopLevelStatements = splitTopLevelStatements;
+QueryHandlers.splitBatches = splitBatches;
 module.exports = QueryHandlers;

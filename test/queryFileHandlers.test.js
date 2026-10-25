@@ -94,6 +94,10 @@ suite('QueryFileHandlers', () => {
 
 		const posts = [];
 		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		// tmpDir stands in for the workspace root here (the real vscode.workspace.
+		// workspaceFolders in the test host points elsewhere) - same stubbing
+		// idiom ParserWorkerPool's tests use for _ensurePool.
+		handlers._isInsideWorkspace = () => true;
 		await handlers.handleOpenSqlFile(filePath);
 
 		const result = posts.find(p => p.command === 'sqlFileOpened');
@@ -105,6 +109,7 @@ suite('QueryFileHandlers', () => {
 	test('reports an error when opening a file that no longer exists', async () => {
 		const posts = [];
 		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		handlers._isInsideWorkspace = () => true;
 		await handlers.handleOpenSqlFile(path.join(tmpDir, 'missing.sql'));
 
 		const result = posts.find(p => p.command === 'sqlFileError');
@@ -118,11 +123,35 @@ suite('QueryFileHandlers', () => {
 
 		const posts = [];
 		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		handlers._isInsideWorkspace = () => true;
 		await handlers.handleSaveSqlFile(filePath, 'SELECT 2;');
 
 		const result = posts.find(p => p.command === 'sqlFileSaved');
 		assert.deepStrictEqual(result, { command: 'sqlFileSaved', path: filePath, success: true });
 		assert.strictEqual(await fs.readFile(filePath, 'utf8'), 'SELECT 2;');
+	});
+
+	test('refuses to open or save a path outside the workspace', async () => {
+		const outsidePath = path.join(os.tmpdir(), 'not-the-workspace.sql');
+		await fs.writeFile(outsidePath, 'SELECT 1;');
+		try {
+			const posts = [];
+			const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+			// No _isInsideWorkspace stub here - exercises the real check against
+			// whatever vscode.workspace.workspaceFolders actually is, which never
+			// includes an arbitrary OS temp path.
+
+			await handlers.handleOpenSqlFile(outsidePath);
+			const openResult = posts.find(p => p.command === 'sqlFileError');
+			assert.ok(openResult, 'open must be refused outside the workspace');
+
+			await handlers.handleSaveSqlFile(outsidePath, 'SELECT 2;');
+			const saveResult = posts.find(p => p.command === 'sqlFileSaved');
+			assert.strictEqual(saveResult.success, false, 'save must be refused outside the workspace');
+			assert.strictEqual(await fs.readFile(outsidePath, 'utf8'), 'SELECT 1;', 'file content must be untouched');
+		} finally {
+			await fs.rm(outsidePath, { force: true });
+		}
 	});
 
 	test('round-trips the unsaved-drafts recovery snapshot through workspaceState', async () => {
@@ -136,5 +165,60 @@ suite('QueryFileHandlers', () => {
 		await handlers.handleSaveDraftRecovery(['SELECT 1;', 'SELECT 2;']);
 		await handlers.handleGetDraftRecovery();
 		assert.deepStrictEqual(posts.pop(), { command: 'draftRecoveryLoaded', drafts: ['SELECT 1;', 'SELECT 2;'] });
+	});
+
+	// Drafts are scoped per connection (server+login) so two tabs on
+	// different servers never clobber each other's autosave - see
+	// database/connectionIdentity.js.
+	test('drafts are scoped per connection identity, not shared across connections', async () => {
+		const posts = [];
+		const state = makeState();
+		let identity = null;
+		const handlers = new QueryFileHandlers(m => posts.push(m), state, () => identity);
+
+		await handlers.handleSaveDraftRecovery(['before any connection']);
+		identity = 'server1:1433:sa';
+		await handlers.handleSaveDraftRecovery(['server1 draft']);
+
+		identity = null;
+		await handlers.handleGetDraftRecovery();
+		assert.deepStrictEqual(posts.pop().drafts, ['before any connection'], 'the pre-connect bucket must be untouched by server1\'s save');
+
+		identity = 'server1:1433:sa';
+		await handlers.handleGetDraftRecovery();
+		assert.deepStrictEqual(posts.pop().drafts, ['server1 draft']);
+	});
+
+	// handleGetDraftRecovery fires at webview load, before this panel has a
+	// connection - maybeOfferRecoveryForCurrentIdentity is the re-check fired
+	// after a successful connect, so a crashed session's drafts on that same
+	// server are still found once the identity is actually known.
+	test('maybeOfferRecoveryForCurrentIdentity re-offers drafts once the connection identity is known', async () => {
+		const posts = [];
+		const state = makeState();
+		let identity = null;
+		const handlers = new QueryFileHandlers(m => posts.push(m), state, () => identity);
+
+		// A previous session on server1 crashed with this draft saved.
+		identity = 'server1:1433:sa';
+		await handlers.handleSaveDraftRecovery(['recovered from server1']);
+
+		// Fresh panel: no connection yet, nothing to recover under the shared bucket.
+		identity = null;
+		await handlers.handleGetDraftRecovery();
+		assert.deepStrictEqual(posts.pop().drafts, []);
+
+		// Connects to server1 - the real bucket is resolvable now.
+		identity = 'server1:1433:sa';
+		await handlers.maybeOfferRecoveryForCurrentIdentity();
+		assert.deepStrictEqual(posts.pop(), { command: 'draftRecoveryLoaded', drafts: ['recovered from server1'] });
+	});
+
+	test('maybeOfferRecoveryForCurrentIdentity stays silent when there is nothing saved for this connection', async () => {
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), makeState(), () => 'server1:1433:sa');
+
+		await handlers.maybeOfferRecoveryForCurrentIdentity();
+		assert.strictEqual(posts.length, 0);
 	});
 });

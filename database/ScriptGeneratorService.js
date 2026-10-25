@@ -2,6 +2,7 @@
 
 const parseObjectName = require('./parseObjectName');
 const DataDictionaryService = require('./DataDictionaryService');
+const { bracketIdentifier } = require('./sqlIdentifier');
 
 // Generates ready-to-edit SQL scripts for the Explorer "Script" button:
 // SELECT / INSERT / UPDATE / CREATE for tables, SELECT / CREATE for views,
@@ -77,7 +78,7 @@ class ScriptGeneratorService {
 
     // ']' inside an identifier must be doubled inside brackets: [Foo]]Bar]
     static bracket(name) {
-        return `[${String(name).replace(/]/g, ']]')}]`;
+        return bracketIdentifier(name);
     }
 
     // Type label from an INFORMATION_SCHEMA.COLUMNS row (lengths in characters)
@@ -195,12 +196,18 @@ class ScriptGeneratorService {
         for (const ix of details.indexes || []) {
             if (ix.is_primary_key) continue;
             const cols = ix.columns.split(',').map(c => ScriptGeneratorService.bracket(c.trim())).join(', ');
+            // INCLUDE-d columns are tracked separately from key columns (see
+            // DatabaseService.getTableDetails) - folding them into the key list
+            // would silently change the index's uniqueness, key order and storage.
+            const includeClause = ix.included_columns
+                ? ` INCLUDE (${ix.included_columns.split(',').map(c => ScriptGeneratorService.bracket(c.trim())).join(', ')})`
+                : '';
             if (ix.is_unique_constraint) {
                 statements.push(`ALTER TABLE ${bracketed} ADD CONSTRAINT ${ScriptGeneratorService.bracket(ix.index_name)} UNIQUE ${ix.type_desc} (${cols});`);
             } else {
                 const unique = ix.is_unique ? 'UNIQUE ' : '';
                 const filter = ix.has_filter && ix.filter_definition ? ` WHERE ${ix.filter_definition}` : '';
-                statements.push(`CREATE ${unique}${ix.type_desc} INDEX ${ScriptGeneratorService.bracket(ix.index_name)} ON ${bracketed} (${cols})${filter};`);
+                statements.push(`CREATE ${unique}${ix.type_desc} INDEX ${ScriptGeneratorService.bracket(ix.index_name)} ON ${bracketed} (${cols})${includeClause}${filter};`);
             }
         }
 

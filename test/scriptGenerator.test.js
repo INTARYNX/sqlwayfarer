@@ -84,6 +84,26 @@ suite('ScriptGeneratorService builders', () => {
 		assert.strictEqual((sql.match(/FK_Emp_Dept/g) || []).length, 1, 'multi-column FK emitted once');
 	});
 
+	// Regression for F16: DatabaseService.getTableDetails separates key columns
+	// from INCLUDE-d columns (STRING_AGG filtered on is_included_column) - an
+	// INCLUDE-d column must render in its own clause, never folded into the key
+	// column list where it would silently change uniqueness/key order/storage.
+	test('CREATE TABLE puts INCLUDE-d columns in their own clause, not the key list', () => {
+		const details = {
+			columns: employeeColumns,
+			indexes: [pkIndex, {
+				index_name: 'IX_Dept_Include', type_desc: 'NONCLUSTERED', is_unique: false,
+				is_primary_key: false, is_unique_constraint: false,
+				columns: 'Name', included_columns: 'HireDate',
+				fill_factor: 0, has_filter: false, filter_definition: null
+			}],
+			foreignKeys: []
+		};
+		const sql = ScriptGeneratorService.buildCreateTable('[dbo].[Employee]', details);
+		assert.ok(sql.includes('CREATE NONCLUSTERED INDEX [IX_Dept_Include] ON [dbo].[Employee] ([Name]) INCLUDE ([HireDate]);'));
+		assert.ok(!sql.includes('([HireDate], [Name])'), 'the included column must never be sorted into the key list');
+	});
+
 	test('EXEC declares OUTPUT parameters and selects them back', () => {
 		const sql = ScriptGeneratorService.buildExec('[dbo].[uspHire]', [
 			{ name: '@Name', data_type: 'nvarchar', max_length: 100, precision: 0, scale: 0, is_output: false },

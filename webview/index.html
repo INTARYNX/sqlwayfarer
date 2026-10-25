@@ -19,10 +19,11 @@
                 <button class="tab-button active" data-tab="configuration">Configuration</button>
                 <button id="queryFilesBtn" class="tab-folder-icon" title="Browse .sql files in the workspace (including subfolders)"><i class="codicon codicon-folder-opened"></i></button>
                 <span class="query-tab-wrap">
-                    <button class="tab-button" data-tab="query">Query<span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
+                    <button class="tab-button" data-tab="query" title="Double-click to switch between open queries">Query<span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
                     <div id="queryTabsDropdown" class="query-tabs-dropdown" role="menu"></div>
                 </span>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
+                <button id="newPanelBtn" class="tab-folder-icon" title="Open a new SQL Wayfarer tab (its own independent connection)"><i class="codicon codicon-add"></i></button>
             </div>
             <div class="header-actions">
                 <!-- Shown only while the Explorer tab is active - see TabManager.updateToolbarActions -->
@@ -39,9 +40,9 @@
                 <!-- Shown only while the Query tab is active -->
                 <div id="queryToolbarActions" class="toolbar-actions" style="display: none;">
                     <button id="saveQueryFileBtn" class="icon-btn" disabled title="Save (Ctrl+S)"><i class="codicon codicon-save"></i></button>
-                    <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (Ctrl+Enter)"><i class="codicon codicon-play"></i></button>
+                    <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (F5 / Ctrl+Enter)"><i class="codicon codicon-play"></i></button>
                     <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><i class="codicon codicon-graph-line"></i></button>
-                    <button id="actualPlanBtn" class="icon-btn plan-btn" disabled title="Actual Plan - run the query and show its execution plan"><i class="codicon codicon-graph"></i></button>
+                    <button id="includeActualPlanToggle" class="icon-btn plan-btn plan-toggle-btn" disabled title="Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan"><i class="codicon codicon-graph"></i></button>
                     <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;">⏹ Cancel</button>
                     <label class="query-option">Max rows
                         <select id="maxRowsSelect">
@@ -49,7 +50,7 @@
                             <option value="1000" selected>1 000</option>
                             <option value="5000">5 000</option>
                             <option value="10000">10 000</option>
-                            <option value="0" title="No limit - can be slow for very large result sets">Unlimited</option>
+                            <option value="0" title="Up to 200,000 rows - can be slow for very large result sets">Unlimited</option>
                         </select>
                     </label>
                     <select id="queryHistorySelect" class="query-history-select" title="Recent queries">
@@ -158,17 +159,6 @@
                     </div>
                     
                     <div id="connectionStatus"></div>
-                </div>
-
-                <div class="snippet-manager-section">
-                    <h2>SQL Snippets</h2>
-                    <p class="snippet-manager-hint">Reusable SQL templates, available from the 📋 Snippets dropdown in the Query editor.</p>
-
-                    <div class="snippet-manager-toolbar">
-                        <button id="newSnippetBtn">+ New Snippet</button>
-                    </div>
-
-                    <div id="snippetManagerList" class="snippet-manager-list"></div>
                 </div>
                 </div>
             </div>
@@ -320,7 +310,7 @@
                     </div>
                     <div class="query-section">
                         <div class="query-input-wrap">
-                            <textarea id="queryInput" class="query-input" placeholder="SELECT TOP 100 * FROM ..." spellcheck="false"></textarea>
+                            <div id="queryInput" class="query-input"></div>
                         </div>
                         <div id="querySplitter" class="query-splitter" title="Drag to resize — double-click to reset"></div>
                         <div class="query-results-wrap">
@@ -427,32 +417,6 @@
         </div>
     </div>
 
-    <!-- Snippet Add/Edit Modal: a dialog instead of an inline form, so the
-         list above it stays readable once there are many snippets. -->
-    <div id="snippetFormOverlay" class="modal-overlay snippet-form-modal-overlay">
-        <div class="modal-dialog modal-dialog-snippet-form">
-            <div class="modal-header">
-                <h3 id="snippetFormTitle">New Snippet</h3>
-                <button id="snippetFormCloseBtn" class="modal-close">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="input-group">
-                    <label for="snippetNameInput">Name:</label>
-                    <input type="text" id="snippetNameInput" placeholder="e.g. Select top 100">
-                </div>
-                <div class="input-group">
-                    <label for="snippetSqlInput">SQL:</label>
-                    <textarea id="snippetSqlInput" rows="10" placeholder="SELECT TOP 100 *&#10;FROM "></textarea>
-                </div>
-                <div id="snippetFormStatus"></div>
-            </div>
-            <div class="modal-footer">
-                <button id="saveSnippetBtn" class="btn-primary">Save Snippet</button>
-                <button id="cancelSnippetFormBtn" class="btn-secondary">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Indexing Progress Modal (blocking) -->
     <div id="indexingModalOverlay" class="modal-overlay indexing-modal-overlay">
         <div class="modal-dialog modal-dialog-small">
@@ -483,12 +447,12 @@
     <script src="{{CONNECTION_MANAGER_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
+    <script src="{{BUILTIN_SNIPPETS_URI}}"></script>
+    <script src="{{SQL_EDITOR_URI}}"></script>
     <script src="{{SQL_AUTOCOMPLETE_URI}}"></script>
-    <script src="{{SQL_HIGHLIGHT_URI}}"></script>
     <script src="{{QUERY_MANAGER_URI}}"></script>
     <script src="{{QUERY_FILE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
-    <script src="{{SNIPPET_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>
