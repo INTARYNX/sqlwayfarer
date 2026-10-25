@@ -1383,6 +1383,21 @@ body.vscode-high-contrast .qp-tt-header {
     text-overflow: ellipsis;
 }
 
+/* Icon + select (History, Snippets): a real codicon instead of an emoji, so
+   it lines up with the other icons of the toolbar. */
+.query-select-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.query-select-wrap .codicon {
+    font-size: 14px;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
 .query-status {
     font-size: 12px;
     color: var(--vscode-descriptionForeground);

@@ -695,7 +695,7 @@ class QueryManager {
 
     onHistoryLoaded(history) {
         this.history = history || [];
-        this.historySelect.innerHTML = '<option value="">🕘 History…</option>';
+        this.historySelect.innerHTML = '<option value="">History…</option>';
 
         this.history.forEach((entry, index) => {
             const option = document.createElement('option');
@@ -740,7 +740,7 @@ class QueryManager {
     }
 
     renderSnippetsMenu() {
-        this.snippetsSelect.innerHTML = '<option value="">📋 Snippets…</option>';
+        this.snippetsSelect.innerHTML = '<option value="">Snippets…</option>';
 
         const builtinGroup = document.createElement('optgroup');
         builtinGroup.label = 'Built-in';

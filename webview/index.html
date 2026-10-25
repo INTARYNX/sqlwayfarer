@@ -88,7 +88,7 @@
                     <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (F5 / Ctrl+Enter)"><i class="codicon codicon-play"></i></button>
                     <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><i class="codicon codicon-graph-line"></i></button>
                     <button id="includeActualPlanToggle" class="icon-btn plan-btn plan-toggle-btn" disabled title="Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan"><i class="codicon codicon-graph"></i></button>
-                    <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;">⏹ Cancel</button>
+                    <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;"><i class="codicon codicon-stop-circle"></i> Cancel</button>
                     <label class="query-option">Max rows
                         <select id="maxRowsSelect">
                             <option value="100">100</option>
@@ -98,12 +98,18 @@
                             <option value="0" title="Up to 200,000 rows - can be slow for very large result sets">Unlimited</option>
                         </select>
                     </label>
-                    <select id="queryHistorySelect" class="query-history-select" title="Recent queries">
-                        <option value="">🕘 History…</option>
-                    </select>
-                    <select id="querySnippetsSelect" class="query-history-select" title="Insert a SQL snippet at the cursor">
-                        <option value="">📋 Snippets…</option>
-                    </select>
+                    <span class="query-select-wrap">
+                        <i class="codicon codicon-history"></i>
+                        <select id="queryHistorySelect" class="query-history-select" title="Recent queries">
+                            <option value="">History…</option>
+                        </select>
+                    </span>
+                    <span class="query-select-wrap">
+                        <i class="codicon codicon-code"></i>
+                        <select id="querySnippetsSelect" class="query-history-select" title="Insert a SQL snippet at the cursor">
+                            <option value="">Snippets…</option>
+                        </select>
+                    </span>
                 </div>
                 <div class="database-selector-inline">
                     <label for="databaseSelect">Database:</label>
