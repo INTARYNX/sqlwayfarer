@@ -65,11 +65,16 @@ class QueryManager {
         // widget inside the Query tab has focus (editor, grid, max rows...), the
         // same reach F5 has in SSMS. Scoped to the Query tab being active so it
         // doesn't fire while the user is on Explorer/Configuration.
-        document.addEventListener('keydown', (e) => {
+        // Capture phase on window, and stopPropagation(): VS Code forwards the
+        // webview's key events to the workbench, where F5 is bound to "Select
+        // debugger" - so without stopping the event here, running a query also
+        // pops that picker up in the middle of the screen.
+        window.addEventListener('keydown', (e) => {
             if (e.key !== 'F5' || appState.activeTab !== 'query') return;
             e.preventDefault();
+            e.stopPropagation();
             this.runQuery();
-        });
+        }, true);
         // Ctrl+Click or double-click on an object name jumps to its definition in the Explorer
         this.input.addEventListener('click', (e) => {
             if (e.ctrlKey || e.metaKey) this.goToDefinition();
