@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Fixed
 
-- **Marketplace banner**: the banner added in 0.12.1 carried a hand-drawn copy of the compass instead of the real icon. It now uses the extension's own logo.
+- **Banner artwork**: the project banner added in 0.12.1 carried a hand-drawn copy of the compass instead of the real icon. It now uses the extension's own logo.
 
 ## [0.12.1] - 2026-10-25
 
@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Changed
 
-- **Marketplace listing**: the extension page now has a banner image, two categories (Visualization and Data Science) and the full 30 keyword slots. Until now it showed the default VS Code icon with no banner at all, and half of the keyword budget was unused.
+- **Marketplace listing**: the extension page now uses the full 30 keyword slots and two categories (Visualization and Data Science). Until now half of the keyword budget was unused, and the listing had a single category.
 
 ## [0.12.0] - 2026-10-25
 

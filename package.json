@@ -44,11 +44,6 @@
     "column dependencies",
     "sql client"
   ],
-  "galleryBanner": {
-    "color": "#0E2A3F",
-    "theme": "dark",
-    "path": "images/banner.png"
-  },
   "icon": "icon.png",
   "repository": {
     "type": "git",
