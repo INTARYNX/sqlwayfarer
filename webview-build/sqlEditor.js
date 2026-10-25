@@ -213,6 +213,25 @@ function attach(container, options = {}) {
         const b = Math.max(0, Math.min(end, len));
         view.dispatch({ selection: { anchor: a, head: b }, scrollIntoView: true });
     };
+
+    // Replaces a range of the document, the way a <textarea>'s setRangeText()
+    // would. Unlike the value setter this is one change in one range: the
+    // text around it is not rewritten, and the editor's undo history keeps
+    // it as a single step - replacing the whole document would make an
+    // inserted snippet undo the entire query.
+    container.replaceRange = (from, to, text) => {
+        const len = view.state.doc.length;
+        const a = Math.max(0, Math.min(from, len));
+        const b = Math.max(a, Math.min(to, len));
+        const str = text == null ? '' : String(text);
+        view.dispatch({
+            changes: { from: a, to: b, insert: str },
+            // The caret lands right after the inserted text, like it does
+            // when a snippet is typed.
+            selection: { anchor: a + str.length },
+            scrollIntoView: true
+        });
+    };
     container.focus = () => view.focus();
     // 'scroll' doesn't bubble, and the element that actually scrolls is
     // view.scrollDOM (a descendant of container, CM's own .cm-scroller) -

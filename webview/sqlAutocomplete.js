@@ -274,9 +274,15 @@ class SqlAutocomplete {
         }
         const ta = this.textarea;
         const end = ta.selectionStart;
-        ta.value = ta.value.slice(0, this.ctx.partialStart) + item.insert + ta.value.slice(end);
-        const caret = this.ctx.partialStart + item.insert.length;
-        ta.setSelectionRange(caret, caret);
+        // Replace the typed word, not the whole document: the completion
+        // stays one undo step and the query around it is left untouched.
+        if (typeof ta.replaceRange === 'function') {
+            ta.replaceRange(this.ctx.partialStart, end, item.insert);
+        } else {
+            ta.value = ta.value.slice(0, this.ctx.partialStart) + item.insert + ta.value.slice(end);
+            const caret = this.ctx.partialStart + item.insert.length;
+            ta.setSelectionRange(caret, caret);
+        }
         this.hide();
     }
 

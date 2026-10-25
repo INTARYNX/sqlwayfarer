@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - **Big result sets**: the grid draws the first 2 000 rows of a result set instead of building the whole table at once - 200 000 rows x 10 columns was tens of megabytes of markup, which froze the tab and could take the renderer down. Copy and CSV export still export every row.
 - **Autocomplete on large databases**: the object list is indexed once (by name and by schema) instead of being scanned - and every name lowercased - on every keystroke. Resolving a table name in a 20 000 object database went from 1.5 ms to instant.
 - **Index cache**: the index files moved to a per-server folder, which left every index written before the move invisible - the extension silently rebuilt all of them at the update (minutes of indexing nobody asked for). They are now migrated on first use.
+- **Editor undo**: inserting a snippet or accepting an autocomplete suggestion now replaces the range at the caret instead of the whole query - undoing it no longer throws away the entire query.
 
 ### Changed
 

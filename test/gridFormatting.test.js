@@ -33,6 +33,50 @@ suite('QueryManager.formatValue', () => {
 	});
 });
 
+// Inserting a snippet replaces the range the caret is in, not the whole
+// document: with the whole document replaced, undoing the insertion threw
+// away the entire query.
+suite('QueryManager.insertAtCursor', () => {
+	function makeEditor(text) {
+		return {
+			value: text,
+			selectionStart: text.length,
+			selectionEnd: text.length,
+			focus() {},
+			setSelectionRange(start, end) {
+				this.selectionStart = start;
+				this.selectionEnd = end;
+			}
+		};
+	}
+
+	function makeManager(editor) {
+		const manager = Object.create(QueryManager.prototype);
+		manager.input = editor;
+		return manager;
+	}
+
+	test('replaces the range at the caret and keeps the text around it', () => {
+		const editor = makeEditor('SELECT * FROM ');
+		editor.replaceRange = (from, to, text) => {
+			editor.value = editor.value.slice(0, from) + text + editor.value.slice(to);
+			editor.setSelectionRange(from + text.length, from + text.length);
+		};
+
+		makeManager(editor).insertAtCursor('dbo.Orders');
+
+		assert.strictEqual(editor.value, 'SELECT * FROM dbo.Orders');
+		assert.strictEqual(editor.selectionStart, 'SELECT * FROM dbo.Orders'.length);
+	});
+
+	test('falls back to the whole document when the editor cannot replace a range', () => {
+		const editor = makeEditor('SELECT * FROM ');
+
+		makeManager(editor).insertAtCursor('dbo.Orders');
+
+		assert.strictEqual(editor.value, 'SELECT * FROM dbo.Orders');
+	});
+});
 // The grid draws a prefix of a big result set: the webview builds the whole
 // table as one HTML string, and 200 000 rows x 10 columns is tens of
 // megabytes of markup - enough to freeze the tab. The data itself is

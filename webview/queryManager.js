@@ -842,6 +842,12 @@ class QueryManager {
         ta.focus();
         const start = ta.selectionStart;
         const end = ta.selectionEnd;
+        // Replace the range, not the whole document: the snippet stays one
+        // undo step, and the query around it is left untouched.
+        if (typeof ta.replaceRange === 'function') {
+            ta.replaceRange(start, end, text);
+            return;
+        }
         ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
         const caret = start + text.length;
         ta.setSelectionRange(caret, caret);
