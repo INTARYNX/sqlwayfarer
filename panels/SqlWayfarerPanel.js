@@ -16,6 +16,7 @@ const WriteFootprintService = require('../database/WriteFootprintService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
+const { PanelStateStore } = require('./panelState');
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
@@ -34,6 +35,16 @@ class SqlWayfarerPanel {
         this._context = context;
         this._disposables = [];
         this._currentSelectedDatabase = null;
+        // Which tab of the panel (configuration / query / explorer) is open.
+        // Mirrors the webview, and is restored with the database when the
+        // page is rebuilt - see PanelStateStore.
+        this._activeTab = null;
+        // Tab to restore on the next database list, set when the page was
+        // just rebuilt (see _restorePanelState).
+        this._pendingTabRestore = null;
+        // True between the webview reporting a fresh page and the next
+        // connection: only then is the open tab worth restoring.
+        this._pageFresh = false;
         // Set when the panel is disposed, so the async initialization can
         // bail out instead of touching a disposed webview.
         this._disposed = false;
@@ -57,6 +68,7 @@ class SqlWayfarerPanel {
 
         this._connectionStorage = new ConnectionStorage(context);
         this._connectionManager = new ConnectionManager(this._connectionStorage);
+        this._panelState = new PanelStateStore(context.workspaceState);
         this._databaseService = new DatabaseService(this._connectionManager);
         this._indexService = new IndexService(this._connectionManager, this._databaseService);
         this._dependencyService = new DependencyService();
@@ -78,12 +90,7 @@ class SqlWayfarerPanel {
             // line is easy to miss, and the focus has just moved to the
             // other tab.
             notify: message => vscode.window.showInformationMessage(message),
-            onConnectionChanged: (identity, label) => {
-                this.connectionIdentity = identity;
-                this.connectionLabel = label || null;
-                this._updateTitle();
-                this._queryFiles.maybeOfferRecoveryForCurrentIdentity();
-            }
+            onConnectionChanged: (identity, label) => this._onConnectionChanged(identity, label)
         };
 
         this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage, panelController, () => this._readyPromise);
@@ -135,11 +142,63 @@ class SqlWayfarerPanel {
     }
 
     post(message) {
+        // The webview rebuilds the database list from scratch when it gets
+        // this message, which wipes the selected database - so the panel's
+        // own state travels with it and the webview puts the selection back.
+        if (message.command === 'databasesLoaded') {
+            message.currentDatabase = this._currentSelectedDatabase;
+            message.activeTab = this._pendingTabRestore;
+            this._pendingTabRestore = null;
+        }
         this._panel.webview.postMessage(message);
     }
 
     reveal() {
         this._panel.reveal();
+    }
+
+    // Called after a successful connect. What the panel remembers (selected
+    // database, open tab) belongs to one connection: when this tab connects
+    // to another server, what was in memory belonged to the previous one -
+    // save it under its own identity and start the new connection clean.
+    _onConnectionChanged(identity, label) {
+        if (this.connectionIdentity !== identity) {
+            this._persistPanelState({ database: this._currentSelectedDatabase, tab: this._activeTab });
+            this.connectionIdentity = identity;
+            this._currentSelectedDatabase = null;
+            this._activeTab = null;
+        }
+        this._restorePanelState();
+        this.connectionLabel = label || null;
+        this._updateTitle();
+        this._queryFiles.maybeOfferRecoveryForCurrentIdentity();
+    }
+
+    // Restores what this connection was showing. The database is data, not
+    // a UI mode: reconnecting to a server puts you back on the database you
+    // were working in. The open tab is only restored when the page was just
+    // rebuilt (the user came back to the tab) - a connection the user just
+    // opened still starts on Query, as before.
+    _restorePanelState() {
+        const state = this._panelState.get(this.connectionIdentity);
+        if (!this._currentSelectedDatabase && state && state.database) {
+            this._currentSelectedDatabase = state.database;
+        }
+        if (this._pageFresh) {
+            this._pageFresh = false;
+            this._activeTab = (state && state.tab) || null;
+            this._pendingTabRestore = this._activeTab;
+        }
+    }
+
+    // Saves part of the panel state for the current connection. Only the
+    // given fields are written: the webview tells us about the database and
+    // the tab separately, and one must not wipe the other.
+    _persistPanelState(patch) {
+        if (!this.connectionIdentity) return;
+        this._panelState.set(this.connectionIdentity, patch).catch(error => {
+            console.warn('Could not persist the panel state:', error.message);
+        });
     }
 
     async _initialize() {
@@ -216,7 +275,31 @@ class SqlWayfarerPanel {
             case 'openNewPanel':                 await vscode.commands.executeCommand('sqlwayfarer.sqlwayfarer'); break;
 
             // Database
-            case 'setCurrentDatabase':          this._currentSelectedDatabase = message.database; break;
+            case 'setCurrentDatabase':
+                // A sync reply (the extension asked which database is
+                // selected) must not wipe what we remember: a page that was
+                // just rebuilt starts with no selection and would answer
+                // "none", which would throw away the restored database.
+                if (message.sync && !message.database) break;
+                this._currentSelectedDatabase = message.database || null;
+                this._persistPanelState({ database: this._currentSelectedDatabase });
+                break;
+            // Which tab of the panel is open - kept so a rebuilt page comes
+            // back on the same tab.
+            case 'setActiveTab':
+                // While a restore is pending, the webview is about to be
+                // moved to the restored tab: its intermediate tab (the
+                // automatic switch to Query on connect) must not overwrite
+                // what we are about to restore.
+                if (this._pendingTabRestore) break;
+                this._activeTab = message.tab || null;
+                this._persistPanelState({ tab: this._activeTab });
+                break;
+            // The webview page was just built: the panel can restore what
+            // this tab was showing instead of starting from scratch.
+            case 'panelReady':
+                this._pageFresh = true;
+                break;
             case 'getDatabases':                await d.handleGetDatabases(); break;
             // No background indexing here anymore - the dependency index is
             // only ever built when the user opens the Explorer tab (see

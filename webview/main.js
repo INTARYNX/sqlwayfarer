@@ -1239,7 +1239,7 @@ class ExplorerManager {
         }
     }
 
-    onDatabasesLoaded(databases) {
+    onDatabasesLoaded(databases, currentDatabase) {
         appState.databases = databases || [];
         this.elements.databaseSelect.disabled = false;
         this.elements.databaseSelect.innerHTML = '<option value="">Select a database...</option>';
@@ -1250,6 +1250,24 @@ class ExplorerManager {
             option.textContent = db;
             this.elements.databaseSelect.appendChild(option);
         });
+
+        // The list above replaced the whole selector, so the selection went
+        // with it: put it back when the panel tells us which database this
+        // tab was on (reconnect, or a tab that was rebuilt).
+        if (currentDatabase) {
+            const match = (databases || []).find(db => db.toLowerCase() === currentDatabase.toLowerCase());
+            if (match) {
+                this.elements.databaseSelect.value = match;
+                // Dispatched so the rest of the app follows the selection
+                // (objects, foreign keys, autocomplete) exactly as it does
+                // when the user picks a database by hand.
+                this.elements.databaseSelect.dispatchEvent(new Event('change'));
+            } else {
+                // The database is gone (dropped, renamed): tell the
+                // extension, it must not keep querying it.
+                vscode.postMessage({ command: 'setCurrentDatabase', database: '' });
+            }
+        }
     }
 
     // Stale responses (user switched database again before this arrived) are
@@ -2148,12 +2166,20 @@ class MessageHandler {
             case 'requestCurrentDatabase':
                 vscode.postMessage({
                     command: 'setCurrentDatabase',
-                    database: appState.currentDatabase
+                    database: appState.currentDatabase || '',
+                    // A sync reply: the extension asked, so an empty answer
+                    // means "nothing selected here", not "the user cleared
+                    // the selection".
+                    sync: true
                 });
                 break;
 
             case 'databasesLoaded':
-                this.explorerManager.onDatabasesLoaded(message.databases);
+                this.explorerManager.onDatabasesLoaded(message.databases, message.currentDatabase);
+                // The tab the panel was on, when the page was rebuilt.
+                if (message.activeTab) {
+                    this.tabManager.switchTab(message.activeTab);
+                }
                 if (this.codeViewManager) {
                     this.codeViewManager.onDatabaseChanged();
                 }
@@ -2417,6 +2443,11 @@ class MessageHandler {
 // Application initialization
 document.addEventListener('DOMContentLoaded', function () {
     console.log('SQL Wayfarer webview loaded');
+
+    // Tells the extension this page was just built, so it can restore what
+    // this tab was showing (selected database, open tab) instead of
+    // starting from scratch.
+    vscode.postMessage({ command: 'panelReady' });
 
     const tabManager = new TabManager();
     const connectionManager = new ConnectionManager();

@@ -46,6 +46,10 @@ class TabManager {
 
         appState.activeTab = tabName;
 
+        // The extension keeps the open tab of every panel, so a tab that was
+        // rebuilt comes back on the same one (see SqlWayfarerPanel).
+        vscode.postMessage({ command: 'setActiveTab', tab: tabName });
+
         // Update tab buttons
         this.tabButtons.forEach(button => {
             button.classList.toggle('active', button.dataset.tab === tabName);
