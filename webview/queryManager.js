@@ -860,6 +860,10 @@ class QueryManager {
         return flat.length > maxLength ? `${flat.slice(0, maxLength - 1)}…` : flat;
     }
 
+    // JSON.stringify's own form for a Date: "2008-04-30T00:00:00.000Z".
+    // Always milliseconds, always the 'Z' suffix - so the shape is exact.
+    static JSON_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
     formatDuration(ms) {
         if (typeof ms !== 'number') return '?';
         return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
@@ -874,6 +878,15 @@ class QueryManager {
         // the grid. CSV/clipboard export (toDelimited) deliberately keeps
         // the unambiguous ISO form instead, for round-tripping into other tools.
         if (value instanceof Date) return value.toISOString().replace('T', ' ').replace('Z', '');
+        // The extension host and the webview talk over JSON, so a datetime
+        // arrives here as a *string* (JSON.stringify's Date form), never as
+        // a Date object - the branch above can therefore never fire for a
+        // result set, and the raw "2008-04-30T00:00:00.000Z" is what shows
+        // up in the grid. Reformat that exact shape; JSON.stringify always
+        // emits milliseconds and the 'Z' suffix, so the pattern is exact.
+        if (typeof value === 'string' && QueryManager.JSON_DATE_RE.test(value)) {
+            return value.replace('T', ' ').replace('Z', '');
+        }
         if (typeof value === 'object') return JSON.stringify(value);
         return String(value);
     }
