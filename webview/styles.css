@@ -1439,6 +1439,25 @@ body.vscode-high-contrast .qp-tt-header {
     overflow: hidden;
 }
 
+/* Focus frame for the SQL editor.
+   Drawn as an overlay on the container rather than as an outline on
+   CodeMirror's .cm-editor: the line-number gutter is a positioned
+   descendant with an opaque background and z-index 200, so it paints over
+   the editor's own outline - the frame would visibly start *after* the
+   line numbers instead of around them. An outline on the container does
+   not work either: the editor is an opaque child filling it, and a
+   parent's outline is painted underneath its children. This overlay is
+   z-index 201, so it really does surround the whole editor area. */
+.query-input:focus-within::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid #ffa500;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 201;
+}
+
 /* Drag bar between the SQL editor and the results grid */
 .query-splitter {
     flex-shrink: 0;

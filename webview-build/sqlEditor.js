@@ -75,23 +75,29 @@ const goHighlighter = ViewPlugin.fromClass(class {
 
 const vsCodeTheme = EditorView.theme({
     '&': {
-        // position:absolute + inset:0 (not just height:100%) so the editor
-        // fills .query-input exactly regardless of content - a plain flow
-        // child sized by height:100% was instead shrinking to fit just its
-        // content (one line in, one line tall), leaving the rest of the
-        // container as bare background with no actual editor underneath it.
-        position: 'absolute',
-        inset: '0',
+        // height/width:100% is what makes the editor fill .query-input.
+        // position:absolute + inset:0 cannot be used here: CodeMirror's own
+        // base theme sets `position: relative !important` on the editor
+        // root, and an !important declaration wins over both this theme and
+        // an inline style - the editor root is always a relative box.
         height: '100%',
         width: '100%',
         backgroundColor: 'var(--vscode-textCodeBlock-background)',
         color: 'var(--vscode-editor-foreground)',
-        fontSize: 'var(--vscode-editor-font-size, 13px)'
+        fontSize: 'var(--vscode-editor-font-size, 13px)',
+        // No outline of its own: the browser's default focus ring would draw
+        // a second frame around the editor, and the editor's focus frame is
+        // drawn by styles.css on the container (it has to be, to sit above
+        // the line-number gutter).
+        outline: 'none'
     },
     '.cm-content': {
         fontFamily: 'var(--vscode-editor-font-family)',
         caretColor: 'var(--vscode-editor-foreground)',
-        padding: '2px 0'
+        padding: '2px 0',
+        // The browser's own focus ring on the contenteditable would draw a
+        // second frame around the text column only.
+        outline: 'none'
     },
     '.cm-scroller': {
         overflow: 'auto',
@@ -101,10 +107,6 @@ const vsCodeTheme = EditorView.theme({
         backgroundColor: 'var(--vscode-textCodeBlock-background)',
         color: 'var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground))',
         border: 'none'
-    },
-    '&.cm-focused': {
-        outline: '1px solid #ffa500',
-        outlineOffset: '-1px'
     },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
         backgroundColor: 'var(--vscode-editor-selectionBackground) !important'
