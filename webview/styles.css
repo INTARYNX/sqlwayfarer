@@ -325,24 +325,34 @@ label {
 }
 
 /* === SNIPPET MANAGER (activity bar sidebar, see panels/SnippetSidebarProvider.js) === */
+/* A real button, not a link: the generic `button` rule paints every button
+   in primary blue, which would put two blue buttons in a row. */
 .sidebar-open-panel-link {
-    background: transparent;
-    border: none;
-    padding: 0;
-    margin: 0 0 10px;
-    width: auto;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
-    color: var(--vscode-textLink-foreground);
-    cursor: pointer;
+    justify-content: flex-start;
+    gap: 6px;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px 10px;
+    margin: 0 0 10px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
     font-size: 13px;
+    text-align: left;
+    cursor: pointer;
 }
 
 .sidebar-open-panel-link:hover {
-    background: transparent;
-    color: var(--vscode-textLink-activeForeground);
-    text-decoration: underline;
+    background: var(--vscode-button-secondaryHoverBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.sidebar-open-panel-link:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
 }
 
 .snippet-manager-hint {
