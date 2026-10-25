@@ -97,7 +97,7 @@ class IndexService {
     }
 
     async _runGetIndex(database, build) {
-        const indexFile = this._getIndexFilePath(database, build.server);
+        const indexFile = await this._migrateLegacyIndexFile(database, build.server);
         await this._ensureIndexDir(path.dirname(indexFile));
 
         const liveObjects = await this._getLiveObjects(database);
@@ -164,16 +164,21 @@ class IndexService {
 
     async clearIndex(database) {
         const indexFile = this._getIndexFilePath(database);
-        try {
-            await fs.unlink(indexFile);
-            console.log(`Cleared index for ${database}`);
-        } catch (error) {
-            if (error.code !== 'ENOENT') console.warn(`Failed to clear index for ${database}:`, error.message);
+        // The legacy file too: it would be migrated back on the next index
+        // build, and the user asked for the index to be gone.
+        const legacyFile = this._legacyIndexFilePath(database);
+        for (const file of [indexFile, legacyFile]) {
+            try {
+                await fs.unlink(file);
+                console.log(`Cleared index for ${database}`);
+            } catch (error) {
+                if (error.code !== 'ENOENT') console.warn(`Failed to clear index for ${database}:`, error.message);
+            }
         }
     }
 
     async getIndexStats(database) {
-        const indexFile = this._getIndexFilePath(database);
+        const indexFile = await this._migrateLegacyIndexFile(database);
         try {
             const stats = await fs.stat(indexFile);
             const index = await this._loadIndex(indexFile);
@@ -567,6 +572,45 @@ class IndexService {
     _getIndexFilePath(database, server = this._getCurrentServerName()) {
         const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
         return path.join(this._indexDir, slug(server), `${slug(database)}.json`);
+    }
+
+    // Where the index files were written before the server became its own
+    // path segment: one file per server+database, named "<server>_<db>.json".
+    _legacyIndexFilePath(database, server = this._getCurrentServerName()) {
+        const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
+        return path.join(this._indexDir, `${slug(server)}_${slug(database)}.json`);
+    }
+
+    // Moves an index cached under the old file name to its new place, the
+    // first time it is used. Without it every index written before the path
+    // change became invisible at the update, and the extension silently
+    // rebuilt all of them - which on a big database means minutes of
+    // indexing the user never asked for.
+    async _migrateLegacyIndexFile(database, server = this._getCurrentServerName()) {
+        const indexFile = this._getIndexFilePath(database, server);
+        const legacyFile = this._legacyIndexFilePath(database, server);
+        if (indexFile === legacyFile) return indexFile;
+
+        try {
+            await fs.access(indexFile);
+            return indexFile; // already at the new place
+        } catch { /* not there yet */ }
+
+        try {
+            await fs.access(legacyFile);
+        } catch {
+            return indexFile; // nothing to migrate
+        }
+
+        try {
+            await this._ensureIndexDir(path.dirname(indexFile));
+            await fs.rename(legacyFile, indexFile);
+            console.log(`Migrated index cache ${legacyFile} -> ${indexFile}`);
+        } catch (error) {
+            // Not fatal: the index is simply rebuilt from scratch.
+            console.warn(`Could not migrate the index cache ${legacyFile}: ${error.message}`);
+        }
+        return indexFile;
     }
 
     async _ensureIndexDir(dir = this._indexDir) {

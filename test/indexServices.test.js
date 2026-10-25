@@ -276,6 +276,84 @@ function makeGatedCm(liveObjectsByDb) {
 	};
 }
 
+// The index files used to be named "<server>_<database>.json" in the index
+// folder; they now live in a "<server>/<database>.json" subfolder. Without a
+// migration every index written before the change became invisible at the
+// update, and the extension silently rebuilt all of them.
+suite('IndexService cache path migration', () => {
+	let tempDir;
+
+	async function exists(file) {
+		try {
+			await fs.access(file);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	setup(async () => {
+		tempDir = path.join(os.tmpdir(), `sqlwayfarer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		await fs.mkdir(tempDir, { recursive: true });
+	});
+
+	teardown(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	});
+
+	function makeService() {
+		const service = new IndexService(makeMockCm({}), null);
+		service._indexDir = tempDir;
+		return service;
+	}
+
+	test('an index cached under the old file name is moved to its new place', async () => {
+		const service = makeService();
+
+		const legacyFile = path.join(tempDir, 'testserver_Db.json');
+		await fs.writeFile(legacyFile, JSON.stringify({ formatVersion: 3, database: 'Db' }), 'utf8');
+
+		const indexFile = await service._migrateLegacyIndexFile('Db', 'testserver');
+
+		assert.strictEqual(indexFile, path.join(tempDir, 'testserver', 'Db.json'));
+		assert.ok(await exists(indexFile), 'the index should be at its new place');
+		assert.ok(!await exists(legacyFile), 'the old file should be gone');
+	});
+
+	test('an index already at its new place is left alone', async () => {
+		const service = makeService();
+
+		const indexFile = path.join(tempDir, 'testserver', 'Db.json');
+		await fs.mkdir(path.join(tempDir, 'testserver'), { recursive: true });
+		await fs.writeFile(indexFile, JSON.stringify({ formatVersion: 3, database: 'Db' }), 'utf8');
+
+		const result = await service._migrateLegacyIndexFile('Db', 'testserver');
+
+		assert.strictEqual(result, indexFile);
+		assert.ok(await exists(indexFile));
+	});
+
+	test('nothing to migrate is not an error', async () => {
+		const service = makeService();
+
+		const indexFile = await service._migrateLegacyIndexFile('Db', 'testserver');
+
+		assert.strictEqual(indexFile, path.join(tempDir, 'testserver', 'Db.json'));
+		assert.ok(!await exists(indexFile));
+	});
+
+	test('clearing the index removes the old file too', async () => {
+		const service = makeService();
+
+		const legacyFile = path.join(tempDir, 'testserver_Db.json');
+		await fs.writeFile(legacyFile, JSON.stringify({ formatVersion: 3, database: 'Db' }), 'utf8');
+
+		await service.clearIndex('Db');
+
+		assert.ok(!await exists(legacyFile), 'the old file should be gone, not migrated back later');
+	});
+});
+
 suite('IndexService concurrency', () => {
 	let tempDir;
 
