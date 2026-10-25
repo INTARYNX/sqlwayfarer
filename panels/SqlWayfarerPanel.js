@@ -49,6 +49,12 @@ class SqlWayfarerPanel {
         this._panelRegistry = panelRegistry;
         this._panelRegistry.register(this);
 
+        // Resolved once the connection storage is readable. The webview asks
+        // for the saved connections as soon as its page loads, which now
+        // happens before the storage has been read - so the handler waits
+        // for this instead of answering with an empty list.
+        this._readyPromise = new Promise(resolve => { this._resolveReady = resolve; });
+
         this._connectionStorage = new ConnectionStorage(context);
         this._connectionManager = new ConnectionManager(this._connectionStorage);
         this._databaseService = new DatabaseService(this._connectionManager);
@@ -80,7 +86,7 @@ class SqlWayfarerPanel {
             }
         };
 
-        this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage, panelController);
+        this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage, panelController, () => this._readyPromise);
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
@@ -93,11 +99,11 @@ class SqlWayfarerPanel {
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
         this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
 
-        // Something has to be on screen from the very first tick: the real
-        // UI can only be built once the connection storage has been read
-        // (see _initialize), and until then the tab used to stay blank -
-        // with no clue of whether it was loading or simply broken.
-        this._panel.webview.html = this._getLoadingHtml();
+        // The page goes up straight away - the webview shows a loading
+        // overlay until it is ready (see index.html), so there is no blank
+        // screen and no second page load to swap in.
+        this._setupEventHandlers();
+        this._update();
 
         this._initialize();
     }
@@ -116,7 +122,13 @@ class SqlWayfarerPanel {
             column || vscode.ViewColumn.One,
             // enableFindWidget: native Ctrl+F over all rendered content
             // (code definitions, query results, object lists).
-            { enableScripts: true, localResourceRoots: [extensionUri], enableFindWidget: true }
+            // retainContextWhenHidden: without it, VS Code tears the webview
+            // down every time the tab is hidden and rebuilds it on the way
+            // back - re-parsing ~3 MB of vendored scripts and re-running
+            // every request, with a black screen in between. Keeping the
+            // context also preserves the tab's state (selected database,
+            // open queries, filters), which was lost on every switch.
+            { enableScripts: true, localResourceRoots: [extensionUri], enableFindWidget: true, retainContextWhenHidden: true }
         );
 
         return new SqlWayfarerPanel(panel, extensionUri, context, panelRegistry);
@@ -133,18 +145,20 @@ class SqlWayfarerPanel {
     async _initialize() {
         try {
             await this._connectionStorage.initialize();
+            // Release the waiters first: whoever asked for the saved
+            // connections must get an answer even if the panel is on its way
+            // out.
+            this._resolveReady();
             if (this._disposed) return;
             this._dependencyService.setIndexService(this._indexService);
             this._dependencyService.setConnectionManager(this._connectionManager);
             console.log('IndexService connected to DependencyService');
-            // The message handler goes in *before* the real HTML is set: the
-            // webview posts as soon as it loads, and a message that arrives
-            // before the listener exists is lost for good.
-            this._setupEventHandlers();
-            this._update();
             console.log('SqlWayfarerPanel initialized successfully');
         } catch (error) {
             console.error('Error initializing SqlWayfarerPanel:', error);
+            // Release the waiters even on failure - the webview must get an
+            // answer (an empty one) rather than hang on the loading overlay.
+            this._resolveReady();
             vscode.window.showErrorMessage(`Failed to initialize SQL Wayfarer: ${error.message}`);
         }
     }
@@ -282,44 +296,6 @@ class SqlWayfarerPanel {
     _update() {
         this._updateTitle();
         this._panel.webview.html = this._getHtmlForWebview();
-    }
-
-    // Shown while the panel initializes - the real UI can only be built once
-    // the connection storage has been read, and a blank tab in the meantime
-    // gives no clue about whether it is loading or simply broken.
-    _getLoadingHtml() {
-        const w = this._panel.webview;
-        const csp = `default-src 'none'; style-src ${w.cspSource} 'unsafe-inline'; font-src ${w.cspSource};`;
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="${csp}">
-    <title>SQL Wayfarer</title>
-    <style>
-        body {
-            display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;
-            font-family: var(--vscode-font-family, sans-serif);
-            color: var(--vscode-foreground, #ccc);
-            background: var(--vscode-editor-background, #1e1e1e);
-        }
-        .loading { display: flex; align-items: center; gap: 12px; font-size: 13px; opacity: 0.85; }
-        .spinner {
-            width: 16px; height: 16px; box-sizing: border-box;
-            border: 2px solid var(--vscode-progressBar-background, #3794ff);
-            border-top-color: transparent; border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
-    <div class="loading">
-        <div class="spinner"></div>
-        <span>SQL Wayfarer is starting&hellip;</span>
-    </div>
-</body>
-</html>`;
     }
 
     _updateTitle() {

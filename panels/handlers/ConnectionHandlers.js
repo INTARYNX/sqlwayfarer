@@ -10,11 +10,16 @@ const NOOP_PANEL_CONTROLLER = {
 };
 
 class ConnectionHandlers {
-    constructor(postMessage, connectionManager, connectionStorage, panelController = NOOP_PANEL_CONTROLLER) {
+    constructor(postMessage, connectionManager, connectionStorage, panelController = NOOP_PANEL_CONTROLLER, whenReady = () => Promise.resolve()) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._connectionStorage = connectionStorage;
         this._panelController = panelController;
+        // Resolved once the connection storage is readable. The webview asks
+        // for the saved connections as soon as its page loads, which now
+        // happens before the storage has been read - answering with an empty
+        // list at that point would leave the tab with no connection to pick.
+        this._whenReady = whenReady;
     }
 
     // One tab per server+login: a second connection to the same server would
@@ -111,6 +116,10 @@ class ConnectionHandlers {
 
     async handleLoadConnections() {
         try {
+            // The storage may not be readable yet (the webview's page loads
+            // before it is) - wait for it rather than answering with an
+            // empty list.
+            await this._whenReady();
             const connections = this._connectionStorage.getSavedConnections();
             const lastConnection = this._connectionStorage.getLastConnectionName();
             let autoConnect = this._connectionStorage.getAutoConnectEnabled();

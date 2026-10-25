@@ -15,6 +15,25 @@ class ConnectionManager {
         this.loadSavedConnections();
         this.settingsMode = 'new'; // 'new' or 'edit'
         this.currentEditingConnection = null;
+        // If the app is still not up after a while, say so instead of
+        // leaving a spinner turning - "is it stuck?" is the wrong question
+        // to have to ask about a blank panel.
+        this._loadingHintTimer = setTimeout(() => this.showLoadingHint(), 20000);
+    }
+
+    // Removes the startup overlay (see index.html) once the app has settled
+    // into a usable state: connected, failed to connect, or no connection to
+    // make in the first place.
+    endLoading() {
+        clearTimeout(this._loadingHintTimer);
+        const overlay = document.getElementById('appLoading');
+        if (overlay) overlay.remove();
+    }
+
+    showLoadingHint() {
+        const detail = document.getElementById('appLoadingDetail');
+        if (!detail) return;
+        detail.textContent = 'Still starting… - if this does not go away, check the extension host log (Developer: Toggle Developer Tools > Console) for errors.';
     }
 
     initDOMElements() {
@@ -285,6 +304,7 @@ class ConnectionManager {
             this.handleConnectionSelectChange();
             if (autoConnect && !this._autoConnectDone && !appState.isConnected) {
                 this._autoConnectDone = true;
+                this._autoConnectStarted = true;
                 this.handleConnect();
             }
         }
@@ -299,6 +319,11 @@ class ConnectionManager {
                 `'${busyConnection}' is already open in another tab - a server + login can only be used by one tab at a time. Pick another connection here.`,
                 'info'
             );
+        }
+
+        // No auto-connect was started: the app is up and usable as it is.
+        if (!autoConnect || !lastConnection || !this._autoConnectStarted) {
+            this.endLoading();
         }
     }
 
@@ -331,7 +356,10 @@ class ConnectionManager {
     onConnectionStatus(message) {
         this.setButtonState(this.elements.connectBtn, false, 'Connect');
         this.showStatus(message.message, message.success ? 'success' : 'error');
-        
+        // The connection attempt is over, one way or the other: the app is
+        // usable now, so the startup overlay can go.
+        this.endLoading();
+
         if (message.success) {
             appState.isConnected = true;
             // Permettre l'accès à l'onglet Explorer
