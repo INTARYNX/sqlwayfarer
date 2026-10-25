@@ -37,17 +37,33 @@ class SqlAutocomplete {
 
     initEventListeners() {
         this.textarea.addEventListener('input', () => this.update());
-        this.textarea.addEventListener('keydown', (e) => this.onKeyDown(e));
+        // Capture phase on purpose: the editor handles keys on its own
+        // contenteditable (a descendant of the container), so a bubble-phase
+        // listener here would run *after* CodeMirror already inserted a
+        // newline for Enter/Tab or moved the cursor for the arrow keys.
+        // Capturing on the container runs first, and stopPropagation() then
+        // keeps the key away from CodeMirror entirely.
+        this.textarea.addEventListener('keydown', (e) => this.onKeyDown(e), true);
         // Delay so a mousedown on a suggestion can accept before the dropdown goes away.
         this.textarea.addEventListener('blur', () => setTimeout(() => this.hide(), 150));
         this.textarea.addEventListener('scroll', () => this.hide());
         this.textarea.addEventListener('click', () => this.hide());
     }
 
+    // Is the editor focused? The element that holds the focus is CodeMirror's
+    // contenteditable (.cm-content), a *descendant* of the container, so
+    // `document.activeElement === container` is never true - the adapter
+    // exposes the real answer.
+    isEditorFocused() {
+        if (typeof this.textarea.isFocused === 'function') return this.textarea.isFocused();
+        return document.activeElement === this.textarea;
+    }
+
     onKeyDown(e) {
         if (!this.isOpen()) {
             if (e.ctrlKey && e.code === 'Space') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.update(true);
             }
             return;
@@ -56,10 +72,12 @@ class SqlAutocomplete {
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
+                e.stopPropagation();
                 this.select(this.selectedIndex + 1);
                 break;
             case 'ArrowUp':
                 e.preventDefault();
+                e.stopPropagation();
                 this.select(this.selectedIndex - 1);
                 break;
             case 'Enter':
@@ -69,10 +87,12 @@ class SqlAutocomplete {
                     return;
                 }
                 e.preventDefault();
+                e.stopPropagation();
                 this.accept();
                 break;
             case 'Escape':
                 e.preventDefault();
+                e.stopPropagation();
                 this.hide();
                 break;
         }
@@ -103,7 +123,7 @@ class SqlAutocomplete {
         this.pendingColumns.delete(key);
         this.columnsCache[key] = columns || [];
         // Refresh only if the user is still typing in the editor.
-        if (document.activeElement === this.textarea) this.update();
+        if (this.isEditorFocused()) this.update();
     }
 
     // Objects of a database other than the one currently selected, fetched on
@@ -112,7 +132,7 @@ class SqlAutocomplete {
         const key = (database || '').toLowerCase();
         this.pendingObjectsDbs.delete(key);
         this.objectsCache[key] = objects || [];
-        if (document.activeElement === this.textarea) this.update();
+        if (this.isEditorFocused()) this.update();
     }
 
     // === Suggestion computation ===

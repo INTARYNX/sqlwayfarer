@@ -132,7 +132,11 @@ function baseExtensions(options) {
         rectangularSelection(),
         crosshairCursor(),
         EditorState.allowMultipleSelections.of(true),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        // Mod-Enter (Ctrl+Enter) is the extension's "run query" shortcut
+        // (queryManager.js). CodeMirror's default binding for it inserts a
+        // blank line, which would happen *and* run the query - so that one
+        // entry is dropped and the shortcut is left to the extension.
+        keymap.of([...defaultKeymap.filter(binding => binding.key !== 'Mod-Enter'), ...historyKeymap, indentWithTab]),
         sql({ dialect: MSSQL }),
         syntaxHighlighting(sqlHighlightStyle),
         goHighlighter,
@@ -165,11 +169,26 @@ function attach(container, options = {}) {
 
     container.cmView = view;
 
+    // Focus state, in the shape the rest of the webview needs. The element
+    // that actually takes focus is CodeMirror's own contenteditable
+    // (.cm-content), a *descendant* of the container - so
+    // `document.activeElement === container` is never true once the editor
+    // has focus, and callers have to ask the adapter instead.
+    container.isFocused = () => view.hasFocus;
+
     Object.defineProperty(container, 'value', {
         configurable: true,
         get() { return view.state.doc.toString(); },
         set(text) {
-            view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text == null ? '' : String(text) } });
+            const str = text == null ? '' : String(text);
+            view.dispatch({
+                changes: { from: 0, to: view.state.doc.length, insert: str },
+                // A <textarea>'s value setter leaves the caret at the end of
+                // the new text; CodeMirror would otherwise map the old
+                // selection through the replacement and land it at the
+                // start, which breaks the autocomplete's context detection.
+                selection: { anchor: str.length }
+            });
         }
     });
     Object.defineProperty(container, 'selectionStart', {
@@ -198,6 +217,10 @@ function attach(container, options = {}) {
     // forward it so a plain container.addEventListener('scroll', ...), as
     // sqlAutocomplete.js uses to close the dropdown, keeps working.
     view.scrollDOM.addEventListener('scroll', () => container.dispatchEvent(new Event('scroll')));
+    // Same story for 'blur': it doesn't bubble either, and the element that
+    // holds the focus is contentDOM - so the container never sees a blur
+    // unless it is forwarded explicitly.
+    view.contentDOM.addEventListener('blur', () => container.dispatchEvent(new Event('blur')));
 
     // Exact pixel position of a document offset, relative to `container`
     // (not the viewport) - what SqlAutocomplete.position() needs to place
