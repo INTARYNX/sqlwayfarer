@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.7] - 2026-10-25
+
+### Changed
+
+- **Marketplace listing**: the extension was listed with the vocabulary of SQL tooling, but not with the one of its actual audience - the developer who inherits a legacy database with no documentation and no tests. The keywords and the first lines of the README now say it in those words, so the extension shows up when someone searches for a legacy database to document or a schema to audit.
+
 ## [0.12.6] - 2026-10-25
 
 ### Fixed
