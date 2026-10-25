@@ -180,7 +180,9 @@ h4:has(> .codicon),
     background: var(--vscode-list-activeSelectionBackground);
 }
 
-.tab-folder-icon {
+/* Icon-only toolbar button (folder, "+", cog) - the same shape as the text
+   tabs, but without the label. */
+.tab-icon-button {
     background: transparent;
     border: none;
     padding: 4px 8px;
@@ -192,9 +194,16 @@ h4:has(> .codicon),
     align-self: center;
 }
 
-.tab-folder-icon:hover {
+.tab-icon-button:hover {
     opacity: 1;
     background: var(--vscode-list-hoverBackground);
+}
+
+/* The icon version of the "active tab" state (the Configuration cog). */
+.tab-icon-button.active {
+    opacity: 1;
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-list-activeSelectionBackground);
 }
 
 .tab-content {

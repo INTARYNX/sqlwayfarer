@@ -10,7 +10,9 @@
 // Tab manager
 class TabManager {
     constructor() {
-        this.tabButtons = document.querySelectorAll('.tab-button');
+        // [data-tab], not .tab-button: the Configuration tab is an icon
+        // button now (a cog), not a text tab.
+        this.tabButtons = document.querySelectorAll('[data-tab]');
         this.tabContents = document.querySelectorAll('.tab-content');
         this.explorerToolbarActions = document.getElementById('explorerToolbarActions');
         this.queryToolbarActions = document.getElementById('queryToolbarActions');

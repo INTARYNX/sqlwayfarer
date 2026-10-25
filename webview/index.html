@@ -60,14 +60,15 @@
         <!-- Single-line toolbar: tabs + database selector + actions -->
         <div class="app-toolbar">
             <div class="tab-nav">
-                <button class="tab-button active" data-tab="configuration">Configuration</button>
-                <button id="queryFilesBtn" class="tab-folder-icon" title="Browse .sql files in the workspace (including subfolders)"><i class="codicon codicon-folder-opened"></i></button>
+                <button class="tab-icon-button active" data-tab="configuration" title="Configuration (connection settings)"><i class="codicon codicon-settings"></i></button>
+                <button id="queryFilesBtn" class="tab-icon-button" title="Browse .sql files in the workspace (including subfolders)"><i class="codicon codicon-folder-opened"></i></button>
                 <span class="query-tab-wrap">
                     <button class="tab-button" data-tab="query" title="Double-click to switch between open queries">Query<span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
+                    <button id="queryTabsBtn" class="tab-icon-button" title="Open the list of open queries (same as double-clicking the Query tab)"><i class="codicon codicon-add"></i></button>
                     <div id="queryTabsDropdown" class="query-tabs-dropdown" role="menu"></div>
                 </span>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
-                <button id="newPanelBtn" class="tab-folder-icon" title="Open a new SQL Wayfarer tab (its own independent connection)"><i class="codicon codicon-add"></i></button>
+                <button id="newPanelBtn" class="tab-icon-button" title="Open a new SQL Wayfarer tab (its own independent connection)"><i class="codicon codicon-compass"></i></button>
             </div>
             <div class="header-actions">
                 <!-- Shown only while the Explorer tab is active - see TabManager.updateToolbarActions -->

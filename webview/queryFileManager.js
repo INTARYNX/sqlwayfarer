@@ -24,6 +24,7 @@ class QueryFileManager {
         this.queryManager = queryManager;
         this.input = document.getElementById('queryInput');
         this.queryTabButton = document.querySelector('.tab-button[data-tab="query"]');
+        this.queryTabsBtn = document.getElementById('queryTabsBtn');
         this.activeTabLabel = document.getElementById('queryActiveTabLabel');
         this.tabsDropdown = document.getElementById('queryTabsDropdown');
         this.saveBtn = document.getElementById('saveQueryFileBtn');
@@ -70,6 +71,12 @@ class QueryFileManager {
             e.stopPropagation();
             this.toggleTabsDropdown();
         });
+        // The "+" next to the Query tab does the same as the double-click -
+        // the double-click is not discoverable on its own.
+        this.queryTabsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleTabsDropdown();
+        });
         this.tabsDropdown.addEventListener('click', (e) => {
             const closeBtn = e.target.closest('[data-qtab-close]');
             if (closeBtn) { e.stopPropagation(); this.closeTab(Number(closeBtn.dataset.qtabClose)); return; }
@@ -81,6 +88,9 @@ class QueryFileManager {
         document.addEventListener('click', (e) => {
             if (!this.tabsDropdown.classList.contains('visible')) return;
             if (this.tabsDropdown.contains(e.target) || e.target === this.queryTabButton) return;
+            // The "+" button opens the dropdown too - without this, the click
+            // that opened it would immediately close it again.
+            if (this.queryTabsBtn && (e.target === this.queryTabsBtn || this.queryTabsBtn.contains(e.target))) return;
             this.closeTabsDropdown();
         });
 
