@@ -14,11 +14,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Fixed
 
+- **Switching between tabs**: no more black screen, and no more full reload of the tab. VS Code was tearing the webview down every time a tab was hidden and rebuilding it on the way back - re-parsing ~3 MB of vendored scripts and re-running every request. The tab also kept its state, starting with the selected database.
+- **Waiting screen**: a tab that is starting now shows a spinner instead of a blank panel, and says so if it is taking unusually long - so it is clear whether it is loading or stuck.
+- **F5 in the query editor**: running a query no longer also opens VS Code's "Select debugger" picker in the middle of the screen.
 - **Autocomplete predictions after a server lookup**: the suggestion list no longer stays empty when the column list of a `schema.table` reference (or the object list of a `database.schema.table` reference) came back from the server. The editor's focus is now detected through the editor itself - the focused element is the editor's own text area, so comparing it with the editor's container was never true, and the refresh was skipped every time.
-- **Opening a new tab**: the tab no longer comes up blank. It shows a loading screen while it starts, and when the connection it would auto-connect to is already open in another tab, it says so - which connection is busy, and that a server + login can only be used by one tab at a time - instead of silently failing to connect.
+- **Opening a new tab**: the tab no longer comes up blank. When the connection it would auto-connect to is already open in another tab, it says so - which connection is busy, and that a server + login can only be used by one tab at a time - instead of silently failing to connect.
 - **Dates in the results grid**: shown as `2008-04-30 00:00:00.000` instead of the raw ISO 8601 `2008-04-30T00:00:00.000Z`. CSV and clipboard export keep the unambiguous ISO form.
 - **Ctrl+Enter in the query editor**: no longer inserts a blank line while running the query, and accepting an autocomplete suggestion no longer adds a newline.
 - **Editor focus frame**: the frame around the query editor now surrounds the line numbers as well - the line-number gutter is painted over the editor's own outline.
+
+### Changed
+
+- **Toolbar**: the Configuration tab is a cog instead of a text tab, a "+" next to the Query tab opens the list of open queries (what a double-click on it did), and the button that opens a new tab shows the extension's compass icon.
 
 ## [0.11.3] - 2026-10-24
 
