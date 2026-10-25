@@ -153,6 +153,7 @@ h4:has(> .codicon),
 .tab-nav {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .tab-button {
@@ -167,6 +168,12 @@ h4:has(> .codicon),
     transition: all 0.2s ease;
     margin: 0;
     width: auto;
+    /* Flexbox centres the label on the real line box, so the icons next to
+       it sit at the same height as the text. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.4;
 }
 
 .tab-button:hover {
@@ -181,17 +188,31 @@ h4:has(> .codicon),
 }
 
 /* Icon-only toolbar button (folder, "+", cog) - the same shape as the text
-   tabs, but without the label. */
+   tabs, but without the label: same padding, same height, same icon size. */
 .tab-icon-button {
     background: transparent;
     border: none;
-    padding: 4px 8px;
+    /* The text tabs carry a 2px underline; reserving the same space here keeps
+       the icon buttons exactly as tall as the tabs next to them. */
+    border-bottom: 2px solid transparent;
+    padding: 6px 10px;
     margin: 0;
     width: auto;
     cursor: pointer;
     color: var(--vscode-foreground);
     opacity: 0.7;
-    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.4;
+}
+
+/* The icons in the tab bar are the size of the tab labels - at the default
+   1.1em they tower over the 13px text. The line-height keeps the glyph in the
+   same box as the text of the neighbouring tabs, so both sit on one line. */
+.tab-nav .codicon {
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 .tab-icon-button:hover {
