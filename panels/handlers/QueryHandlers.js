@@ -215,12 +215,14 @@ function splitBatches(sql) {
 }
 
 class QueryHandlers {
-    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null) {
+    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null, onQuerySucceeded = null) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._workspaceState = workspaceState;
         this._riskAnalyzer = riskAnalyzer;
         this._getConnectionIdentity = getConnectionIdentity;
+        // Notified after every successful query (used to ask for a rating).
+        this._onQuerySucceeded = onQuerySucceeded;
         this._currentRequest = null;
         this._cancelReason = null;
         // Set synchronously before the (now async) connection acquire, so a
@@ -392,6 +394,14 @@ class QueryHandlers {
         }
 
         await this._recordHistory(database, query, true, durationMs);
+        if (this._onQuerySucceeded) {
+            try {
+                await this._onQuerySucceeded();
+            } catch (error) {
+                // A failed rating prompt must never break the query result.
+                console.warn('Rating prompt failed:', error.message);
+            }
+        }
         this._post({
             command: 'queryResult',
             resultSets, rowsAffected, timeline, durationMs, maxRows: rowCap,

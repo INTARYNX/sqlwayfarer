@@ -51,6 +51,7 @@ Thumbs.db
 !dist/parseColumnsWorker.js
 !dist/webview/sqlEditor.js
 !icon.png
+!images/banner.png
 !package.json
 !readme.md
 !LICENSE.txt

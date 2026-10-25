@@ -17,6 +17,7 @@ const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
 const { PanelStateStore } = require('./panelState');
+const { RatingPrompt } = require('./ratingPrompt');
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
@@ -69,6 +70,9 @@ class SqlWayfarerPanel {
         this._connectionStorage = new ConnectionStorage(context);
         this._connectionManager = new ConnectionManager(this._connectionStorage);
         this._panelState = new PanelStateStore(context.workspaceState);
+        // Asks the user, every now and then, to rate the extension: the
+        // Marketplace shows the rating right in the search results.
+        this._ratingPrompt = new RatingPrompt(context);
         this._databaseService = new DatabaseService(this._connectionManager);
         this._indexService = new IndexService(this._connectionManager, this._databaseService);
         this._dependencyService = new DependencyService();
@@ -99,7 +103,7 @@ class SqlWayfarerPanel {
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
         const riskParser = new BabelfishSqlParser();
         riskParser.setEnabled(true);
-        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity);
+        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._ratingPrompt.onQuerySucceeded());
         this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));

@@ -2,13 +2,14 @@
   "name": "sqlwayfarer",
   "displayName": "SQL Wayfarer",
   "description": "A SQL Server & Azure SQL workspace for VS Code: see what depends on a column, trace the tables a procedure really touches through triggers, edit and run T-SQL across multiple files with execution plans, generate scripts, and export a Markdown data dictionary.",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "publisher": "intarynx",
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
     "Visualization",
+    "Data Science",
     "Other"
   ],
   "keywords": [
@@ -27,8 +28,27 @@
     "trigger",
     "procedure",
     "table",
-    "query"
+    "query",
+    "ssms",
+    "sql server management studio",
+    "data lineage",
+    "impact analysis",
+    "stored procedure",
+    "execution plan",
+    "sql explorer",
+    "intellisense",
+    "dba",
+    "database documentation",
+    "table footprint",
+    "database diagram",
+    "column dependencies",
+    "sql client"
   ],
+  "galleryBanner": {
+    "color": "#0E2A3F",
+    "theme": "dark",
+    "path": "images/banner.png"
+  },
   "icon": "icon.png",
   "repository": {
     "type": "git",

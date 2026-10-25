@@ -4,6 +4,16 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.1] - 2026-10-25
+
+### Added
+
+- **Rating prompt**: after ten successful queries, SQL Wayfarer asks - once a month, and never twice in a row - whether you would like to leave a review on the Marketplace. The rating and the number of ratings are shown right in the Marketplace search results, which is how people find the extension in the first place.
+
+### Changed
+
+- **Marketplace listing**: the extension page now has a banner image, two categories (Visualization and Data Science) and the full 30 keyword slots. Until now it showed the default VS Code icon with no banner at all, and half of the keyword budget was unused.
+
 ## [0.12.0] - 2026-10-25
 
 ### Added
