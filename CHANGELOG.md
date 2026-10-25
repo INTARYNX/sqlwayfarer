@@ -4,6 +4,22 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- **CodeMirror 6 query editor**: the query editor is no longer a `<textarea>` with a hand-rolled highlighting overlay, but a real editor component - line numbers, SSMS-style rectangular selection (Alt+drag), and syntax highlighting driven by a T-SQL tokenizer.
+- **Independent tabs**: every SQL Wayfarer tab now has its own connection, its own query history and its own draft recovery. A new tab is opened from the "+" button in the toolbar. One server + login can only be used by one tab at a time, so the per-connection query history stays unambiguous.
+- **Snippet manager in the activity bar**: snippets are reachable without a tab open, and a change is broadcast live to every open tab.
+
+### Fixed
+
+- **Autocomplete predictions after a server lookup**: the suggestion list no longer stays empty when the column list of a `schema.table` reference (or the object list of a `database.schema.table` reference) came back from the server. The editor's focus is now detected through the editor itself - the focused element is the editor's own text area, so comparing it with the editor's container was never true, and the refresh was skipped every time.
+- **Opening a new tab**: the tab no longer comes up blank. It shows a loading screen while it starts, and when the connection it would auto-connect to is already open in another tab, it says so - which connection is busy, and that a server + login can only be used by one tab at a time - instead of silently failing to connect.
+- **Dates in the results grid**: shown as `2008-04-30 00:00:00.000` instead of the raw ISO 8601 `2008-04-30T00:00:00.000Z`. CSV and clipboard export keep the unambiguous ISO form.
+- **Ctrl+Enter in the query editor**: no longer inserts a blank line while running the query, and accepting an autocomplete suggestion no longer adds a newline.
+- **Editor focus frame**: the frame around the query editor now surrounds the line numbers as well - the line-number gutter is painted over the editor's own outline.
+
 ## [0.11.3] - 2026-10-24
 
 ### Changed
