@@ -374,11 +374,52 @@ class SqlAutocomplete {
     // entry in the explorer's object index.
     static _resolveObjectRef(ref, objects) {
         const target = ref.replace(/[[\]]/g, '').toLowerCase();
-        return objects.find(o =>
-            o.qualified_name.toLowerCase() === target ||
-            (o.object_name || '').toLowerCase() === target ||
-            (o.name || '').toLowerCase() === target
-        );
+        return SqlAutocomplete._objectIndex(objects).byName.get(target);
+    }
+
+    // Index over an object list: name -> object, schema -> objects, and the
+    // pre-lowered names used to match a prefix. Built once per list (the
+    // explorer replaces the list as a whole, it never mutates it in place)
+    // and cached by the list's identity - see _objectIndexCache.
+    //
+    // Without it, every keystroke walked the whole list three times over
+    // (once for the suggestions, once per table already cited for the join
+    // conditions, once for the schema) and lowercased every name on the
+    // way: on a 20 000 object database that is hundreds of thousands of
+    // string allocations per character typed.
+    static _objectIndex(objects) {
+        const list = objects || [];
+        let index = SqlAutocomplete._objectIndexCache.get(list);
+        if (index) return index;
+
+        index = { byName: new Map(), bySchema: new Map(), entries: [] };
+        for (const obj of list) {
+            const qualified = (obj.qualified_name || '').toLowerCase();
+            const bare = (obj.object_name || obj.name || '').toLowerCase();
+            const name = (obj.name || '').toLowerCase();
+
+            // A reference can be the qualified name, the object name or the
+            // bare name: the first object answering to any of them wins,
+            // exactly like the linear search this replaces.
+            for (const key of [qualified, bare, name]) {
+                if (key && !index.byName.has(key)) index.byName.set(key, obj);
+            }
+
+            const schema = (obj.schema_name || '').toLowerCase();
+            if (schema) {
+                let schemaObjects = index.bySchema.get(schema);
+                if (!schemaObjects) {
+                    schemaObjects = [];
+                    index.bySchema.set(schema, schemaObjects);
+                }
+                schemaObjects.push(obj);
+            }
+
+            index.entries.push({ obj, bare, qualified });
+        }
+
+        SqlAutocomplete._objectIndexCache.set(list, index);
+        return index;
     }
 
     // Detect "... [INNER|LEFT|RIGHT|FULL|CROSS] JOIN <table> [[AS] alias] ON"
@@ -513,10 +554,10 @@ class SqlAutocomplete {
     // branch and the empty-remainder case of a "Database." reference.
     static _flatObjectItems(objects, partial, execContext) {
         const items = [];
-        for (const obj of objects) {
+        for (const entry of SqlAutocomplete._objectIndex(objects).entries) {
+            const obj = entry.obj;
             if (obj.object_type === 'Procedure' && !execContext) continue;
-            const bareName = (obj.object_name || obj.name || '').toLowerCase();
-            if ((partial && bareName.startsWith(partial)) || obj.qualified_name.toLowerCase().startsWith(partial)) {
+            if ((partial && entry.bare.startsWith(partial)) || entry.qualified.startsWith(partial)) {
                 // obj.name is already schema-qualified except for dbo - exactly what we want to insert
                 items.push({ label: obj.name, insert: obj.name, kind: obj.object_type, detail: obj.object_type });
             }
@@ -537,7 +578,7 @@ class SqlAutocomplete {
         const baseLower = base.toLowerCase();
 
         // "schema." -> objects of that schema
-        const schemaObjects = objects.filter(o => (o.schema_name || '').toLowerCase() === baseLower);
+        const schemaObjects = SqlAutocomplete._objectIndex(objects).bySchema.get(baseLower) || [];
         if (schemaObjects.length > 0) {
             for (const obj of schemaObjects) {
                 if (!partial || obj.object_name.toLowerCase().startsWith(partial)) {
@@ -568,6 +609,11 @@ class SqlAutocomplete {
 }
 
 SqlAutocomplete.MAX_ITEMS = 15;
+
+// Index over an object list, cached by the list's identity. The explorer
+// replaces the list as a whole (it never mutates it in place), so a new
+// list means a new index and the old one is collected with its list.
+SqlAutocomplete._objectIndexCache = new WeakMap();
 
 // Keywords after which a bare procedure name is a sensible suggestion.
 SqlAutocomplete.EXEC_KEYWORDS = new Set(['exec', 'execute']);

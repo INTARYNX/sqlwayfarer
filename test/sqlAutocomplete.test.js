@@ -321,3 +321,52 @@ suite('SqlAutocomplete.buildJoinConditionSuggestions', () => {
 		assert.strictEqual(items.length, 0);
 	});
 });
+
+// The object list is indexed once and cached by the list's identity: the
+// explorer replaces the list as a whole, so a new list must be indexed
+// again - a stale index would suggest objects that are no longer there.
+suite('SqlAutocomplete object index', () => {
+	function makeObjects() {
+		return [
+			{ name: 'Employee', object_name: 'Employee', qualified_name: 'dbo.Employee', object_type: 'Table', schema_name: 'dbo' },
+			{ name: 'Sales.Orders', object_name: 'Orders', qualified_name: 'Sales.Orders', object_type: 'Table', schema_name: 'Sales' }
+		];
+	}
+
+	test('resolves a reference by qualified name, object name or bare name', () => {
+		const list = makeObjects();
+
+		assert.strictEqual(SqlAutocomplete._resolveObjectRef('dbo.Employee', list).qualified_name, 'dbo.Employee');
+		assert.strictEqual(SqlAutocomplete._resolveObjectRef('Orders', list).qualified_name, 'Sales.Orders');
+		assert.strictEqual(SqlAutocomplete._resolveObjectRef('employee', list).qualified_name, 'dbo.Employee');
+		assert.strictEqual(SqlAutocomplete._resolveObjectRef('[Sales].[Orders]', list).qualified_name, 'Sales.Orders');
+		assert.strictEqual(SqlAutocomplete._resolveObjectRef('Nope', list), undefined);
+	});
+
+	test('a replaced object list is indexed again, not served from the old index', () => {
+		const before = makeObjects();
+		assert.ok(SqlAutocomplete._resolveObjectRef('Sales.Orders', before));
+
+		const after = [
+			{ name: 'Employee', object_name: 'Employee', qualified_name: 'dbo.Employee', object_type: 'Table', schema_name: 'dbo' }
+		];
+		assert.strictEqual(SqlAutocomplete._resolveObjectRef('Sales.Orders', after), undefined);
+		assert.ok(SqlAutocomplete._resolveObjectRef('dbo.Employee', after));
+	});
+
+	test('the schema index lists the objects of that schema', () => {
+		const list = makeObjects();
+		const index = SqlAutocomplete._objectIndex(list);
+
+		assert.deepStrictEqual(index.bySchema.get('sales').map(o => o.qualified_name), ['Sales.Orders']);
+		assert.strictEqual(index.bySchema.get('dbo').length, 1);
+	});
+
+	test('the suggestions are the same with and without the index', () => {
+		const list = makeObjects();
+		const ctx = { base: '', partial: 'emp', partialStart: 0, precedingKeyword: 'select' };
+		const { items } = SqlAutocomplete.buildSuggestions(ctx, list, {}, () => undefined, { minLength: 2 });
+
+		assert.ok(items.some(i => i.label === 'Employee'));
+	});
+});

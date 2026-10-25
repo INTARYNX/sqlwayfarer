@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - **Editor focus frame**: the frame around the query editor now surrounds the line numbers as well - the line-number gutter is painted over the editor's own outline.
 - **Tab state**: a tab that is rebuilt (page reload, window reload) comes back on the database it was working in, and on the tab it was showing. The database selector is rebuilt from scratch every time the list of databases is sent, which wiped the selection; the panel now remembers it per connection and sends it back with the list.
 - **Big result sets**: the grid draws the first 2 000 rows of a result set instead of building the whole table at once - 200 000 rows x 10 columns was tens of megabytes of markup, which froze the tab and could take the renderer down. Copy and CSV export still export every row.
+- **Autocomplete on large databases**: the object list is indexed once (by name and by schema) instead of being scanned - and every name lowercased - on every keystroke. Resolving a table name in a 20 000 object database went from 1.5 ms to instant.
 
 ### Changed
 
