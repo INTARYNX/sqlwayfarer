@@ -4,6 +4,17 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.8] - 2026-10-26
+
+### Added
+
+- **Query graph**: a button in the Query toolbar graphs what the editor's query touches — the tables it reads, the join conditions between them, and the tables reached through the procedures, functions and views it calls. The joins come from a real T-SQL parser, so the edges are the ones the query actually writes: `ON` conditions with their columns, `LEFT`/`INNER`/`CROSS` kinds, comma joins (flagged as inferred), and CTEs or derived tables resolved to the tables behind them. **Select a query in the editor and the graph covers that query only**; with no selection, the whole buffer is graphed. The overlay has the same three tabs as the Table Footprint: the join graph, the PK/FK relations between those tables, and their documentation.
+
+### Changed
+
+- **Cross-database dependencies**: a dependency that lives in another database (a view of this one selecting from `OtherDb.dbo.Orders`) was a dead end — its type was guessed as "Object" and there was no way to reach it. It now shows its real type, resolved in the database that owns it, and is a link: one click opens that database in the Explorer and selects the object. Those nodes are dashed in the dependency graph.
+- **Modal chrome**: the header of the dialogs (title and close button) and the tabs of the graph overlay took more room than the content itself. Both are more compact now.
+
 ## [0.12.7] - 2026-10-25
 
 ### Changed
