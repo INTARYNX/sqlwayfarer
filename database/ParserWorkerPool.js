@@ -14,10 +14,10 @@ const BabelfishSqlParser = require('./BabelfishSqlParser');
 // genuinely sustained failures across more than one batch can.
 const MAX_CONSECUTIVE_FAILURES = 10;
 
-// Parses T-SQL definitions for column lineage across a small pool of worker
-// threads, so the CPU-bound ANTLR parse (40-550ms per object) doesn't
-// serialize on the extension host's single main thread. Falls back to
-// in-process parsing if the pool can't be used for any reason.
+// Parses T-SQL definitions for column lineage and table-level writes across
+// a small pool of worker threads, so the CPU-bound ANTLR parse (40-550ms per
+// object) doesn't serialize on the extension host's single main thread. Falls
+// back to in-process parsing if the pool can't be used for any reason.
 class ParserWorkerPool {
     constructor() {
         this._piscina = null;
@@ -48,10 +48,11 @@ class ParserWorkerPool {
             this._fallbackParser = new BabelfishSqlParser();
             this._fallbackParser.setEnabled(true);
         }
-        return this._fallbackParser.analyzeColumns(definition);
+        return this._fallbackParser.analyzeDefinition(definition);
     }
 
-    async analyzeColumns(definition) {
+    // Full analysis of a definition: { columns, writes }.
+    async analyzeDefinition(definition) {
         const pool = this._ensurePool();
         if (!pool) return this._parseInProcess(definition);
 
