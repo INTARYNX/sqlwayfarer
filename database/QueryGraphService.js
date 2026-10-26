@@ -46,9 +46,8 @@ class QueryGraphService {
         // edges are what the query actually writes.
         if (graph.tables.length > 0) {
             const allFks = await this._databaseService.getForeignKeys(database);
-            graph.relationships = WriteFootprintService.foreignKeysAmong(
-                allFks, graph.tables.map(t => t.qualifiedName)
-            );
+            // foreignKeysAmong expects the table objects, not their names.
+            graph.relationships = WriteFootprintService.foreignKeysAmong(allFks, graph.tables);
         }
         return graph;
     }
