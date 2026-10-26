@@ -37,7 +37,6 @@ images/**
 .git/**
 .gitignore
 .github/**
-.cl[a]ude/**
 test/**
 coverage/
 .nyc_output/
