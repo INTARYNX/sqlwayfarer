@@ -2688,3 +2688,37 @@ table.fp-cols .fp-center { text-align: center; }
         text-align: center;
     }
 }
+
+/* === CROSS-DATABASE DEPENDENCY LINKS === */
+/* A dependency living in another database is a link: clicking it opens that
+   database in the Explorer and selects the object - the same path as the
+   Ctrl+Click "go to definition" on a cross-database reference. */
+.dep-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--vscode-textLink-foreground);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+.dep-link:hover {
+    color: var(--vscode-textLink-activeForeground);
+    text-decoration-style: solid;
+}
+.dep-link:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+}
+
+/* Graph node living in another database - viz.js renders it as an SVG group
+   whose shape depends on the node's shape attribute (box here). */
+.dep-node-external {
+    cursor: pointer;
+}
+.dep-node-external:hover ellipse,
+.dep-node-external:hover polygon {
+    stroke-width: 3;
+}
