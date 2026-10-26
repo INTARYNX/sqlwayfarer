@@ -244,12 +244,9 @@ class DependencyService {
             // literal dot (e.g. [schema.object]) that OBJECT_ID can never
             // resolve.
             const { schema, objectName: namePart } = parseObjectName(objectName);
-            const schemaPart = schema.replace(/'/g, "''");
-            const namePartEscaped = namePart.replace(/'/g, "''");
-
             const result = await this._connectionManager.executeQueryInDatabase(database, `
-                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME('${schemaPart}') + '.' + QUOTENAME('${namePartEscaped}'))) AS definition;
-            `);
+                SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))) AS definition;
+            `, { schema, objectName: namePart });
 
             const definition = result.recordset?.[0]?.definition;
             if (!definition) return null;
