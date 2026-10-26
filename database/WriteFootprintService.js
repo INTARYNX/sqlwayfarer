@@ -1,5 +1,7 @@
 'use strict';
 
+const IndexResolver = require('./IndexResolver');
+
 // Computes the *effective write footprint* of a programmable object (stored
 // procedure, function, view, trigger): every table it reads or writes, followed
 // transitively through called procedures/functions/views AND through the DML
@@ -103,24 +105,12 @@ class WriteFootprintService {
     static analyzeFootprint({ index, triggers = [], target, maxDepth = 50 }) {
         const objects = (index && index.objects) ? index.objects : {};
 
-        // Case-insensitive lookups: by qualified name, and by bare name for the
-        // parser's occasionally schema-less column references (tables only).
-        const byQN = {};
-        const byBareTable = {};
-        for (const e of Object.values(objects)) {
-            const qn = WriteFootprintService._clean(e.qualifiedName);
-            byQN[qn] = e;
-            if (e.type === 'U') {
-                const bare = qn.split('.').pop();
-                if (!byBareTable[bare]) byBareTable[bare] = e;
-            }
-        }
-        const resolve = name => byQN[WriteFootprintService._clean(name)] || null;
-        const resolveTable = key => {
-            const n = WriteFootprintService._clean(key);
-            if (byQN[n] && byQN[n].type === 'U') return byQN[n];
-            return byBareTable[n.split('.').pop()] || null;
-        };
+        // Name resolution: a qualified name is authoritative, an unqualified
+        // one is resolved the way SQL Server resolves it inside a module (the
+        // schema of the module first). An ambiguous name stays unresolved
+        // instead of picking one of the candidates - a wrong table means the
+        // wrong triggers fire.
+        const resolver = new IndexResolver(objects, type => type === 'U');
 
         // Trigger → parent table (only what we can resolve is kept).
         const trigByParent = {};
@@ -132,7 +122,7 @@ class WriteFootprintService {
             });
         }
 
-        const targetEntry = resolve(target);
+        const targetEntry = resolver.resolve(target);
         if (!targetEntry) {
             return { found: false, target: null, tables: [], triggersFired: [], unresolved: [], truncated: false };
         }
@@ -187,7 +177,9 @@ class WriteFootprintService {
             const writeKeys = new Set(entry.tableWrites || []);
             for (const tableKey of new Set([...Object.keys(columnRefs), ...writeKeys])) {
                 const cols = columnRefs[tableKey] || {};
-                const te = resolveTable(tableKey);
+                // The reference was written inside this object: an unqualified
+                // name resolves against the schema of that object.
+                const te = resolver.resolveTable(tableKey, entry.schema);
                 if (!te || te.type !== 'U') { unresolved.add(WriteFootprintService._clean(tableKey)); continue; }
                 const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
                 recordTable(te, isWrite, cause);
@@ -196,7 +188,7 @@ class WriteFootprintService {
 
             // Referenced entities: recurse into code, add unclassified tables as reads.
             for (const dep of entry.dependencies || []) {
-                const de = resolve(dep);
+                const de = resolver.resolve(dep);
                 if (!de) { unresolved.add(WriteFootprintService._clean(dep)); continue; }
                 if (de.type === 'U') {
                     if (!tableAcc.has(WriteFootprintService._clean(de.qualifiedName))) recordTable(de, false, cause);
@@ -208,7 +200,7 @@ class WriteFootprintService {
             // Possible (dynamic-SQL) refs: add tables mentioned only by name. Not
             // recursed (too speculative) and never fire triggers (access unknown).
             for (const pref of entry.possibleRefs || []) {
-                const pe = resolve(pref);
+                const pe = resolver.resolve(pref);
                 if (pe && pe.type === 'U') recordPossible(pe, cause);
             }
 
@@ -220,7 +212,7 @@ class WriteFootprintService {
                 const trigs = trigByParent[WriteFootprintService._clean(te.qualifiedName)] || [];
                 for (const tg of trigs) {
                     if (tg.disabled) continue;
-                    const tgEntry = byQN[tg.key];
+                    const tgEntry = resolver.resolve(tg.key);
                     if (!tgEntry) { unresolved.add(tg.key); continue; }
                     triggersFired.add(tgEntry.qualifiedName);
                     queue.push({ entry: tgEntry, cause: { table: te.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
