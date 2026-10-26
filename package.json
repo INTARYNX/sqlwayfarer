@@ -95,7 +95,7 @@
       "sql-wayfarer-container": [
         {
           "id": "sqlWayfarerView",
-          "name": "SQL Snippets",
+          "name": "Snippets",
           "type": "webview"
         }
       ]
