@@ -187,6 +187,39 @@ suite('BabelfishSqlParser.analyzeDefinition table-level writes', () => {
 	});
 });
 
+suite('BabelfishSqlParser.analyzeDefinition syntax errors', () => {
+	test('a valid definition reports no error', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('DELETE FROM dbo.Task WHERE done = 1');
+		assert.deepStrictEqual(analysis.errors, []);
+	});
+
+	test('a broken definition reports the syntax errors it met', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('DELETE FROM dbo.Task WHERE');
+		assert.ok(analysis.errors.length > 0, 'the syntax error is reported');
+		assert.strictEqual(typeof analysis.errors[0].line, 'number');
+		assert.ok(analysis.errors[0].message.length > 0);
+	});
+
+	test('a broken definition is still analyzed, but the errors are known', function () {
+		this.timeout(10000);
+		// The parenthesis is missing: the parser recovers and the tree is
+		// walked anyway - the analysis is partial, not absent.
+		const analysis = makeParser().analyzeDefinition('INSERT INTO dbo.Task (name, status VALUES (1, 2)');
+		assert.ok(analysis.errors.length > 0);
+		assert.ok(analysis.writes.length > 0, 'the recovered tree still yields a write');
+	});
+
+	test('an empty definition reports no error', function () {
+		this.timeout(10000);
+		// Nothing to parse: the analysis is null, not an empty result.
+		assert.strictEqual(makeParser().analyzeDefinition(''), null);
+		const analysis = makeParser().analyzeDefinition('   ');
+		assert.deepStrictEqual(analysis.errors, []);
+	});
+});
+
 suite('BabelfishSqlParser.analyzeOperations alias resolution', () => {
 	test('aliased UPDATE target resolves to the real table', function () {
 		this.timeout(10000);

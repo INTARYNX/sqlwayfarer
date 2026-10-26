@@ -34,6 +34,21 @@ function extractFromDdlObject(ddlCtx) {
     return null;
 }
 
+// Collects the syntax errors of a parse. ANTLR does not stop on them: it
+// recovers, builds a tree anyway, and the visitor walks that tree - so a
+// definition with a syntax error would be analyzed as if it were complete,
+// and could report writes it never really performs.
+class CollectingErrorListener extends antlr4.ErrorListener {
+    constructor() {
+        super();
+        this.errors = [];
+    }
+
+    syntaxError(recognizer, offendingSymbol, line, column, msg) {
+        this.errors.push({ line, column, message: String(msg).slice(0, 200) });
+    }
+}
+
 // Common normalization of the table keys: brackets removed + lower-cased,
 // aligned with the DependencyService lookup. Used by both visitors.
 function cleanTableKey(name) {
@@ -918,14 +933,22 @@ class BabelfishSqlParser {
 
     // The parse tree of a definition, shared by the analyzers: parsing is the
     // expensive part, and several analyses can run over the same tree.
-    _parseTree(sqlDefinition) {
+    // collectErrors keeps the syntax errors instead of dropping them: they
+    // are what tells a complete analysis from a partial one.
+    _parseTree(sqlDefinition, collectErrors = false) {
         const chars = new antlr4.InputStream(sqlDefinition);
         const lexer = new TSqlLexer(chars);
         const tokens = new antlr4.CommonTokenStream(lexer);
         const parser = new TSqlParser(tokens);
         // Suppresses the error spam - we want a soft failure
         parser.removeErrorListeners();
-        return { tree: parser.tsql_file(), tokens, parser };
+        let errors = null;
+        if (collectErrors) {
+            const listener = new CollectingErrorListener();
+            parser.addErrorListener(listener);
+            errors = listener.errors;
+        }
+        return { tree: parser.tsql_file(), tokens, parser, errors };
     }
 
     /**
@@ -951,25 +974,34 @@ class BabelfishSqlParser {
 
     /**
      * Full static analysis of a definition, from a single parse: the
-     * column-level lineage AND the table-level writes.
+     * column-level lineage, the table-level writes, and the syntax errors
+     * met on the way.
      *
      * The two levels answer different questions and are both needed: the
      * columns tell WHICH columns receive a new value (column impact), the
      * table writes tell THAT a table is written - including the writes that
      * name no column at all (a DELETE, an INSERT without a column list).
      *
+     * The errors matter because ANTLR recovers from them: the tree of a
+     * broken definition is still walked, so the analysis is partial and
+     * must be reported as such.
+     *
      * @param {string} sqlDefinition
-     * @returns {{columns: Object<string, Object<string, {write: boolean, confident: boolean}>>, writes: string[]}|null}
+     * @returns {{columns: Object<string, Object<string, {write: boolean, confident: boolean}>>, writes: string[], errors: Array<{line: number, column: number, message: string}>}|null}
      *          null when parsing is disabled or fails.
      */
     analyzeDefinition(sqlDefinition) {
         if (!sqlDefinition || !this._enabled) return null;
 
         try {
-            const { tree } = this._parseTree(sqlDefinition);
+            const { tree, errors } = this._parseTree(sqlDefinition, true);
             const visitor = new ColumnLineageVisitor();
             visitor.visit(tree);
-            return { columns: visitor.getResult(), writes: visitor.getWrites() };
+            return {
+                columns: visitor.getResult(),
+                writes: visitor.getWrites(),
+                errors: errors || []
+            };
         } catch (err) {
             console.warn(`[BabelfishSqlParser] Failed to analyze: ${err.message.substring(0, 150)}`);
             return null;
