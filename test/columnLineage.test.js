@@ -220,6 +220,34 @@ suite('BabelfishSqlParser.analyzeDefinition syntax errors', () => {
 	});
 });
 
+suite('BabelfishSqlParser quoted identifiers', () => {
+	// The Babelfish grammar decides with a {pltsql_quoted_identifier == true}?
+	// predicate whether a double-quoted name is an identifier or a string.
+	// The C++ "extern" behind it is a Postgres-ism the grammar inherited:
+	// with the reference left undefined, the lexer crashed on the first
+	// double-quoted identifier and took the whole analysis down with it.
+	test('a double-quoted identifier does not break the parse', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('SELECT "Id" FROM dbo.Users');
+		assert.ok(analysis, 'the analysis must not fail');
+		assert.deepStrictEqual(analysis.errors, []);
+	});
+
+	test('a double-quoted table does not break the parse', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('DELETE FROM "dbo"."Users" WHERE "Id" = 1');
+		assert.ok(analysis, 'the analysis must not fail');
+		assert.deepStrictEqual(analysis.errors, []);
+	});
+
+	test('a string literal is still a string', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition("SELECT * FROM dbo.Users WHERE Name = 'abc'");
+		assert.ok(analysis);
+		assert.deepStrictEqual(analysis.errors, []);
+	});
+});
+
 suite('BabelfishSqlParser.analyzeOperations alias resolution', () => {
 	test('aliased UPDATE target resolves to the real table', function () {
 		this.timeout(10000);
