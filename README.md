@@ -38,9 +38,12 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 *"Which tables does this procedure really touch — including through triggers?"*
 - A **Table Footprint** button on any procedure, function, or view opens an interactive graph of every table it reads and writes
 - Follows nested procedure/function/view calls **and the DML trigger cascades** that fire when a table is written — surfacing tables a procedure touches indirectly that you would never see by reading its code
+- Every write counts, including the ones that name no column: a `DELETE` and an `INSERT` without a column list are detected as writes, so the triggers of a deleted table are followed too
+- A table mentioned without its schema is resolved the way SQL Server resolves it inside a module — against the schema of the module that mentions it
 - Tables are colour-coded by access: **written**, **read**, reached **only via a trigger**, or a low-confidence **possible** match found by scanning dynamic-SQL text for known object names
 - Three tabs: **Graph** (the object-centric footprint with a "Show reads" toggle), **Schema** (a pure relational ER of the tables with their PK/FK columns), and **Tables** (lean per-table columns, keys, and descriptions — analyze in place without exporting the dictionary)
 - The Graph tab reports how many triggers fired and how many references stayed unresolved, and flags when the analysis hit its depth limit — so you know how far the footprint actually reached
+- A definition that could not be parsed cleanly is flagged: the analysis is partial, and the view says so instead of looking complete
 
 ### Dependency Analysis
 - Visualize which objects depend on a given object and which objects it depends on, as a tree or as a graph
@@ -142,6 +145,7 @@ You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 - T-SQL syntax highlighting covers standard cases; complex dialect features may not be fully highlighted.
 - Dependency operations and column lineage are detected via static analysis of T-SQL: dynamic SQL (`EXEC` of a string), calls through another procedure, or references used only as a parameter type are shown without a specific operation. The Table Footprint additionally scans module text for qualified names of known objects to catch tables referenced only inside dynamic SQL, but marks them as low-confidence "possible" (read/write direction unknown).
 - Column lineage favors recall over precision: an unqualified column in a multi-table statement is attributed to every table in scope and flagged as ambiguous (`~`) rather than dropped.
+- A table referenced without its schema is resolved against the schema of the module that mentions it, like SQL Server does. When several schemas carry that name and the module's own schema is not one of them, the reference is reported as unresolved: the analysis cannot know which table it is, and guessing it would follow the wrong triggers.
 
 ---
 

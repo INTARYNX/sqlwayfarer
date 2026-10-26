@@ -4,6 +4,23 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.12] - 2026-10-26
+
+### Fixed
+
+- **Table Footprint**: a `DELETE` was recorded as a *read*, so the triggers of the deleted table were never followed and the tables they write were missing from the footprint — the one effect the view exists to reveal. Writes are now tracked at the table level, next to the column level: a `DELETE` and an `INSERT` without a column list are writes even though they name no column, and the triggers of a written table fire as they should.
+- **Table Footprint**: a table referenced without its schema was resolved to the first same-named table found, which could well be another schema's (`audit.Users` instead of `dbo.Users`), and the wrong triggers were then followed. It is now resolved the way SQL Server resolves it inside a module — against the schema of the module that mentions it — and a reference that stays ambiguous is reported as unresolved rather than guessed.
+- **Parsing**: a double-quoted identifier (`"dbo"."Users"`) crashed the T-SQL lexer and took the whole analysis of the object down with it. The Babelfish grammar carries a PostgreSQL-ism behind that rule; the generated parser now fixes the flag to the SQL Server default (`QUOTED_IDENTIFIER ON`).
+- **Parsing**: the delimiters of a delimited identifier (`"dbo"."Users"`, `[dbo].[Users]`) were kept in the table names, so those names never matched the objects of the index.
+
+### Added
+
+- **Table Footprint**: a warning when an object could not be parsed cleanly. The T-SQL parser recovers from a syntax error and analyzes the rest of the definition anyway, so the footprint built on it was partial but looked complete — it now says so.
+
+### Changed
+
+- **Index cache**: the index format changed (v5): the first indexing after the update is a full rebuild.
+
 ## [0.12.11] - 2026-10-26
 
 ### Fixed
