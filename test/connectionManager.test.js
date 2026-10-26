@@ -57,6 +57,61 @@ suite('ConnectionManager.buildConnectionConfig', () => {
 	});
 });
 
+suite('ConnectionManager.buildConnectionConfig (Entra ID)', () => {
+	function entraManager(tokens) {
+		let i = 0;
+		const fetcher = async () => tokens[Math.min(i++, tokens.length - 1)];
+		return new ConnectionManager({
+			getConnectionPassword: async () => { throw new Error('no password lookup for Entra ID'); },
+			getConnection: () => null
+		}, fetcher);
+	}
+
+	test('uses an access token, no user and no password, and forces encryption', async () => {
+		const config = await entraManager(['tok']).buildConnectionConfig({
+			server: 'x.database.windows.net', authType: 'entra', encrypt: false, name: 'prod', isLoadedConnection: true
+		});
+		assert.strictEqual(config.authentication.type, 'azure-active-directory-access-token');
+		assert.deepStrictEqual(config.authentication.options, { token: 'tok' });
+		assert.strictEqual(config.user, undefined);
+		assert.strictEqual(config.password, undefined);
+		assert.strictEqual(config.options.encrypt, true);
+	});
+
+	test('the pool reads the renewed token each time it builds a connection config', async () => {
+		const manager = entraManager(['tok1']);
+		const config = await manager.buildConnectionConfig({ server: 'srv', authType: 'entra' });
+		const source = manager._tokenSources.get(config);
+		const pool = manager._createEntraPool(config, source);
+		assert.strictEqual(pool._config().authentication.options.token, 'tok1');
+		source._token = 'tok2';
+		assert.strictEqual(pool._config().authentication.options.token, 'tok2');
+		assert.strictEqual(pool._config().authentication.type, 'azure-active-directory-access-token');
+	});
+
+	test('the token of the live connection is renewed in the background until the connection is disposed', async () => {
+		const cm = entraManager(['tok']);
+		cm._openPool = async () => ({ close: async () => {} });
+		await cm.connect({ server: 'srv', authType: 'entra' });
+		const source = cm._activeTokenSource;
+		assert.ok(source, 'an Entra ID connection keeps its token source');
+		assert.ok(source._timer, 'the renewal timer runs');
+		await cm.dispose();
+		assert.strictEqual(source._timer, null);
+	});
+
+	test('without a token fetcher the connection is refused with a clear message', async () => {
+		const m = new ConnectionManager({ getConnectionPassword: async () => null, getConnection: () => null });
+		await assert.rejects(() => m.buildConnectionConfig({ server: 'srv', authType: 'entra' }), /Entra ID/);
+	});
+
+	test('a SQL login is not affected by the Entra ID path', async () => {
+		const config = await manager().buildConnectionConfig({ server: 'srv', authType: 'sql', username: 'sa', password: 'pw' });
+		assert.strictEqual(config.authentication, undefined);
+		assert.strictEqual(config.user, 'sa');
+	});
+});
+
 suite('ConnectionManager.connect', () => {
 	let originalConnect;
 

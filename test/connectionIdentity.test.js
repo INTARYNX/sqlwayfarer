@@ -28,6 +28,12 @@ suite('connectionIdentity', () => {
 		assert.notStrictEqual(windowsAuth, sqlLogin);
 	});
 
+	test('Entra ID has its own identity on a server, whatever the username field holds', () => {
+		const entra = connectionIdentity({ server: 'srv', authType: 'entra', username: 'sa' });
+		assert.notStrictEqual(entra, connectionIdentity({ server: 'srv', username: 'sa' }));
+		assert.strictEqual(entra, connectionIdentity({ server: 'srv', authType: 'entra' }));
+	});
+
 	test('no server means no identity', () => {
 		assert.strictEqual(connectionIdentity({ username: 'sa' }), null);
 		assert.strictEqual(connectionIdentity(null), null);
