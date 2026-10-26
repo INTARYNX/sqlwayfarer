@@ -146,6 +146,32 @@ suite('IndexService dependency analysis', () => {
 		assert.strictEqual(columnRefs['dbo.P1'], undefined, 'no column is named at all');
 	});
 
+	test('the syntax errors of a definition are collected', async () => {
+		const service = new IndexService(makeMockCm(
+			{ '[dbo].[P1]': [{ dependency: 'dbo.T1', dependency_database: 'Db' }] },
+			{ definitions: { '[dbo].[P1]': 'DELETE FROM dbo.T1 WHERE' } }
+		), null);
+		registerBuild(service, 'Db');
+
+		const parseErrors = {};
+		await service._analyzeDependencies('Db', [makeObject('dbo', 'P1', 'P')], {}, null, null, null, parseErrors);
+
+		assert.ok(parseErrors['dbo.P1'] && parseErrors['dbo.P1'].length > 0, 'the syntax error is recorded');
+	});
+
+	test('a definition that parses cleanly records no error', async () => {
+		const service = new IndexService(makeMockCm(
+			{ '[dbo].[P1]': [{ dependency: 'dbo.T1', dependency_database: 'Db' }] },
+			{ definitions: { '[dbo].[P1]': 'DELETE FROM dbo.T1 WHERE Id = 1' } }
+		), null);
+		registerBuild(service, 'Db');
+
+		const parseErrors = {};
+		await service._analyzeDependencies('Db', [makeObject('dbo', 'P1', 'P')], {}, null, null, null, parseErrors);
+
+		assert.deepStrictEqual(parseErrors['dbo.P1'], undefined, 'no error is recorded');
+	});
+
 	test('processes CONCURRENT_BATCH_SIZE objects at once instead of one at a time', async () => {
 		let inFlight = 0;
 		let maxInFlight = 0;
