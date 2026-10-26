@@ -14,6 +14,10 @@
 //   - A write the parser missed is recorded as a read, so its triggers are not
 //     followed. Confidence, not completeness.
 //
+// The writes come from the parser's table-level analysis (the target of an
+// UPDATE / INSERT / DELETE / MERGE), completed by the column-level lineage:
+// a DELETE writes a table without writing any named column.
+//
 // The heavy lifting (analyzeFootprint) is a pure function over the cached index
 // plus a trigger→parent map, so it is fully unit-testable without a database.
 class WriteFootprintService {
@@ -172,12 +176,20 @@ class WriteFootprintService {
             visited.add(vkey);
             if (depth > maxDepth) { truncated = true; continue; }
 
-            // Tables classified by the parser (read vs write per column).
+            // Tables classified by the parser: a table is written when the
+            // definition writes it (table level: the target of an UPDATE /
+            // INSERT / DELETE / MERGE) or when one of its columns receives a
+            // new value (column level). The table level is what catches the
+            // writes that name no column - a DELETE, an INSERT without a
+            // column list - which would otherwise never fire a trigger.
             const writtenTables = [];
-            for (const [tableKey, cols] of Object.entries(entry.columnRefs || {})) {
+            const columnRefs = entry.columnRefs || {};
+            const writeKeys = new Set(entry.tableWrites || []);
+            for (const tableKey of new Set([...Object.keys(columnRefs), ...writeKeys])) {
+                const cols = columnRefs[tableKey] || {};
                 const te = resolveTable(tableKey);
                 if (!te || te.type !== 'U') { unresolved.add(WriteFootprintService._clean(tableKey)); continue; }
-                const isWrite = Object.values(cols || {}).some(c => c && c.write);
+                const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
                 recordTable(te, isWrite, cause);
                 if (isWrite) writtenTables.push(te);
             }
