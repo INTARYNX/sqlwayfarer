@@ -1,5 +1,7 @@
 'use strict';
 
+const IndexResolver = require('./IndexResolver');
+
 // Builds the graph of the objects a QUERY touches: the tables it reads, the
 // way they are joined together, and the tables reached through the procedures
 // and functions the query calls.
@@ -13,9 +15,10 @@
 //   - Dynamic SQL (EXEC / sp_executesql) is invisible to the parser, so
 //     anything built as a string is NOT followed. The result is a *static*
 //     graph of what the text says it reads.
-//   - A table referenced without its schema is resolved by its bare name, and
-//     the first match wins - a same-named table in another schema would be
-//     picked instead. Confidence, not completeness.
+//   - A table referenced without its schema is resolved against the schema of
+//     the module the reference was written in, and only when its bare name is
+//     unique in the database. An ambiguous name is reported as unresolved
+//     rather than resolved to a same-named table in another schema.
 const BabelfishSqlParser = require('./BabelfishSqlParser');
 const WriteFootprintService = require('./WriteFootprintService');
 
@@ -77,32 +80,22 @@ class QueryGraphService {
      */
     static buildGraph({ index, parsed, maxDepth = 50 }) {
         const objects = (index && index.objects) ? index.objects : {};
-        const byQN = {};
-        const byBareTable = {};
-        for (const e of Object.values(objects)) {
-            const qn = QueryGraphService._clean(e.qualifiedName);
-            byQN[qn] = e;
-            if (QueryGraphService._isDataType(e.type)) {
-                const bare = qn.split('.').pop();
-                if (!byBareTable[bare]) byBareTable[bare] = e;
-            }
-        }
-        const resolve = name => byQN[QueryGraphService._clean(name)] || null;
-        // A table without its schema: resolved by its bare name (first match).
-        const resolveTable = key => {
-            const n = QueryGraphService._clean(key);
-            const exact = byQN[n];
-            if (exact && QueryGraphService._isDataType(exact.type)) return exact;
-            return byBareTable[n.split('.').pop()] || null;
-        };
+        // Same resolution rule as the write footprint: a qualified name is
+        // authoritative, an unqualified one is resolved against the schema of
+        // the module it was written in, and an ambiguous name stays
+        // unresolved instead of picking one of the candidates.
+        const resolver = new IndexResolver(objects, type => QueryGraphService._isDataType(type));
+        const resolve = name => resolver.resolve(name);
 
         const unresolved = new Set();
         const nodes = new Map();   // qn -> { entry, access, via }
         const queue = [];
 
         // === the tables the query reads directly ===
+        // The query is typed by a user, so there is no module schema to
+        // resolve an unqualified name against.
         for (const tableKey of (parsed && parsed.tables) || []) {
-            const entry = resolveTable(tableKey);
+            const entry = resolver.resolveTable(tableKey, null);
             if (!entry) { unresolved.add(QueryGraphService._clean(tableKey)); continue; }
             const qn = QueryGraphService._clean(entry.qualifiedName);
             if (!nodes.has(qn)) nodes.set(qn, { entry, access: 'direct', via: [] });
@@ -137,7 +130,7 @@ class QueryGraphService {
                 ...(entry.tableWrites || [])
             ]);
             for (const tableKey of bodyTables) {
-                const te = resolveTable(tableKey);
+                const te = resolver.resolveTable(tableKey, entry.schema);
                 if (!te) { unresolved.add(QueryGraphService._clean(tableKey)); continue; }
                 const qn = QueryGraphService._clean(te.qualifiedName);
                 if (!nodes.has(qn)) nodes.set(qn, { entry: te, access: 'via-code', via });
@@ -160,8 +153,8 @@ class QueryGraphService {
         const joins = [];
         const seenJoins = new Set();
         for (const join of (parsed && parsed.joins) || []) {
-            const fromEntry = resolveTable(join.from);
-            const toEntry = resolveTable(join.to);
+            const fromEntry = resolver.resolveTable(join.from, null);
+            const toEntry = resolver.resolveTable(join.to, null);
             if (!fromEntry || !toEntry) {
                 if (!fromEntry) unresolved.add(QueryGraphService._clean(join.from));
                 if (!toEntry) unresolved.add(QueryGraphService._clean(join.to));
@@ -176,7 +169,7 @@ class QueryGraphService {
             // The columns of the condition, keyed by the resolved table name.
             const columns = {};
             for (const [tableKey, cols] of Object.entries(join.columns || {})) {
-                const te = resolveTable(tableKey);
+                const te = resolver.resolveTable(tableKey, null);
                 const name = te ? te.qualifiedName : tableKey;
                 columns[name] = cols;
             }
