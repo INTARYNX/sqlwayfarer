@@ -28,6 +28,8 @@ fix_sqlerrm.sql
 large_db_test.sql
 REVIEW.md
 EDITOR_EVALUATION.md
+AGENTS.md
+.claude/**
 
 # Project assets, not extension assets
 images/**
