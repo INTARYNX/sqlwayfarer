@@ -17,7 +17,7 @@ class DependencyService {
 
     setConnectionManager(connectionManager) {
         this._connectionManager = connectionManager;
-        // Active le parsing SQL dès qu'une connexion est dispo
+        // Turns the SQL parsing on as soon as a connection is available
         this._sqlParser.setEnabled(!!connectionManager);
     }
 
@@ -77,7 +77,8 @@ class DependencyService {
 
             if (!objectData) return { dependsOn: [], referencedBy: [] };
 
-            // Analyse SQL optionnelle : si activée, on parse le code pour avoir les vraies opérations
+            // Optional SQL analysis: when enabled, the code of the object is
+            // parsed to know the real operations it performs
             let opsMap = null;
             if (this._sqlParser.isEnabled() && this._connectionManager) {
                 opsMap = await this._getOperationsFromSql(database, cleanName, objectData.type);
@@ -93,11 +94,13 @@ class DependencyService {
 
             const dependsOn = (objectData.dependencies || []).map(dep => {
                 const depClean = dep.replace(/[\[\]]/g, '').toLowerCase();
-                // Le parser SQL qualifie ses clés (schema.table, voire db.schema.table) quand le SQL
-                // source précise le schéma — on matche donc d'abord sur le nom complet pour ne pas
-                // confondre p.ex. dbo.Orders et sales.Orders. Si le SQL source référence la table
-                // sans schéma (résolution implicite), le parser n'a que le nom nu : on retombe alors
-                // sur un match par dernier segment, avec le risque de collision inter-schéma que ça implique.
+                // The SQL parser qualifies its keys (schema.table, or even
+                // db.schema.table) when the source SQL gives the schema - so
+                // the full name is matched first, to avoid confusing e.g.
+                // dbo.Orders and sales.Orders. When the source SQL references
+                // the table without a schema (implicit resolution), the parser
+                // only knows the bare name: the last segment is matched then,
+                // with the cross-schema collision risk that implies.
                 const operations = opsMap?.[depClean] || opsMap?.[depClean.split('.').pop()] || ['REFERENCE'];
 
                 // A dependency can point at ANOTHER database: a view of this one
@@ -178,16 +181,16 @@ class DependencyService {
     }
 
     /**
-     * Résout le type réel des dépendances qui vivent dans une AUTRE base.
-     * Une requête par base cible, quel que soit le nombre d'objets: l'index
-     * de l'Explorer ne couvre que la base consultée, donc le type d'un objet
-     * inter-base est inconnu tant qu'on ne l'a pas demandé chez lui.
+     * Resolves the real type of the dependencies that live in ANOTHER database.
+     * One query per target database, whatever the number of objects: the
+     * Explorer index only covers the database being browsed, so the type of a
+     * cross-database object is unknown until it is asked for in its own home.
      *
-     * Best-effort: une base illisible (permissions, hors ligne) laisse le type
-     * générique "Object" - la dépendance reste cliquable. En revanche, si la
-     * base est lisible et que l objet n'y est pas, c'est que le préfixe était
-     * un faux positif (un schéma local nommé comme une base): la dépendance
-     * redevient locale.
+     * Best-effort: an unreadable database (permissions, offline) leaves the
+     * generic "Object" type - the dependency stays clickable. On the other
+     * hand, if the database can be read and the object is not in it, the
+     * prefix was a false positive (a local schema named like a database):
+     * the dependency becomes local again.
      */
     async _resolveExternalTypes(entries) {
         const externals = (entries || []).filter(e => e.is_external && e.external_database);
@@ -209,7 +212,7 @@ class DependencyService {
                 types = await this._databaseService.getObjectTypes(database, [...names]);
             } catch (error) {
                 console.warn(`[DependencyService] Failed to resolve object types in ${database}:`, error.message);
-                continue; // base illisible: on garde "Object", le lien reste valide
+                continue; // unreadable database: keep "Object", the link stays valid
             }
             for (const entry of externals) {
                 if (entry.external_database.toLowerCase() !== database.toLowerCase()) continue;
@@ -217,8 +220,8 @@ class DependencyService {
                 if (types[key]) {
                     entry.referenced_object_type = types[key];
                 } else {
-                    // La base a été lue et l'objet n'y est pas: le préfixe
-                    // database était un faux positif, l'objet est local.
+                    // The database was read and the object is not in it: the
+                    // database prefix was a false positive, the object is local.
                     entry.is_external = false;
                     entry.external_database = null;
                 }
@@ -227,16 +230,19 @@ class DependencyService {
     }
 
     /**
-     * Récupère la définition SQL de l'objet et extrait les opérations par table.
+     * Fetches the SQL definition of the object and extracts the operations
+     * per table.
      */
     async _getOperationsFromSql(database, objectName, objectType) {
         try {
-            // Tables n'ont pas de "définition" utile pour le parsing — toujours SELECT/INSERT/UPDATE/DELETE possibles
+            // Tables have no useful "definition" for the parsing - SELECT,
+            // INSERT, UPDATE and DELETE are all possible.
             if (objectType === 'U') return null;
 
-            // Il faut quoter schéma et nom séparément, sinon QUOTENAME() sur le nom complet
-            // produit un seul identifiant avec un point littéral (ex: [schema.object]) que
-            // OBJECT_ID ne peut jamais résoudre.
+            // The schema and the name must be quoted separately, otherwise
+            // QUOTENAME() on the full name produces a single identifier with a
+            // literal dot (e.g. [schema.object]) that OBJECT_ID can never
+            // resolve.
             const { schema, objectName: namePart } = parseObjectName(objectName);
             const schemaPart = schema.replace(/'/g, "''");
             const namePartEscaped = namePart.replace(/'/g, "''");
