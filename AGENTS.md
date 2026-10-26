@@ -39,6 +39,8 @@ here, but it takes ~1 min on the first run (VS Code download).
 - The `CHANGELOG.md` entry and the version bump (`package.json` +
   `version.json`) belong to a **separate "Release X.Y.Z" commit**, not to the
   feature commit.
+- **Small commits.** One subject per commit, and a commit that touches ten
+  files for ten unrelated reasons is ten commits.
 - `database/IndexServices.js` caches one index **per database** under
   `~/.vscode/sqlwayfarer/indexes/<server>/<database>.json`. The `<server>`
   segment is the server string of the *connection* (e.g. `localhost`), not
@@ -82,6 +84,21 @@ Two gotchas:
 - **Scratch databases are fine.** Creating a database to test a scenario is
   expected here; drop it when done (`ALTER DATABASE ... SET SINGLE_USER WITH
   ROLLBACK IMMEDIATE; DROP DATABASE ...`).
+
+### Live tests
+
+A test that needs a real server is **opt-in**: it reads the JSON connection
+of the server from the `SQLWAYFARER_TEST_SQL` environment variable and skips
+itself when the variable is absent, so `npm test` stays green everywhere.
+
+```bash
+# PowerShell
+$env:SQLWAYFARER_TEST_SQL = '{"server":"localhost","user":"me","password":"...","database":"master","options":{"trustServerCertificate":true,"encrypt":false}}'
+npm test
+```
+
+A SQL login is required (see the `mssql` gotcha above). The live suite
+creates its own scratch database and drops it in its teardown.
 
 ### Reference data for cross-database work
 
