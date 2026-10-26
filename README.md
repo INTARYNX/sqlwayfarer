@@ -108,7 +108,8 @@ A 📜 button on every object in the Explorer generates ready-to-edit scripts st
 - Save and switch between multiple SQL Server connections
 - Secure credential storage integrated with VS Code
 - Connection testing with live feedback
-- SQL login or Windows authentication (`DOMAIN\user` in the username field)
+- SQL login, or a Windows account typed as `DOMAIN\user` in the username field
+- **Authentication limits**: a Windows account is sent to the server with its password (NTLM). **Integrated authentication** (your current Windows session, SSPI/Kerberos, single sign-on) and **Microsoft Entra ID** (Azure AD) sign-in are not supported yet — use a SQL login or a `DOMAIN\user` with its password
 - **Auto-connect**: the last connection used is reconnected automatically when the panel opens (toggleable, and the last connection stays pre-selected either way)
 
 ## Getting Started
