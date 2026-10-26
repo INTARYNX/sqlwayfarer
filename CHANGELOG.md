@@ -4,6 +4,22 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.9] - 2026-10-26
+
+### Added
+
+- **Microsoft Entra ID sign-in (beta)**: a connection can now use *Microsoft Entra ID (Azure SQL)* as its authentication, for Azure SQL servers that no longer accept SQL logins. It signs in with the Microsoft account of VS Code (MFA and single sign-on included), stores no password, always encrypts the connection, and renews the access token in the background so the connection keeps working past the hour a token lives. Not yet tested against a live Azure SQL: please report problems via GitHub Issues.
+
+### Changed
+
+- **Sidebar view**: "SQL Snippets" is now simply "Snippets", as the extension is much more than snippets.
+- **Authentication in the README**: it now says plainly what is supported. A Windows account is sent with its password (NTLM), saved once in the secret storage; integrated authentication (SSPI/Kerberos) is not available, because the underlying driver (tedious) cannot call SSPI.
+
+### Fixed
+
+- **Escaping in the Explorer**: text coming from the database (schema names, index filter definitions, indexing and documentation messages, the name in "No dependencies found") was inserted into the page without being escaped.
+- **Operations query**: the dependency operations lookup built its SQL by interpolating the object name. It passes the name as parameters now, like every other query.
+
 ## [0.12.8] - 2026-10-26
 
 ### Added
