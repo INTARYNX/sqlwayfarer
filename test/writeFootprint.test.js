@@ -2,9 +2,9 @@ const assert = require('assert');
 const WriteFootprintService = require('../database/WriteFootprintService');
 
 // Minimal index entry factory.
-function obj(qualifiedName, type, { columnRefs = {}, dependencies = [], possibleRefs = [], tableWrites = [] } = {}) {
+function obj(qualifiedName, type, { columnRefs = {}, dependencies = [], possibleRefs = [], tableWrites = [], parseErrors = [] } = {}) {
     const [schema, name] = qualifiedName.split('.');
-    return { qualifiedName, schema, name, type, columnRefs, dependencies, possibleRefs, tableWrites };
+    return { qualifiedName, schema, name, type, columnRefs, dependencies, possibleRefs, tableWrites, parseErrors };
 }
 
 // Scenario:
@@ -273,6 +273,46 @@ suite('WriteFootprintService name resolution', () => {
 		const a = r.tables.find(x => x.qualifiedName === 'dbo.AuditLog');
 		assert.ok(a, 'the table written by the trigger is in the footprint');
 		assert.strictEqual(a.access, 'write');
+	});
+});
+
+suite('WriteFootprintService parse issues', () => {
+	test('an object whose definition did not parse is reported', () => {
+		const index = { objects: {
+			'dbo.P': obj('dbo.P', 'P', {
+				columnRefs: { 'app.T': { c: { write: true } } },
+				dependencies: ['app.T'],
+				parseErrors: [{ line: 3, column: 12, message: "missing ')' at 'VALUES'" }]
+			}),
+			'app.T': obj('app.T', 'U')
+		} };
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'dbo.P' });
+
+		assert.strictEqual(r.parseIssues.length, 1, 'the partial analysis is reported');
+		assert.strictEqual(r.parseIssues[0].object, 'dbo.P');
+		assert.strictEqual(r.parseIssues[0].errors[0].message, "missing ')' at 'VALUES'");
+	});
+
+	test('an object that parsed cleanly reports nothing', () => {
+		const index = { objects: {
+			'dbo.P': obj('dbo.P', 'P', { columnRefs: {}, dependencies: [] }),
+		} };
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'dbo.P' });
+		assert.deepStrictEqual(r.parseIssues, []);
+	});
+
+	test('the parse issue of a called procedure is reported too', () => {
+		const index = { objects: {
+			'dbo.P': obj('dbo.P', 'P', { dependencies: ['dbo.P2'] }),
+			'dbo.P2': obj('dbo.P2', 'P', {
+				dependencies: [],
+				parseErrors: [{ line: 1, column: 1, message: 'mismatched input' }]
+			})
+		} };
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'dbo.P' });
+
+		assert.strictEqual(r.parseIssues.length, 1);
+		assert.strictEqual(r.parseIssues[0].object, 'dbo.P2');
 	});
 });
 
