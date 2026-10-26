@@ -233,11 +233,12 @@ suite('BabelfishSqlParser quoted identifiers', () => {
 		assert.deepStrictEqual(analysis.errors, []);
 	});
 
-	test('a double-quoted table does not break the parse', function () {
+	test('a double-quoted table is analyzed like a plain one', function () {
 		this.timeout(10000);
 		const analysis = makeParser().analyzeDefinition('DELETE FROM "dbo"."Users" WHERE "Id" = 1');
-		assert.ok(analysis, 'the analysis must not fail');
+		assert.ok(analysis);
 		assert.deepStrictEqual(analysis.errors, []);
+		assert.deepStrictEqual(analysis.writes, ['dbo.users'], 'the delimiters are not part of the name');
 	});
 
 	test('a string literal is still a string', function () {
