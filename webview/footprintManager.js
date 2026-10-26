@@ -521,3 +521,8 @@ class FootprintManager {
         ];
     }
 }
+
+// Allow unit tests to require() this file; in the webview `module` is undefined.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = FootprintManager;
+}
