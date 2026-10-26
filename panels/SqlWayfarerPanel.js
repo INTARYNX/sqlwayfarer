@@ -406,8 +406,9 @@ class SqlWayfarerPanel {
         const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
         let html = fs.readFileSync(htmlPath, 'utf8');
 
-        // mtime du bundle réellement chargé (dist/extension.js) — permet de vérifier
-        // qu'on teste bien le dernier build et pas une session restée sur l'ancien code.
+        // mtime of the bundle actually loaded (dist/extension.js) - makes it
+        // possible to check that the last build is really the one under test,
+        // and not a session left running on the previous code.
         let buildTime = 'unknown';
         try {
             const bundlePath = path.join(this._extensionUri.fsPath, 'dist', 'extension.js');

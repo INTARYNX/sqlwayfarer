@@ -1,15 +1,15 @@
 'use strict';
 
 /**
- * BabelfishSqlParser — Analyse le code SQL d'un objet SQL Server pour
- * extraire les opérations DML (SELECT/INSERT/UPDATE/DELETE/MERGE) par table référencée.
+ * BabelfishSqlParser - Analyzes the SQL code of a SQL Server object to
+ * extract the DML operations (SELECT/INSERT/UPDATE/DELETE/MERGE) per referenced table.
  *
- * Utilise la grammaire ANTLR officielle de Babelfish (open-source, la plus complète
- * pour T-SQL dispo), compilée via antlr4 runtime JS.
+ * Uses the official Babelfish ANTLR grammar (open-source, the most complete
+ * one available for T-SQL), compiled with the antlr4 JS runtime.
  *
- * ⚠️ Limites connues :
- *  - Dynamic SQL (EXEC avec string dynamique) → non résolu (fail safe)
- *  - SQL exotique / bugs grammaires → retourne l'analyse partielle
+ * ⚠️ Known limits:
+ *  - Dynamic SQL (EXEC with a dynamic string) → not resolved (fail safe)
+ *  - Exotic SQL / grammar bugs → returns the partial analysis
  */
 
 const antlr4 = require('antlr4');
@@ -17,8 +17,8 @@ const TSqlLexer = require('./generated/TSqlLexer');
 const TSqlParser = require('./generated/TSqlParser');
 const TSqlParserVisitor = require('./generated/TSqlParserVisitor');
 
-// Conserve le schéma (voire la DB) quand il est explicite dans le SQL, pour ne pas
-// confondre p.ex. dbo.Orders et sales.Orders sous une même clé "orders".
+// Keeps the schema (and the database) when the SQL makes it explicit, so that
+// e.g. dbo.Orders and sales.Orders do not end up under the same "orders" key.
 function extractFromFullObjectName(fonCtx) {
     if (!fonCtx || !fonCtx.object_name) return null;
     const parts = [fonCtx.database, fonCtx.schema, fonCtx.object_name]
@@ -34,8 +34,8 @@ function extractFromDdlObject(ddlCtx) {
     return null;
 }
 
-// Normalisation commune des clés de table : crochets retirés + minuscules,
-// alignée avec le lookup de DependencyService. Utilisée par les deux visiteurs.
+// Common normalization of the table keys: brackets removed + lower-cased,
+// aligned with the DependencyService lookup. Used by both visitors.
 function cleanTableKey(name) {
     return name.replace(/[\[\]]/g, '').toLowerCase();
 }
@@ -126,9 +126,9 @@ class OpsVisitor extends TSqlParserVisitor {
         return extractFromDdlObject(ddlCtx);
     }
 
-    // table_source_item est une règle récursive à gauche (JOIN, CROSS APPLY, PIVOT, ...) :
-    // un FROM avec JOIN ne donne qu'un seul item de haut niveau, il faut descendre
-    // dans l'arbre pour retrouver chaque full_object_name référencé.
+    // table_source_item is a left-recursive rule (JOIN, CROSS APPLY, PIVOT, ...):
+    // a FROM with a JOIN yields a single top-level item, so the tree has to be
+    // walked down to find every referenced full_object_name.
     _walkTableSourceItem(item, operation) {
         if (!item) return;
         const fon = item.full_object_name ? item.full_object_name() : null;
@@ -154,9 +154,9 @@ class OpsVisitor extends TSqlParserVisitor {
         const tableSources = ctx.table_sources ? ctx.table_sources() : null;
         const table = this._resolveTargetAlias(this._extractFromDdlObject(ddl), tableSources);
         this._addOp(table, 'UPDATE');
-        // La clause FROM optionnelle (UPDATE ... FROM a JOIN b ON ...) est lue, pas écrite
+        // The optional FROM clause (UPDATE ... FROM a JOIN b ON ...) is read, not written
         this._collectFromTableSources(tableSources, 'SELECT');
-        // Visite les sous-requêtes (SELECT dans SET, WHERE, etc.)
+        // Visits the subqueries (SELECT in SET, WHERE, etc.)
         this.visitChildren(ctx);
     }
 
@@ -175,24 +175,24 @@ class OpsVisitor extends TSqlParserVisitor {
         const tableSources = ctx.table_sources ? ctx.table_sources() : null;
         const table = this._resolveTargetAlias(this._extractFromDdlObject(ddl), tableSources);
         this._addOp(table, 'DELETE');
-        // La clause FROM optionnelle (DELETE ... FROM a JOIN b ON ...) est lue, pas écrite
+        // The optional FROM clause (DELETE ... FROM a JOIN b ON ...) is read, not written
         this._collectFromTableSources(tableSources, 'SELECT');
         this.visitChildren(ctx);
     }
 
-    // === SELECT — capturé via table_sources dans la query ===
+    // === SELECT - captured via the table_sources of the query ===
     visitQuery_specification(ctx) {
         this._collectFromTableSources(ctx.table_sources ? ctx.table_sources() : null, 'SELECT');
-        // Aussi explorer les sous-requêtes, etc.
+        // Also explores the subqueries, etc.
         this.visitChildren(ctx);
     }
 
-    // === MERGE — conservateur : on note MERGE, sans détailler WHEN clauses ===
+    // === MERGE - conservative: MERGE is noted, without detailing the WHEN clauses ===
     visitMerge_statement(ctx) {
         const target = ctx.ddl_object ? ctx.ddl_object() : null;
         const table = this._extractFromDdlObject(target);
         if (table) this._addOp(table, 'MERGE');
-        // USING table_sources : source lue par le MERGE
+        // USING table_sources: the source read by the MERGE
         this._collectFromTableSources(ctx.table_sources ? ctx.table_sources() : null, 'SELECT');
         this.visitChildren(ctx);
     }
@@ -868,7 +868,7 @@ class BabelfishSqlParser {
     }
 
     /**
-     * Analyse une définition SQL et retourne un map { tableName (lowercase): [operations] }
+     * Analyzes a SQL definition and returns a map { tableName (lowercase): [operations] }
      * @param {string} sqlDefinition
      * @returns {Object<string, string[]>|null}
      */
@@ -880,7 +880,7 @@ class BabelfishSqlParser {
             const lexer = new TSqlLexer(chars);
             const tokens = new antlr4.CommonTokenStream(lexer);
             const parser = new TSqlParser(tokens);
-            // Suppress error spam — on veut un fail soft
+            // Suppresses the error spam - we want a soft failure
             parser.removeErrorListeners();
 
             const tree = parser.tsql_file();
@@ -947,9 +947,9 @@ class BabelfishSqlParser {
     }
 
     /**
-     * Détecte les UPDATE/DELETE sans clause WHERE.
+     * Detects the UPDATE/DELETE statements without a WHERE clause.
      * @param {string} sqlDefinition
-     * @returns {Array<{type: string, table: string|null}>|null} null si parse impossible/désactivé
+     * @returns {Array<{type: string, table: string|null}>|null} null when the parsing is impossible or disabled
      */
     analyzeRisks(sqlDefinition) {
         if (!sqlDefinition || !this._enabled) return null;

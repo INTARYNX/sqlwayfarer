@@ -390,9 +390,10 @@ class IndexingModalManager {
             // switched away while this indexing run kept going in the background).
             vscode.postMessage({ command: 'cancelIndexing', database: this.database });
         });
-        // Piège à focus : l'overlay bloque les clics mais pas le clavier — sans ça,
-        // un Ctrl+Enter dans l'éditeur de requête exécuterait une requête sur la
-        // connexion unique pendant l'indexation, et Tab atteint l'UI en arrière-plan.
+        // Focus trap: the overlay blocks the clicks but not the keyboard -
+        // without it, a Ctrl+Enter in the query editor would run a query on
+        // the single connection while the indexing is going, and Tab would
+        // reach the UI in the background.
         document.addEventListener('keydown', (e) => {
             if (!this.overlay.classList.contains('visible')) return;
             if (e.key === 'Tab' || !this.overlay.contains(e.target)) {

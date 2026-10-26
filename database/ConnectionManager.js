@@ -15,8 +15,9 @@ class ConnectionManager {
         this._lastKnownServer = null;
     }
 
-    // Objet de config natif mssql plutôt qu'une connection string concaténée à la main —
-    // un mot de passe contenant ';' ou '=' pourrait sinon injecter des paramètres de connexion.
+    // Native mssql config object instead of a hand-concatenated connection
+    // string - a password containing ';' or '=' would otherwise inject
+    // connection parameters.
     async buildConnectionConfig(connectionConfig) {
         let password = connectionConfig.password;
         if (!password && connectionConfig.name) {
@@ -30,16 +31,18 @@ class ConnectionManager {
         if (connectionConfig.encrypt !== undefined) options.encrypt = connectionConfig.encrypt;
         if (connectionConfig.trustServerCertificate !== undefined) options.trustServerCertificate = connectionConfig.trustServerCertificate;
 
-        // Le défaut mssql/tedious de 15s tue les requêtes longues (indexation d'une
-        // grosse base, requêtes utilisateur) ; les timeouts applicatifs (annulation à
-        // 5 min dans QueryHandlers, bouton Cancel de l'indexation) restent les garde-fous.
+        // The 15s mssql/tedious default kills the long queries (indexing a
+        // large database, user queries); the application timeouts (5 min
+        // cancellation in QueryHandlers, Cancel button of the indexing) remain
+        // the real safeguards.
         const config = { server: connectionConfig.server, options, requestTimeout: 300000 };
         if (connectionConfig.port) config.port = Number(connectionConfig.port);
         if (connectionConfig.database) config.database = connectionConfig.database;
         if (connectionConfig.username && password) {
-            // 'DOMAIN\user' doit devenir { domain, user } : tedious ne passe en NTLM
-            // (compte Windows) que si config.domain est défini, comme le faisait
-            // le parser de connection string de mssql avant le passage à l'objet natif.
+            // 'DOMAIN\user' must become { domain, user }: tedious only switches
+            // to NTLM (Windows account) when config.domain is set, the way the
+            // mssql connection string parser did before the move to the native
+            // object.
             const domainUser = /^(.*)\\(.*)$/.exec(connectionConfig.username);
             if (domainUser && domainUser[1]) {
                 config.domain = domainUser[1];
@@ -157,10 +160,11 @@ class ConnectionManager {
         return await request.query(query);
     }
 
-    // Centralise le `USE [database];` répété identiquement dans presque tous les services
-    // pour éviter qu'une requête l'oublie et interroge la mauvaise base.
+    // Centralises the `USE [database];` repeated identically in almost every
+    // service, so that no query forgets it and hits the wrong database.
     async executeQueryInDatabase(database, query, params = null) {
-        // ']' doublé pour fermer proprement l'identifiant entre crochets si le nom en contient un.
+        // Doubled ']' to close the bracketed identifier properly when the name
+        // contains one.
         return this.executeQuery(`USE ${bracketIdentifier(database)};\n${query}`, params);
     }
 

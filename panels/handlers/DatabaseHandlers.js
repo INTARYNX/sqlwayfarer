@@ -14,13 +14,13 @@ class DatabaseHandlers {
             const databases = await this._databaseService.getDatabases();
             this._post({ command: 'databasesLoaded', databases });
 
-            // Ne PAS effacer l'index de la base courante ici : getDatabases est
-            // appelé à chaque (re)connexion, et _currentSelectedDatabase reste
-            // renseigné après une déconnexion. Effacer relançait une
-            // réindexation complète d'une grosse base pourtant déjà en cache.
-            // La péremption est déjà gérée par getIndex via le checksum de schéma
-            // (mise à jour incrémentale), le cache persistant n'a jamais besoin
-            // d'être jeté simplement parce qu'on liste les bases.
+            // Do NOT clear the index of the current database here: getDatabases
+            // is called on every (re)connection, and _currentSelectedDatabase
+            // stays filled in after a disconnection. Clearing it relaunched a
+            // full reindexing of a large database that was already cached.
+            // The expiry is already handled by getIndex through the schema
+            // checksum (incremental update), the persistent cache never needs
+            // to be dropped just because the databases are listed.
             this._post({ command: 'requestCurrentDatabase' });
         } catch (error) {
             this._post({ command: 'error', message: `Failed to get databases: ${error.message}` });

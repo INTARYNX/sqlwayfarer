@@ -691,8 +691,8 @@ label {
 .filter-types {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    /* row gap tight (les cases ont déjà un padding vertical), column gap
-       plus large pour séparer lisiblement les deux colonnes */
+    /* row gap tight (the boxes already have a vertical padding), column gap
+       larger to legibly separate the two columns */
     gap: 1px 5px;
     margin-bottom: 10px;
 }
