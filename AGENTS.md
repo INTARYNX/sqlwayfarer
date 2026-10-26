@@ -44,6 +44,13 @@ here, but it takes ~1 min on the first run (VS Code download).
   segment is the server string of the *connection* (e.g. `localhost`), not
   `@@SERVERNAME`. Bump `INDEX_FORMAT_VERSION` only when the shape of an index
   entry changes — it invalidates every cached index on every user's machine.
+- `.vscode/launch.json` and `.vscode/tasks.json` are **tracked** (the rest of
+  `.vscode/` is ignored, so each developer's personal settings stay private).
+  They are the only way to run the extension from the sources: F5 starts an
+  Extension Host on `dist/extension.js`, which is built, not in git. A
+  `git clean -xdf` wipes everything *ignored* — a local-only launch.json
+  disappeared that way once, and F5 then silently did nothing. The build runs
+  as a `preLaunchTask`, so a missing `dist/` is never a blocker.
 
 ## Local environment
 
