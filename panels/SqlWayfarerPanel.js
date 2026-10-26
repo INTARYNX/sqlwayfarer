@@ -13,6 +13,7 @@ const CommentsService = require('../database/CommentsService');
 const DataDictionaryService = require('../database/DataDictionaryService');
 const ScriptGeneratorService = require('../database/ScriptGeneratorService');
 const WriteFootprintService = require('../database/WriteFootprintService');
+const QueryGraphService = require('../database/QueryGraphService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
@@ -27,6 +28,7 @@ const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
 const FootprintHandlers = require('./handlers/FootprintHandlers');
+const QueryGraphHandlers = require('./handlers/QueryGraphHandlers');
 const SnippetHandlers = require('./handlers/SnippetHandlers');
 
 class SqlWayfarerPanel {
@@ -79,6 +81,7 @@ class SqlWayfarerPanel {
         this._commentsService = new CommentsService(this._connectionManager);
         this._dataDictionaryService = new DataDictionaryService(this._connectionManager, this._indexService);
         this._writeFootprintService = new WriteFootprintService(this._connectionManager, this._indexService, this._databaseService);
+        this._queryGraphService = new QueryGraphService(this._connectionManager, this._indexService, this._databaseService);
 
         const post = msg => this.post(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -108,6 +111,7 @@ class SqlWayfarerPanel {
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
+        this._queryGraph = new QueryGraphHandlers(post, this._queryGraphService, getDb);
         this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
 
         // The page goes up straight away - the webview shows a loading
@@ -373,6 +377,9 @@ class SqlWayfarerPanel {
             // Write footprint (tables read/written by an object, trigger cascades included)
             case 'getWriteFootprint':           await this._footprint.handleGetWriteFootprint(message.database, message.objectName); break;
             case 'getFootprintDoc':             await this._footprint.handleGetFootprintDoc(message.database, message.tableNames); break;
+
+            // Query graph (tables read by the editor's SQL, and how they join)
+            case 'getQueryGraph':                await this._queryGraph.handleGetQueryGraph(message.database, message.sql); break;
 
             // Export
             case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database, message.full); break;

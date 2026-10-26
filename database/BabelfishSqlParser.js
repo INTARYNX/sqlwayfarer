@@ -56,6 +56,15 @@ function findFirstRule(node, ruleIndex) {
     return null;
 }
 
+// Every node of a given rule under a subtree, in document order.
+function findAllRule(node, ruleIndex, out = []) {
+    if (!node || node.symbol !== undefined) return out;
+    if (node.ruleIndex === ruleIndex) out.push(node);
+    const count = node.getChildCount();
+    for (let i = 0; i < count; i++) findAllRule(node.getChild(i), ruleIndex, out);
+    return out;
+}
+
 // alias -> real table name pairs from the leaf table_source_item nodes of a
 // FROM clause, so aliased UPDATE/DELETE targets resolve to the real table.
 function collectTableAliases(tableSources, out = new Map()) {
@@ -193,6 +202,35 @@ class OpsVisitor extends TSqlParserVisitor {
 // physical table: qualified refs through them are not physical columns.
 const DERIVED = Symbol('derived-table');
 
+// Collects the tables and aliases of a statement. The leaf table_source_item
+// nodes carry the reliable table/alias pairing: a joined source is ONE
+// flattened ctx with nested table_source_item children, and only the leaves
+// are actual sources. Shared by the column lineage and the join graph.
+function collectStatementScope(node, scope, ctes) {
+    if (!node || node.symbol !== undefined) return;
+
+    if (node.ruleIndex === TSqlParser.RULE_table_source_item) {
+        const nested = node.table_source_item ? node.table_source_item() : [];
+        const isLeaf = !nested || nested.length === 0;
+        if (isLeaf) {
+            const fon = firstCtx(node.full_object_name ? node.full_object_name() : null);
+            const aliasCtx = firstCtx(node.as_table_alias ? node.as_table_alias() : null);
+            const table = fon ? cleanTableKey(fon.getText()) : DERIVED;
+            if (fon) scope.tables.add(table);
+            if (aliasCtx) {
+                const aliasNode = findFirstRule(aliasCtx, TSqlParser.RULE_table_alias);
+                if (aliasNode) scope.aliases.set(cleanTableKey(aliasNode.getText()), table);
+            }
+        }
+    } else if (node.ruleIndex === TSqlParser.RULE_common_table_expression) {
+        const idNode = findFirstRule(node, TSqlParser.RULE_id);
+        if (idNode) ctes.add(cleanTableKey(idNode.getText()));
+    }
+
+    const count = node.getChildCount();
+    for (let i = 0; i < count; i++) collectStatementScope(node.getChild(i), scope, ctes);
+}
+
 /**
  * Column-level lineage: which columns of which tables does a definition touch?
  * Result: { tableKey: { columnName: { write, confident } } }, all keys lowercase.
@@ -258,30 +296,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
 
     // Generic subtree walk used to pre-collect the scope of a statement
     _collectScope(node, scope) {
-        if (!node || node.symbol !== undefined) return;
-
-        if (node.ruleIndex === TSqlParser.RULE_table_source_item) {
-            // Joined sources are one flattened ctx with nested table_source_item
-            // children; only leaf items carry a reliable table/alias pairing.
-            const nested = node.table_source_item ? node.table_source_item() : [];
-            const isLeaf = !nested || nested.length === 0;
-            if (isLeaf) {
-                const fon = this._first(node.full_object_name ? node.full_object_name() : null);
-                const aliasCtx = this._first(node.as_table_alias ? node.as_table_alias() : null);
-                const table = fon ? this._clean(fon.getText()) : DERIVED;
-                if (fon) scope.tables.add(table);
-                if (aliasCtx) {
-                    const aliasNode = this._findFirst(aliasCtx, TSqlParser.RULE_table_alias);
-                    if (aliasNode) scope.aliases.set(this._clean(aliasNode.getText()), table);
-                }
-            }
-        } else if (node.ruleIndex === TSqlParser.RULE_common_table_expression) {
-            const idNode = this._findFirst(node, TSqlParser.RULE_id);
-            if (idNode) this._ctes.add(this._clean(idNode.getText()));
-        }
-
-        const count = node.getChildCount();
-        for (let i = 0; i < count; i++) this._collectScope(node.getChild(i), scope);
+        collectStatementScope(node, scope, this._ctes);
     }
 
     _findFirst(node, ruleIndex) {
@@ -461,6 +476,358 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     }
 }
 
+// The physical tables of a statement body (a derived table or a CTE body).
+function statementTables(node, ctes) {
+    const scope = { aliases: new Map(), tables: new Set(), derived: new Map() };
+    collectStatementScope(node, scope, ctes);
+    return [...scope.tables].filter(t => t !== DERIVED && !ctes.has(t));
+}
+
+// Collects the alias -> base tables mapping of the derived tables (subqueries)
+// and CTEs of a statement: a source that has no name of its own is shown
+// through the tables it selects from.
+function collectDerivedSources(node, scope, ctes) {
+    if (!node || node.symbol !== undefined) return;
+
+    if (node.ruleIndex === TSqlParser.RULE_table_source_item) {
+        const nested = node.table_source_item ? node.table_source_item() : [];
+        if (!nested || nested.length === 0) {
+            const aliasCtx = firstCtx(node.as_table_alias ? node.as_table_alias() : null);
+            const aliasNode = aliasCtx ? findFirstRule(aliasCtx, TSqlParser.RULE_table_alias) : null;
+            const alias = aliasNode ? cleanTableKey(aliasNode.getText()) : null;
+            const inner = firstCtx(node.derived_table ? node.derived_table() : null)
+                || firstCtx(node.subquery ? node.subquery() : null);
+            if (alias && inner) {
+                const innerSelect = findFirstRule(inner, TSqlParser.RULE_select_statement);
+                if (innerSelect) {
+                    const tables = statementTables(innerSelect, ctes);
+                    if (tables.length) scope.derived.set(alias, tables);
+                }
+            }
+        }
+    } else if (node.ruleIndex === TSqlParser.RULE_common_table_expression) {
+        const idNode = findFirstRule(node, TSqlParser.RULE_id);
+        const name = idNode ? cleanTableKey(idNode.getText()) : null;
+        const innerSelect = findFirstRule(node, TSqlParser.RULE_select_statement);
+        if (name && innerSelect) {
+            const tables = statementTables(innerSelect, ctes);
+            if (tables.length) scope.derived.set(name, tables);
+        }
+    }
+
+    const count = node.getChildCount();
+    for (let i = 0; i < count; i++) collectDerivedSources(node.getChild(i), scope, ctes);
+}
+
+/**
+ * Join graph of a SQL text: which sources are joined to which, and on which
+ * columns. Complements analyzeColumns (what a statement reads) with the
+ * relational structure (which source is joined to which).
+ *
+ * Result: { tables, functions, joins }
+ *  - `tables`: the physical tables read by the text (lowercase, schema kept
+ *    when the SQL spells it out)
+ *  - `functions`: the schema-qualified functions called by the text - they
+ *    are code objects, not tables: their own tables are followed elsewhere
+ *  - `joins`: [{ from, to, condition, columns, confident, kind }]
+ *    `columns` maps each side of the join to the columns its condition uses
+ *    `confident` is false when the condition does not qualify its columns:
+ *    the partner is then taken from the join order, not from the condition
+ *
+ * The tree is walked directly rather than through the visitor mechanism, so
+ * the traversal (and the statement scoping) is fully under our control.
+ */
+class JoinGraphVisitor {
+    constructor() {
+        this._tables = new Set();
+        this._functions = new Set();
+        this._joins = [];
+        this._seen = new Set();
+        this._ctes = new Set();
+        this._tokens = null;
+    }
+
+    analyze(tree, tokens) {
+        this._tokens = tokens;
+        this._walk(tree, [], this._ctes);
+        return this.getResult();
+    }
+
+    getResult() {
+        return { tables: [...this._tables], functions: [...this._functions], joins: this._joins };
+    }
+
+    _isStatement(ruleIndex) {
+        return ruleIndex === TSqlParser.RULE_select_statement
+            || ruleIndex === TSqlParser.RULE_select_statement_standalone
+            || ruleIndex === TSqlParser.RULE_insert_statement
+            || ruleIndex === TSqlParser.RULE_update_statement
+            || ruleIndex === TSqlParser.RULE_delete_statement
+            || ruleIndex === TSqlParser.RULE_merge_statement;
+    }
+
+    // Walks the parse tree. A DML statement opens a scope of its own - a
+    // subquery then resolves its aliases against its own sources first, and
+    // only then against the enclosing statement (correlated references).
+    _walk(node, scopes, ctes) {
+        if (!node || node.symbol !== undefined) return;
+
+        if (this._isStatement(node.ruleIndex)) {
+            const scope = { aliases: new Map(), tables: new Set(), derived: new Map() };
+            collectStatementScope(node, scope, ctes);
+            collectDerivedSources(node, scope, ctes);
+            scopes.push(scope);
+            for (const t of scope.tables) {
+                if (t !== DERIVED && !ctes.has(t)) this._tables.add(t);
+            }
+            this._collectFunctions(node);
+            this._collectJoins(node, scopes, ctes, true);
+            const count = node.getChildCount();
+            for (let i = 0; i < count; i++) this._walk(node.getChild(i), scopes, ctes);
+            scopes.pop();
+            return;
+        }
+
+        const count = node.getChildCount();
+        for (let i = 0; i < count; i++) this._walk(node.getChild(i), scopes, ctes);
+    }
+
+    // The functions called by a statement. Only schema-qualified ones are
+    // kept: a bare name is a built-in (LEN, ISNULL...) more often than not.
+    _collectFunctions(node) {
+        for (const fc of findAllRule(node, TSqlParser.RULE_function_call)) {
+            const name = this._functionName(fc);
+            if (name && name.includes('.')) this._functions.add(name);
+        }
+    }
+
+    _functionName(fc) {
+        const nameCtx = firstCtx(fc.func_proc_name_server_database_schema ? fc.func_proc_name_server_database_schema() : null);
+        return nameCtx ? cleanTableKey(nameCtx.getText()) : null;
+    }
+
+    // Finds the join structures of a statement: a table_source_item holding
+    // two nested table_source_item is a JOIN (the right one is the joined
+    // source, the left one the accumulated sources).
+    _collectJoins(node, scopes, ctes, isRoot) {
+        if (!node || node.symbol !== undefined) return;
+        // A nested statement has its own joins - they are collected there.
+        if (!isRoot && this._isStatement(node.ruleIndex)) return;
+
+        if (node.ruleIndex === TSqlParser.RULE_table_source_item) {
+            const nested = node.table_source_item ? node.table_source_item() : [];
+            if (nested.length === 2) this._recordJoin(node, nested, scopes, ctes);
+        } else if (node.ruleIndex === TSqlParser.RULE_table_sources) {
+            this._recordCommaJoins(node, scopes, ctes);
+        }
+
+        const count = node.getChildCount();
+        for (let i = 0; i < count; i++) this._collectJoins(node.getChild(i), scopes, ctes, false);
+    }
+
+    // FROM a, b, c: comma joins have no condition, the partner is the order.
+    _recordCommaJoins(node, scopes, ctes) {
+        const items = node.table_source_item ? node.table_source_item() : [];
+        if (items.length < 2) return;
+        const left = this._sources(items[0], scopes);
+        for (let i = 1; i < items.length; i++) {
+            for (const rt of this._sources(items[i], scopes)) {
+                for (const lt of left) this._addJoin(lt, rt, '', {}, false, 'comma');
+            }
+        }
+    }
+
+    _recordJoin(node, nested, scopes, ctes) {
+        const rightTables = this._sources(nested[1], scopes);
+        const leftTables = this._sources(nested[0], scopes);
+        if (rightTables.length === 0) return;
+
+        const conditionCtx = firstCtx(node.search_condition ? node.search_condition() : null);
+        const condition = conditionCtx ? this._text(conditionCtx) : '';
+        const kind = this._joinKind(node);
+        const refs = conditionCtx ? this._conditionRefs(conditionCtx, scopes, ctes) : [];
+
+        for (const rt of rightTables) {
+            const columns = {};
+            const partners = new Set();
+            let confident = true;
+
+            for (const ref of refs) {
+                if (ref.table) {
+                    if (!columns[ref.table]) columns[ref.table] = [];
+                    columns[ref.table].push(ref.column);
+                    if (ref.table !== rt) partners.add(ref.table);
+                } else {
+                    // Unqualified column: which side it belongs to is unknown.
+                    confident = false;
+                    if (!columns[rt]) columns[rt] = [];
+                    columns[rt].push(ref.column);
+                }
+            }
+
+            if (partners.size === 0) {
+                // No qualified partner in the condition: fall back to the join
+                // order, but the edge is no longer certain.
+                for (const lt of leftTables) if (lt !== rt) partners.add(lt);
+                confident = false;
+            }
+
+            for (const pt of partners) this._addJoin(pt, rt, condition, columns, confident, kind);
+        }
+    }
+
+    // The columns of a join condition, resolved to the table they belong to.
+    _conditionRefs(conditionCtx, scopes, ctes) {
+        const refs = [];
+        for (const fcn of findAllRule(conditionCtx, TSqlParser.RULE_full_column_name)) {
+            const parts = cleanTableKey(fcn.getText()).split('.').filter(Boolean);
+            const column = parts.pop();
+            if (!column) continue;
+            const qualifier = parts.join('.');
+            let table = null;
+            if (qualifier) {
+                // Innermost scope first, then the enclosing statements.
+                let resolved = null;
+                for (let i = scopes.length - 1; i >= 0; i--) {
+                    const alias = scopes[i].aliases.get(qualifier);
+                    if (alias) { resolved = alias; break; }
+                }
+                // Not an alias: a direct table reference (maybe schema-qualified).
+                if (!resolved) resolved = qualifier;
+                if (resolved === DERIVED) {
+                    // A derived table: the columns belong to its base tables.
+                    const base = this._expandAlias(qualifier, scopes);
+                    resolved = base.length ? base[0] : null;
+                } else {
+                    const base = this._expandAlias(resolved, scopes);
+                    resolved = base.length ? base[0] : resolved;
+                }
+                if (resolved && ctes.has(resolved)) resolved = null;
+                table = resolved;
+            }
+            refs.push({ table, column });
+        }
+        return refs;
+    }
+
+    // The physical tables of a source: the leaves of its table_source_item
+    // tree (a derived table or a subquery has no name of its own, its base
+    // tables are used instead).
+    _sources(node, scopes) {
+        const out = [];
+        for (const table of this._leafTables(node)) {
+            // A CTE or a derived table is shown through the tables it selects
+            // from; a plain table is itself.
+            const expanded = this._expandAlias(table, scopes);
+            for (const t of (expanded.length ? expanded : [table])) {
+                if (!out.includes(t)) out.push(t);
+            }
+        }
+        if (out.length === 0) {
+            // A derived table on the right of a join: use the tables of its body.
+            const alias = this._aliasOf(node);
+            if (alias) {
+                for (const expanded of this._expandAlias(alias, scopes)) {
+                    if (!out.includes(expanded)) out.push(expanded);
+                }
+            }
+        }
+        return out;
+    }
+
+    _leafTables(node, out = []) {
+        if (!node || node.symbol !== undefined) return out;
+        if (node.ruleIndex === TSqlParser.RULE_table_source_item) {
+            const nested = node.table_source_item ? node.table_source_item() : [];
+            if (!nested || nested.length === 0) {
+                const fon = firstCtx(node.full_object_name ? node.full_object_name() : null);
+                if (fon) {
+                    const table = cleanTableKey(fon.getText());
+                    if (!out.includes(table)) out.push(table);
+                }
+                return out;
+            }
+        }
+        const count = node.getChildCount();
+        for (let i = 0; i < count; i++) this._leafTables(node.getChild(i), out);
+        return out;
+    }
+
+    _aliasOf(node) {
+        if (!node || node.symbol !== undefined) return null;
+        if (node.ruleIndex === TSqlParser.RULE_table_source_item) {
+            const aliasCtx = firstCtx(node.as_table_alias ? node.as_table_alias() : null);
+            const aliasNode = aliasCtx ? findFirstRule(aliasCtx, TSqlParser.RULE_table_alias) : null;
+            if (aliasNode) return cleanTableKey(aliasNode.getText());
+        }
+        const count = node.getChildCount();
+        for (let i = 0; i < count; i++) {
+            const alias = this._aliasOf(node.getChild(i));
+            if (alias) return alias;
+        }
+        return null;
+    }
+
+    // The tables a derived table (or a CTE) selects from, when known.
+    _expandAlias(name, scopes) {
+        if (!name) return [];
+        for (let i = scopes.length - 1; i >= 0; i--) {
+            const derived = scopes[i].derived.get(name);
+            if (derived) return derived;
+        }
+        return [];
+    }
+
+    // The original text of a node, whitespace included: ctx.getText() drops
+    // the hidden-channel tokens and glues the words together.
+    _text(ctx) {
+        if (this._tokens && ctx.start && ctx.stop) {
+            try {
+                return this._tokens.getText({ start: ctx.start.tokenIndex, stop: ctx.stop.tokenIndex }).trim();
+            } catch (e) { /* fall back to the concatenated text */ }
+        }
+        return ctx.getText();
+    }
+
+    // The kind of join, read from the keyword tokens around the JOIN/APPLY
+    // token: the grammar labels them (ij/oj/cj/lj) but the JS runtime does not
+    // keep those labels on the context.
+    _joinKind(node) {
+        if (!this._tokens) return 'join';
+
+        let keyword = null;
+        for (let i = 0; i < node.getChildCount(); i++) {
+            const child = node.getChild(i);
+            if (child.symbol === undefined) continue;
+            const text = String(child.getText() || '').toUpperCase();
+            if (text === 'JOIN' || text === 'APPLY') { keyword = { text, index: child.symbol.tokenIndex }; break; }
+        }
+        if (!keyword) return 'join';
+        if (keyword.text === 'APPLY') return 'apply';
+
+        const before = [];
+        for (let i = keyword.index - 1; i >= keyword.index - 3 && i >= 0; i--) {
+            let token = null;
+            try { token = this._tokens.get(i); } catch (e) { token = null; }
+            if (!token) continue;
+            const text = String(token.text || '').toUpperCase();
+            if (text === 'OUTER') continue;
+            before.push(text);
+        }
+        for (const kind of ['LEFT', 'RIGHT', 'FULL', 'INNER', 'CROSS']) {
+            if (before.includes(kind)) return kind.toLowerCase();
+        }
+        return 'join';
+    }
+
+    _addJoin(from, to, condition, columns, confident, kind) {
+        const key = `${from}|${to}|${condition}`;
+        if (this._seen.has(key)) return;
+        this._seen.add(key);
+        this._joins.push({ from, to, condition, columns, confident, kind });
+    }
+}
+
 // Flags UPDATE/DELETE statements that have no WHERE clause. `ctx.WHERE()` returns
 // null when the clause is absent (and also covers WHERE CURRENT OF, which is fine:
 // a positioned cursor update is not a mass write).
@@ -549,6 +916,32 @@ class BabelfishSqlParser {
             return visitor.getResult();
         } catch (err) {
             console.warn(`[BabelfishSqlParser] Failed to analyze columns: ${err.message.substring(0, 150)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Join graph of a SQL text: the sources it reads and the way they are
+     * joined together.
+     * @param {string} sqlDefinition
+     * @returns {{tables: string[], joins: Array<{from: string, to: string, condition: string, columns: Object, confident: boolean, kind: string}>}|null}
+     *          null when parsing is disabled or fails.
+     */
+    analyzeJoins(sqlDefinition) {
+        if (!sqlDefinition || !this._enabled) return null;
+
+        try {
+            const chars = new antlr4.InputStream(sqlDefinition);
+            const lexer = new TSqlLexer(chars);
+            const tokens = new antlr4.CommonTokenStream(lexer);
+            const parser = new TSqlParser(tokens);
+            parser.removeErrorListeners();
+
+            const tree = parser.tsql_file();
+            const visitor = new JoinGraphVisitor();
+            return visitor.analyze(tree, tokens);
+        } catch (err) {
+            console.warn(`[BabelfishSqlParser] Failed to analyze joins: ${err.message.substring(0, 150)}`);
             return null;
         }
     }

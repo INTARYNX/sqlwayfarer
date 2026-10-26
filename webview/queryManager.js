@@ -31,6 +31,7 @@ class QueryManager {
         this.runBtn = document.getElementById('runQueryBtn');
         this.estimatedPlanBtn = document.getElementById('estimatedPlanBtn');
         this.includeActualPlanToggle = document.getElementById('includeActualPlanToggle');
+        this.queryGraphBtn = document.getElementById('queryGraphBtn');
         // SSMS-style "Include Actual Execution Plan" toggle (Ctrl+M) - when on,
         // Run Query also captures the real plan instead of needing a separate action.
         this.includeActualPlan = false;
@@ -60,6 +61,9 @@ class QueryManager {
         this.runBtn.addEventListener('click', () => this.runQuery());
         this.estimatedPlanBtn.addEventListener('click', () => this.runEstimatedPlan());
         this.includeActualPlanToggle.addEventListener('click', () => this.toggleIncludeActualPlan());
+        if (this.queryGraphBtn) {
+            this.queryGraphBtn.addEventListener('click', () => this.showQueryGraph());
+        }
         this.cancelBtn.addEventListener('click', () => this.cancelQuery());
         this.historySelect.addEventListener('change', () => this.applyHistorySelection());
         this.snippetsSelect.addEventListener('change', () => this.applySnippetSelection());
@@ -258,6 +262,7 @@ class QueryManager {
         this.runBtn.disabled = !database || this.isRunning;
         this.estimatedPlanBtn.disabled = !database || this.isRunning;
         this.includeActualPlanToggle.disabled = !database || this.isRunning;
+        if (this.queryGraphBtn) this.queryGraphBtn.disabled = !database;
         if (!this.isRunning) {
             this.setStatus(database ? '' : 'Select a database above to run queries.', '');
         }
@@ -268,6 +273,42 @@ class QueryManager {
     runQueryText(sql) {
         this.input.value = sql;
         this.runQuery();
+    }
+
+    // Graph of the objects a query touches: the tables it reads, how they
+    // are joined, and the tables reached through the procedures and functions
+    // it calls.
+    //
+    // Two scopes, both reachable by a plain click:
+    //   - text selected: the graph covers THAT query only - the one selected
+    //     inside a buffer that holds several.
+    //   - nothing selected: the graph covers the whole query of the buffer.
+    showQueryGraph() {
+        const text = this.input.value || '';
+        const selection = this.getSelectedText();
+        const useSelection = selection !== null;
+        const sql = (useSelection ? selection : text).trim();
+
+        if (!sql) {
+            this.setStatus(useSelection
+                ? 'Nothing to graph - the selection is empty.'
+                : 'Nothing to graph - the editor is empty.', 'error');
+            return;
+        }
+        if (window.footprintManager) {
+            window.footprintManager.openQueryGraph(sql, { scope: useSelection ? 'selection' : 'buffer' });
+        }
+    }
+
+    // The selected text, or null when there is no selection (or only
+    // whitespace around the caret).
+    getSelectedText() {
+        const text = this.input.value || '';
+        const start = this.input.selectionStart || 0;
+        const end = this.input.selectionEnd || 0;
+        if (end <= start) return null;
+        const selected = text.slice(start, end);
+        return selected.trim() ? selected : null;
     }
 
     // Current editor text - used by QueryFileManager to snapshot a sub-tab

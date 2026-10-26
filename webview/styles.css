@@ -2039,19 +2039,19 @@ th.rs-sortable.sorted {
 .footprint-tabs {
     display: flex;
     gap: 4px;
-    padding: 6px 12px 0;
+    padding: 4px 8px 0;
     border-bottom: 1px solid var(--vscode-input-border);
 }
 .fp-tab {
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    padding: 6px 14px;
+    padding: 4px 10px;
     margin: 0;
     width: auto;
     cursor: pointer;
     color: var(--vscode-foreground);
-    font-size: 13px;
+    font-size: 12px;
     opacity: 0.7;
 }
 .fp-tab.active {
@@ -2151,6 +2151,7 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-chip.fp-read    { background: #5a6673; }
 .fp-chip.fp-trigger { background: #c77d0a; border: 1px dashed #e8a33d; }
 .fp-chip.fp-possible { background: #4a5160; border: 1px dashed #8892a0; color: #cfd6de; }
+.fp-chip.fp-via-code  { background: #7d3c98; border: 1px dashed #c39bd3; }
 
 .fp-legend-sep {
     opacity: 0.55;
@@ -2179,6 +2180,8 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-line-fk       { border-top: 2px solid #8892a0; }
 .fp-line-trigger  { border-top: 2px dashed #e8a33d; }
 .fp-line-possible { border-top: 2px dotted #8892a0; }
+.fp-line-join           { border-top: 2px solid #4a9eda; }
+.fp-line-join-unconfident { border-top: 2px dashed #8892a0; }
 
 .fp-toggle {
     display: inline-flex;
