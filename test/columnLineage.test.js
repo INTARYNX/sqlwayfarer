@@ -109,6 +109,84 @@ suite('BabelfishSqlParser.analyzeColumns', () => {
 	});
 });
 
+suite('BabelfishSqlParser.analyzeDefinition table-level writes', () => {
+	test('a DELETE writes its target table', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('DELETE FROM dbo.Task WHERE done = 1');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+		assert.strictEqual(analysis.columns['dbo.task'].done.write, false, 'a DELETE writes no column value');
+	});
+
+	test('a DELETE without a WHERE clause still writes its target', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('DELETE FROM dbo.Task');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+		assert.deepStrictEqual(analysis.columns, {}, 'no column is named at all');
+	});
+
+	test('an aliased DELETE writes the real table, not the alias', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('DELETE t FROM dbo.Task t WHERE t.done = 1');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+		assert.strictEqual(analysis.columns.t, undefined);
+	});
+
+	test('an INSERT without a column list writes the target', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('INSERT INTO dbo.Task SELECT id FROM dbo.Template');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task'], 'the written columns are unknown, the write is not');
+	});
+
+	test('an INSERT with a column list writes the target too', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('INSERT INTO dbo.Task (name) VALUES (\'x\')');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+		assert.strictEqual(analysis.columns['dbo.task'].name.write, true);
+	});
+
+	test('an UPDATE writes its target', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('UPDATE dbo.Task SET status = 1 WHERE id = 5');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+	});
+
+	test('a MERGE writes its target, even when the WHEN clause names no column', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition(
+			'MERGE dbo.Task AS tgt USING dbo.Template AS src ON tgt.id = src.id ' +
+			'WHEN MATCHED THEN DELETE'
+		);
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+	});
+
+	test('a DELETE inside a trigger body writes the deleted table', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition(
+			'CREATE TRIGGER trg ON dbo.Audit AFTER INSERT AS BEGIN DELETE FROM dbo.OldRows WHERE id < 100; END'
+		);
+		assert.deepStrictEqual(analysis.writes, ['dbo.oldrows']);
+	});
+
+	test('a plain SELECT writes nothing', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('SELECT id FROM dbo.Task');
+		assert.deepStrictEqual(analysis.writes, []);
+	});
+
+	test('a CTE name is never a written table', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition(
+			'WITH recent AS (SELECT id FROM dbo.Task) DELETE FROM dbo.Task WHERE id IN (SELECT id FROM recent)'
+		);
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+	});
+
+	test('the disabled parser returns null', () => {
+		const parser = new BabelfishSqlParser();
+		assert.strictEqual(parser.analyzeDefinition('SELECT 1'), null);
+	});
+});
+
 suite('BabelfishSqlParser.analyzeOperations alias resolution', () => {
 	test('aliased UPDATE target resolves to the real table', function () {
 		this.timeout(10000);

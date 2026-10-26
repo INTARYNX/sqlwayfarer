@@ -246,6 +246,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     constructor() {
         super();
         this._result = new Map(); // table -> Map(column -> { write, confident })
+        this._writes = new Set(); // tables written by the statement itself
         this._scope = null;
         this._ctes = new Set();
         this._triggerTable = null;
@@ -260,6 +261,11 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
             }
         }
         return out;
+    }
+
+    // Tables written by the definition, whatever the columns involved.
+    getWrites() {
+        return [...this._writes].sort();
     }
 
     _clean(name) {
@@ -282,6 +288,18 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
             write: (prev ? prev.write : false) || write,
             confident: (prev ? prev.confident : false) || confident
         });
+    }
+
+    // A table written by the statement itself: the target of an UPDATE, INSERT,
+    // DELETE or MERGE. Tracked at the table level because some writes have no
+    // column to name - a DELETE writes no column value, an INSERT without a
+    // column list writes unknown ones. The column lineage cannot express them,
+    // and the write footprint needs to know the table is written to follow the
+    // triggers that fire on it.
+    _recordWrite(table) {
+        if (!table || table === DERIVED) return;
+        if (this._ctes.has(table)) return;
+        this._writes.add(table);
     }
 
     // inserted/deleted are NOT handled here: _record() remaps them, which also
@@ -374,6 +392,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
                 if (resolved && resolved !== DERIVED) {
                     this._scope.writeTarget = resolved;
                     this._scope.tables.add(resolved);
+                    this._recordWrite(resolved);
                 }
             }
             this.visitChildren(ctx);
@@ -386,6 +405,9 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
             const target = ddl ? this._resolveQualifier(this._clean(ddl.getText())) : null;
             if (target && target !== DERIVED) {
                 this._scope.writeTarget = target;
+                // The table is written even without a column list: the written
+                // columns are then unknown, but the write itself is certain.
+                this._recordWrite(target);
                 const list = this._first(ctx.insert_column_name_list ? ctx.insert_column_name_list() : null);
                 if (list) {
                     // Some grammar paths expose plain ids instead of insert_column_id
@@ -408,7 +430,12 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
             const ddl = from ? this._first(from.ddl_object ? from.ddl_object() : null) : null;
             if (ddl) {
                 const resolved = this._resolveQualifier(this._clean(ddl.getText()));
-                if (resolved && resolved !== DERIVED) this._scope.tables.add(resolved);
+                if (resolved && resolved !== DERIVED) {
+                    this._scope.tables.add(resolved);
+                    // A DELETE writes the table but no column value: only the
+                    // table level can carry that.
+                    this._recordWrite(resolved);
+                }
             }
             this.visitChildren(ctx);
         });
@@ -423,6 +450,9 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
                 if (target && target !== DERIVED) {
                     this._scope.writeTarget = target;
                     this._scope.tables.add(target);
+                    // A MERGE always writes its target (insert, update or
+                    // delete), even when the WHEN clauses name no column.
+                    this._recordWrite(target);
                 }
             }
 
@@ -876,14 +906,7 @@ class BabelfishSqlParser {
         if (!sqlDefinition || !this._enabled) return null;
 
         try {
-            const chars = new antlr4.InputStream(sqlDefinition);
-            const lexer = new TSqlLexer(chars);
-            const tokens = new antlr4.CommonTokenStream(lexer);
-            const parser = new TSqlParser(tokens);
-            // Suppresses the error spam - we want a soft failure
-            parser.removeErrorListeners();
-
-            const tree = parser.tsql_file();
+            const { tree } = this._parseTree(sqlDefinition);
             const visitor = new OpsVisitor();
             visitor.visit(tree);
             return visitor.getResult();
@@ -891,6 +914,18 @@ class BabelfishSqlParser {
             console.warn(`[BabelfishSqlParser] Failed to analyze: ${err.message.substring(0, 150)}`);
             return null;
         }
+    }
+
+    // The parse tree of a definition, shared by the analyzers: parsing is the
+    // expensive part, and several analyses can run over the same tree.
+    _parseTree(sqlDefinition) {
+        const chars = new antlr4.InputStream(sqlDefinition);
+        const lexer = new TSqlLexer(chars);
+        const tokens = new antlr4.CommonTokenStream(lexer);
+        const parser = new TSqlParser(tokens);
+        // Suppresses the error spam - we want a soft failure
+        parser.removeErrorListeners();
+        return { tree: parser.tsql_file(), tokens, parser };
     }
 
     /**
@@ -904,18 +939,39 @@ class BabelfishSqlParser {
         if (!sqlDefinition || !this._enabled) return null;
 
         try {
-            const chars = new antlr4.InputStream(sqlDefinition);
-            const lexer = new TSqlLexer(chars);
-            const tokens = new antlr4.CommonTokenStream(lexer);
-            const parser = new TSqlParser(tokens);
-            parser.removeErrorListeners();
-
-            const tree = parser.tsql_file();
+            const { tree } = this._parseTree(sqlDefinition);
             const visitor = new ColumnLineageVisitor();
             visitor.visit(tree);
             return visitor.getResult();
         } catch (err) {
             console.warn(`[BabelfishSqlParser] Failed to analyze columns: ${err.message.substring(0, 150)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Full static analysis of a definition, from a single parse: the
+     * column-level lineage AND the table-level writes.
+     *
+     * The two levels answer different questions and are both needed: the
+     * columns tell WHICH columns receive a new value (column impact), the
+     * table writes tell THAT a table is written - including the writes that
+     * name no column at all (a DELETE, an INSERT without a column list).
+     *
+     * @param {string} sqlDefinition
+     * @returns {{columns: Object<string, Object<string, {write: boolean, confident: boolean}>>, writes: string[]}|null}
+     *          null when parsing is disabled or fails.
+     */
+    analyzeDefinition(sqlDefinition) {
+        if (!sqlDefinition || !this._enabled) return null;
+
+        try {
+            const { tree } = this._parseTree(sqlDefinition);
+            const visitor = new ColumnLineageVisitor();
+            visitor.visit(tree);
+            return { columns: visitor.getResult(), writes: visitor.getWrites() };
+        } catch (err) {
+            console.warn(`[BabelfishSqlParser] Failed to analyze: ${err.message.substring(0, 150)}`);
             return null;
         }
     }
@@ -931,13 +987,7 @@ class BabelfishSqlParser {
         if (!sqlDefinition || !this._enabled) return null;
 
         try {
-            const chars = new antlr4.InputStream(sqlDefinition);
-            const lexer = new TSqlLexer(chars);
-            const tokens = new antlr4.CommonTokenStream(lexer);
-            const parser = new TSqlParser(tokens);
-            parser.removeErrorListeners();
-
-            const tree = parser.tsql_file();
+            const { tree, tokens } = this._parseTree(sqlDefinition);
             const visitor = new JoinGraphVisitor();
             return visitor.analyze(tree, tokens);
         } catch (err) {
@@ -955,13 +1005,7 @@ class BabelfishSqlParser {
         if (!sqlDefinition || !this._enabled) return null;
 
         try {
-            const chars = new antlr4.InputStream(sqlDefinition);
-            const lexer = new TSqlLexer(chars);
-            const tokens = new antlr4.CommonTokenStream(lexer);
-            const parser = new TSqlParser(tokens);
-            parser.removeErrorListeners();
-
-            const tree = parser.tsql_file();
+            const { tree } = this._parseTree(sqlDefinition);
             const visitor = new RiskVisitor();
             visitor.visit(tree);
             return visitor.risks;
