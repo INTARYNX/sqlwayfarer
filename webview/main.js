@@ -296,6 +296,13 @@ class ObjectsTabManager {
         this.setStatus(this.currentDatabase ? 'error' : 'none', result.message);
     }
 
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text).replace(/[&<>"']/g, ch => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+        ));
+    }
+
     // Show loading state
     showLoading(message = 'Loading database index...') {
         this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${this.escapeHtml(message)}</p>`;
