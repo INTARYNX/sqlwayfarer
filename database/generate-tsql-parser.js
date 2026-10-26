@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
- * Génère les sources JS du parser T-SQL depuis la grammaire Babelfish.
+ * Generates the JS sources of the T-SQL parser from the Babelfish grammar.
  *
  * Usage:  node database/generate-tsql-parser.js
  *
- * Pré-requis:
- *   - Java (pour exécuter antlr.jar)
- *   - antlr.jar présent dans database/tsql-grammar/
+ * Prerequisites:
+ *   - Java (to run antlr.jar)
+ *   - antlr.jar present in database/tsql-grammar/
  *
- * Sortie:
+ * Output:
  *   - database/generated/TSqlLexer.js
  *   - database/generated/TSqlParser.js
  *   - database/generated/TSqlParserListener.js
  *   - database/generated/TSqlParserVisitor.js
- *     (patchés en CommonJS + suppression de l'artifact "extern bool")
+ *     (patched to CommonJS + removal of the "extern bool" artifact)
  */
 
 const { execSync } = require('child_process');
@@ -76,8 +76,8 @@ function patchToCommonJS(filePath) {
 
 function main() {
     if (!fs.existsSync(ANTLR_JAR)) {
-        console.error(`ANTLR jar introuvable: ${ANTLR_JAR}`);
-        console.error('Télécharge-le depuis https://www.antlr.org/download/antlr-4.13.2-complete.jar');
+        console.error(`ANTLR jar not found: ${ANTLR_JAR}`);
+        console.error('Download it from https://www.antlr.org/download/antlr-4.13.2-complete.jar');
         process.exit(1);
     }
 

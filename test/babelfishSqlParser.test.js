@@ -1,8 +1,9 @@
 const assert = require('assert');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 
-// Extraits réels de la base AdventureWorks (schéma HumanResources) — servent de fixtures
-// représentatives d'un vrai T-SQL de procédure, pas de SQL synthétique minimal.
+// Real extracts from the AdventureWorks database (HumanResources schema) - they
+// serve as fixtures representative of a real procedure T-SQL, not of a minimal
+// synthetic SQL.
 
 const USP_UPDATE_EMPLOYEE_HIRE_INFO = `
 CREATE PROCEDURE [HumanResources].[uspUpdateEmployeeHireInfo]
@@ -91,8 +92,9 @@ suite('BabelfishSqlParser', () => {
     test('does not classify EXECUTE calls or parameter-type references as operations', () => {
         const result = parse(USP_UPDATE_EMPLOYEE_HIRE_INFO);
 
-        // Connu / documenté dans le README comme limitation : EXEC d'une autre procédure
-        // et référence de type de paramètre ne produisent aucune entrée dans la map.
+        // Known / documented in the README as a limitation: the EXEC of
+        // another procedure and a parameter type reference produce no entry
+        // in the map.
         assert.strictEqual(result['dbo.uspLogError'], undefined);
         assert.strictEqual(result['dbo.flag'], undefined);
     });

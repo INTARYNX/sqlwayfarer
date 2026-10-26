@@ -296,9 +296,9 @@ class ConnectionManager {
             this.elements.connectionSelect.appendChild(option);
         });
 
-        // Pré-sélectionne la dernière connexion utilisée et reconnecte
-        // automatiquement — une seule fois au démarrage, jamais lors des
-        // rechargements déclenchés par un save/delete, ni si déjà connecté.
+        // Pre-selects the last used connection and reconnects automatically -
+        // once at startup, never on the reloads triggered by a save/delete,
+        // nor when already connected.
         if (lastConnection && connections.some(c => c.name === lastConnection)) {
             this.elements.connectionSelect.value = lastConnection;
             this.handleConnectionSelectChange();
@@ -362,7 +362,7 @@ class ConnectionManager {
 
         if (message.success) {
             appState.isConnected = true;
-            // Permettre l'accès à l'onglet Explorer
+            // Allow the access to the Explorer tab
             document.querySelector('[data-tab="explorer"]').disabled = false;
             // Hide settings on successful connection
             this.hideSettings();
