@@ -12,7 +12,13 @@ out/
 *.vsix
 
 # VS Code
-.vscode/
+# The debug configuration IS tracked: it is the only way to run the extension
+# from the sources (F5), and a `git clean -xdf` wipes everything ignored -
+# a local-only launch.json disappears without a trace and F5 silently does
+# nothing. The personal settings of each developer stay ignored.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 .vscode-test/
 .env
 

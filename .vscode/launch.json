@@ -1,0 +1,33 @@
+{
+	// Debug the extension in an Extension Development Host (F5).
+	// The bundle the extension actually loads is dist/extension.js (see
+	// "main" in package.json), so the build runs before the host starts.
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"preLaunchTask": "npm: build"
+		},
+		{
+			// Same host, without the build: handy while the bundle is already
+			// up to date (a rebuild takes a while).
+			"name": "Run Extension (no build)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			]
+		}
+	]
+}
