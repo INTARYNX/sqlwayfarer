@@ -130,8 +130,13 @@ class QueryGraphService {
             visited.add(vkey);
             if (depth > maxDepth) { truncated = true; continue; }
 
-            // Tables the parser found in the body of the object.
-            for (const tableKey of Object.keys(entry.columnRefs || {})) {
+            // Tables the parser found in the body of the object: the ones it reads
+            // (column lineage) and the ones it writes (table-level writes).
+            const bodyTables = new Set([
+                ...Object.keys(entry.columnRefs || {}),
+                ...(entry.tableWrites || [])
+            ]);
+            for (const tableKey of bodyTables) {
                 const te = resolveTable(tableKey);
                 if (!te) { unresolved.add(QueryGraphService._clean(tableKey)); continue; }
                 const qn = QueryGraphService._clean(te.qualifiedName);
