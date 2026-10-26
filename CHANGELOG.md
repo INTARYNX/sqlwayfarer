@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.10] - 2026-10-26
+
+### Changed
+
+- **Sidebar view**: it is named "SQL Wayfarer" instead of "Snippets" (0.12.9) or "SQL Snippets": the view holds the entry point of the whole extension, not only the snippets.
+
 ## [0.12.9] - 2026-10-26
 
 ### Added
