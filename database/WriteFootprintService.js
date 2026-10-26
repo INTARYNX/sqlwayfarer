@@ -124,12 +124,13 @@ class WriteFootprintService {
 
         const targetEntry = resolver.resolve(target);
         if (!targetEntry) {
-            return { found: false, target: null, tables: [], triggersFired: [], unresolved: [], truncated: false };
+            return { found: false, target: null, tables: [], triggersFired: [], unresolved: [], parseIssues: [], truncated: false };
         }
 
         const tableAcc = new Map();     // qnLower -> { entry, write, direct, viaTrigger }
         const triggersFired = new Set();
         const unresolved = new Set();
+        const parseIssues = new Map();   // qualifiedName -> syntax errors
         const visited = new Set();      // `${objectKey}|${viaTrigger?1:0}`
         let truncated = false;
 
@@ -165,6 +166,13 @@ class WriteFootprintService {
             if (visited.has(vkey)) continue;
             visited.add(vkey);
             if (depth > maxDepth) { truncated = true; continue; }
+
+            // An object whose definition did not parse cleanly: its analysis
+            // is partial, and the footprint built on it is partial too.
+            const parseErrors = entry.parseErrors || [];
+            if (parseErrors.length > 0) {
+                parseIssues.set(entry.qualifiedName, parseErrors);
+            }
 
             // Tables classified by the parser: a table is written when the
             // definition writes it (table level: the target of an UPDATE /
@@ -241,6 +249,9 @@ class WriteFootprintService {
             tables,
             triggersFired: [...triggersFired].sort(),
             unresolved: [...unresolved].sort(),
+            // The objects whose definition did not parse cleanly: their
+            // analysis is partial, so the footprint is partial too.
+            parseIssues: [...parseIssues.entries()].map(([object, errors]) => ({ object, errors })),
             truncated
         };
     }
