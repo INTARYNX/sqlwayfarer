@@ -49,6 +49,9 @@ class ConnectionManager {
             serverInput: document.getElementById('serverInput'),
             portInput: document.getElementById('portInput'),
             databaseInput: document.getElementById('databaseInput'),
+            authTypeSelect: document.getElementById('authTypeSelect'),
+            sqlAuthFields: document.getElementById('sqlAuthFields'),
+            entraAuthHint: document.getElementById('entraAuthHint'),
             usernameInput: document.getElementById('usernameInput'),
             passwordInput: document.getElementById('passwordInput'),
             encryptCheckbox: document.getElementById('encryptCheckbox'),
@@ -63,6 +66,7 @@ class ConnectionManager {
 
     initEventListeners() {
         this.elements.connectionSelect.addEventListener('change', () => this.handleConnectionSelectChange());
+        this.elements.authTypeSelect.addEventListener('change', () => this.applyAuthType());
         this.elements.connectBtn.addEventListener('click', () => this.handleConnect());
         this.elements.editBtn.addEventListener('click', () => this.handleEdit());
         this.elements.deleteBtn.addEventListener('click', () => this.handleDelete());
@@ -225,6 +229,7 @@ class ConnectionManager {
     buildConnectionConfig() {
         const config = {
             useConnectionString: false,
+            authType: this.elements.authTypeSelect.value,
             server: this.elements.serverInput.value.trim(),
             port: this.elements.portInput.value.trim(),
             database: this.elements.databaseInput.value.trim(),
@@ -241,6 +246,8 @@ class ConnectionManager {
         this.elements.serverInput.value = connection.server || '';
         this.elements.portInput.value = connection.port || '';
         this.elements.databaseInput.value = connection.database || '';
+        this.elements.authTypeSelect.value = connection.authType === 'entra' ? 'entra' : 'sql';
+        this.applyAuthType();
         this.elements.usernameInput.value = connection.username || '';
         // Don't populate password field for security
         this.elements.passwordInput.value = '';
@@ -249,6 +256,15 @@ class ConnectionManager {
         this.elements.trustCertCheckbox.checked = connection.trustServerCertificate !== false;
         
         this.elements.connectionNameInput.value = connection.name;
+    }
+
+    // Entra ID has no login or password to type: the Microsoft account of VS
+    // Code is used, and Azure SQL only takes encrypted connections.
+    applyAuthType() {
+        const entra = this.elements.authTypeSelect.value === 'entra';
+        this.elements.sqlAuthFields.style.display = entra ? 'none' : '';
+        this.elements.entraAuthHint.style.display = entra ? '' : 'none';
+        if (entra) this.elements.encryptCheckbox.checked = true;
     }
 
     setButtonState(button, disabled, text) {
@@ -265,6 +281,8 @@ class ConnectionManager {
         this.elements.serverInput.value = '';
         this.elements.portInput.value = '';
         this.elements.databaseInput.value = '';
+        this.elements.authTypeSelect.value = 'sql';
+        this.applyAuthType();
         this.elements.usernameInput.value = '';
         this.elements.passwordInput.value = '';
         this.elements.encryptCheckbox.checked = false;

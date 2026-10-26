@@ -175,6 +175,19 @@
                         </div>
                         
                         <div class="input-group">
+                            <label for="authTypeSelect">Authentication:</label>
+                            <select id="authTypeSelect">
+                                <option value="sql">SQL login or Windows account</option>
+                                <option value="entra">Microsoft Entra ID (Azure SQL)</option>
+                            </select>
+                        </div>
+
+                        <div id="entraAuthHint" class="input-group" style="display: none;">
+                            <small>Signs in with the Microsoft account of VS Code. Nothing is stored; the connection is always encrypted.</small>
+                        </div>
+
+                        <div id="sqlAuthFields">
+                        <div class="input-group">
                             <label for="usernameInput">Username:</label>
                             <input type="text" id="usernameInput" placeholder="sa">
                         </div>
@@ -182,6 +195,7 @@
                         <div class="input-group">
                             <label for="passwordInput">Password:</label>
                             <input type="password" id="passwordInput" placeholder="Password" autocomplete="new-password">
+                        </div>
                         </div>
                         
                         <div class="checkbox-group">

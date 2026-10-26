@@ -6,6 +6,7 @@ const fs = require('fs');
 
 const ConnectionStorage = require('../storage/ConnectionStorage');
 const ConnectionManager = require('../database/ConnectionManager');
+const { createVsCodeTokenFetcher } = require('../database/entraToken');
 const DatabaseService = require('../database/DatabaseService');
 const DependencyService = require('../database/DependencyService');
 const IndexService = require('../database/IndexServices');
@@ -70,7 +71,7 @@ class SqlWayfarerPanel {
         this._readyPromise = new Promise(resolve => { this._resolveReady = resolve; });
 
         this._connectionStorage = new ConnectionStorage(context);
-        this._connectionManager = new ConnectionManager(this._connectionStorage);
+        this._connectionManager = new ConnectionManager(this._connectionStorage, createVsCodeTokenFetcher(vscode));
         this._panelState = new PanelStateStore(context.workspaceState);
         // Asks the user, every now and then, to rate the extension: the
         // Marketplace shows the rating right in the search results.
