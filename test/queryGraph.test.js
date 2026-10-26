@@ -1,6 +1,7 @@
 const assert = require('assert');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryGraphService = require('../database/QueryGraphService');
+const QueryGraphHandlers = require('../panels/handlers/QueryGraphHandlers');
 const QueryManager = require('../webview/queryManager');
 
 // Join graph of a query: which tables it reads, how they are joined, and the
@@ -240,5 +241,146 @@ suite('QueryManager query graph scope', () => {
 
 		assert.strictEqual(manager.opened, null);
 		assert.ok(manager.status, 'the user is told there is nothing to graph');
+	});
+});
+
+// === The live analysis: the service that reads the index and the database ===
+
+suite('QueryGraphService.analyze', () => {
+	function makeService({ index = INDEX, foreignKeys = [], connectionManager = {} } = {}) {
+		return new QueryGraphService(
+			connectionManager,
+			{ getIndex: async () => index },
+			{ getForeignKeys: async () => foreignKeys }
+		);
+	}
+
+	test('an empty text gives an empty graph', async () => {
+		const graph = await makeService().analyze('MyDb', '   ');
+
+		assert.deepStrictEqual(graph.tables, []);
+		assert.deepStrictEqual(graph.joins, []);
+		assert.deepStrictEqual(graph.relationships, []);
+	});
+
+	test('the tables and the joins of the query are analyzed', async () => {
+		const graph = await makeService().analyze(
+			'MyDb',
+			'SELECT * FROM dbo.Orders o JOIN dbo.Customers c ON o.CustomerId = c.Id'
+		);
+
+		assert.deepStrictEqual(graph.tables.map(t => t.qualifiedName).sort(), ['dbo.Customers', 'dbo.Orders']);
+		assert.strictEqual(graph.joins.length, 1);
+		assert.strictEqual(graph.joins[0].from, 'dbo.Orders');
+		assert.strictEqual(graph.joins[0].to, 'dbo.Customers');
+	});
+
+	test('the tables of a called procedure are reached, with their provenance', async () => {
+		const graph = await makeService().analyze('MyDb', 'SELECT * FROM dbo.uspGetOrders()');
+
+		const orders = graph.tables.find(t => t.qualifiedName === 'dbo.Orders');
+		assert.ok(orders, 'the table of the procedure is part of the graph');
+		assert.strictEqual(orders.access, 'via-code');
+		assert.deepStrictEqual(orders.via, ['dbo.uspGetOrders']);
+	});
+
+	test('the foreign keys between the tables of the graph are added', async () => {
+		const foreignKeys = [
+			{ fkName: 'FK_Orders_Customers', fromTable: 'dbo.Orders', fromColumn: 'CustomerId', toTable: 'dbo.Customers', toColumn: 'Id' },
+			{ fkName: 'FK_Orders_Elsewhere', fromTable: 'dbo.Orders', fromColumn: 'X', toTable: 'dbo.SomewhereElse', toColumn: 'Id' }
+		];
+		const graph = await makeService({ foreignKeys }).analyze(
+			'MyDb',
+			'SELECT * FROM dbo.Orders o JOIN dbo.Customers c ON o.CustomerId = c.Id'
+		);
+
+		assert.strictEqual(graph.relationships.length, 1);
+		assert.strictEqual(graph.relationships[0].fkName, 'FK_Orders_Customers');
+		assert.strictEqual(graph.relationships[0].fromTable, 'dbo.Orders');
+		assert.strictEqual(graph.relationships[0].toTable, 'dbo.Customers');
+	});
+
+	test('a table unknown to the index is reported as unresolved', async () => {
+		const graph = await makeService().analyze('MyDb', 'SELECT * FROM dbo.Ghost g');
+
+		assert.deepStrictEqual(graph.tables, []);
+		assert.deepStrictEqual(graph.unresolved, ['dbo.ghost']);
+	});
+
+	test('without a connection the text cannot be parsed', async () => {
+		// The parser is only enabled when a connection manager is given.
+		const service = makeService({ connectionManager: null });
+		const graph = await service.analyze('MyDb', 'SELECT * FROM dbo.Orders');
+
+		assert.strictEqual(graph.parseFailed, true);
+		assert.deepStrictEqual(graph.tables, []);
+	});
+});
+
+// === The bridge between the webview and the service ===
+
+suite('QueryGraphHandlers.handleGetQueryGraph', () => {
+	function makeHandler({ analyze, currentDatabase = 'CurrentDb' } = {}) {
+		const posts = [];
+		const service = { analyze: analyze || (async () => ({ tables: [], joins: [], relationships: [], unresolved: [], truncated: false })) };
+		const handlers = new QueryGraphHandlers(m => posts.push(m), service, () => currentDatabase);
+		return { handlers, posts, service };
+	}
+
+	test('the graph of the text is posted back', async () => {
+		const graph = { tables: [{ qualifiedName: 'dbo.Orders' }], joins: [], relationships: [], unresolved: [], truncated: false };
+		const { handlers, posts } = makeHandler({ analyze: async () => graph });
+
+		await handlers.handleGetQueryGraph('MyDb', 'SELECT * FROM dbo.Orders');
+
+		assert.strictEqual(posts.length, 1);
+		assert.strictEqual(posts[0].command, 'queryGraphResult');
+		assert.strictEqual(posts[0].success, true);
+		assert.strictEqual(posts[0].graph, graph);
+	});
+
+	test('the current database is used when the caller gives none', async () => {
+		const asked = [];
+		const { handlers } = makeHandler({
+			analyze: async (database) => { asked.push(database); return {}; }
+		});
+
+		await handlers.handleGetQueryGraph(null, 'SELECT 1');
+
+		assert.deepStrictEqual(asked, ['CurrentDb']);
+	});
+
+	test('no database at all is reported as an error', async () => {
+		const { handlers, posts } = makeHandler({ currentDatabase: null });
+
+		await handlers.handleGetQueryGraph(null, 'SELECT 1');
+
+		assert.strictEqual(posts.length, 1);
+		assert.strictEqual(posts[0].command, 'queryGraphResult');
+		assert.strictEqual(posts[0].success, false);
+		assert.strictEqual(posts[0].message, 'No database selected.');
+	});
+
+	test('an empty editor is reported as an error', async () => {
+		const { handlers, posts } = makeHandler();
+
+		await handlers.handleGetQueryGraph('MyDb', '   ');
+
+		assert.strictEqual(posts.length, 1);
+		assert.strictEqual(posts[0].success, false);
+		assert.strictEqual(posts[0].message, 'Nothing to analyze in the editor.');
+	});
+
+	test('a failure of the service is reported instead of thrown', async () => {
+		const { handlers, posts } = makeHandler({
+			analyze: async () => { throw new Error('index unavailable'); }
+		});
+
+		await handlers.handleGetQueryGraph('MyDb', 'SELECT 1');
+
+		assert.strictEqual(posts.length, 1);
+		assert.strictEqual(posts[0].command, 'queryGraphResult');
+		assert.strictEqual(posts[0].success, false);
+		assert.strictEqual(posts[0].message, 'index unavailable');
 	});
 });
