@@ -19,6 +19,8 @@ function registerBuild(service, database, progressCallback) {
 
 // Mocked ConnectionManager for _analyzeDependencies: one dependency recordset
 // per object (keyed by the bracketed qualified name), or an error to test tolerance.
+// options.definitions gives the SQL definition of an object, as the second
+// resultset of the same batch (the one the DMV query returns).
 function makeMockCm(depsByObject, options = {}) {
 	let calls = 0;
 	return {
@@ -30,7 +32,12 @@ function makeMockCm(depsByObject, options = {}) {
 			if (options.failFor && objectName === options.failFor) {
 				throw new Error('Could not resolve references');
 			}
-			return { recordset: depsByObject[objectName] || [] };
+			const deps = depsByObject[objectName] || [];
+			const definition = options.definitions && options.definitions[objectName];
+			return {
+				recordset: deps,
+				recordsets: [deps, definition ? [{ definition }] : []]
+			};
 		}
 	};
 }
@@ -104,6 +111,39 @@ suite('IndexService dependency analysis', () => {
 		// ._updateIndexIncrementally and the "dependenciesIncomplete" tests below).
 		assert.ok(failedKeys.has('dbo.Broken'), 'the object whose DMV call failed must be flagged for retry');
 		assert.strictEqual(failedKeys.size, 1);
+	});
+
+	test('the table-level writes of a definition are collected', async () => {
+		const service = new IndexService(makeMockCm(
+			{ '[dbo].[P1]': [{ dependency: 'dbo.T1', dependency_database: 'Db' }] },
+			{ definitions: { '[dbo].[P1]': 'DELETE FROM dbo.T1 WHERE Id = 1' } }
+		), null);
+		registerBuild(service, 'Db');
+
+		const columnRefs = {};
+		const tableWrites = {};
+		await service._analyzeDependencies('Db', [makeObject('dbo', 'P1', 'P')], columnRefs, null, null, tableWrites);
+
+		assert.deepStrictEqual(tableWrites['dbo.P1'], ['dbo.t1'], 'the deleted table is written');
+		assert.strictEqual(
+			columnRefs['dbo.P1']['dbo.t1'].id.write, false,
+			'a DELETE writes the table but no column value'
+		);
+	});
+
+	test('a definition that names no column still records its written table', async () => {
+		const service = new IndexService(makeMockCm(
+			{ '[dbo].[P1]': [{ dependency: 'dbo.T1', dependency_database: 'Db' }] },
+			{ definitions: { '[dbo].[P1]': 'DELETE FROM dbo.T1' } }
+		), null);
+		registerBuild(service, 'Db');
+
+		const columnRefs = {};
+		const tableWrites = {};
+		await service._analyzeDependencies('Db', [makeObject('dbo', 'P1', 'P')], columnRefs, null, null, tableWrites);
+
+		assert.deepStrictEqual(tableWrites['dbo.P1'], ['dbo.t1']);
+		assert.strictEqual(columnRefs['dbo.P1'], undefined, 'no column is named at all');
 	});
 
 	test('processes CONCURRENT_BATCH_SIZE objects at once instead of one at a time', async () => {
