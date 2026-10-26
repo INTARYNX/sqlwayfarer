@@ -86,6 +86,8 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 | **Code** | The object's T-SQL definition with line metrics and one-click copy |
 | **Comments** | Editable extended properties and inline documentation |
 
+- **Cross-database dependencies**: a dependency that lives in another database (a view of this one selecting from `OtherDb.dbo.Orders`) is listed with its real type — resolved in the database that owns it, not guessed from the local index — and is a link: one click opens that database in the Explorer and selects the object. Cross-database nodes are dashed in the dependency graph.
+
 ### Script Generator
 A 📜 button on every object in the Explorer generates ready-to-edit scripts straight into the Query tab (without running them):
 - **Tables**: `SELECT` with all columns, `INSERT`/`UPDATE` templates with typed placeholders and a primary-key `WHERE`, and full `CREATE TABLE` DDL (identity, computed columns, defaults, primary key, secondary indexes, foreign keys with cascade rules)

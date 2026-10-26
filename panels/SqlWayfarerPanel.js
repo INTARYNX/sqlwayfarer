@@ -215,6 +215,9 @@ class SqlWayfarerPanel {
             if (this._disposed) return;
             this._dependencyService.setIndexService(this._indexService);
             this._dependencyService.setConnectionManager(this._connectionManager);
+            // Needed to resolve the type of objects living in another database
+            // (cross-database dependencies in the Explorer graph).
+            this._dependencyService.setDatabaseService(this._databaseService);
             console.log('IndexService connected to DependencyService');
             console.log('SqlWayfarerPanel initialized successfully');
         } catch (error) {

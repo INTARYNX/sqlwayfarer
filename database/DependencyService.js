@@ -7,6 +7,7 @@ class DependencyService {
     constructor() {
         this._indexService = null;
         this._connectionManager = null;
+        this._databaseService = null;
         this._sqlParser = new BabelfishSqlParser();
     }
 
@@ -18,6 +19,36 @@ class DependencyService {
         this._connectionManager = connectionManager;
         // Active le parsing SQL dès qu'une connexion est dispo
         this._sqlParser.setEnabled(!!connectionManager);
+    }
+
+    // Needed to resolve the type of objects living in ANOTHER database: the
+    // index only knows the objects of the database being browsed.
+    setDatabaseService(databaseService) {
+        this._databaseService = databaseService;
+    }
+
+    // Splits a dependency name the way the index stores it.
+    //   'dbo.Orders'          -> { database: null, schema: 'dbo', object: 'Orders' }
+    //   'OtherDb.dbo.Orders'  -> { database: 'OtherDb', schema: 'dbo', object: 'Orders' }
+    //   'OtherDb..Orders'     -> { database: 'OtherDb', schema: '', object: 'Orders' }
+    // A database prefix is only read on a 3-part name: the DMV prefixes the
+    // database for cross-database references only, and a local object name may
+    // itself contain dots ('dbo.my.table' stays schema + object).
+    static parseDependencyName(name) {
+        const clean = (name || '').replace(/[\[\]]/g, '');
+        const parts = clean.split('.');
+        if (parts.length === 1) return { database: null, schema: 'dbo', object: parts[0] };
+        if (parts.length === 2) return { database: null, schema: parts[0] || 'dbo', object: parts[1] };
+        return { database: parts[0], schema: parts[1] || '', object: parts.slice(2).join('.') };
+    }
+
+    // The database a dependency points at, when it is another database than
+    // the one being browsed. null for a local dependency.
+    static externalTarget(name, currentDatabase) {
+        const parsed = DependencyService.parseDependencyName(name);
+        if (!parsed.database) return null;
+        if (parsed.database.toLowerCase() === (currentDatabase || '').toLowerCase()) return null;
+        return { database: parsed.database, schema: parsed.schema || 'dbo', object: parsed.object };
     }
 
     setSqlParsingEnabled(enabled) {
@@ -68,7 +99,26 @@ class DependencyService {
                 // sans schéma (résolution implicite), le parser n'a que le nom nu : on retombe alors
                 // sur un match par dernier segment, avec le risque de collision inter-schéma que ça implique.
                 const operations = opsMap?.[depClean] || opsMap?.[depClean.split('.').pop()] || ['REFERENCE'];
-                const depObj = index.objects[dep] || lowerIndex.get(depClean);
+
+                // A dependency can point at ANOTHER database: a view of this one
+                // selecting from OtherDb.dbo.Orders. The DMV prefixes such a
+                // reference with the database name, so the raw name carries
+                // enough to spot it. The local index knows nothing about that
+                // other database, so the type is resolved there (below).
+                const parsed = DependencyService.parseDependencyName(dep);
+                const external = DependencyService.externalTarget(dep, database);
+                // Local lookup: the raw name first (a local object may itself
+                // contain dots, 'dbo.my.table'), then the schema-qualified form
+                // for a self-qualified name ('MyDb.dbo.Orders' in MyDb).
+                const localName = parsed.database ? `${parsed.schema || 'dbo'}.${parsed.object}` : dep;
+                const localHit = index.objects[dep] || lowerIndex.get(depClean);
+                const depObj = localHit
+                    || index.objects[localName] || lowerIndex.get(localName.toLowerCase());
+                // The index only holds the objects of the database being
+                // browsed: a name that matches it as-is is a local object,
+                // even when it has enough parts to look database-qualified.
+                const isExternal = !!external && !localHit;
+
                 return {
                     referenced_object: dep,
                     referenced_object_type: this._getTypeFromCode(depObj?.type),
@@ -77,9 +127,19 @@ class DependencyService {
                     is_selected: operations.includes('SELECT') || operations.includes('MERGE') ? 1 : 0,
                     is_updated: operations.includes('UPDATE') || operations.includes('MERGE') ? 1 : 0,
                     is_insert_all: operations.includes('INSERT') || operations.includes('MERGE') ? 1 : 0,
-                    is_delete: operations.includes('DELETE') || operations.includes('MERGE') ? 1 : 0
+                    is_delete: operations.includes('DELETE') || operations.includes('MERGE') ? 1 : 0,
+                    // Cross-database marker: the UI turns those into links that
+                    // open the object in its own database.
+                    is_external: isExternal,
+                    external_database: isExternal ? external.database : null,
+                    schema_name: parsed.schema || 'dbo',
+                    object_name: parsed.object
                 };
             });
+
+            // The type of a cross-database dependency is unknown until it is
+            // asked for in the database that owns it.
+            await this._resolveExternalTypes(dependsOn);
 
             // If the caller passed an unqualified name (e.g. 'Orders' instead of
             // 'dbo.Orders'), every dependency string below is fully qualified and
@@ -93,6 +153,10 @@ class DependencyService {
                 const matches = obj.dependencies.some(dep => {
                     const clean = dep.replace(/[\[\]]/g, '');
                     const cleanLower = clean.toLowerCase();
+                    // A dependency qualified by ANOTHER database refers to that
+                    // database's object, not to this one - even when both carry
+                    // the same name.
+                    if (DependencyService.externalTarget(clean, database)) return false;
                     return clean === cleanName || cleanLower === cleanName.toLowerCase() ||
                         dep === objectName || dep === cleanName ||
                         (bareTarget !== null && cleanLower.split('.').pop() === bareTarget);
@@ -110,6 +174,55 @@ class DependencyService {
         } catch (error) {
             console.error('Error getting dependencies:', error);
             return { dependsOn: [], referencedBy: [] };
+        }
+    }
+
+    /**
+     * Résout le type réel des dépendances qui vivent dans une AUTRE base.
+     * Une requête par base cible, quel que soit le nombre d'objets: l'index
+     * de l'Explorer ne couvre que la base consultée, donc le type d'un objet
+     * inter-base est inconnu tant qu'on ne l'a pas demandé chez lui.
+     *
+     * Best-effort: une base illisible (permissions, hors ligne) laisse le type
+     * générique "Object" - la dépendance reste cliquable. En revanche, si la
+     * base est lisible et que l objet n'y est pas, c'est que le préfixe était
+     * un faux positif (un schéma local nommé comme une base): la dépendance
+     * redevient locale.
+     */
+    async _resolveExternalTypes(entries) {
+        const externals = (entries || []).filter(e => e.is_external && e.external_database);
+        if (externals.length === 0) return;
+        if (!this._databaseService) return;
+
+        const byDatabase = new Map();
+        for (const entry of externals) {
+            const key = entry.external_database.toLowerCase();
+            if (!byDatabase.has(key)) {
+                byDatabase.set(key, { database: entry.external_database, names: new Set() });
+            }
+            byDatabase.get(key).names.add(`${entry.schema_name}.${entry.object_name}`.toLowerCase());
+        }
+
+        for (const { database, names } of byDatabase.values()) {
+            let types = null;
+            try {
+                types = await this._databaseService.getObjectTypes(database, [...names]);
+            } catch (error) {
+                console.warn(`[DependencyService] Failed to resolve object types in ${database}:`, error.message);
+                continue; // base illisible: on garde "Object", le lien reste valide
+            }
+            for (const entry of externals) {
+                if (entry.external_database.toLowerCase() !== database.toLowerCase()) continue;
+                const key = `${entry.schema_name}.${entry.object_name}`.toLowerCase();
+                if (types[key]) {
+                    entry.referenced_object_type = types[key];
+                } else {
+                    // La base a été lue et l'objet n'y est pas: le préfixe
+                    // database était un faux positif, l'objet est local.
+                    entry.is_external = false;
+                    entry.external_database = null;
+                }
+            }
         }
     }
 
@@ -160,7 +273,14 @@ class DependencyService {
 
                 const children = data.dependencies.map(dep => buildTree(dep, level + 1));
                 visited.delete(objName);
-                return { name: objName, dependencies: children };
+                // A node living in another database is flagged so the UI can
+                // turn it into a link (the tree carries no type information).
+                const external = DependencyService.externalTarget(objName, database);
+                return {
+                    name: objName,
+                    dependencies: children,
+                    external: external ? { database: external.database, schema: external.schema, object: external.object } : null
+                };
             };
 
             return buildTree(objectName, 0);

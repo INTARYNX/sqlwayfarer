@@ -289,6 +289,45 @@ class DatabaseService {
         return result.recordset[0] || null;
     }
 
+    // Type of several objects of ONE database, resolved in a single round trip.
+    // The Explorer index only covers the database being browsed, so a dependency
+    // pointing at another database has no local type: it has to be asked for in
+    // the database that owns it. Returns { 'schema.object': 'Table' } with
+    // lower-cased keys - an object that does not exist there is simply absent.
+    async getObjectTypes(database, qualifiedNames) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const names = (qualifiedNames || []).filter(Boolean);
+        if (names.length === 0) return {};
+
+        // One parameter per name: caller data never reaches the SQL text.
+        const params = {};
+        const placeholders = names.map((n, i) => {
+            params[`n${i}`] = n;
+            return `@n${i}`;
+        });
+
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT SCHEMA_NAME(o.schema_id) + '.' + o.name AS qualified_name,
+                CASE
+                    WHEN o.type = 'U' THEN 'Table'
+                    WHEN o.type = 'V' THEN 'View'
+                    WHEN o.type = 'P' THEN 'Procedure'
+                    WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                    WHEN o.type = 'TR' THEN 'Trigger'
+                    ELSE o.type_desc
+                END AS object_type
+            FROM sys.objects o
+            WHERE SCHEMA_NAME(o.schema_id) + '.' + o.name IN (${placeholders.join(', ')})
+        `, params);
+
+        const types = {};
+        for (const row of result.recordset) {
+            types[String(row.qualified_name).toLowerCase()] = row.object_type;
+        }
+        return types;
+    }
+
     async searchObjects(database, searchPattern, objectTypes = ['U', 'V', 'P', 'FN']) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 

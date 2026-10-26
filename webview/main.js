@@ -671,11 +671,31 @@ class DependencyVisualizer {
             const graphContainer = document.getElementById('dependencyGraph');
             graphContainer.innerHTML = '';
             graphContainer.appendChild(svg);
+            this._attachExternalNodeHandlers(graphContainer, dependencies);
         } catch (error) {
             console.error('Error rendering graph:', error);
             document.getElementById('dependencyGraph').innerHTML =
                 '<p style="color: var(--vscode-errorForeground);">Error rendering dependency graph</p>';
         }
+    }
+
+    // Cross-database nodes become clickable in the rendered SVG: viz.js emits
+    // one <g class="node"> per node, with the node name in its <title>.
+    _attachExternalNodeHandlers(container, dependencies) {
+        const externals = (dependencies.dependsOn || []).filter(d => d.is_external && d.external_database);
+        if (externals.length === 0) return;
+        const byName = new Map(externals.map(d => [d.referenced_object, d]));
+        container.querySelectorAll('g.node').forEach(node => {
+            const title = node.querySelector('title');
+            const dep = byName.get(title ? title.textContent : '');
+            if (!dep) return;
+            node.classList.add('dep-node-external');
+            node.addEventListener('click', () => {
+                if (window.explorerManager) {
+                    window.explorerManager.revealExternalObject(dep.external_database, dep.schema_name || 'dbo', dep.object_name);
+                }
+            });
+        });
     }
 
     generateDotSource(objectName, dependencies) {
@@ -698,8 +718,11 @@ class DependencyVisualizer {
             dependencies.dependsOn.forEach(dep => {
                 const depName = dep.referenced_object;
                 if (!addedNodes.has(depName)) {
-                    const color = this.getNodeColorDark(dep.referenced_object_type);  // NEW: Dark mode colors
-                    dot += `  "${depName}" [fillcolor="${color}", fontcolor="white", label="${depName}\\n(${dep.referenced_object_type})"];\n`;
+                    // A node living in another database keeps a distinct look
+                    // (dashed border) so it reads as "not in this database".
+                    const color = dep.is_external ? '#0B4F6C' : this.getNodeColorDark(dep.referenced_object_type);
+                    const extra = dep.is_external ? ', style="filled,dashed", penwidth=2' : '';
+                    dot += `  "${depName}" [fillcolor="${color}", fontcolor="white", label="${depName}\\n(${dep.referenced_object_type})"${extra}];\n`;
                     addedNodes.add(depName);
                 }
 
@@ -1003,6 +1026,19 @@ class ExplorerManager {
     initEventListeners() {
         this.elements.databaseSelect.addEventListener('change', () => this.handleDatabaseChange());
         this.elements.exportDictionaryBtn.addEventListener('click', () => this.handleExportDictionary());
+
+        // Cross-database dependency links (Dependencies table, dependency tree).
+        // Their markup is re-rendered on every selection, so the click is
+        // delegated from the document instead of being bound per node.
+        document.addEventListener('click', (e) => {
+            const link = e.target?.closest?.('.dep-link');
+            if (!link) return;
+            e.preventDefault();
+            const db = link.dataset.db;
+            const name = link.dataset.name;
+            if (!db || !name) return;
+            this.revealExternalObject(db, link.dataset.schema || 'dbo', name);
+        });
     }
 
     // Generate and save the Markdown data dictionary for the selected database
@@ -1768,9 +1804,21 @@ class ExplorerManager {
             return;
         }
 
+        // A node living in another database is a link, like in the
+        // Dependencies table.
+        const renderName = (node) => {
+            if (node.external && node.external.database) {
+                const ext = node.external;
+                const schema = ext.schema || 'dbo';
+                const label = `${ext.database}.${schema}.${ext.object}`;
+                return `<button class="dep-link" data-db="${this.escapeHtml(ext.database)}" data-schema="${this.escapeHtml(schema)}" data-name="${this.escapeHtml(ext.object)}" title="Open ${this.escapeHtml(label)} in ${this.escapeHtml(ext.database)}">${this.escapeHtml(node.name)}</button>`;
+            }
+            return this.escapeHtml(node.name);
+        };
+
         // Simple recursive text tree
         function buildTree(node, prefix = '') {
-            let result = node.name + '\n';
+            let result = renderName(node) + '\n';
 
             if (node.dependencies && node.dependencies.length > 0) {
                 node.dependencies.forEach((child, index) => {
@@ -2076,7 +2124,7 @@ class ExplorerManager {
             dependencies.dependsOn.forEach(dep => {
                 const operations = dep.operations ? dep.operations.join(', ') : (dep.dependency_type || 'Unknown');
                 html += `<tr>
-              <td>${this.escapeHtml(dep.referenced_object)}</td>
+              <td>${this.renderDependencyName(dep)}</td>
               <td>${this.escapeHtml(dep.referenced_object_type)}</td>
               <td><small>${this.escapeHtml(operations)}</small></td>
           </tr>`;
@@ -2103,6 +2151,18 @@ class ExplorerManager {
         }
 
         return html;
+    }
+
+    // A dependency living in another database is a link: clicking it opens
+    // that database in the Explorer and selects the object - the same path as
+    // the Ctrl+Click "go to definition" on a cross-database reference.
+    renderDependencyName(dep) {
+        if (dep && dep.is_external && dep.external_database) {
+            const schema = dep.schema_name || 'dbo';
+            const label = `${dep.external_database}.${schema}.${dep.object_name}`;
+            return `<button class="dep-link" data-db="${this.escapeHtml(dep.external_database)}" data-schema="${this.escapeHtml(schema)}" data-name="${this.escapeHtml(dep.object_name)}" title="Open ${this.escapeHtml(label)} in ${this.escapeHtml(dep.external_database)}">${this.escapeHtml(dep.referenced_object)}</button>`;
+        }
+        return this.escapeHtml(dep ? dep.referenced_object : '');
     }
 
     escapeHtml(text) {
