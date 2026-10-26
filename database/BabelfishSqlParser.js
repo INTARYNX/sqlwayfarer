@@ -52,7 +52,12 @@ class CollectingErrorListener extends antlr4.ErrorListener {
 // Common normalization of the table keys: brackets removed + lower-cased,
 // aligned with the DependencyService lookup. Used by both visitors.
 function cleanTableKey(name) {
-    return name.replace(/[\[\]]/g, '').toLowerCase();
+    return name
+        // The delimiters of a delimited identifier ("dbo"."Users", [dbo].[Users])
+        // are not part of the name: the index keys are the bare names.
+        .replace(/"([^"]*)"/g, '$1')
+        .replace(/\[|\]/g, '')
+        .toLowerCase();
 }
 
 // Generated accessors return an array when the rule can repeat - normalize
