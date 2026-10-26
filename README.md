@@ -109,7 +109,7 @@ A 📜 button on every object in the Explorer generates ready-to-edit scripts st
 - Secure credential storage integrated with VS Code
 - Connection testing with live feedback
 - SQL login, or a Windows account typed as `DOMAIN\user` in the username field
-- **Microsoft Entra ID** (Azure SQL): pick *Microsoft Entra ID* as the authentication of a connection. It signs in with the Microsoft account of VS Code (MFA and single sign-on included), stores no password, and renews the token in the background. The connection is always encrypted
+- **Microsoft Entra ID** (Azure SQL) — *beta, not yet tested against a live Azure SQL; please report problems via GitHub Issues*: pick *Microsoft Entra ID* as the authentication of a connection. It signs in with the Microsoft account of VS Code (MFA and single sign-on included), stores no password, and renews the token in the background. The connection is always encrypted
 - **Authentication limits**: a Windows account (`DOMAIN\user`) is sent to the server with its password (NTLM), saved once in VS Code's secret storage. **Integrated authentication** (the current Windows session, SSPI/Kerberos) is not supported: the underlying driver, tedious, is pure JavaScript and cannot call SSPI
 - **Auto-connect**: the last connection used is reconnected automatically when the panel opens (toggleable, and the last connection stays pre-selected either way)
 
