@@ -296,6 +296,7 @@ class FootprintManager {
             `${counts.possible} possible`, `${(fp.triggersFired || []).length} triggers fired`
         ];
         if (fp.unresolved && fp.unresolved.length) parts.push(`${fp.unresolved.length} unresolved refs`);
+        if (fp.parseIssues && fp.parseIssues.length) parts.push(`${fp.parseIssues.length} partially parsed`);
         if (fp.truncated) parts.push('depth-limited');
 
         this.metaEl.innerHTML = '';
@@ -307,6 +308,17 @@ class FootprintManager {
         caveat.textContent = 'Static analysis — dynamic SQL is scanned by name; dashed “possible” tables are unconfirmed and their read/write direction is unknown.';
         this.metaEl.appendChild(summary);
         this.metaEl.appendChild(caveat);
+
+        // An object whose definition did not parse cleanly was analyzed
+        // partially: its footprint may be missing tables and triggers.
+        if (fp.parseIssues && fp.parseIssues.length) {
+            const warning = document.createElement('div');
+            warning.className = 'footprint-warning';
+            const names = fp.parseIssues.map(p => p.object).join(', ');
+            warning.textContent = `Partial analysis — ${names} could not be parsed cleanly. `
+                + 'Their footprint may be incomplete: check the definition for a syntax error.';
+            this.metaEl.appendChild(warning);
+        }
     }
 
     // === Lazy doc fetch (shared by Schema + Tables tabs) ===
