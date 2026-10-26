@@ -2,9 +2,9 @@ const assert = require('assert');
 const WriteFootprintService = require('../database/WriteFootprintService');
 
 // Minimal index entry factory.
-function obj(qualifiedName, type, { columnRefs = {}, dependencies = [], possibleRefs = [] } = {}) {
+function obj(qualifiedName, type, { columnRefs = {}, dependencies = [], possibleRefs = [], tableWrites = [] } = {}) {
     const [schema, name] = qualifiedName.split('.');
-    return { qualifiedName, schema, name, type, columnRefs, dependencies, possibleRefs };
+    return { qualifiedName, schema, name, type, columnRefs, dependencies, possibleRefs, tableWrites };
 }
 
 // Scenario:
@@ -120,6 +120,78 @@ suite('WriteFootprintService.analyzeFootprint', () => {
         const t = run().tables.find(x => x.qualifiedName === 'app.T');
         assert.strictEqual(t.access, 'write', 'confident write wins over a name mention');
     });
+});
+
+suite('WriteFootprintService table-level writes', () => {
+	// A proc that only DELETEs from app.T: the target is written, but no
+	// column value is written - the column lineage alone cannot see it.
+	function makeDeleteIndex() {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(obj('app.P', 'P', {
+			// The WHERE column is read, not written.
+			columnRefs: { 'app.T': { c: { write: false } } },
+			tableWrites: ['app.T'],
+			dependencies: ['app.T']
+		}));
+		add(obj('app.trg', 'TR', {
+			columnRefs: { 'app.A': { c: { write: true } } },
+			dependencies: ['app.A']
+		}));
+		add(obj('app.T', 'U'));
+		add(obj('app.A', 'U'));
+		return { objects };
+	}
+
+	const deleteTriggers = [
+		{ trigger: 'app.trg', parentTable: 'app.T', disabled: false }
+	];
+
+	test('a DELETE target is a write and fires its trigger', () => {
+		const r = WriteFootprintService.analyzeFootprint({
+			index: makeDeleteIndex(), triggers: deleteTriggers, target: 'app.P'
+		});
+		const t = r.tables.find(x => x.qualifiedName === 'app.T');
+		assert.strictEqual(t.access, 'write', 'the deleted table is written');
+		assert.ok(r.triggersFired.includes('app.trg'), 'the trigger of the deleted table fired');
+		const a = r.tables.find(x => x.qualifiedName === 'app.A');
+		assert.ok(a, 'the table written by the trigger is in the footprint');
+		assert.strictEqual(a.access, 'write');
+		assert.strictEqual(a.viaTriggerOnly, true);
+	});
+
+	test('a DELETE target with no named column at all is still a write', () => {
+		const index = makeDeleteIndex();
+		// DELETE without a WHERE clause: the column lineage is empty.
+		delete index.objects['app.P'].columnRefs;
+		const r = WriteFootprintService.analyzeFootprint({
+			index, triggers: deleteTriggers, target: 'app.P'
+		});
+		const t = r.tables.find(x => x.qualifiedName === 'app.T');
+		assert.strictEqual(t.access, 'write', 'the deleted table is written');
+		assert.ok(r.triggersFired.includes('app.trg'));
+	});
+
+	test('a table that is only read does not fire its trigger', () => {
+		const index = makeDeleteIndex();
+		index.objects['app.P'].tableWrites = [];
+		const r = WriteFootprintService.analyzeFootprint({
+			index, triggers: deleteTriggers, target: 'app.P'
+		});
+		const t = r.tables.find(x => x.qualifiedName === 'app.T');
+		assert.strictEqual(t.access, 'read', 'a mere read is not a write');
+		assert.ok(!r.triggersFired.includes('app.trg'), 'a read does not fire the trigger');
+	});
+
+	test('the table-level write wins over a column read on the same table', () => {
+		const index = makeDeleteIndex();
+		index.objects['app.P'].columnRefs = { 'app.T': { c: { write: false } } };
+		index.objects['app.P'].tableWrites = ['app.T'];
+		const r = WriteFootprintService.analyzeFootprint({
+			index, triggers: deleteTriggers, target: 'app.P'
+		});
+		assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.T').access, 'write');
+	});
 });
 
 suite('WriteFootprintService.foreignKeysAmong', () => {
