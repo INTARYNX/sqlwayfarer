@@ -321,7 +321,7 @@ class FootprintManager {
     onDocResult(message) {
         if (!this.overlay.classList.contains('visible')) return;
         if (!message.success) {
-            const msg = `<p class="fp-doc-msg">${message.message || 'Failed to load table documentation.'}</p>`;
+            const msg = `<p class="fp-doc-msg">${FootprintManager._esc(message.message || 'Failed to load table documentation.')}</p>`;
             this.schemaEl.innerHTML = ''; this.docEl.innerHTML = msg;
             return;
         }
