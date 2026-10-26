@@ -62,6 +62,10 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 - **Result grid filtering and sorting**: filter rows by any text, click a column header to sort — resets on every new run
 - **Messages tab**: `PRINT` / `RAISERROR` output collects in its own tab, interleaved in the order it actually happened relative to each result set, instead of attaching to whichever grid happened to be active
 - **Execution plans**: Estimated Plan and Actual Plan buttons render the query plan inline, with dark-mode support
+- **Query graph**: a button in the Query toolbar graphs what the editor's query touches — the tables it reads, the join conditions between them, and the tables reached through the procedures, functions and views it calls
+- The joins come from a real T-SQL parser, so the edges are the ones the query actually writes: `ON` conditions with their columns, `LEFT`/`INNER`/`CROSS` kinds, comma joins (flagged as inferred), and CTEs or derived tables resolved to the tables behind them
+- **Select a query in the editor and the graph covers that query only**; with no selection, the whole buffer is graphed
+- Three tabs, as in the Table Footprint: **Graph** (the join graph), **Schema** (the PK/FK relations between those tables), and **Tables** (their columns, keys and descriptions)
 - **SQL Snippets**: a quick-insert dropdown (built-in templates plus your own custom snippets, managed from the Configuration tab)
 - **Schema-aware autocompletion**: object names, schema-prefixed lookups, and alias-resolved column suggestions (`FROM Employee e` → `e.` lists Employee's columns)
 - **Go to definition**: `Ctrl+Click` (`Cmd+Click` on macOS) or double-click an object name — aliases and cross-database references included — to jump to it in the Explorer

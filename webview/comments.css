@@ -335,7 +335,7 @@
    display: flex;
    justify-content: space-between;
    align-items: center;
-   padding: 15px 20px;
+   padding: 8px 14px;
    border-bottom: 1px solid var(--vscode-input-border);
    background: var(--vscode-input-background);
 }
@@ -343,18 +343,18 @@
 .modal-header h3 {
    margin: 0;
    color: var(--vscode-foreground);
-   font-size: 16px;
+   font-size: 13px;
 }
 
 .modal-close {
    background: transparent;
    border: none;
    color: var(--vscode-foreground);
-   font-size: 20px;
+   font-size: 16px;
    cursor: pointer;
    padding: 0;
-   width: 24px;
-   height: 24px;
+   width: 20px;
+   height: 20px;
    display: flex;
    align-items: center;
    justify-content: center;

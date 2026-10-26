@@ -14,6 +14,9 @@ class FootprintManager {
         this.metaEl = document.getElementById('writeFootprintMeta');
         this.schemaEl = document.getElementById('footprintSchemaGraph');
         this.docEl = document.getElementById('footprintTablesDoc');
+        this.legendEl = document.getElementById('footprintLegend');
+        this.queryLegendEl = document.getElementById('queryGraphLegend');
+        this._mode = 'footprint';
 
         this._cy = null;
         this._schemaCy = null;
@@ -63,11 +66,137 @@ class FootprintManager {
         this.docEl.innerHTML = '';
         this.switchTab('graph', true);
 
+        this._mode = 'footprint';
+        this.overlay.classList.remove('fp-query-mode');
+        this._setLegend('footprint');
+
         this.titleEl.textContent = `Table footprint — ${objectName}`;
         this.metaEl.textContent = 'Analyzing…';
         this.graphEl.innerHTML = '';
         this.overlay.classList.add('visible');
         vscode.postMessage({ command: 'getWriteFootprint', database: appState.currentDatabase, objectName });
+    }
+
+    // === Query graph (the same overlay, fed with the graph of a query) ===
+
+    openQueryGraph(sql, options = {}) {
+        if (!appState.currentDatabase) return;
+        this._fp = null;
+        this._doc = null;
+        this._docByName = {};
+        this._docRequested = false;
+        this._destroyGraphs();
+        this.schemaEl.innerHTML = '';
+        this.docEl.innerHTML = '';
+        this.switchTab('graph', true);
+
+        this._mode = 'query';
+        this.overlay.classList.add('fp-query-mode');
+        this._setLegend('query');
+
+        // The graph covers the selected query or the whole buffer - the title
+        // says which, so the scope is never a guess.
+        const scope = options && options.scope === 'selection' ? 'selection' : 'buffer';
+        this.titleEl.textContent = scope === 'selection'
+            ? 'Query graph — selected query'
+            : 'Query graph — whole query';
+        this.metaEl.textContent = 'Analyzing…';
+        this.graphEl.innerHTML = '';
+        this.overlay.classList.add('visible');
+        vscode.postMessage({ command: 'getQueryGraph', database: appState.currentDatabase, sql });
+    }
+
+    onQueryGraphResult(message) {
+        if (!this.overlay.classList.contains('visible')) return;
+        if (!message.success) {
+            this.metaEl.textContent = message.message || 'Analysis failed.';
+            return;
+        }
+        // The Schema and Tables tabs work on the same shape as the footprint.
+        this._fp = message.graph;
+        this.renderQueryGraph(this._fp);
+        if (this._activeTab === 'schema') this._showSchema();
+        else if (this._activeTab === 'tables') this._showTables();
+    }
+
+    renderQueryGraph(graph) {
+        const tables = (graph && graph.tables) || [];
+        if (!this._ensureRegistered()) { this.metaEl.textContent = 'Graph library failed to load.'; return; }
+        if (tables.length === 0) {
+            this.metaEl.innerHTML = '';
+            const empty = document.createElement('div');
+            empty.className = 'footprint-summary';
+            empty.textContent = graph && graph.parseFailed
+                ? 'The query could not be parsed - nothing to graph.'
+                : 'No table found in this query.';
+            this.metaEl.appendChild(empty);
+            return;
+        }
+
+        const elements = [];
+        const ids = new Map();
+        for (const t of tables) {
+            const id = `q::${t.qualifiedName}`;
+            ids.set(t.qualifiedName, id);
+            // A table reached through a procedure or a function is shown apart:
+            // the query does not read it directly.
+            const via = (t.via && t.via.length) ? t.via.join(' → ') : '';
+            elements.push({
+                data: {
+                    id, name: t.qualifiedName, kind: t.access === 'via-code' ? 'via-code' : 'direct',
+                    label: via ? `${t.qualifiedName}\nvia ${via}` : t.qualifiedName
+                }
+            });
+        }
+        for (const j of (graph.joins || [])) {
+            const source = ids.get(j.from);
+            const target = ids.get(j.to);
+            if (!source || !target) continue;
+            elements.push({
+                data: {
+                    id: `qj::${j.from}::${j.to}::${j.condition}`,
+                    source, target, edge: 'join', label: j.condition,
+                    confident: j.confident === false ? 0 : 1
+                }
+            });
+        }
+
+        if (this._cy) { this._cy.destroy(); this._cy = null; }
+        this._cy = window.cytoscape({
+            container: this.graphEl, elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 1.3,
+            style: FootprintManager._queryGraphStyle(),
+            layout: { name: 'dagre', rankDir: 'LR', nodeSep: 40, rankSep: 90, animate: false }
+        });
+        this._cy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('name')));
+        this._cy.fit(this._cy.elements(), 30);
+        this._renderQueryMeta(graph);
+    }
+
+    _renderQueryMeta(graph) {
+        const joins = (graph.joins || []).length;
+        const direct = (graph.tables || []).filter(t => t.access !== 'via-code').length;
+        const viaCode = (graph.tables || []).length - direct;
+        const parts = [`${direct} table${direct === 1 ? '' : 's'} read`, `${joins} join${joins === 1 ? '' : 's'}`];
+        if (viaCode) parts.push(`${viaCode} via code`);
+        if (graph.unresolved && graph.unresolved.length) parts.push(`${graph.unresolved.length} unresolved`);
+        if (graph.truncated) parts.push('depth-limited');
+
+        this.metaEl.innerHTML = '';
+        const summary = document.createElement('div');
+        summary.className = 'footprint-summary';
+        summary.textContent = parts.join(' · ');
+        const caveat = document.createElement('div');
+        caveat.className = 'footprint-caveat';
+        caveat.textContent = 'Static analysis — dynamic SQL is not followed; a dashed edge is a join whose condition does not qualify its columns.';
+        this.metaEl.appendChild(summary);
+        this.metaEl.appendChild(caveat);
+    }
+
+    // The footprint and the query graph do not show the same things: each
+    // mode has its own legend.
+    _setLegend(mode) {
+        if (this.legendEl) this.legendEl.style.display = mode === 'query' ? 'none' : '';
+        if (this.queryLegendEl) this.queryLegendEl.style.display = mode === 'query' ? '' : 'none';
     }
 
     close() {
@@ -335,6 +464,28 @@ class FootprintManager {
                 'label': 'data(label)', 'font-size': 9, 'color': '#e8a33d',
                 'text-background-color': '#1e1e1e', 'text-background-opacity': 0.85, 'text-background-padding': 2
             } }
+        ];
+    }
+
+    static _queryGraphStyle() {
+        const node = (bg) => ({
+            'background-color': bg, 'label': 'data(label)', 'color': '#fff',
+            'font-size': 11, 'text-valign': 'center', 'text-halign': 'center',
+            'text-wrap': 'wrap', 'text-max-width': 160, 'width': 'label', 'height': 'label',
+            'padding': '8px', 'shape': 'round-rectangle', 'text-outline-width': 0
+        });
+        return [
+            { selector: 'node[kind = "direct"]', style: { ...node('#0e639c'), 'border-width': 2, 'border-color': '#3794ff' } },
+            { selector: 'node[kind = "via-code"]', style: { ...node('#7d3c98'), 'border-width': 2, 'border-style': 'dashed', 'border-color': '#c39bd3' } },
+            { selector: 'edge', style: {
+                'curve-style': 'bezier', 'width': 1.8, 'line-color': '#4a9eda', 'target-arrow-color': '#4a9eda',
+                'target-arrow-shape': 'triangle', 'arrow-scale': 0.9,
+                'label': 'data(label)', 'font-size': 9, 'color': '#9ecbff',
+                'text-background-color': '#1e1e1e', 'text-background-opacity': 0.85, 'text-background-padding': 2
+            } },
+            // A join whose condition does not qualify its columns: the partner
+            // comes from the join order, not from the condition itself.
+            { selector: 'edge[confident = 0]', style: { 'line-style': 'dashed', 'line-color': '#8892a0', 'target-arrow-color': '#8892a0' } }
         ];
     }
 

@@ -2296,6 +2296,10 @@ class MessageHandler {
                 if (window.footprintManager) window.footprintManager.onResult(message);
                 break;
 
+            case 'queryGraphResult':
+                if (window.footprintManager) window.footprintManager.onQueryGraphResult(message);
+                break;
+
             case 'footprintDocResult':
                 if (window.footprintManager) window.footprintManager.onDocResult(message);
                 break;

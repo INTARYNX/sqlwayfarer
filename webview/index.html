@@ -88,6 +88,7 @@
                     <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (F5 / Ctrl+Enter)"><i class="codicon codicon-play"></i></button>
                     <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><i class="codicon codicon-graph-line"></i></button>
                     <button id="includeActualPlanToggle" class="icon-btn plan-btn plan-toggle-btn" disabled title="Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan"><i class="codicon codicon-graph"></i></button>
+                    <button id="queryGraphBtn" class="icon-btn" disabled title="Query graph - the tables read by the query, how they are joined, and the tables reached through its procedures and functions. With a selection: that query only; without one: the whole query."><i class="codicon codicon-git-merge"></i></button>
                     <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;"><i class="codicon codicon-stop-circle"></i> Cancel</button>
                     <label class="query-option">Max rows
                         <select id="maxRowsSelect">
@@ -439,7 +440,7 @@
 
             <!-- Graph tab: proc-centric footprint (reads/writes/trigger cascade) -->
             <div class="fp-panel active" data-fppanel="graph">
-                <div class="footprint-legend">
+                <div class="footprint-legend" id="footprintLegend">
                     <span class="fp-legend-sep">Tables</span>
                     <span class="fp-chip fp-target">Object</span>
                     <span class="fp-chip fp-write">Written</span>
@@ -455,6 +456,16 @@
                     <label class="fp-toggle" title="Show or hide the tables the object only reads, to focus on writes and trigger cascades">
                         <input type="checkbox" id="footprintShowReads" checked> Show reads
                     </label>
+                </div>
+                <!-- Legend of the query graph mode (the footprint legend above is
+                     hidden while the overlay shows a query's graph). -->
+                <div class="footprint-legend" id="queryGraphLegend" style="display: none;">
+                    <span class="fp-legend-sep">Tables</span>
+                    <span class="fp-chip fp-target">Read by the query</span>
+                    <span class="fp-chip fp-via-code">Via a procedure/function</span>
+                    <span class="fp-legend-sep">Edges</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-join"></i> join condition</span>
+                    <span class="fp-legend-edge"><i class="fp-line fp-line-join-unconfident"></i> inferred join</span>
                 </div>
                 <div id="writeFootprintGraph" class="footprint-graph"></div>
                 <div id="writeFootprintMeta" class="footprint-meta"></div>
