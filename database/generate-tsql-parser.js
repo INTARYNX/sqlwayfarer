@@ -37,10 +37,19 @@ function ensureDir(dir) {
 function patchToCommonJS(filePath) {
     let content = fs.readFileSync(filePath, 'utf8');
 
-    // Patch artifact Babelfish: "extern bool pltsql_quoted_identifier;"
+    // The Babelfish grammar carries a Postgres-ism: the lexer predicates
+    // {pltsql_quoted_identifier == true}? decide whether a double-quoted
+    // name is an identifier or a string literal. The C++ "extern" declaration
+    // is an artifact of that grammar and has no meaning here - but the
+    // predicates themselves still reference it, and an undefined reference
+    // crashes the lexer on the first double-quoted identifier.
+    // SQL Server runs with QUOTED_IDENTIFIER ON by default: a double-quoted
+    // name is an identifier.
     content = content.replace(
         /\n\s*extern bool pltsql_quoted_identifier;\s*\n/,
-        '\n// patched: removed "extern bool pltsql_quoted_identifier;" (Babelfish grammar C++ artifact)\n'
+        '\n// patched: pltsql_quoted_identifier (Babelfish grammar C++ artifact) ->\n'
+        + '// SQL Server runs with QUOTED_IDENTIFIER ON: a double-quoted name is an identifier.\n'
+        + 'const pltsql_quoted_identifier = true;\n'
     );
 
     // Patch antlr4.{atn,dfa,tree,error}.* references — runtime exposes classes at top level, not nested
