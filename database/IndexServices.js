@@ -8,8 +8,9 @@ const ParserWorkerPool = require('./ParserWorkerPool');
 
 // Bumped when the index entry shape changes (2 = columnRefs for column lineage,
     // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
-    // table-level writes); older cached files rebuild.
-const INDEX_FORMAT_VERSION = 4;
+    // table-level writes, 5 = parseErrors for the incomplete analyses);
+    // older cached files rebuild.
+const INDEX_FORMAT_VERSION = 5;
 
 class IndexService {
     // How many objects' dependency queries run concurrently during a build.
@@ -268,6 +269,10 @@ class IndexService {
             // names no column (a DELETE, an INSERT without a column list) is
             // only visible at this level.
             tableWrites: [],
+            // Syntax errors met while parsing the definition: ANTLR recovers
+            // from them and the analysis goes on, so the analysis of such an
+            // object is partial and must be reported as such.
+            parseErrors: [],
             // Qualified names of known objects mentioned in the module text but not
             // resolved confidently — best-effort dynamic-SQL usage (low confidence).
             possibleRefs: []
@@ -293,11 +298,13 @@ class IndexService {
         const columnRefs = {};
         const tableWrites = {};
         const possibleRefs = {};
+        const parseErrors = {};
         const nameMap = this._buildNameMap(objects);
-        const { dependencies, failedKeys } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs, tableWrites);
+        const { dependencies, failedKeys } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors);
         this._attachDependencies(index.objects, dependencies);
         this._attachColumnRefs(index.objects, columnRefs);
         this._attachTableWrites(index.objects, tableWrites);
+        this._attachParseErrors(index.objects, parseErrors);
         this._attachPossibleRefs(index.objects, possibleRefs);
         this._markIncompleteDependencies(index.objects, failedKeys);
 
@@ -340,12 +347,14 @@ class IndexService {
         const columnRefs = {};
         const tableWrites = {};
         const possibleRefs = {};
+        const parseErrors = {};
         // Name map spans ALL live objects so mentions of unchanged tables are caught.
         const nameMap = this._buildNameMap(liveObjects);
-        const { dependencies, failedKeys } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs, tableWrites);
+        const { dependencies, failedKeys } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors);
         this._attachDependencies(objects, dependencies);
         this._attachColumnRefs(objects, columnRefs);
         this._attachTableWrites(objects, tableWrites);
+        this._attachParseErrors(objects, parseErrors);
         this._attachPossibleRefs(objects, possibleRefs);
         this._markIncompleteDependencies(objects, failedKeys);
 
@@ -382,6 +391,12 @@ class IndexService {
         }
     }
 
+    _attachParseErrors(indexObjects, parseErrorsByKey) {
+        for (const [key, errors] of Object.entries(parseErrorsByKey)) {
+            if (indexObjects[key]) indexObjects[key].parseErrors = errors;
+        }
+    }
+
     _attachPossibleRefs(indexObjects, possibleRefsByKey) {
         for (const [key, refs] of Object.entries(possibleRefsByKey)) {
             if (indexObjects[key]) indexObjects[key].possibleRefs = refs;
@@ -413,9 +428,9 @@ class IndexService {
     // own Request) instead of one at a time. Progress/cancellation checkpoints
     // move from per-object to per-batch - coarser, but still frequent.
     // The same batch also returns OBJECT_DEFINITION, parsed into per-column
-    // lineage (columnRefsOut, keyed by clean qualified name) and table-level
-    // writes (tableWritesOut) for code objects.
-    async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null, tableWritesOut = null) {
+    // lineage (columnRefsOut, keyed by clean qualified name), table-level
+    // writes (tableWritesOut) and syntax errors (parseErrorsOut) for code objects.
+    async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null, tableWritesOut = null, parseErrorsOut = null) {
         const dependencies = [];
         const failedKeys = new Set();
         const total = objects.length;
@@ -428,7 +443,7 @@ class IndexService {
 
             const batch = objects.slice(i, i + IndexService.CONCURRENT_BATCH_SIZE);
             const batchResults = await Promise.all(
-                batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut))
+                batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut))
             );
             batch.forEach((obj, idx) => {
                 const { dependencies: objDependencies, depsFailed } = batchResults[idx];
@@ -447,7 +462,7 @@ class IndexService {
     // other object's processing, so callable concurrently. Writes into the
     // shared columnRefsOut/possibleRefsOut maps under this object's own
     // (unique) key, and returns its dependency rows for the caller to merge.
-    async _analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut) {
+    async _analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut) {
         const dependencies = [];
         const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
         const cleanQN = this._removeBrackets(obj.qualified_name);
@@ -507,6 +522,7 @@ class IndexService {
             if (analysis) {
                 const refs = analysis.columns;
                 const writes = analysis.writes || [];
+                const errors = analysis.errors || [];
                 if (refs && Object.keys(refs).length > 0) {
                     columnRefsOut[cleanQN] = refs;
                     for (const k of Object.keys(refs)) confidentSet.add(this._removeBrackets(k).toLowerCase());
@@ -515,6 +531,9 @@ class IndexService {
                 // DELETE or an INSERT without a column list writes a table
                 // without writing any named column.
                 if (writes.length > 0 && tableWritesOut) tableWritesOut[cleanQN] = writes;
+                // The syntax errors make the analysis partial: the tree was
+                // still walked, but not everything in it could be understood.
+                if (errors.length > 0 && parseErrorsOut) parseErrorsOut[cleanQN] = errors;
             }
             // Best-effort dynamic-SQL scan: qualified names of known objects in
             // the text that weren't resolved confidently above.
