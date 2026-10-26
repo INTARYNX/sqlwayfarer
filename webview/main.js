@@ -292,13 +292,13 @@ class ObjectsTabManager {
         // A cancellation for a database the user has since switched away from
         // shouldn't stomp on whatever's now shown for the current one.
         if (result.database && result.database !== this.currentDatabase) return;
-        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${result.message}</p>`;
+        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${this.escapeHtml(result.message)}</p>`;
         this.setStatus(this.currentDatabase ? 'error' : 'none', result.message);
     }
 
     // Show loading state
     showLoading(message = 'Loading database index...') {
-        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${message}</p>`;
+        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${this.escapeHtml(message)}</p>`;
     }
 
     // Show placeholder
@@ -344,7 +344,7 @@ class ObjectsTabManager {
 
     // Handle indexing progress
     onIndexingProgress(progress) {
-        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing in progress... ${progress.progress}% (${progress.current}/${progress.total})<br>${progress.message}</p>`;
+        this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing in progress... ${progress.progress}% (${progress.current}/${progress.total})<br>${this.escapeHtml(progress.message)}</p>`;
     }
 
     // Handle indexing completion
@@ -359,7 +359,7 @@ class ObjectsTabManager {
                 database: database
             });
         } else {
-            this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing failed: ${message}</p>`;
+            this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing failed: ${this.escapeHtml(message)}</p>`;
             this.setStatus('error', message);
         }
     }
@@ -1472,7 +1472,7 @@ class ExplorerManager {
                 schemaHeader.dataset.schema = schema;
                 schemaHeader.dataset.total = objectsBySchema[schema].length;
                 schemaHeader.innerHTML = `
-                <span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${schema}</span>
+                <span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${this.escapeHtml(schema)}</span>
                 <span class="schema-count">(${objectsBySchema[schema].length})</span>
             `;
                 schemaHeader.addEventListener('click', () => this._toggleSchemaCollapse(schema));
@@ -1746,7 +1746,7 @@ class ExplorerManager {
             container.innerHTML = `
                 <div class="graph-placeholder">
                     <h3><i class="codicon codicon-graph"></i> Dependency Graph</h3>
-                    <p class="placeholder-text">No dependencies found for ${objectName}</p>
+                    <p class="placeholder-text">No dependencies found for ${this.escapeHtml(objectName)}</p>
                 </div>
             `;
             return;
@@ -2061,7 +2061,7 @@ class ExplorerManager {
                     details.push(`Fill Factor: ${idx.fill_factor}%`);
                 }
                 if (idx.has_filter) {
-                    details.push(`Filtered: ${idx.filter_definition || 'Yes'}`);
+                    details.push(`Filtered: ${this.escapeHtml(idx.filter_definition || 'Yes')}`);
                 }
 
                 html += `<tr>
