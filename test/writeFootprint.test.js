@@ -194,6 +194,88 @@ suite('WriteFootprintService table-level writes', () => {
 	});
 });
 
+suite('WriteFootprintService name resolution', () => {
+	// Two schemas carry a table called 'Users': a reference that names no
+	// schema must not pick one of them at random.
+	function makeTwoUsersIndex(referencingObject, reference) {
+		return { objects: {
+			[referencingObject]: obj(referencingObject, 'P', {
+				columnRefs: { [reference]: { c: { write: true } } },
+				dependencies: []
+			}),
+			'dbo.Users': obj('dbo.Users', 'U'),
+			'audit.Users': obj('audit.Users', 'U')
+		} };
+	}
+
+	test('an unqualified name resolves to the schema of the module it was written in', () => {
+		const index = makeTwoUsersIndex('dbo.P', 'users');
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'dbo.P' });
+
+		const t = r.tables.find(x => x.qualifiedName === 'dbo.Users');
+		assert.ok(t, 'the table of the module schema is the one referenced');
+		assert.strictEqual(t.access, 'write');
+		assert.ok(!r.tables.find(x => x.qualifiedName === 'audit.Users'), 'the other schema is not picked');
+		assert.deepStrictEqual(r.unresolved, [], 'the reference is resolved, not reported');
+	});
+
+	test('an ambiguous unqualified name is reported instead of resolved', () => {
+		// The module is in a third schema: neither candidate can be the one.
+		const index = makeTwoUsersIndex('sales.P', 'users');
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'sales.P' });
+
+		assert.ok(r.unresolved.includes('users'), 'the ambiguous reference is reported');
+		assert.strictEqual(r.tables.length, 0, 'no table is picked among the candidates');
+	});
+
+	test('a qualified name that does not exist is not resolved to another schema', () => {
+		const index = { objects: {
+			'dbo.P': obj('dbo.P', 'P', {
+				columnRefs: { 'sales.Missing': { c: { write: true } } },
+				dependencies: []
+			}),
+			'audit.Missing': obj('audit.Missing', 'U')
+		} };
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'dbo.P' });
+
+		assert.ok(r.unresolved.includes('sales.missing'), 'the unknown table is reported');
+		assert.ok(!r.tables.find(x => x.qualifiedName === 'audit.Missing'), 'the same-named table is not picked');
+	});
+
+	test('an unqualified name that is unique in the database resolves', () => {
+		const index = { objects: {
+			'dbo.P': obj('dbo.P', 'P', {
+				columnRefs: { users: { c: { write: true } } },
+				dependencies: []
+			}),
+			'dbo.Users': obj('dbo.Users', 'U')
+		} };
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers: [], target: 'dbo.P' });
+
+		const t = r.tables.find(x => x.qualifiedName === 'dbo.Users');
+		assert.ok(t, 'the only table carrying that name is referenced');
+		assert.strictEqual(t.access, 'write');
+		assert.deepStrictEqual(r.unresolved, []);
+	});
+
+	test('the trigger of the resolved table fires, not the one of its twin', () => {
+		const index = makeTwoUsersIndex('dbo.P', 'users');
+		index.objects['dbo.trg'] = obj('dbo.trg', 'TR', {
+			columnRefs: { 'dbo.AuditLog': { c: { write: true } } },
+			dependencies: ['dbo.AuditLog']
+		});
+		index.objects['dbo.AuditLog'] = obj('dbo.AuditLog', 'U');
+		const triggers = [{ trigger: 'dbo.trg', parentTable: 'dbo.Users', disabled: false }];
+
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers, target: 'dbo.P' });
+
+		assert.ok(r.triggersFired.includes('dbo.trg'), 'the trigger of dbo.Users fired');
+		const a = r.tables.find(x => x.qualifiedName === 'dbo.AuditLog');
+		assert.ok(a, 'the table written by the trigger is in the footprint');
+		assert.strictEqual(a.access, 'write');
+	});
+});
+
 suite('WriteFootprintService.foreignKeysAmong', () => {
     const fks = [
         { fkName: 'FK_Order_Customer', fromTable: 'app.Order', fromColumn: 'CustomerID', toTable: 'app.Customer', toColumn: 'CustomerID' },
