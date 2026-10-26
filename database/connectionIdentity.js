@@ -12,7 +12,9 @@ function connectionIdentity(config) {
     const server = (config && config.server || '').trim().toLowerCase();
     if (!server) return null;
     const port = config.port ? String(config.port).trim() : 'default';
-    const user = (config.username || '').trim().toLowerCase() || '(windows auth)';
+    const user = config.authType === 'entra'
+        ? '(entra)'
+        : (config.username || '').trim().toLowerCase() || '(windows auth)';
     return `${server}:${port}:${user}`;
 }
 

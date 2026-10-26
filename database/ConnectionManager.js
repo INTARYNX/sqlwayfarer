@@ -2,10 +2,18 @@
 
 const sql = require('mssql');
 const { bracketIdentifier } = require('./sqlIdentifier');
+const { EntraTokenSource } = require('./entraToken');
 
 class ConnectionManager {
-    constructor(connectionStorage) {
+    // tokenFetcher: see entraToken.js. Without one, Entra ID connections are
+    // refused with a clear message instead of failing obscurely.
+    constructor(connectionStorage, tokenFetcher = null) {
         this._connectionStorage = connectionStorage;
+        this._tokenFetcher = tokenFetcher;
+        // Token source of each config built for an Entra ID connection, so
+        // connect() can keep the token of the live connection fresh.
+        this._tokenSources = new WeakMap();
+        this._activeTokenSource = null;
         this._activeConnection = null;
         this._activeConfig = null;
         // Survives disconnect (unlike _activeConfig, cleared on dispose) so
@@ -19,8 +27,9 @@ class ConnectionManager {
     // string - a password containing ';' or '=' would otherwise inject
     // connection parameters.
     async buildConnectionConfig(connectionConfig) {
+        const isEntra = connectionConfig.authType === 'entra';
         let password = connectionConfig.password;
-        if (!password && connectionConfig.name) {
+        if (!isEntra && !password && connectionConfig.name) {
             password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
             if (connectionConfig.isLoadedConnection && !password) {
                 throw new Error('Password not found in secure storage');
@@ -38,7 +47,9 @@ class ConnectionManager {
         const config = { server: connectionConfig.server, options, requestTimeout: 300000 };
         if (connectionConfig.port) config.port = Number(connectionConfig.port);
         if (connectionConfig.database) config.database = connectionConfig.database;
-        if (connectionConfig.username && password) {
+        if (isEntra) {
+            await this._applyEntraAuthentication(config, options);
+        } else if (connectionConfig.username && password) {
             // 'DOMAIN\user' must become { domain, user }: tedious only switches
             // to NTLM (Windows account) when config.domain is set, the way the
             // mssql connection string parser did before the move to the native
@@ -56,6 +67,50 @@ class ConnectionManager {
         return config;
     }
 
+    // Azure SQL only accepts encrypted connections.
+    async _applyEntraAuthentication(config, options) {
+        if (!this._tokenFetcher) throw new Error('Microsoft Entra ID sign-in is not available in this environment');
+        const source = new EntraTokenSource(this._tokenFetcher);
+        await source.acquire();
+        options.encrypt = true;
+        config.authentication = {
+            type: 'azure-active-directory-access-token',
+            options: { token: source.current }
+        };
+        this._tokenSources.set(config, source);
+    }
+
+    // mssql copies the config when it creates a pool, then opens every new
+    // physical connection (idle ones are closed after 30 s) with the token it
+    // copied - which has expired an hour later. The pool therefore has to read
+    // the token again from its source each time it builds the configuration
+    // of a connection. `_config` is mssql's own hook for that, which is why
+    // the tests check it against the installed mssql.
+    _createEntraPool(config, source) {
+        const pool = new sql.ConnectionPool(config);
+        const buildConfig = pool._config.bind(pool);
+        pool._config = () => {
+            const tediousConfig = buildConfig();
+            tediousConfig.authentication.options = { token: source.current };
+            return tediousConfig;
+        };
+        return pool;
+    }
+
+    async _openPool(config) {
+        const source = this._tokenSources.get(config);
+        if (!source) return sql.connect(config);
+        return this._createEntraPool(config, source).connect();
+    }
+
+    // Starts renewing the token of the connection that just became the active
+    // one, and stops renewing the one it replaces.
+    _adoptTokenSource(config) {
+        if (this._activeTokenSource) this._activeTokenSource.stop();
+        this._activeTokenSource = this._tokenSources.get(config) || null;
+        if (this._activeTokenSource) this._activeTokenSource.start();
+    }
+
     async getConnectionForDisplay(connectionName) {
         try {
             const connection = this._connectionStorage.getConnection(connectionName);
@@ -70,7 +125,7 @@ class ConnectionManager {
     }
 
     async testConnection(connectionConfig) {
-        const conn = await sql.connect(await this.buildConnectionConfig(connectionConfig));
+        const conn = await this._openPool(await this.buildConnectionConfig(connectionConfig));
         await conn.close();
     }
 
@@ -78,19 +133,27 @@ class ConnectionManager {
         // Connect the new one first - if it fails (bad password, unreachable
         // server), the old connection stays usable instead of leaving the
         // extension with none at all.
-        const newConnection = await sql.connect(await this.buildConnectionConfig(connectionConfig));
+        const poolConfig = await this.buildConnectionConfig(connectionConfig);
+        const newConnection = await this._openPool(poolConfig);
 
         if (this._activeConnection) {
             await this._activeConnection.close().catch(() => { /* already gone */ });
         }
         this._activeConnection = newConnection;
         this._activeConfig = connectionConfig;
+        this._adoptTokenSource(poolConfig);
         this._lastKnownServer = connectionConfig.server;
     }
 
     async connectWithSaved(connectionName) {
         const savedConnection = this._connectionStorage.getConnection(connectionName);
         if (!savedConnection) throw new Error(`Connection '${connectionName}' not found`);
+
+        // An Entra ID connection has no password: the sign-in is the secret.
+        if (savedConnection.authType === 'entra') {
+            await this.connect({ ...savedConnection, isLoadedConnection: true });
+            return;
+        }
 
         const password = await this._connectionStorage.getConnectionPassword(connectionName);
         if (!password) throw new Error(`Password not found for connection '${connectionName}'`);
@@ -169,6 +232,10 @@ class ConnectionManager {
     }
 
     async dispose() {
+        if (this._activeTokenSource) {
+            this._activeTokenSource.stop();
+            this._activeTokenSource = null;
+        }
         if (this._activeConnection) {
             try { await this._activeConnection.close(); } catch (error) {
                 console.error('Error closing connection during dispose:', error);
