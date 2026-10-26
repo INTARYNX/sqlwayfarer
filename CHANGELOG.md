@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.12.11] - 2026-10-26
+
+### Fixed
+
+- **Indexing**: since 0.12.9 the indexing messages (progress, failure, cancellation) threw an error, so the Explorer stayed locked on "Select a database to activate the explorer" and nothing worked. A test now guards against it.
+
 ## [0.12.10] - 2026-10-26
 
 ### Changed
