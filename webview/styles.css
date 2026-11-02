@@ -3178,3 +3178,134 @@ table.fp-cols .fp-center { text-align: center; }
 .cm-tooltip-lint .cm-diagnosticSource {
     opacity: 0.7;
 }
+
+/* === ONE-LINE TOOLBAR ===
+   The bar (tabs, database, actions) stays on one line: the selects give way
+   first, then the labels and the gaps. A Query tab on its own fits from 800px,
+   with the schema read from another connection (two more selects) from 1000px;
+   under those widths the actions go to a second line, whole, instead of
+   covering the tabs. Under 769px the responsive rule above stacks the bar. */
+@media (min-width: 769px) {
+    .app-toolbar {
+        --select-min: 90px;
+        flex-wrap: nowrap;
+        gap: 4px 12px;
+    }
+
+    .tab-nav {
+        flex-wrap: nowrap;
+        flex-shrink: 0;
+    }
+
+    .header-actions,
+    .toolbar-actions {
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+
+    .header-actions {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+    }
+
+    /* The actions keep their size; the database selects (beside them) are what shrinks. */
+    .header-actions > .toolbar-actions,
+    .toolbar-actions > * {
+        flex-shrink: 0;
+    }
+
+    /* Each shrinks down to its select's minimum plus what sits beside it (the
+       icon, the label), never below: nothing overlaps. */
+    .database-selector-inline,
+    .schema-source-inline,
+    .query-database-option {
+        flex: 0 1 auto;
+        min-width: calc(var(--select-min) + 24px);
+    }
+
+    .query-database-option {
+        min-width: calc(var(--select-min) + 52px);
+    }
+
+    /* 170px when there is room, down to 90px: the text is cut with an ellipsis. */
+    .database-selector-inline select,
+    .schema-source-inline select,
+    .query-database-option select {
+        width: 170px;
+        min-width: var(--select-min);
+        flex: 0 1 170px;
+        text-overflow: ellipsis;
+    }
+
+    /* Beside the actions, which keep their size: a little narrower. */
+    .query-database-option select {
+        width: 130px;
+        flex-basis: 130px;
+    }
+}
+
+/* Compact: the labels go (their title says what they are) and the gaps tighten. */
+@media (min-width: 769px) and (max-width: 1180px) {
+    .query-option-label,
+    .query-active-tab-label {
+        display: none;
+    }
+
+    .query-database-option {
+        min-width: calc(var(--select-min) + 4px);
+    }
+
+    .app-toolbar {
+        --select-min: 80px;
+    }
+
+    .header-actions,
+    .toolbar-actions {
+        gap: 8px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1000px) {
+    .app-toolbar {
+        --select-min: 70px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 960px) {
+    .app-toolbar {
+        gap: 4px 8px;
+    }
+
+    .header-actions,
+    .toolbar-actions {
+        gap: 4px;
+    }
+
+    .toolbar-actions .icon-btn {
+        padding: 4px 6px;
+    }
+
+    .tab-button {
+        padding: 6px 10px;
+    }
+}
+
+/* Narrowest single line: the selects can go down to 64px. */
+@media (min-width: 769px) and (max-width: 860px) {
+    .app-toolbar {
+        --select-min: 64px;
+    }
+}
+
+/* Too narrow for one line even in the compact form: the actions take a second line. */
+@media (min-width: 769px) and (max-width: 799px) {
+    .app-toolbar {
+        flex-wrap: wrap;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 999px) {
+    .app-toolbar:has(.schema-source-inline:not([hidden])) {
+        flex-wrap: wrap;
+    }
+}

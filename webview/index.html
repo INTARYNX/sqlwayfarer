@@ -137,11 +137,11 @@
                     <button id="queryGraphBtn" class="icon-btn" disabled title="Query graph - the tables read by the query, how they are joined, and the tables reached through its procedures and functions. With a selection: that query only; without one: the whole query."><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-join"/></svg></button>
                     <button id="formatQueryBtn" class="icon-btn" title="Format the query, or the selection (Shift+Alt+F)"><i class="codicon codicon-list-flat"></i></button>
                     <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;"><i class="codicon codicon-stop-circle"></i> Cancel</button>
-                    <label id="queryDatabaseWrap" class="query-option query-database-option" hidden title="The database the queries run on, on this tab's own connection">Run on
+                    <label id="queryDatabaseWrap" class="query-option query-database-option" hidden title="The database the queries run on, on this tab's own connection"><span class="query-option-label">Run on</span>
                         <select id="queryDatabaseSelect"><option value="">Select...</option></select>
                     </label>
-                    <label class="query-option">Max rows
-                        <select id="maxRowsSelect">
+                    <label class="query-option" title="Maximum number of rows a query returns"><span class="query-option-label">Max rows</span>
+                        <select id="maxRowsSelect" aria-label="Max rows">
                             <option value="100">100</option>
                             <option value="1000" selected>1 000</option>
                             <option value="5000">5 000</option>
