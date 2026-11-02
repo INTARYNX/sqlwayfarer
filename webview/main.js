@@ -1288,6 +1288,7 @@ class ExplorerManager {
         const database = this.elements.databaseSelect.value;
         appState.currentDatabase = database;
         this.elements.exportDictionaryBtn.disabled = !database;
+        if (window.schemaSourceManager) window.schemaSourceManager.adoptSchemaDatabase(database);
 
         // The explorer works as soon as a database is chosen: it does not wait
         // for the dependency index, which is only built when the user asks
@@ -2539,11 +2540,24 @@ class MessageHandler {
 
         switch (message.command) {
             case 'connectionStatus':
+                if (message.success && window.schemaSourceManager) window.schemaSourceManager.request();
                 if (this.connectionStatus.onConnectionStatus(message)) {
                     // Land directly on Query after every successful connection -
                     // Explorer (and its indexing) is opt-in, see TabManager.
                     this.tabManager.switchTab('query');
                 }
+                break;
+
+            case 'schemaSources':
+                if (window.schemaSourceManager) window.schemaSourceManager.onSchemaSources(message);
+                break;
+
+            case 'schemaSourceChanged':
+                if (window.schemaSourceManager) window.schemaSourceManager.onSchemaSourceChanged(message);
+                break;
+
+            case 'queryDatabases':
+                if (window.schemaSourceManager) window.schemaSourceManager.onQueryDatabases(message);
                 break;
 
             case 'connectionLost':
@@ -2874,6 +2888,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const queryManager = new QueryManager();
     const queryFileManager = new QueryFileManager(queryManager);
     const footprintManager = new FootprintManager();
+    const schemaSourceManager = new SchemaSourceManager();
 
     const messageHandler = new MessageHandler(
         connectionStatus,
@@ -2895,6 +2910,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.detailsTabManager = detailsTabManager;
     window.objectsTabManager = objectsTabManager;
     window.queryManager = queryManager;
+    window.schemaSourceManager = schemaSourceManager;
     window.queryFileManager = queryFileManager;
     window.tabManager = tabManager;
     window.connectionStatus = connectionStatus;

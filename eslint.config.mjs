@@ -56,6 +56,7 @@ export default [{
             QueryFileManager: "readonly",
             FootprintManager: "readonly",
             IndexStatsView: "readonly",
+            SchemaSourceManager: "readonly",
             ConnectionStatus: "readonly",
             swIcon: "readonly",
             swObjectIcon: "readonly",

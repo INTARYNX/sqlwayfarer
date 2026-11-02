@@ -180,7 +180,8 @@ h4:has(> .codicon),
     50% { opacity: 0.35; }
 }
 
-.database-selector-inline {
+.database-selector-inline,
+.schema-source-inline {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -197,7 +198,8 @@ h4:has(> .codicon),
     opacity: 0.85;
 }
 
-.database-selector-inline select {
+.database-selector-inline select,
+.schema-source-inline select {
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
     border: 1px solid var(--vscode-input-border);
@@ -2727,12 +2729,14 @@ table.fp-cols .fp-center { text-align: center; }
         gap: 10px;
     }
     
-    .database-selector-inline {
+    .database-selector-inline,
+    .schema-source-inline {
         width: 100%;
         min-width: auto;
     }
     
-    .database-selector-inline select {
+    .database-selector-inline select,
+    .schema-source-inline select {
         flex: 1;
         min-width: auto;
     }
@@ -3036,4 +3040,43 @@ table.fp-cols .fp-center { text-align: center; }
 .stats-table th {
     color: var(--vscode-descriptionForeground);
     font-weight: 600;
+}
+
+/* The schema is read from another connection than the one the queries run on. */
+.source-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 8px;
+    padding: 6px 12px;
+    background: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+    border-left: 3px solid var(--vscode-focusBorder);
+    border-radius: 4px;
+}
+
+.source-banner[hidden],
+.schema-source-inline[hidden],
+.query-database-option[hidden] {
+    display: none;
+}
+
+.source-banner-text {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+}
+
+.source-banner-run {
+    padding: 1px 8px;
+    color: var(--vscode-errorForeground, #f48771);
+    background: color-mix(in srgb, var(--vscode-errorForeground, #f48771) 14%, transparent);
+    border-radius: 3px;
+}
+
+.source-banner button {
+    width: auto;
+    margin: 0;
+    white-space: nowrap;
 }

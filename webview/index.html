@@ -87,6 +87,11 @@
             <span id="connectionBannerText"></span>
             <button id="connectionBannerBtn" type="button" class="primary">Reconnect</button>
         </div>
+        <!-- Shown while the schema is read from another connection than the one the queries run on, see SchemaSourceManager. -->
+        <div id="sourceBanner" class="source-banner" role="status" hidden>
+            <span id="sourceBannerText" class="source-banner-text"></span>
+            <button id="sourceBannerReset" type="button"></button>
+        </div>
         <!-- Single-line toolbar: tabs + database selector + actions -->
         <div class="app-toolbar">
             <div class="tab-nav">
@@ -99,6 +104,12 @@
                 <button class="tab-button" data-tab="explorer">Explorer</button>
             </div>
             <div class="header-actions">
+                <!-- Where the Explorer and the autocompletion read the schema from; queries always run on this tab's connection. -->
+                <div id="schemaSourceWrap" class="schema-source-inline" hidden>
+                    <select id="schemaSourceSelect" aria-label="Schema source" title="Where the Explorer, the index and the autocompletion read the schema from. Queries always run on this tab's own connection.">
+                        <option value="">Schema: this connection</option>
+                    </select>
+                </div>
                 <!-- First: every action below works on this database. -->
                 <div class="database-selector-inline">
                     <label for="databaseSelect" class="database-icon" title="Database"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-database"/></svg></label>
@@ -126,6 +137,9 @@
                     <button id="queryGraphBtn" class="icon-btn" disabled title="Query graph - the tables read by the query, how they are joined, and the tables reached through its procedures and functions. With a selection: that query only; without one: the whole query."><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-join"/></svg></button>
                     <button id="formatQueryBtn" class="icon-btn" title="Format the query, or the selection (Shift+Alt+F)"><i class="codicon codicon-list-flat"></i></button>
                     <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;"><i class="codicon codicon-stop-circle"></i> Cancel</button>
+                    <label id="queryDatabaseWrap" class="query-option query-database-option" hidden title="The database the queries run on, on this tab's own connection">Run on
+                        <select id="queryDatabaseSelect"><option value="">Select...</option></select>
+                    </label>
                     <label class="query-option">Max rows
                         <select id="maxRowsSelect">
                             <option value="100">100</option>
@@ -469,6 +483,7 @@
     <script src="{{QUERY_FILE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
     <script src="{{INDEX_STATS_VIEW_URI}}"></script>
+    <script src="{{SCHEMA_SOURCE_MANAGER_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>

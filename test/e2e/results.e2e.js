@@ -111,4 +111,64 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		check.done();
 		await p.close();
 	});
+
+	test('the schema can be plugged on another connection: banner, Run on, queries stay on the run side', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 800 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		const sent = () => p.evaluate(() => window.__sent);
+		const visible = sel => p.evaluate(s => { const e = document.querySelector(s); return !!e && !e.hidden && getComputedStyle(e).display !== 'none'; }, sel);
+
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		check((await sent()).some(m => m.command === 'getSchemaSources'), 'a connection asks where the schema can come from');
+		check(!(await visible('#schemaSourceWrap')), 'no other connection: no selector');
+		await post({ command: 'schemaSources', ownName: 'PROD', activeName: null, sources: [{ name: 'PROD', server: 'prod-sql', database: 'AppDb', isOwn: true }, { name: 'DEV', server: 'localhost', database: 'AppDb', isOwn: false }] });
+		check(await visible('#schemaSourceWrap'), 'another saved connection: the selector appears');
+		check(!(await visible('#sourceBanner')), 'no banner while the schema comes from the run connection');
+		check(!(await visible('#queryDatabaseWrap')), 'and no "Run on"');
+
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.selectOption('#schemaSourceSelect', 'DEV');
+		check((await sent()).some(m => m.command === 'selectSchemaSource' && m.name === 'DEV'), 'choosing DEV asks the extension to plug it');
+
+		await post({ command: 'schemaSourceChanged', active: true, activeName: 'DEV', schema: { name: 'DEV', server: 'localhost' }, run: { name: 'PROD', server: 'prod-sql' } });
+		check(await visible('#sourceBanner'), 'the banner appears');
+		const banner = await p.evaluate(() => document.getElementById('sourceBanner').innerText);
+		check(/Schema: DEV/.test(banner) && /localhost/.test(banner) && /Queries run on: PROD/.test(banner) && /prod-sql/.test(banner), 'it names both sides: ' + banner.replace(/\n/g, ' | '));
+		const runColor = await p.evaluate(() => getComputedStyle(document.querySelector('.source-banner-run')).color);
+		const schemaColor = await p.evaluate(() => getComputedStyle(document.querySelector('.source-banner-schema')).color);
+		check(runColor !== schemaColor, 'the run side stands out (' + runColor + ' vs ' + schemaColor + ')');
+		check(/Use PROD for the schema/.test(await p.evaluate(() => document.getElementById('sourceBannerReset').textContent)), 'with a way back');
+		check(await visible('#queryDatabaseWrap'), '"Run on" appears');
+		check((await sent()).some(m => m.command === 'getQueryDatabases'), 'the databases of the run side are requested');
+
+		await post({ command: 'databasesLoaded', databases: ['AppDb', 'AppDb_Dev'] });
+		await p.evaluate(() => { const s = document.getElementById('databaseSelect'); s.value = 'AppDb'; s.dispatchEvent(new Event('change')); });
+		await post({ command: 'queryDatabases', databases: ['AppDb', 'Other'] });
+		check(await p.evaluate(() => document.getElementById('queryDatabaseSelect').value) === 'AppDb', 'the same database name on the run side is taken');
+
+		await p.click('[data-tab=query]');
+		await p.evaluate(() => { document.getElementById('queryInput').value = 'SELECT 1'; window.__sent.length = 0; });
+		await p.evaluate(() => window.queryManager.runQuery());
+		let run = (await sent()).find(m => /query/i.test(m.command) && m.database !== undefined);
+		check(run && run.database === 'AppDb', 'the query runs on the run side: ' + JSON.stringify(run && { c: run.command, d: run.database }));
+
+		await p.selectOption('#queryDatabaseSelect', 'Other');
+		await p.evaluate(() => { window.__sent.length = 0; window.queryManager.setRunning(false); window.queryManager.runQuery(); });
+		run = (await sent()).find(m => /query/i.test(m.command) && m.database !== undefined);
+		check(run && run.database === 'Other', 'and follows "Run on": ' + JSON.stringify(run && { c: run.command, d: run.database }));
+
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('#sourceBannerReset');
+		check((await sent()).some(m => m.command === 'selectSchemaSource' && m.name === ''), 'the banner button goes back to the run connection');
+		await post({ command: 'schemaSourceChanged', active: false, activeName: null, schema: null, run: { name: 'PROD', server: 'prod-sql' } });
+		check(!(await visible('#sourceBanner')) && !(await visible('#queryDatabaseWrap')), 'banner and "Run on" go away');
+		check(await p.evaluate(() => document.getElementById('schemaSourceSelect').value) === '', 'the selector is back on this connection');
+
+		await post({ command: 'schemaSourceChanged', active: false, activeName: null, error: "Could not connect to 'DEV': login failed" });
+		check(/Could not connect to 'DEV'/.test(await p.evaluate(() => document.getElementById('queryStatus') ? document.getElementById('queryStatus').innerText : document.body.innerText)), 'a failed connection says so');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
 });
