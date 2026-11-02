@@ -48,7 +48,7 @@ class SchemaSourceHandlers {
         const own = this._getOwnName();
         if (!name || name === own) {
             await this._clear();
-            this._post(this._changedMessage(null));
+            this._post(this._changedMessage(null, restoring));
             this._onChanged(null, restoring);
             return true;
         }
@@ -65,9 +65,14 @@ class SchemaSourceHandlers {
         this._name = name;
         this._router.use(manager);
         if (previous) { try { await previous.dispose(); } catch { /* already closed */ } }
-        this._post(this._changedMessage(name));
+        this._post(this._changedMessage(name, restoring));
         this._onChanged(name, restoring);
         return true;
+    }
+
+    // The Reconnect action: the schema source is dropped and connected again by restore().
+    async reset() {
+        await this._clear();
     }
 
     // After the tab reconnected: the schema source it had is connected again.
@@ -87,7 +92,8 @@ class SchemaSourceHandlers {
             active: !!name,
             activeName: name,
             schema: schema ? { name: schema.name, server: schema.server } : null,
-            run: own ? { name: own.name, server: own.server } : { name: this._getOwnName(), server: null }
+            run: own ? { name: own.name, server: own.server } : { name: this._getOwnName(), server: null },
+            restoring
         };
     }
 

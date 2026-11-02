@@ -54,9 +54,15 @@ suite('SchemaSourceHandlers', () => {
 		assert.strictEqual(router.getServerName(), 'localhost');
 		assert.deepStrictEqual(posted[0], {
 			command: 'schemaSourceChanged', active: true, activeName: 'DEV',
-			schema: { name: 'DEV', server: 'localhost' }, run: { name: 'PROD', server: 'prod-sql' }
+			schema: { name: 'DEV', server: 'localhost' }, run: { name: 'PROD', server: 'prod-sql' }, restoring: false
 		});
 		assert.deepStrictEqual(changes, [['DEV', false]]);
+	});
+
+	test('a restore says so, so the page keeps what is selected', async () => {
+		const { handlers, posted } = setup();
+		await handlers.handleSelectSchemaSource('DEV', true);
+		assert.strictEqual(posted[0].restoring, true);
 	});
 
 	test('a connection that fails leaves the schema where it was', async () => {
