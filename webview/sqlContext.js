@@ -287,6 +287,7 @@ class SqlContext {
                 if (role === 'into') {
                     if (scope.firstWord === 'insert') scope.insertTarget = src;
                     else if (scope.firstWord === 'merge') { src.target = true; block.sources.push(src); }
+                    else if (scope.firstWord === 'create') { src.target = true; block.sources.push(src); } // CREATE INDEX ... ON table (...)
                     else block.intoTarget = src;
                 } else {
                     if (role === 'target') src.target = true;
@@ -360,7 +361,11 @@ class SqlContext {
                         case 'from': mark(k, 'from'); expect = 'source'; break;
                         case 'join': mark(k, 'join'); expect = 'source'; break;
                         case 'apply': mark(k, 'join'); expect = 'apply'; break;
-                        case 'on': mark(k, 'on'); break;
+                        case 'on':
+                            mark(k, 'on');
+                            if (scope.firstWord === 'create' && block.sources.length === 0 && SqlContext._isName(tokens[k + 1])
+                                && tokens.slice(scope.start, k).some(t => SqlContext._isWord(t, 'index'))) expect = 'into'; // CREATE INDEX ... ON table (...)
+                            break;
                         case 'where': mark(k, 'where'); break;
                         case 'having': mark(k, 'having'); break;
                         case 'group': mark(k, 'groupby'); break;
