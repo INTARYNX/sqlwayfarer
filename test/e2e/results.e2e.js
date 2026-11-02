@@ -112,6 +112,40 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.close();
 	});
 
+	test('the column names pop-up: one per line, brackets, copy all or a selection', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [{ columns: ['BusinessEntityID', 'FirstName', 'LastName'], rows: [{ BusinessEntityID: 1, FirstName: 'a', LastName: 'b' }], totalRows: 1 }] });
+		await p.evaluate(() => { window.__copied = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async t => { window.__copied = t; } }, configurable: true }); });
+		const text = () => p.inputValue('#resultColumnsText');
+
+		check(!(await p.locator('#resultColumnsModalOverlay').isVisible()), 'the pop-up is closed at first');
+		await p.click('button[data-rs-action="columns"]');
+		check(await p.locator('#resultColumnsModalOverlay').isVisible() && (await p.textContent('#resultColumnsModalTitle')) === 'Columns (3)', 'the icon opens it, with the count');
+		check((await text()) === 'BusinessEntityID,\nFirstName,\nLastName', 'the names are one under the other, separated by commas: ' + JSON.stringify(await text()));
+		await p.click('#resultColumnsCopyBtn');
+		check(await p.evaluate(() => window.__copied) === 'BusinessEntityID,\nFirstName,\nLastName', 'Copy takes everything when nothing is selected');
+
+		await p.evaluate(() => { const t = document.getElementById('resultColumnsText'); const s = t.value.indexOf('FirstName'); t.focus(); t.setSelectionRange(s, s + 'FirstName,'.length); });
+		await p.click('#resultColumnsCopyBtn');
+		check(await p.evaluate(() => window.__copied) === 'FirstName,', 'Copy takes the selected part when there is one');
+
+		await p.check('#resultColumnsBrackets');
+		check((await text()) === '[BusinessEntityID],\n[FirstName],\n[LastName]', 'the brackets option wraps the names');
+
+		await p.keyboard.press('Escape');
+		check(!(await p.locator('#resultColumnsModalOverlay').isVisible()), 'Escape closes it');
+		await p.click('button[data-rs-action="columns"]');
+		await p.mouse.click(5, 5);
+		check(!(await p.locator('#resultColumnsModalOverlay').isVisible()), 'a click outside closes it');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
 	test('the editor formats the query, and opens find / replace', async () => {
 		const check = checker();
 		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });

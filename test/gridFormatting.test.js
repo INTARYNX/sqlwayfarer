@@ -118,3 +118,16 @@ suite('QueryManager grid rendering', () => {
 		assert.ok(!html.includes('truncation-note'));
 	});
 });
+
+suite('QueryManager.columnNames', () => {
+	test('one name per line, a comma after each but the last', () => {
+		assert.strictEqual(QueryManager.columnNames(['id', 'first name', 'x'], false), 'id,\nfirst name,\nx');
+		assert.strictEqual(QueryManager.columnNames(['only'], false), 'only');
+		assert.strictEqual(QueryManager.columnNames([], false), '');
+	});
+
+	test('with brackets, a ] in a name is doubled; an unnamed column gets a name', () => {
+		assert.strictEqual(QueryManager.columnNames(['id', 'a]b', ''], true), '[id],\n[a]]b],\n[Column3]');
+		assert.strictEqual(QueryManager.columnNames(['a', ''], false), 'a,\nColumn2');
+	});
+});
