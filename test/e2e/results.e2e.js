@@ -181,10 +181,19 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.waitForTimeout(700);
 		check((await p.locator('.cm-tooltip-lint').textContent()).includes("Incorrect syntax near the keyword 'FROM'."), 'hovering shows the server message');
 
-		await post({ command: 'syntaxResult', requestId: sent[0].requestId, unavailable: true, diagnostics: [] });
-		check(await p.locator('.cm-lintRange-error').count() === 1, 'a check that could not run leaves what is shown');
 		await post({ command: 'syntaxResult', requestId: sent[0].requestId, diagnostics: [{ line: 3, message: 'second', near: '' }] });
 		check(await p.locator('.cm-lintRange-error').count() === 1 && (await p.locator('.cm-lintRange-error').textContent()).includes('WHERE'), 'without a known word, the line is underlined');
+		await post({ command: 'syntaxResult', requestId: sent[0].requestId, diagnostics: [{ line: 3, message: 'm', near: 'x' }] });
+		check((await p.locator('.cm-lintRange-error').textContent()) === 'x', 'a word inside a longer one is not the one: underlines the whole word only (' + await p.locator('.cm-lintRange-error').textContent() + ')');
+
+		// A check that could not run leaves what is shown, and is asked again after the pause, for the same text.
+		// (QueryManager is a global of the page, not of this file.)
+		// eslint-disable-next-line no-undef
+		await p.evaluate(() => { QueryManager.SYNTAX_RETRY_MS = 300; window.__sent.length = 0; });
+		await post({ command: 'syntaxResult', requestId: sent[0].requestId, unavailable: true, diagnostics: [] });
+		check(await p.locator('.cm-lintRange-error').count() === 1, 'a check that could not run leaves what is shown');
+		await p.waitForTimeout(700);
+		check((await checks()).length === 1, 'an unavailable answer is followed by a new try on its own');
 
 		await p.evaluate(() => { window.__sent.length = 0; });
 		await p.keyboard.press('Control+End');

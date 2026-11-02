@@ -376,7 +376,10 @@ class SqlWayfarerPanel {
     }
 
     _postDiagnosticsSettings() {
-        this.post({ command: 'diagnosticsSettings', syntax: vscode.workspace.getConfiguration('sqlwayfarer.diagnostics').get('syntax', false) === true });
+        const syntax = vscode.workspace.getConfiguration('sqlwayfarer.diagnostics').get('syntax', false) === true;
+        // Off: the connection of the check is closed, not kept for nothing.
+        if (!syntax) this._syntax.reset().catch(() => {});
+        this.post({ command: 'diagnosticsSettings', syntax });
     }
 
     _setupEventHandlers() {
