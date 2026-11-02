@@ -46,6 +46,46 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.close();
 	});
 
+	test('a column is resized by dragging its header edge; sorting keeps the width, double-click resets', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		const rows = [{ id: 2, name: 'a long value that does not fit in a narrow column at all' }, { id: 1, name: 'b' }];
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [{ columns: ['id', 'name'], rows, totalRows: 2 }] });
+		const width = col => p.evaluate(c => Math.round(document.querySelector(`.result-set-pane th[data-sort-col="${c}"]`).getBoundingClientRect().width), col);
+		const before = await width('name');
+
+		const box = await p.locator('th[data-sort-col="name"] .rs-resizer').boundingBox();
+		await p.mouse.move(box.x + 3, box.y + 8);
+		await p.mouse.down();
+		await p.mouse.move(box.x - 77, box.y + 8, { steps: 5 });
+		await p.mouse.up();
+		const after = await width('name');
+		check(after < before && after >= 40 && Math.abs(before - after - 80) <= 2, `dragging left narrows the column by the distance (${before} -> ${after})`);
+		check(await p.evaluate(() => document.querySelector('.result-set-pane table').classList.contains('rs-fixed')), 'the table lays out by the widths');
+		check(await p.evaluate(() => !document.querySelector('th.sorted')), 'the drag did not sort');
+
+		const idBefore = await width('id');
+		await p.click('th[data-sort-col="id"]', { position: { x: 8, y: 8 } });
+		check(await p.evaluate(() => !!document.querySelector('th.sorted')) && await width('name') === after && await width('id') === idBefore, 'sorting keeps the widths');
+
+		const narrow = await p.locator('th[data-sort-col="name"] .rs-resizer').boundingBox();
+		await p.mouse.move(narrow.x + 3, narrow.y + 8);
+		await p.mouse.down();
+		await p.mouse.move(narrow.x - after - 100, narrow.y + 8, { steps: 5 });
+		await p.mouse.up();
+		check(await width('name') === 40, 'a column never gets narrower than 40px (' + await width('name') + ')');
+		check(await p.evaluate(() => { const td = document.querySelector('.result-set-pane tbody tr:last-child td:nth-child(2)'); return td.scrollWidth > td.clientWidth; }), 'a long value is cut in a narrow column');
+
+		await p.dblclick('th[data-sort-col="name"] .rs-resizer');
+		check(await p.evaluate(() => !document.querySelector('.result-set-pane table').classList.contains('rs-fixed')) && await width('name') > after, 'double-click gives the automatic widths back');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
 	test('the editor formats the query, and opens find / replace', async () => {
 		const check = checker();
 		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
