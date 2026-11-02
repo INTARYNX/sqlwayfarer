@@ -8,6 +8,7 @@
 'use strict';
 
 const { parseServerAddress } = require('./serverAddress');
+const { groupPath } = require('./connectionImport');
 
 // === Reading a Central Management Server ===
 //
@@ -26,7 +27,7 @@ WHERE server_type = 0`;
 
 const MAX_DEPTH = 64;
 
-// Pure: the rows of both queries to [{ name, server, port, group, description }].
+// Pure: the rows of both queries to { entries: [{ name, server, port, group, description }], skipped: [{ name, reason }] }.
 function buildCmsEntries(groupRows, serverRows) {
     const byId = new Map(groupRows.map(g => [g.server_group_id, g]));
     const pathOf = id => {
@@ -36,12 +37,17 @@ function buildCmsEntries(groupRows, serverRows) {
             if (!group.is_system_object) names.unshift(group.name);
             group = byId.get(group.parent_id);
         }
-        return names.join('/');
+        return groupPath(names);
     };
     const entries = [];
+    const skipped = [];
     for (const row of serverRows) {
         const address = parseServerAddress(row.server_name);
-        if (!address.server) continue;
+        const name = (row.name || '').trim() || String(row.server_name || '').trim();
+        if (!address.server) {
+            if (name) skipped.push({ name, reason: `address '${row.server_name || ''}' cannot be used` });
+            continue;
+        }
         entries.push({
             name: (row.name || '').trim() || address.server,
             server: address.server,
@@ -50,7 +56,7 @@ function buildCmsEntries(groupRows, serverRows) {
             description: row.description || ''
         });
     }
-    return entries;
+    return { entries, skipped };
 }
 
 // manager: a connected ConnectionManager (or anything with executeQuery).

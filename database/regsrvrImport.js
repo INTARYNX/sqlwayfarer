@@ -9,6 +9,7 @@
 
 const { parseXml, childText, descendantText } = require('./miniXml');
 const { parseServerAddress } = require('./serverAddress');
+const { groupPath } = require('./connectionImport');
 
 // === Reading a registered servers export (.regsrvr) ===
 //
@@ -48,7 +49,7 @@ function authFromConnectionString(parts, authenticationType) {
     if (authentication.startsWith('activedirectory')) return { authType: 'entra' };
     if (authentication === 'sqlpassword') return { authType: 'sql', username };
     if (isTrue(firstOf(parts, 'integratedsecurity', 'trustedconnection'))) return { authType: 'windows' };
-    if (username) return { authType: 'sql', username };
+    if (username || authenticationType === 1) return { authType: 'sql', username };
     if (authenticationType >= 2) return { authType: 'entra' };
     return { authType: 'windows' };
 }
@@ -66,16 +67,17 @@ function groupOfParent(server) {
     return DATABASE_ENGINE_ROOT.test(names[0]) ? names.slice(1) : null;
 }
 
-function entryOf(server, groupPath) {
+function entryOf(server, path) {
     const parts = parseConnectionString(childText(server, 'ConnectionStringWithEncryptedPassword'));
-    const address = parseServerAddress(childText(server, 'ServerName') || firstOf(parts, 'datasource', 'server', 'address', 'addr', 'networkaddress'));
-    if (!address.server) return null;
+    const rawAddress = childText(server, 'ServerName') || firstOf(parts, 'datasource', 'server', 'address', 'addr', 'networkaddress');
+    const address = parseServerAddress(rawAddress);
+    if (!address.server) return rawAddress ? { skipped: { name: childText(server, 'Name') || rawAddress, reason: `address '${rawAddress}' cannot be used` } } : null;
     const entry = Object.assign({
         name: childText(server, 'Name') || address.server,
         server: address.server,
         port: address.port,
         database: firstOf(parts, 'initialcatalog', 'database'),
-        group: groupPath.join('/'),
+        group: groupPath(path),
         description: childText(server, 'Description')
     }, authFromConnectionString(parts, Number(childText(server, 'AuthenticationType')) || 0));
     if (isTrue(parts.encrypt || '')) entry.encrypt = true;
@@ -90,30 +92,32 @@ const OTHER_ROOT = /^(?:AnalysisServices|ReportingServices|IntegrationServices|S
 
 // Servers are found wherever they are: in the flat export each one carries its
 // group in <Parent>; a file that nests them in their group is read that way.
-function walk(node, groupPath, out) {
+function walk(node, path, out) {
     const name = node.name.toLowerCase();
     if (name === 'servergroup') {
         const groupName = childText(node, 'Name');
         if (OTHER_ROOT.test(groupName)) return;
-        const path = groupName && !DATABASE_ENGINE_ROOT.test(groupName) ? [...groupPath, groupName] : groupPath;
-        for (const child of node.children) walk(child, path, out);
+        const inner = groupName && !DATABASE_ENGINE_ROOT.test(groupName) ? [...path, groupName] : path;
+        for (const child of node.children) walk(child, inner, out);
         return;
     }
     if (name === 'registeredserver') {
         const type = childText(node, 'ServerType');
         const own = groupOfParent(node);
         if (own !== null && (!type || /^(?:DatabaseEngine|0)$/i.test(type))) {
-            const entry = entryOf(node, own || groupPath);
-            if (entry) out.push(entry);
+            const entry = entryOf(node, own || path);
+            if (entry && entry.skipped) out.skipped.push(entry.skipped);
+            else if (entry) out.entries.push(entry);
         }
         return;
     }
-    for (const child of node.children) walk(child, groupPath, out);
+    for (const child of node.children) walk(child, path, out);
 }
 
-// { entries: [{ name, server, port, database, group, description, authType, username?, encrypt?, trustServerCertificate? }], errors: [message] }
+// { entries: [{ name, server, port, database, group, description, authType, username?, encrypt?, trustServerCertificate? }],
+//   skipped: [{ name, reason }] (an address that cannot be used), errors: [message] }
 function parseRegisteredServersFile(text) {
-    const result = { entries: [], errors: [] };
+    const result = { entries: [], errors: [], skipped: [] };
     let root;
     try {
         root = parseXml(text);
@@ -121,8 +125,8 @@ function parseRegisteredServersFile(text) {
         result.errors.push(`Not a registered servers file: ${error.message}`);
         return result;
     }
-    walk(root, [], result.entries);
-    if (result.entries.length === 0) result.errors.push('No registered server found in the file.');
+    walk(root, [], result);
+    if (result.entries.length === 0 && result.skipped.length === 0) result.errors.push('No registered server found in the file.');
     return result;
 }
 

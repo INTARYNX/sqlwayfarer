@@ -15,6 +15,8 @@ suite('parseServerAddress', () => {
 		assert.deepStrictEqual(parseServerAddress(' tcp:host\\INST,14330 '), { server: 'host\\INST', port: '14330' });
 		assert.deepStrictEqual(parseServerAddress('host,notaport'), { server: 'host,notaport', port: '' });
 		assert.deepStrictEqual(parseServerAddress(undefined), { server: '', port: '' });
+		assert.deepStrictEqual(parseServerAddress('np:\\\\host\\pipe\\sql\\query'), { server: '', port: '' });
+		assert.deepStrictEqual(parseServerAddress('\\\\host\\pipe\\sql\\query'), { server: '', port: '' });
 	});
 });
 
@@ -60,13 +62,13 @@ suite('parseRegisteredServersFile', () => {
 	test('the group comes from the Parent reference, whatever the order of the documents', () => {
 		const server = (name, group) => `<RegisteredServer><Parent><Reference><Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup${group}</Uri></Reference></Parent><Name>${name}</Name><ServerName>${name}</ServerName></RegisteredServer>`;
 		const { entries } = parseRegisteredServersFile(`<model>${server('b', '/ServerGroup/A%2FB/ServerGroup/C')}${server('a', '')}</model>`);
-		assert.deepStrictEqual(entries.map(e => [e.name, e.group]), [['b', 'A/B/C'], ['a', '']]);
+		assert.deepStrictEqual(entries.map(e => [e.name, e.group]), [['b', 'A∕B/C'], ['a', '']]);
 	});
 
 	test('AuthenticationType decides when the connection string does not say', () => {
 		const server = (type, conn) => `<RegisteredServer><Name>s</Name><ServerName>h</ServerName><ConnectionStringWithEncryptedPassword>${conn}</ConnectionStringWithEncryptedPassword><AuthenticationType>${type}</AuthenticationType></RegisteredServer>`;
 		const auth = (type, conn) => parseRegisteredServersFile(server(type, conn)).entries[0].authType;
-		assert.deepStrictEqual([auth(0, 'data source=h'), auth(3, 'data source=h'), auth(0, 'data source=h;user id=u'), auth(0, 'data source=h;integrated security=SSPI')], ['windows', 'entra', 'sql', 'windows']);
+		assert.deepStrictEqual([auth(0, 'data source=h'), auth(3, 'data source=h'), auth(0, 'data source=h;user id=u'), auth(0, 'data source=h;integrated security=SSPI'), auth(1, 'data source=h')], ['windows', 'entra', 'sql', 'windows', 'sql']);
 	});
 
 	test('a file that nests the servers in their group is read as well', () => {
@@ -77,6 +79,12 @@ suite('parseRegisteredServersFile', () => {
 	test('the address falls back on the connection string; a server without any is skipped', () => {
 		const { entries } = parseRegisteredServersFile('<S><RegisteredServer><Name>A</Name><ConnectionStringWithEncryptedPassword>server=hostA;uid=bob</ConnectionStringWithEncryptedPassword></RegisteredServer><RegisteredServer><Name>B</Name></RegisteredServer></S>');
 		assert.deepStrictEqual(entries.map(e => [e.name, e.server, e.authType, e.username]), [['A', 'hostA', 'sql', 'bob']]);
+	});
+
+	test('a named pipe is reported as skipped, with its name', () => {
+		const { entries, skipped, errors } = parseRegisteredServersFile('<S><RegisteredServer><Name>Pipe</Name><ServerName>np:\\\\host\\pipe\\sql\\query</ServerName></RegisteredServer></S>');
+		assert.deepStrictEqual([entries, errors], [[], []]);
+		assert.deepStrictEqual(skipped.map(s => s.name), ['Pipe']);
 	});
 
 	test('a file that is not a registered servers export says so', () => {
