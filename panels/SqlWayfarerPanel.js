@@ -16,10 +16,12 @@ const WriteFootprintService = require('../database/WriteFootprintService');
 const QueryGraphService = require('../database/QueryGraphService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
+const { SyntaxChecker } = require('../database/SyntaxChecker');
 
 const { connectionIdentity } = require('../database/connectionIdentity');
 const { readIconSprite } = require('./iconSprite');
 const { readAutocompleteSettings } = require('./autocompleteSettings');
+const SyntaxHandlers = require('./handlers/SyntaxHandlers');
 const { isConnectionLostMessage } = require('../database/connectionLoss');
 
 // Messages whose text can tell that the connection was lost.
@@ -158,6 +160,17 @@ class SqlWayfarerPanel {
             getOwnName: () => this.connectionName,
             onChanged: (name, restoring) => this._onSchemaSourceChanged(name, restoring)
         });
+
+        // Syntax check of the query editor (off unless sqlwayfarer.diagnostics.syntax is set):
+        // SQL Server parses the text on a connection of its own.
+        this._syntax = new SyntaxHandlers(post, new SyntaxChecker({
+            createManager: () => new ConnectionManager(
+                this._connectionStorage,
+                createVsCodeTokenFetcher(vscode),
+                path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
+            ),
+            getConnectionName: () => this.connectionName
+        }), () => vscode.workspace.getConfiguration('sqlwayfarer.diagnostics').get('syntax', false) === true);
 
         // The page goes up straight away - the webview shows a loading
         // overlay until it is ready (see index.html), so there is no blank
@@ -353,6 +366,7 @@ class SqlWayfarerPanel {
         this._connectionLost = false;
         try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error closing the lost connection:', error); }
         await this._schemaSource.reset();
+        await this._syntax.reset();
         await this._connect();
     }
 
@@ -361,10 +375,15 @@ class SqlWayfarerPanel {
         this.post({ command: 'autocompleteSettings', settings: readAutocompleteSettings(vscode.workspace.getConfiguration('sqlwayfarer.autocomplete')) });
     }
 
+    _postDiagnosticsSettings() {
+        this.post({ command: 'diagnosticsSettings', syntax: vscode.workspace.getConfiguration('sqlwayfarer.diagnostics').get('syntax', false) === true });
+    }
+
     _setupEventHandlers() {
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('sqlwayfarer.autocomplete')) this._postAutocompleteSettings();
+            if (event.affectsConfiguration('sqlwayfarer.diagnostics')) this._postDiagnosticsSettings();
         }));
         this._panel.webview.onDidReceiveMessage(
             async message => {
@@ -438,7 +457,8 @@ class SqlWayfarerPanel {
             case 'getTableSampleData':          await d.handleGetTableSampleData(message.database, message.tableName, message.limit); break;
             case 'getObjectColumns':            await d.handleGetObjectColumns(message.database, message.objectName); break;
             case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
-            case 'getAutocompleteSettings':      this._postAutocompleteSettings(); break;
+            case 'getAutocompleteSettings':      this._postAutocompleteSettings(); this._postDiagnosticsSettings(); break;
+            case 'checkSyntax':                  await this._syntax.handleCheckSyntax(message.requestId, message.text); break;
             case 'getAutocompleteObjects':       await d.handleGetAutocompleteObjects(message.database); break;
             case 'getForeignKeys':               await d.handleGetForeignKeys(message.database); break;
             case 'searchDefinitions':           await d.handleSearchDefinitions(message.database, message.searchText); break;
@@ -568,6 +588,7 @@ class SqlWayfarerPanel {
 
         this._idx.cancel();
         this._schemaSource.dispose().catch(() => {});
+        this._syntax.reset().catch(() => {});
         // NB: do NOT clear the index here. It is a persistent, checksum-validated
         // on-disk cache keyed by server+database — deleting it when the panel
         // closes forces a full rebuild on every reopen (crippling on large

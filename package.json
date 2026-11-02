@@ -91,6 +91,12 @@
           "default": true,
           "description": "The Open SQL Wayfarer command opens the last connection used straight away, instead of asking which one."
         },
+        "sqlwayfarer.diagnostics.syntax": {
+          "type": "boolean",
+          "default": false,
+          "order": 0,
+          "markdownDescription": "Underline T-SQL syntax errors in the query editor. SQL Server itself parses the text (`SET PARSEONLY ON`, on a connection of its own): nothing is run and the names of tables and columns are not checked. Off by default."
+        },
         "sqlwayfarer.autocomplete.enabled": {
           "type": "boolean",
           "default": true,
@@ -291,6 +297,7 @@
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
     "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
