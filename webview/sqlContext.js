@@ -370,7 +370,10 @@ class SqlContext {
                         case 'use': mark(k, 'use'); break;
                         case 'declare': mark(k, 'declare'); break;
                         case 'delete': mark(k, 'delete'); break;
-                        case 'merge': mark(k, 'merge'); break;
+                        case 'merge':
+                            mark(k, 'merge');
+                            if (SqlContext._isName(tokens[k + 1]) && !SqlContext._isWord(tokens[k + 1], 'into')) expect = 'into';
+                            break;
                         case 'using': mark(k, 'using'); expect = 'source'; break;
                         case 'insert':
                             mark(k, 'insert');
