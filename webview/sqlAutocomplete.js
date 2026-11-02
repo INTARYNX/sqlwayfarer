@@ -974,6 +974,13 @@ class SqlAutocomplete {
             if (g === 'expr' && a.prevWord === '(' && a.group.opener && /^(convert|try_convert)$/i.test(a.group.opener.v)) {
                 for (const t of SqlAutocomplete.TYPE_KEYWORDS) items.push(kw(t, -1));
             }
+            // ORDER BY can use the aliases of the select list.
+            if (clause === 'orderby' && a.scope && a.block) {
+                const names = SqlContext.selectItems(a.scope, a.block).names;
+                for (const n of names) {
+                    items.push({ label: n, kind: 'column', detail: 'select list', priority: 0, match: n, parts: [n], usageKey: `alias|${n.toLowerCase()}` });
+                }
+            }
             for (const v of a.variables) {
                 items.push({ label: v.name, insert: v.name, kind: 'variable', detail: v.type, priority: typed.startsWith('@') ? 0 : 2, match: v.name, usageKey: `var|${v.name.toLowerCase()}` });
             }

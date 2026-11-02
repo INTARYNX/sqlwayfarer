@@ -121,6 +121,7 @@ module.exports = [
 	['declared variables after @', 'DECLARE @count int, @name nvarchar(10);\nSELECT @|', ['@count','@name']],
 	['variable in a WHERE', 'DECLARE @id int;\nSELECT * FROM dbo.Employees WHERE ID = @|', ['@id']],
 	// --- clauses ---
+	['ORDER BY offers the select aliases', 'SELECT Salary * 2 AS Dbl FROM dbo.Employees e ORDER BY |', ['Dbl','Name']],
 	['TOP (n) then columns', 'SELECT TOP (10) | FROM dbo.Employees', ['Name']],
 	['SET value side offers columns', 'UPDATE dbo.Employees SET Salary = | WHERE ID = 1', ['Salary']],
 	['DELETE with alias', 'DELETE e FROM dbo.Employees e WHERE e.|', ['Name']],
