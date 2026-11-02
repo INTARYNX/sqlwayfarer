@@ -59,6 +59,15 @@ class SyntaxChecker {
         this._timeoutMs = timeoutMs;
         this._manager = null;
         this._connection = null;
+        // Checks and resets go one after the other: a reset (panel closed, reconnect)
+        // never lands while a session is being opened or used.
+        this._tail = Promise.resolve();
+    }
+
+    _serial(operation) {
+        const result = this._tail.then(operation, operation);
+        this._tail = result.catch(() => {});
+        return result;
     }
 
     async _session() {
@@ -72,31 +81,47 @@ class SyntaxChecker {
             await connection.createRequest().batch('SET PARSEONLY ON');
             return connection;
         } catch (error) {
-            await this.reset();
+            await this._reset();
             try { await manager.dispose(); } catch { /* nothing was open */ }
             throw error;
         }
     }
 
     // Returns [{ line, message, near }]; [] when the script is fine or is not checked.
-    async check(text) {
+    check(text) {
+        return this._serial(() => this._check(text));
+    }
+
+    async _check(text) {
         if (typeof text !== 'string' || text.trim() === '' || SQLCMD_RE.test(text)) return [];
         const batches = splitBatches(text).filter(batch => !/parseonly/i.test(batch.sql));
         if (batches.length === 0) return [];
+        // A session kept from an earlier check may have been dropped meanwhile (idle
+        // timeout, failover): one try again, on a new session, before it counts as a failure.
+        const reused = !!this._connection;
         try {
-            const connection = await this._session();
-            const diagnostics = [];
-            for (const batch of batches) {
-                await connection.createRequest().batch('SET PARSEONLY ON');
-                diagnostics.push(...toDiagnostics(await this._parse(connection, batch.sql), batch.startLine));
-                if (diagnostics.length >= MAX_ERRORS) break;
-            }
-            return diagnostics.slice(0, MAX_ERRORS);
+            return await this._checkBatches(batches);
         } catch (error) {
-            // A broken session is not reused.
-            await this.reset();
+            await this._reset();
+            if (!reused) throw error;
+        }
+        try {
+            return await this._checkBatches(batches);
+        } catch (error) {
+            await this._reset();
             throw error;
         }
+    }
+
+    async _checkBatches(batches) {
+        const connection = await this._session();
+        const diagnostics = [];
+        for (const batch of batches) {
+            await connection.createRequest().batch('SET PARSEONLY ON');
+            diagnostics.push(...toDiagnostics(await this._parse(connection, batch.sql), batch.startLine));
+            if (diagnostics.length >= MAX_ERRORS) break;
+        }
+        return diagnostics.slice(0, MAX_ERRORS);
     }
 
     async _parse(connection, sql) {
@@ -118,7 +143,11 @@ class SyntaxChecker {
         return errors;
     }
 
-    async reset() {
+    reset() {
+        return this._serial(() => this._reset());
+    }
+
+    async _reset() {
         const manager = this._manager;
         const connection = this._connection;
         this._manager = null;
@@ -128,8 +157,8 @@ class SyntaxChecker {
         if (manager) { try { await manager.dispose(); } catch { /* already closed */ } }
     }
 
-    async dispose() {
-        await this.reset();
+    dispose() {
+        return this.reset();
     }
 }
 

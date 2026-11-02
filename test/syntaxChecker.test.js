@@ -88,6 +88,52 @@ suite('SyntaxChecker', () => {
 		assert.strictEqual(server.state.connected, 2, 'the next check opens a new session');
 	});
 
+	test('a session dropped since the last check is replaced once, silently', async () => {
+		const server = fakeServer();
+		let calls = 0;
+		const original = server.manager.acquireConnection;
+		server.manager.acquireConnection = async () => {
+			const connection = await original();
+			const create = connection.createRequest;
+			let dead = calls++ === 0;
+			connection.createRequest = () => {
+				const request = create();
+				const batch = request.batch;
+				request.batch = async text => { if (dead && server.state.checked) { dead = false; throw Object.assign(new Error('Connection lost - read ECONNRESET'), { code: 'ECONNRESET' }); } return batch(text); };
+				return request;
+			};
+			return connection;
+		};
+		const checker = checkerOf(server);
+		assert.deepStrictEqual(await checker.check('SELECT 1'), []);
+		server.state.checked = true; // from now on the first session is gone
+		assert.deepStrictEqual(await checker.check('SELECT 2'), [], 'no failure: it tried again on a new session');
+		assert.strictEqual(server.state.connected, 2);
+	});
+
+	test('a failure on a session that was just opened is a failure', async () => {
+		const server = fakeServer();
+		server.manager.acquireConnection = async () => { throw new Error('login failed'); };
+		const checker = checkerOf(server);
+		await assert.rejects(() => checker.check('SELECT 1'), /login failed/);
+		assert.strictEqual(server.state.connected, 1, 'no second try on a session that never worked');
+	});
+
+	test('a reset while the session is being opened waits for it, then closes it: nothing is left open', async () => {
+		const server = fakeServer();
+		let open;
+		const gate = new Promise(resolve => { open = resolve; });
+		const connect = server.manager.connectWithSaved;
+		server.manager.connectWithSaved = async name => { await gate; return connect(name); };
+		const checker = checkerOf(server);
+		const running = checker.check('SELECT 1');
+		const resetting = checker.reset();
+		open();
+		await Promise.all([running, resetting]);
+		assert.strictEqual(server.state.disposed, 1, 'the manager that was opened is closed');
+		assert.deepStrictEqual([checker._manager, checker._connection], [null, null]);
+	});
+
 	test('toDiagnostics keeps one error per line and nearToken finds the word', () => {
 		const errors = [{ lineNumber: 1, message: "Unclosed quotation mark after the character string 'x'." }, { lineNumber: 1, message: "Incorrect syntax near 'x'." }, { lineNumber: 3, message: "Incorrect syntax near the keyword 'WHERE'." }];
 		assert.deepStrictEqual(toDiagnostics(errors, 10).map(d => [d.line, d.near]), [[10, ''], [12, 'WHERE']]);
