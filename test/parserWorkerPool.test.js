@@ -24,6 +24,14 @@ suite('ParserWorkerPool', () => {
 		assert.deepStrictEqual(analysis.writes, ['dbo.widget']);
 	});
 
+	test('every worker stays alive between two batches (a new one starts cold, seconds each)', async function () {
+		pool = new ParserWorkerPool();
+		await pool.analyzeDefinition(UPDATE_WIDGET);
+		const options = pool._piscina.options;
+		assert.strictEqual(options.minThreads, options.maxThreads);
+		assert.strictEqual(pool.threadCount(), options.maxThreads);
+	});
+
 	test('the worker returns the table-level writes of a DELETE', async function () {
 		this.timeout(15000);
 		pool = new ParserWorkerPool();
