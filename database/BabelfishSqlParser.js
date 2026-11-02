@@ -938,6 +938,8 @@ class RiskVisitor extends TSqlParserVisitor {
 class BabelfishSqlParser {
     constructor() {
         this._enabled = false;
+        // Fast SLL stage first (see _parseTree); off only to compare with the full parse.
+        this._fastPrediction = true;
     }
 
     setEnabled(enabled) {
@@ -971,7 +973,24 @@ class BabelfishSqlParser {
     // expensive part, and several analyses can run over the same tree.
     // collectErrors keeps the syntax errors instead of dropping them: they
     // are what tells a complete analysis from a partial one.
+    //
+    // Two stages, the usual ANTLR strategy: first SLL prediction with the first
+    // syntax error as a bail-out - several times faster, and for a text it
+    // accepts the tree is the one full-context prediction gives - then, only
+    // when that stage fails, the full-context parse (which is also where the
+    // syntax errors are collected and the partial tree built).
     _parseTree(sqlDefinition, collectErrors = false) {
+        if (this._fastPrediction) {
+            try {
+                return this._parseOnce(sqlDefinition, collectErrors, true);
+            } catch (err) {
+                // Not accepted by the fast stage: the full parse decides.
+            }
+        }
+        return this._parseOnce(sqlDefinition, collectErrors, false);
+    }
+
+    _parseOnce(sqlDefinition, collectErrors, fast) {
         const chars = new antlr4.InputStream(sqlDefinition);
         const lexer = new TSqlLexer(chars);
         const tokens = new antlr4.CommonTokenStream(lexer);
@@ -979,7 +998,12 @@ class BabelfishSqlParser {
         // Suppresses the error spam - we want a soft failure
         parser.removeErrorListeners();
         let errors = null;
-        if (collectErrors) {
+        if (fast) {
+            parser._interp.predictionMode = antlr4.PredictionMode.SLL;
+            parser._errHandler = new antlr4.BailErrorStrategy();
+            // Reaching the end means there was no syntax error to collect.
+            if (collectErrors) errors = [];
+        } else if (collectErrors) {
             const listener = new CollectingErrorListener();
             parser.addErrorListener(listener);
             errors = listener.errors;

@@ -115,3 +115,35 @@ suite('BabelfishSqlParser', () => {
         assert.deepStrictEqual(result['humanresources.department'], ['SELECT']);
     });
 });
+
+suite('BabelfishSqlParser: the fast SLL stage gives what the full parse gives', () => {
+	const SAMPLES = [
+		USP_UPDATE_EMPLOYEE_HIRE_INFO,
+		'CREATE PROCEDURE p AS BEGIN SET NOCOUNT ON; WITH c AS (SELECT a FROM t) UPDATE u SET x = c.a FROM u JOIN c ON c.a = u.a; END',
+		'CREATE PROCEDURE p AS INSERT INTO #t SELECT * FROM dbo.x; EXEC sp_executesql N\'SELECT 1\'; DELETE FROM dbo.y WHERE id = 1',
+		'CREATE PROCEDURE p AS SELECT a, FROM t WHERE',   // a syntax error: the full parse takes over
+		'SELECT 1 FROM',
+		'not sql at all ((('
+	];
+	const both = definition => {
+		const slow = new BabelfishSqlParser(); slow.setEnabled(true); slow._fastPrediction = false;
+		const fast = new BabelfishSqlParser(); fast.setEnabled(true);
+		const strip = analysis => { if (analysis) delete analysis.parseTimeMs; return JSON.stringify(analysis); };
+		return [strip(slow.analyzeDefinition(definition)), strip(fast.analyzeDefinition(definition))];
+	};
+
+	test('the same analysis, for correct text and for text with syntax errors', () => {
+		for (const definition of SAMPLES) {
+			const [slow, fast] = both(definition);
+			assert.strictEqual(fast, slow, definition.slice(0, 60));
+		}
+	});
+
+	test('the syntax errors are still reported (the full parse collects them)', () => {
+		const parser = new BabelfishSqlParser(); parser.setEnabled(true);
+		const analysis = parser.analyzeDefinition('CREATE PROCEDURE p AS SELECT a, FROM t WHERE');
+		assert.ok(analysis && analysis.errors.length > 0);
+		const clean = parser.analyzeDefinition('CREATE PROCEDURE p AS SELECT a FROM t');
+		assert.ok(clean && clean.errors.length === 0);
+	});
+});
