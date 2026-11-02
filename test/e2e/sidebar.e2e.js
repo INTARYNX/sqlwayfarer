@@ -181,14 +181,19 @@ suite('e2e: sidebar (connections, snippets) and panel basics', function () {
 		];
 		await post(p, { command: 'savedConnectionsLoaded', connections: conns, lastConnection: null, openConnections: [] });
 		check(JSON.stringify(await rows()) === JSON.stringify(['Local', 'ERP', 'Lyon', 'Paris', 'Test <i>']), 'ungrouped first, then by group: ' + (await rows()).join(','));
-		check(JSON.stringify(await headers()) === JSON.stringify(['Production|1', 'Production / Europe|2', 'Staging <i>|1']), 'one header per group with its count: ' + (await headers()).join(' ; '));
+		check(JSON.stringify(await headers()) === JSON.stringify(['Production|3', 'Production / Europe|2', 'Staging <i>|1']), 'one header per group with its count: ' + (await headers()).join(' ; '));
 		check(!(await p.locator('#connectionList').innerHTML()).includes('<i>Staging') && (await p.locator('#connectionList').innerHTML()).includes('Staging &lt;i&gt;'), 'group names are escaped');
 
 		await p.locator('[data-group-toggle="Production/Europe"]').click();
 		check(JSON.stringify(await rows()) === JSON.stringify(['Local', 'ERP', 'Test <i>']), 'a folded group hides its connections');
 		check((await p.getAttribute('[data-group-toggle="Production/Europe"]', 'aria-expanded')) === 'false', 'the header says it is folded');
 		check(JSON.stringify((await p.evaluate(() => window.__state)).collapsedGroups) === JSON.stringify(['Production/Europe']), 'the fold is remembered');
+		await p.locator('[data-group-toggle="Production"]').click();
+		check(JSON.stringify(await rows()) === JSON.stringify(['Local', 'Test <i>']) && (await headers()).length === 2, 'folding a group hides its subgroups too: ' + (await headers()).join(' ; '));
+		await p.locator('[data-group-toggle="Production"]').click();
+		check((await p.locator('[data-group-toggle="Production"] .sb-group-count').textContent()) === '3', 'the count of a group includes its subgroups');
 		await p.fill('#connectionFilter', 'paris');
+		check(await p.locator('[data-group-toggle="Production/Europe"]').isDisabled(), 'a header does nothing while a filter is typed');
 		check(JSON.stringify(await rows()) === JSON.stringify(['Paris']), 'a filter shows its matches even in a folded group');
 		await p.fill('#connectionFilter', 'europe');
 		check((await rows()).length === 2, 'the filter searches the group too');

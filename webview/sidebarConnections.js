@@ -154,6 +154,13 @@ class SidebarConnections {
         } catch { return []; }
     }
 
+    // "Production/Europe" is out of sight when "Production" is folded.
+    isHiddenByAncestor(group) {
+        const parts = group.split('/');
+        for (let i = 1; i < parts.length; i++) if (this.collapsed.has(parts.slice(0, i).join('/'))) return true;
+        return false;
+    }
+
     toggleGroup(group) {
         if (this.collapsed.has(group)) this.collapsed.delete(group);
         else this.collapsed.add(group);
@@ -178,14 +185,15 @@ class SidebarConnections {
         let current = '';
         for (const connection of visible) {
             const group = connection.group || '';
-            if (group && group !== current) {
-                const size = visible.filter(c => (c.group || '') === group).length;
+            const hidden = !filtering && this.isHiddenByAncestor(group);
+            if (group && group !== current && !hidden) {
+                const size = visible.filter(c => (c.group || '') === group || (c.group || '').startsWith(group + '/')).length;
                 const folded = !filtering && this.collapsed.has(group);
-                html += `<button type="button" class="sb-group-toggle" data-group-toggle="${this.escapeHtml(group)}" aria-expanded="${!folded}">
+                html += `<button type="button" class="sb-group-toggle" data-group-toggle="${this.escapeHtml(group)}" aria-expanded="${!folded}"${filtering ? ' disabled' : ''}>
                     <i class="codicon codicon-chevron-${folded ? 'right' : 'down'}"></i>${this.escapeHtml(group.split('/').join(' / '))}<span class="sb-group-count">${size}</span></button>`;
             }
             current = group;
-            if (group && !filtering && this.collapsed.has(group)) continue;
+            if (group && !filtering && (this.collapsed.has(group) || hidden)) continue;
             html += this.buildRowHtml(connection);
         }
         this.elements.list.innerHTML = html;
@@ -335,6 +343,7 @@ class SidebarConnections {
         const parts = [`${message.added} added`];
         if (message.overwritten) parts.push(`${message.overwritten} overwritten`);
         if (message.failed) parts.push(`${message.failed} failed`);
+        if (message.skipped) parts.push(`${message.skipped} skipped (address that cannot be used)`);
         this.showStatus(`Connections imported: ${parts.join(', ')}.`, message.failed ? 'error' : 'success');
     }
 
