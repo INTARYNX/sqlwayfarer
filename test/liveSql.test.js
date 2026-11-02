@@ -290,7 +290,9 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 			await new Promise(resolve => setTimeout(resolve, 50)); // modify_date resolution
 			await inScratch('ALTER VIEW Sales.vOrderTotals AS SELECT e.Name, SUM(o.Total) AS Total, COUNT(*) AS N FROM Sales.Orders o JOIN dbo.Employees e ON e.ID = o.EmployeeID GROUP BY e.Name');
 			const before = await service.peekIndex(DB);
-			assert.strictEqual((await service.getIndexStatus(DB)).state, 'stale');
+			const status = await service.getIndexStatus(DB);
+			assert.strictEqual(status.state, 'stale');
+			assert.deepStrictEqual(status.changes, { modified: ['Sales.vOrderTotals'], added: [], removed: [] });
 			assert.strictEqual((await service.peekIndex(DB)).lastFullIndex, before.lastFullIndex);
 			assert.strictEqual((await service.getIndexStatus(DB)).state, 'stale', 'still stale: nothing updated it');
 		});
@@ -306,7 +308,9 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 		test('a new object makes it stale again; force reindex rebuilds from scratch', async () => {
 			await new Promise(resolve => setTimeout(resolve, 50));
 			await inScratch('CREATE VIEW dbo.vExtra AS SELECT ID FROM dbo.Employees');
-			assert.strictEqual((await service.getIndexStatus(DB)).state, 'stale');
+			const status = await service.getIndexStatus(DB);
+			assert.strictEqual(status.state, 'stale');
+			assert.deepStrictEqual(status.changes, { modified: [], added: ['dbo.vExtra'], removed: [] });
 			const rebuilt = await service.forceReindex(DB);
 			assert.ok(rebuilt.objects['dbo.vExtra']);
 			assert.strictEqual((await service.getIndexStatus(DB)).state, 'ready');
