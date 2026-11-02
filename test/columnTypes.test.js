@@ -46,4 +46,27 @@ suite('describeColumn', () => {
 	test('NOT NULL is kept', () => {
 		assert.strictEqual(describeColumn(col('int', { nullable: false })).nullable, false);
 	});
+
+	test('the Windows authentication helper gives the type as a name only: a size that is not known cannot lose data', () => {
+		const named = (type, extra = {}) => Object.assign({ type, nullable: true }, extra);
+		assert.deepStrictEqual(describeColumn(named('int')), { sql: 'int', kind: 'number', nullable: true });
+		assert.strictEqual(describeColumn(named('decimal')).sql, 'decimal(38,10)');
+		assert.strictEqual(describeColumn(named('varchar')).sql, 'varchar(max)');
+		assert.strictEqual(describeColumn(named('nvarchar')).sql, 'nvarchar(max)');
+		assert.strictEqual(describeColumn(named('char')).sql, 'varchar(max)', 'char has no (max): its variable twin');
+		assert.strictEqual(describeColumn(named('nchar')).sql, 'nvarchar(max)');
+		assert.strictEqual(describeColumn(named('binary')).sql, 'varbinary(max)');
+		assert.strictEqual(describeColumn(named('varbinary')).sql, 'varbinary(max)');
+		assert.strictEqual(describeColumn(named('datetime2')).sql, 'datetime2');
+		assert.deepStrictEqual([describeColumn(named('uniqueidentifier')).kind, describeColumn(named('bit')).kind, describeColumn(named('datetime')).kind], ['guid', 'bit', 'datetime']);
+		assert.deepStrictEqual(describeColumn(named('geography')), { sql: 'nvarchar(max)', kind: 'unsupported', nullable: true });
+		assert.deepStrictEqual(describeColumn(named('sysname')), { sql: 'nvarchar(128)', kind: 'string', nullable: true });
+	});
+
+	test('a fixed char with a length stays fixed, one that is too long becomes variable', () => {
+		assert.strictEqual(describeColumn(col('char', { length: 3 })).sql, 'char(3)');
+		assert.strictEqual(describeColumn(col('nchar', { length: 6 })).sql, 'nchar(3)');
+		assert.strictEqual(describeColumn(col('binary', { length: 4 })).sql, 'binary(4)');
+		assert.strictEqual(describeColumn(col('char', { length: 65535 })).sql, 'varchar(max)');
+	});
 });

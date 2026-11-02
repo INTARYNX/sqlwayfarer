@@ -22,27 +22,37 @@ function sized(name, length, max = MAX_LENGTH) {
     return length > 0 && length <= max ? `${name}(${length})` : `${name}(max)`;
 }
 
-// column: one entry of the driver's recordset metadata.
+// column: one entry of the driver's recordset metadata. The mssql driver gives
+// the type as an object (`declaration`, plus length, precision and scale); the
+// Windows authentication helper (database/SspiPool.js) gives its name only. A
+// size that is not known is written in the way that cannot lose data:
+// varchar(max) for text and binary, decimal(38,10).
 function describeColumn(column) {
-    const type = String((column && column.type && column.type.declaration) || '').toLowerCase();
+    const raw = column && column.type;
+    const type = String((raw && raw.declaration) || (typeof raw === 'string' ? raw : '')).toLowerCase();
     const nullable = !column || column.nullable !== false;
     const out = sql => ({ sql, kind: kindOf(type), nullable });
+    const fixed = (variable, length) => (length > 0 && length <= MAX_LENGTH ? `${type}(${length})` : `${variable}(max)`);
     if (PLAIN_NUMBERS.has(type)) return out(type);
     switch (type) {
         case 'decimal':
         case 'numeric':
-            return out(column.precision ? `${type}(${column.precision},${column.scale || 0})` : type);
+            return out(column.precision ? `${type}(${column.precision},${column.scale || 0})` : `${type}(38,10)`);
         case 'bit': return out('bit');
-        case 'char': case 'varchar': return out(sized(type, column.length));
+        case 'char': return out(fixed('varchar', column.length));
+        case 'varchar': return out(sized(type, column.length));
         // The driver reports the length of n-types in bytes.
-        case 'nchar': case 'nvarchar': return out(sized(type, Math.floor(column.length / 2), MAX_LENGTH / 2));
+        case 'nchar': return out(fixed('nvarchar', Math.floor(column.length / 2) <= MAX_LENGTH / 2 ? Math.floor(column.length / 2) : 0));
+        case 'nvarchar': return out(sized(type, Math.floor(column.length / 2), MAX_LENGTH / 2));
+        case 'sysname': return { sql: 'nvarchar(128)', kind: 'string', nullable };
         case 'text': return out('varchar(max)');
         case 'ntext': return out('nvarchar(max)');
         case 'xml': return out('xml');
         case 'uniqueidentifier': return out('uniqueidentifier');
         case 'datetime': case 'smalldatetime': case 'date': return out(type);
         case 'datetime2': case 'time': case 'datetimeoffset': return out(column.scale !== undefined ? `${type}(${column.scale})` : type);
-        case 'binary': case 'varbinary': return out(sized(type, column.length));
+        case 'binary': return out(fixed('varbinary', column.length));
+        case 'varbinary': return out(sized(type, column.length));
         case 'image': return out('varbinary(max)');
         default: return { sql: 'nvarchar(max)', kind: 'unsupported', nullable: true };
     }
@@ -52,7 +62,7 @@ function kindOf(type) {
     if (PLAIN_NUMBERS.has(type) || type === 'decimal' || type === 'numeric') return 'number';
     switch (type) {
         case 'bit': return 'bit';
-        case 'char': case 'varchar': case 'nchar': case 'nvarchar': case 'text': case 'ntext': case 'xml': return 'string';
+        case 'char': case 'varchar': case 'nchar': case 'nvarchar': case 'sysname': case 'text': case 'ntext': case 'xml': return 'string';
         case 'uniqueidentifier': return 'guid';
         case 'datetime': case 'smalldatetime': case 'datetime2': return 'datetime';
         case 'date': return 'date';
