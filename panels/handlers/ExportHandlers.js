@@ -36,6 +36,28 @@ class ExportHandlers {
         }
     }
 
+    // Same as the CSV export, for JSON (UTF-8, no BOM: JSON is not read by Excel).
+    async handleExportJson(json, defaultName) {
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+            const defaultDir = workspaceFolder ? workspaceFolder.uri.fsPath : os.homedir();
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(path.join(defaultDir, defaultName || 'results.json')),
+                filters: { JSON: ['json'] }
+            });
+            if (!uri) {
+                this._post({ command: 'csvExported', format: 'JSON', success: false, cancelled: true });
+                return;
+            }
+            await fs.writeFile(uri.fsPath, json, 'utf8');
+            this._post({ command: 'csvExported', format: 'JSON', success: true, path: uri.fsPath });
+        } catch (error) {
+            console.error('JSON export failed:', error);
+            vscode.window.showErrorMessage(`JSON export failed: ${error.message}`);
+            this._post({ command: 'csvExported', format: 'JSON', success: false, message: error.message });
+        }
+    }
+
     async handleExportDataDictionary(database, full = false) {
         if (!database) {
             this._post({ command: 'dataDictionaryExported', success: false, message: 'No database selected.' });

@@ -2038,6 +2038,10 @@ th.rs-sortable.sorted {
     color: var(--vscode-terminal-ansiYellow, #b58900);
 }
 
+.truncation-note button {
+    margin-left: 6px;
+}
+
 .query-messages {
     padding: 8px 10px;
 }
