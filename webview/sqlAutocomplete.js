@@ -850,6 +850,9 @@ class SqlAutocomplete {
         if (p === 'update' && a.prev2Word !== 'for' && a.prev2Word !== 'after') return 'table';
         if (p === 'into' && a.root && ['insert', 'merge'].includes(a.root.firstWord)) return 'table';
         if (p === 'table' && ['truncate', 'drop', 'alter'].includes(a.prev2Word)) return 'table';
+        if ((p === 'procedure' || p === 'proc') && ['drop', 'alter'].includes(a.prev2Word)) return 'proc';
+        if (p === 'view' && ['drop', 'alter'].includes(a.prev2Word)) return 'view';
+        if (p === 'function' && ['drop', 'alter'].includes(a.prev2Word)) return 'function';
         if (p === 'exec' || p === 'execute') return 'proc';
         if (p === 'use') return 'database';
         return null;
@@ -1183,7 +1186,10 @@ class SqlAutocomplete {
         }
         items.push(...joinItems.slice(0, 12));
 
-        const types = role === 'apply' ? ['Table', 'View', 'Function'] : ['Table', 'View'];
+        const types = role === 'apply' ? ['Table', 'View', 'Function']
+            : role === 'view' ? ['View']
+            : role === 'function' ? ['Function']
+            : ['Table', 'View'];
         const schemas = new Map();
         for (const entry of SqlAutocomplete._objectIndex(e.visible).entries) {
             const obj = entry.obj;
