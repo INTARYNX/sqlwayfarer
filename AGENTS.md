@@ -117,6 +117,15 @@ npm test
 A SQL login is required (see the `mssql` gotcha above). The live suite
 creates its own scratch database and drops it in its teardown.
 
+### A database of the size of a real legacy one
+
+`test/tools/generateLegacyDatabase.js` creates `WayfarerLegacy` on a scratch
+server (700 tables, ~1600 procedures, 200 views, 150 triggers, 180 functions;
+deterministic) and `test/tools/measureLegacyDatabase.js` times the index build,
+the Explorer, the autocompletion and the update of the index after one
+procedure changed. Both read the connection from `SQLWAYFARER_TEST_SQL`. They
+are tools, not tests: `npm test` does not run them.
+
 ### Reference data for cross-database work
 
 `AdventureWorks` is a good cross-database target: a view created in another
