@@ -413,6 +413,7 @@ class SqlWayfarerPanel {
             case 'cancelIndexing':              await ix.handleCancelIndexing(message.database); break;
             case 'getIndexStats':               await ix.handleGetIndexStats(message.database); break;
             case 'getIndexStatus':              await ix.handleGetIndexStatus(message.database); break;
+            case 'getBuildStats':               await ix.handleGetBuildStats(message.database); break;
             case 'loadIndex':                   await ix.handleLoadIndex(message.database); break;
             case 'getIndex':                    await ix.handleGetIndex(message.database); break;
             case 'confirmForceReindex':         await ix.handleConfirmForceReindex(message.database); break;
