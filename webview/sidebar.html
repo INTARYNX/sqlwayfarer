@@ -20,6 +20,7 @@
         <div id="connectionListView" class="sb-list-view">
             <div class="sb-toolbar">
                 <input type="text" id="connectionFilter" class="sb-input sb-filter" placeholder="Filter connections…" aria-label="Filter connections">
+                <button id="importConnectionsBtn" class="sb-icon-btn" title="Import connections (Central Management Server, registered servers file)" aria-label="Import connections"><i class="codicon codicon-cloud-download"></i></button>
                 <button id="newConnectionBtn" class="sb-icon-btn" title="New connection" aria-label="New connection"><i class="codicon codicon-add"></i></button>
             </div>
             <div id="connectionsStatus" class="sb-status"></div>
@@ -45,6 +46,10 @@
                     <label for="portInput">Port</label>
                     <input type="number" id="portInput" class="sb-input" placeholder="1433">
                 </div>
+            </div>
+            <div class="sb-field">
+                <label for="groupInput">Group (optional)</label>
+                <input type="text" id="groupInput" class="sb-input" placeholder="Production/Europe">
             </div>
             <div class="sb-field">
                 <label for="databaseInput">Database (optional)</label>

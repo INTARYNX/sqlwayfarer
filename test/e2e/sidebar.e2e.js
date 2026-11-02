@@ -165,6 +165,56 @@ suite('e2e: sidebar (connections, snippets) and panel basics', function () {
 		check.done();
 	});
 
+	test('sidebar: connection groups, folding and import', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'sidebar.html', 'panels/SnippetSidebarProvider.js', 'dark', { width: 300, height: 700 });
+		const last = () => sent(p).then(a => a[a.length - 1]);
+		const clear = () => p.evaluate(() => { window.__sent.length = 0; });
+		const rows = () => p.locator('#connectionList .sb-row-name').allTextContents();
+		const headers = () => p.evaluate(() => [...document.querySelectorAll('#connectionList .sb-group-toggle')].map(h => `${[...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('')}|${h.querySelector('.sb-group-count').textContent}`));
+		const conns = [
+			{ name: 'Local', server: 'localhost', authType: 'windows' },
+			{ name: 'ERP', server: 'erp-sql', authType: 'sql', group: 'Production' },
+			{ name: 'Paris', server: 'paris-sql', authType: 'windows', group: 'Production/Europe' },
+			{ name: 'Lyon', server: 'lyon-sql', authType: 'windows', group: 'Production/Europe' },
+			{ name: 'Test <i>', server: 'test-sql', authType: 'windows', group: 'Staging <i>' }
+		];
+		await post(p, { command: 'savedConnectionsLoaded', connections: conns, lastConnection: null, openConnections: [] });
+		check(JSON.stringify(await rows()) === JSON.stringify(['Local', 'ERP', 'Lyon', 'Paris', 'Test <i>']), 'ungrouped first, then by group: ' + (await rows()).join(','));
+		check(JSON.stringify(await headers()) === JSON.stringify(['Production|1', 'Production / Europe|2', 'Staging <i>|1']), 'one header per group with its count: ' + (await headers()).join(' ; '));
+		check(!(await p.locator('#connectionList').innerHTML()).includes('<i>Staging') && (await p.locator('#connectionList').innerHTML()).includes('Staging &lt;i&gt;'), 'group names are escaped');
+
+		await p.locator('[data-group-toggle="Production/Europe"]').click();
+		check(JSON.stringify(await rows()) === JSON.stringify(['Local', 'ERP', 'Test <i>']), 'a folded group hides its connections');
+		check((await p.getAttribute('[data-group-toggle="Production/Europe"]', 'aria-expanded')) === 'false', 'the header says it is folded');
+		check(JSON.stringify((await p.evaluate(() => window.__state)).collapsedGroups) === JSON.stringify(['Production/Europe']), 'the fold is remembered');
+		await p.fill('#connectionFilter', 'paris');
+		check(JSON.stringify(await rows()) === JSON.stringify(['Paris']), 'a filter shows its matches even in a folded group');
+		await p.fill('#connectionFilter', 'europe');
+		check((await rows()).length === 2, 'the filter searches the group too');
+		await p.fill('#connectionFilter', '');
+		await p.locator('[data-group-toggle="Production/Europe"]').click();
+		check((await rows()).length === 5, 'unfolding shows them again');
+
+		await clear();
+		await p.click('#importConnectionsBtn');
+		check((await last()).command === 'importConnections', 'the import button asks the extension (it owns the pickers)');
+		await post(p, { command: 'connectionsImported', added: 3, overwritten: 1, failed: 0 });
+		check((await p.locator('#connectionsStatus').textContent()) === 'Connections imported: 3 added, 1 overwritten.', 'the result is told');
+		await post(p, { command: 'connectionsImported', added: 2, overwritten: 0, failed: 1 });
+		check((await p.locator('#connectionsStatus').textContent()).includes('1 failed') && (await p.getAttribute('#connectionsStatus', 'class')).includes('error'), 'a failure stays visible as an error');
+
+		await p.hover('[data-connection-name="ERP"]');
+		await p.locator('[data-connection-name="ERP"] [data-connection-action=edit]').click();
+		check((await p.inputValue('#groupInput')) === 'Production', 'the form shows the group');
+		await p.fill('#groupInput', ' Production / Asia/ ');
+		await clear();
+		await p.locator('#saveConnectionBtn').click();
+		check((await last()).connectionConfig.group === 'Production/Asia', 'the group is saved tidy: ' + (await last()).connectionConfig.group);
+		await p.close();
+		check.done();
+	});
+
 	test('panel: connect overlay, database selector, tabs', async () => {
 		const check = checker();
 
