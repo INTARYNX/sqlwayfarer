@@ -97,6 +97,7 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 - **Errors point to their line**: `Line 12` in an error message is a link that puts the cursor on that line of the editor
 - **Messages tab**: `PRINT` / `RAISERROR` output collects in its own tab, interleaved in the order it actually happened relative to each result set, instead of attaching to whichever grid happened to be active
 - **Execution plans**: Estimated Plan and Actual Plan buttons render the query plan inline, with dark-mode support
+- **Syntax check** (off by default, `sqlwayfarer.diagnostics.syntax`): SQL Server itself parses the editor's text after a pause in typing (`SET PARSEONLY ON`, on a connection of its own) and the errors are underlined on their line, with the server's message on hover. Nothing is run and names are not checked, so a table that does not exist is not an error; a script with sqlcmd variables is left alone, and so is a batch that mentions `PARSEONLY`.
 - **Query graph**: a button in the Query toolbar graphs what the editor's query touches — the tables it reads, the join conditions between them, and the tables reached through the procedures, functions and views it calls
 - The joins come from a real T-SQL parser, so the edges are the ones the query actually writes: `ON` conditions with their columns, `LEFT`/`INNER`/`CROSS` kinds, comma joins (flagged as inferred), and CTEs or derived tables resolved to the tables behind them
 - **Select a query in the editor and the graph covers that query only**; with no selection, the whole buffer is graphed
