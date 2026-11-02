@@ -307,7 +307,8 @@ class ObjectsTabManager {
             body = `
                 <strong>The index of ${db} is out of date</strong>
                 <p>It was built on ${built}, and the schema has changed since. Dependencies and column usage may be wrong or missing for the objects that changed.</p>
-                <p>Updating only re-analyzes the objects that changed, so it is much quicker than the first build. Nothing is updated until you choose to.</p>`;
+                <p>Updating only re-analyzes the objects that changed, so it is much quicker than the first build. Nothing is updated until you choose to.</p>
+                ${this.changesHtml(message.changes)}`;
         } else {
             body = `
                 <strong>The dependency index of ${db} is not built</strong>
@@ -325,6 +326,25 @@ class ObjectsTabManager {
                 </div>
             </div>`;
         this.noticeEl.hidden = false;
+    }
+
+    // The objects an update would re-analyze, as a collapsible list.
+    changesHtml(changes) {
+        if (!changes) return '';
+        const LIMIT = 100;
+        const groups = [['modified', 'Modified'], ['added', 'New'], ['removed', 'Removed']];
+        const total = groups.reduce((n, [key]) => n + (changes[key] || []).length, 0);
+        if (total === 0) return '';
+        let shown = 0;
+        const sections = groups.map(([key, label]) => {
+            const names = (changes[key] || []).slice(0, Math.max(0, LIMIT - shown));
+            shown += names.length;
+            if (names.length === 0) return '';
+            const more = (changes[key] || []).length - names.length;
+            return `<div class="index-changes-group"><span class="index-changes-label">${label} (${(changes[key] || []).length})</span>`
+                + `<ul>${names.map(n => `<li>${this.escapeHtml(n)}</li>`).join('')}${more > 0 ? `<li>... and ${more} more</li>` : ''}</ul></div>`;
+        }).join('');
+        return `<details class="index-changes"><summary>${total} object${total === 1 ? '' : 's'} to re-analyze</summary>${sections}</details>`;
     }
 
     hideNotice() {

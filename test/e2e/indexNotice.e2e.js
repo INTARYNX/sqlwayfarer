@@ -70,6 +70,10 @@ suite('e2e: the dependency index is never built on its own', function () {
 				check(await noticeVisible() && /out of date/.test(await p.evaluate(() => document.getElementById('indexNotice').innerText)) && /Update index/.test(await p.evaluate(() => document.getElementById('indexNotice').innerText)), theme + ': a stale index offers an update, nothing automatic');
 				check((await dot()).includes('dot-stale'), theme + ': amber dot');
 				check(!(await cmds()).includes('getIndex'), theme + ': a stale index is not updated by itself');
+				await post({ command: 'indexStatus', database: 'AppDb', state: 'stale', builtAt: '2026-10-01T10:00:00Z', totalObjects: 3, changes: { modified: ['dbo.vOrders', 'dbo.<b>x</b>'], added: ['dbo.vNew'], removed: ['dbo.vGone'] } });
+				const changesText = await p.evaluate(() => (document.querySelector('#indexNotice .index-changes') || { innerText: '' }).textContent);
+				check(/4 objects to re-analyze/.test(changesText) && /dbo\.vOrders/.test(changesText) && /dbo\.vNew/.test(changesText) && /dbo\.vGone/.test(changesText), theme + ': the stale notice lists the objects to re-analyze');
+				check(await p.evaluate(() => !document.querySelector('#indexNotice .index-changes b')), theme + ': object names are escaped');
 
 				await post({ command: 'indexStatus', database: 'AppDb', state: 'ready', builtAt: '2026-11-01T10:00:00Z', totalObjects: 1 });
 				check(!(await noticeVisible()), theme + ': an up to date index shows no notice');
