@@ -2006,6 +2006,17 @@ body.vscode-high-contrast .qp-tt-header {
     font-size: 12px;
 }
 
+/* Result grid: vertical separators too, so it reads as a grid. */
+.result-set-table-wrap th,
+.result-set-table-wrap td {
+    border-right: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+}
+
+.result-set-table-wrap th:last-child,
+.result-set-table-wrap td:last-child {
+    border-right: none;
+}
+
 /* Column resize: a grip on the right edge of each header; once a column was
    resized the table lays out by the widths and long values are cut with "...". */
 .rs-resizer {
