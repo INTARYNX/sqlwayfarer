@@ -27,10 +27,17 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 	let queryLog = [];
 	let indexDir;
 
+	// A batch run inside the scratch database. CREATE SCHEMA / VIEW / PROCEDURE
+	// must be alone in their batch, so a USE prefix is not an option: a pool
+	// opened on the database is used instead.
+	let scratchPool = null;
+
 	async function inScratch(sql) {
-		const request = pool.request();
-		request.database = DB;
-		await request.batch(sql);
+		if (!scratchPool) {
+			const sql_ = require('mssql');
+			scratchPool = await new sql_.ConnectionPool(Object.assign({}, JSON.parse(LIVE_CONFIG), { database: DB })).connect();
+		}
+		await scratchPool.request().batch(sql);
 	}
 
 	async function createScratchDatabase() {
@@ -56,7 +63,13 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 	}
 
 	async function dropScratchDatabase() {
+		if (scratchPool) {
+			await scratchPool.close().catch(() => {});
+			scratchPool = null;
+		}
+		// The pooled connection may have selected the scratch database with USE.
 		await pool.request().batch(`
+			USE master;
 			IF DB_ID('${DB}') IS NOT NULL BEGIN
 				ALTER DATABASE [${DB}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 				DROP DATABASE [${DB}];
@@ -77,10 +90,10 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 			},
 			executeQueryInDatabase: async (database, query, params = null) => {
 				queryLog.push(query);
+				// Same as the real ConnectionManager: the database is selected by a USE prefix.
 				const request = pool.request();
-				request.database = database;
 				for (const [name, value] of Object.entries(params || {})) request.input(name, value);
-				return request.query(query);
+				return request.query(`USE [${database.replace(/]/g, ']]')}];\n${query}`);
 			}
 		};
 	}
@@ -255,7 +268,7 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 			assert.strictEqual(status.state, 'ready');
 			assert.ok(status.builtAt);
 			const deps = await dependencies.getDependencies(DB, 'Sales.vOrderTotals');
-			const names = deps.dependsOn.map(d => d.name || d).map(n => String(n).replace(/[[\]]/g, '').toLowerCase());
+			const names = deps.dependsOn.map(d => d.referenced_object).map(n => String(n).replace(/[[\]]/g, '').toLowerCase());
 			assert.ok(names.includes('sales.orders') && names.includes('dbo.employees'), `depends on: ${names}`);
 		});
 
