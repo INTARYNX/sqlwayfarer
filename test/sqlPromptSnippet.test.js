@@ -98,6 +98,14 @@ suite('parseSqlPromptSnippetFile', () => {
 });
 
 suite('parseSqlPromptSnippetFiles', () => {
+	test('an impossible character reference does not abort the other files', () => {
+		const { snippets, skipped } = parseSqlPromptSnippetFiles([
+			{ path: 'bad.sqlpromptsnippet', text: snippetXml({ title: 'Bad &#99999999; &#xFFFFFFFF;' }) },
+			{ path: 'ok.sqlpromptsnippet', text: snippetXml({ title: 'Ok' }) }
+		]);
+		assert.deepStrictEqual(snippets.map(s => s.name).includes('Ok'), true);
+		assert.ok(Array.isArray(skipped));
+	});
 	test('keeps the source of each snippet and says why a file was skipped', () => {
 		const { snippets, skipped } = parseSqlPromptSnippetFiles([
 			{ path: 'a.sqlpromptsnippet', text: snippetXml({ title: 'A' }) },
