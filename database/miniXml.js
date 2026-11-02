@@ -16,12 +16,13 @@
 const MAX_CHARS = 5000000;
 const MAX_DEPTH = 200;
 
+const NAMED = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' };
+
+// One pass, so "&#38;amp;" is the text "&amp;" and not "&".
 function decode(text) {
-    return text
-        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-        .replace(/&#(\d+);/g, (m, n) => codePoint(m, Number(n)))
-        .replace(/&#x([0-9a-fA-F]+);/g, (m, n) => codePoint(m, parseInt(n, 16)))
-        .replace(/&amp;/g, '&');
+    return text.replace(/&(?:#(\d+)|#x([0-9a-fA-F]+)|(lt|gt|quot|apos|amp));/g, (match, dec, hex, name) => name
+        ? NAMED[name]
+        : codePoint(match, dec !== undefined ? Number(dec) : parseInt(hex, 16)));
 }
 
 function codePoint(match, code) {

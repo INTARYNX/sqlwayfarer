@@ -23,12 +23,13 @@ function fromCode(match, code) {
     return Number.isInteger(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : match;
 }
 
+const NAMED_ENTITIES = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' };
+
+// One pass, so "&#38;amp;" is the text "&amp;" and not "&".
 function decodeEntities(text) {
-    return text
-        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-        .replace(/&#(\d+);/g, (m, n) => fromCode(m, Number(n)))
-        .replace(/&#x([0-9a-fA-F]+);/g, (m, n) => fromCode(m, parseInt(n, 16)))
-        .replace(/&amp;/g, '&');
+    return text.replace(/&(?:#(\d+)|#x([0-9a-fA-F]+)|(lt|gt|quot|apos|amp));/g, (match, dec, hex, name) => name
+        ? NAMED_ENTITIES[name]
+        : fromCode(match, dec !== undefined ? Number(dec) : parseInt(hex, 16)));
 }
 
 // The text of an element's content: CDATA sections as they are, the rest with its entities decoded.

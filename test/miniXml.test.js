@@ -17,6 +17,10 @@ suite('miniXml', () => {
 		assert.strictEqual(childText(root, 't'), 'AB&#99999999;');
 	});
 
+	test('a reference is decoded once: &#38;amp; is the text &amp;', () => {
+		assert.strictEqual(childText(parseXml('<r><t>&#38;amp; &amp;lt; &lt;</t></r>'), 't'), '&amp; &lt; <');
+	});
+
 	test('entities are never expanded', () => {
 		const root = parseXml('<!DOCTYPE r [<!ENTITY a "boom">]><r><t>&a;</t></r>');
 		assert.strictEqual(childText(root, 't'), '&a;');

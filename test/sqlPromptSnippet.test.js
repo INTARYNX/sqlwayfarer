@@ -98,6 +98,11 @@ suite('parseSqlPromptSnippetFile', () => {
 });
 
 suite('parseSqlPromptSnippetFiles', () => {
+	test('a reference is decoded once: &#38;amp; is the text &amp;', () => {
+		const { snippets } = parseSqlPromptSnippetFiles([{ path: 'a', text: snippetXml({ title: 'R&#38;amp;D &amp;lt;' }) }]);
+		assert.strictEqual(snippets[0].name, 'R&amp;D &lt;');
+	});
+
 	test('an impossible character reference does not abort the other files', () => {
 		const { snippets, skipped } = parseSqlPromptSnippetFiles([
 			{ path: 'bad.sqlpromptsnippet', text: snippetXml({ title: 'Bad &#99999999; &#xFFFFFFFF;' }) },
