@@ -758,7 +758,7 @@ class QueryManager {
             + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
             + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
             + `<button data-rs-action="json" data-rs-index="${index}" title="Export this result set as a JSON file (an array of objects)"><i class="codicon codicon-json"></i> JSON</button>`
-            + `<button data-rs-action="columns" data-rs-index="${index}" title="List the column names (one per line, to copy)" aria-label="List the column names"><i class="codicon codicon-list-flat"></i></button>`
+            + `<button data-rs-action="columns" data-rs-index="${index}" title="List the column names (one per line, to copy)" aria-label="List the column names"><i class="codicon codicon-symbol-field"></i></button>`
             + `<button data-rs-action="temp" data-rs-index="${index}" title="Script this result set as CREATE TABLE #Results + INSERT, in a new query tab"><i class="codicon codicon-table"></i> #Temp</button>`
             + `</div>`
             + (set.rows.length < set.totalRows
