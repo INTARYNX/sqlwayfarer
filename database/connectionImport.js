@@ -14,6 +14,15 @@
 // connects to its servers with the Windows account, so does the import unless
 // the entry says otherwise. No password is ever imported.
 
+// A group path: the names joined with '/'. A '/' inside a name would pass for
+// a level, so it becomes the look-alike '∕'.
+function groupPath(names) {
+    return names.map(name => String(name).replace(/\//g, '∕')).join('/');
+}
+
+// Azure hosts only take encrypted connections, with a certificate that is valid.
+const AZURE_HOST = /\.(?:database\.windows\.net|database\.usgovcloudapi\.net|database\.chinacloudapi\.cn|database\.cloudapi\.de|sql\.azuresynapse\.net)$/i;
+
 // The name a saved connection gets. Two entries with one name (the same name
 // in two groups) are told apart by their group, then by a number.
 function uniqueNames(entries) {
@@ -32,6 +41,7 @@ function uniqueNames(entries) {
 
 // The saved-connection shape of an entry.
 function toSavedConnection(entry, name) {
+    const azure = AZURE_HOST.test(String(entry.server).split(/[\\,]/)[0]);
     const config = {
         name,
         useConnectionString: false,
@@ -40,11 +50,32 @@ function toSavedConnection(entry, name) {
         port: entry.port || '',
         database: entry.database || '',
         username: entry.authType === 'sql' ? entry.username || '' : '',
-        encrypt: entry.encrypt !== undefined ? entry.encrypt : entry.authType === 'entra',
-        trustServerCertificate: entry.trustServerCertificate !== undefined ? entry.trustServerCertificate : true
+        // Not said: what the form starts with, except for hosts that require encryption.
+        encrypt: entry.encrypt !== undefined ? entry.encrypt : entry.authType === 'entra' || azure,
+        trustServerCertificate: entry.trustServerCertificate !== undefined ? entry.trustServerCertificate : !azure
     };
     if (entry.group) config.group = entry.group;
     return config;
+}
+
+// An entry over a connection of the same name: the server, the port and the
+// group are the entry's; what it does not say (login, database, encryption, the
+// way of signing in) stays as the user saved it, and so does the password.
+function mergeIntoExisting(existing, entry) {
+    const merged = Object.assign({}, existing);
+    delete merged.password;
+    if (entry.group) merged.group = entry.group;
+    if (existing.useConnectionString) return merged;
+    merged.server = entry.server;
+    merged.port = entry.port || '';
+    if (entry.authType) {
+        merged.authType = entry.authType;
+        merged.username = entry.authType === 'sql' ? entry.username || existing.username || '' : '';
+    }
+    if (entry.database) merged.database = entry.database;
+    if (entry.encrypt !== undefined) merged.encrypt = entry.encrypt;
+    if (entry.trustServerCertificate !== undefined) merged.trustServerCertificate = entry.trustServerCertificate;
+    return merged;
 }
 
 const sameTarget = (a, b) => (a.server || '').toLowerCase() === (b.server || '').toLowerCase()
@@ -59,12 +90,12 @@ function planConnectionImport(existing, entries) {
     const names = uniqueNames(entries);
     const byName = new Map(existing.map(c => [c.name.toLowerCase(), c]));
     return entries.map((entry, index) => {
-        const config = toSavedConnection(entry, names[index]);
+        let config = toSavedConnection(entry, names[index]);
         const sameName = byName.get(config.name.toLowerCase()) || null;
-        if (sameName) config.name = sameName.name;
+        if (sameName) config = mergeIntoExisting(sameName, entry);
         const twin = existing.find(c => sameTarget(c, config)) || null;
         return { entry, config, sameName: sameName ? sameName.name : null, sameTarget: !sameName && twin ? twin.name : null };
     });
 }
 
-module.exports = { planConnectionImport, toSavedConnection, uniqueNames, sameTarget };
+module.exports = { planConnectionImport, toSavedConnection, mergeIntoExisting, groupPath, uniqueNames, sameTarget };

@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { planConnectionImport, toSavedConnection, uniqueNames } = require('../database/connectionImport');
+const { planConnectionImport, toSavedConnection, mergeIntoExisting, groupPath, uniqueNames } = require('../database/connectionImport');
 
 const entry = (name, extra = {}) => Object.assign({ name, server: `${name.toLowerCase()}-sql`, port: '', group: '' }, extra);
 
@@ -41,5 +41,34 @@ suite('connection import', () => {
 
 	test('an empty list gives an empty plan', () => {
 		assert.deepStrictEqual(planConnectionImport([], []), []);
+	});
+
+	test('a host that requires encryption starts encrypted with a valid certificate; any other starts as the form does', () => {
+		const azure = toSavedConnection(entry('Az', { server: 'contoso.database.windows.net', authType: 'sql', username: 'u' }), 'Az');
+		assert.deepStrictEqual([azure.encrypt, azure.trustServerCertificate], [true, false]);
+		const local = toSavedConnection(entry('L'), 'L');
+		assert.deepStrictEqual([local.encrypt, local.trustServerCertificate], [false, true]);
+		const said = toSavedConnection(entry('S', { server: 'x.database.windows.net', encrypt: false, trustServerCertificate: true }), 'S');
+		assert.deepStrictEqual([said.encrypt, said.trustServerCertificate], [false, true]);
+	});
+
+	test('over a connection of the same name, what the entry does not say stays as the user saved it', () => {
+		const existing = { name: 'prod', server: 'old', port: '1433', database: 'Sales', authType: 'sql', username: 'bob', encrypt: true, trustServerCertificate: false, password: undefined, group: 'Old' };
+		const merged = mergeIntoExisting(existing, entry('prod', { server: 'new-sql', port: '14330', group: 'Production' }));
+		assert.deepStrictEqual(merged, { name: 'prod', server: 'new-sql', port: '14330', database: 'Sales', authType: 'sql', username: 'bob', encrypt: true, trustServerCertificate: false, group: 'Production' });
+		const signedIn = mergeIntoExisting(existing, entry('prod', { authType: 'windows' }));
+		assert.deepStrictEqual([signedIn.authType, signedIn.username, signedIn.database], ['windows', '', 'Sales']);
+		const plan = planConnectionImport([existing], [entry('PROD', { server: 'new-sql' })]);
+		assert.deepStrictEqual([plan[0].sameName, plan[0].config.username, plan[0].config.server], ['prod', 'bob', 'new-sql']);
+	});
+
+	test('a connection saved as a connection string keeps all of it but its group', () => {
+		const existing = { name: 'cs', useConnectionString: true, server: 'Server=a;Database=b', authType: 'sql' };
+		assert.deepStrictEqual(mergeIntoExisting(existing, entry('cs', { server: 'other', group: 'G' })), { name: 'cs', useConnectionString: true, server: 'Server=a;Database=b', authType: 'sql', group: 'G' });
+	});
+
+	test('a / in a group name is not a level', () => {
+		assert.strictEqual(groupPath(['Sales/EU', 'Paris']), 'Sales∕EU/Paris');
+		assert.strictEqual(groupPath([]), '');
 	});
 });
