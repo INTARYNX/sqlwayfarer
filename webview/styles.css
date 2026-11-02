@@ -2013,7 +2013,9 @@ body.vscode-high-contrast .qp-tt-header {
 }
 
 .result-set-table-wrap th:last-child,
-.result-set-table-wrap td:last-child {
+.result-set-table-wrap td:last-child,
+.result-set-table-wrap table.rs-fixed th:nth-last-child(2),
+.result-set-table-wrap table.rs-fixed td:nth-last-child(2) {
     border-right: none;
 }
 
