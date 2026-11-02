@@ -27,8 +27,10 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
 import { sql, MSSQL } from '@codemirror/lang-sql';
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
+import { snippet } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import { formatSqlScript } from './formatSql';
+import { toTemplate } from './snippetTemplate';
 
 // Colors match the ones webview/styles.css used for the old overlay-based
 // highlighter (sql-tok-*), themselves VS Code Dark+ values - same look,
@@ -192,6 +194,20 @@ function attach(container, options = {}) {
     });
 
     container.cmView = view;
+
+    // Inserts a snippet over from..to (the selection when called without a
+    // range): its placeholders become fields to Tab through, $CURSOR$ the
+    // final caret position, $SELECTEDTEXT$ the text that was selected. One
+    // change, so one undo step.
+    container.insertSnippet = (sqlText, placeholders = [], from = null, to = null) => {
+        const sel = view.state.selection.main;
+        const a = from === null ? sel.from : from;
+        const b = to === null ? sel.to : to;
+        const selected = view.state.sliceDoc(sel.from, sel.to);
+        const { template } = toTemplate(sqlText, placeholders, selected);
+        view.focus();
+        snippet(template)({ state: view.state, dispatch: view.dispatch.bind(view) }, null, a, b);
+    };
 
     // Formats the selection, or the whole script without one: one change, so
     // one undo step. Returns false when the text cannot be parsed (nothing is touched).

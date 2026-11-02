@@ -287,6 +287,7 @@
     "piscina": "^5.3.2"
   },
   "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/language": "^6.13.1",
