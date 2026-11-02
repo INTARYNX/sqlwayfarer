@@ -6,6 +6,8 @@ const path = require('path');
 
 const SnippetHandlers = require('./handlers/SnippetHandlers');
 const SavedConnectionHandlers = require('./handlers/SavedConnectionHandlers');
+const ConnectionImportHandlers = require('./handlers/ConnectionImportHandlers');
+const { createVsCodeConnectionImportUi } = require('./handlers/connectionImportUi');
 const ConnectionManager = require('../database/ConnectionManager');
 const { getBuildTime } = require('./buildInfo');
 const { readIconSprite } = require('./iconSprite');
@@ -72,6 +74,17 @@ class SnippetSidebarProvider {
             openConnection: name => vscode.commands.executeCommand('sqlwayfarer.openConnection', name)
         });
 
+        // Reads a Central Management Server or a registered servers file into new saved connections.
+        const connectionImport = new ConnectionImportHandlers(post, this._connectionStorage, {
+            createManager: () => new ConnectionManager(
+                this._connectionStorage,
+                createVsCodeTokenFetcher(vscode),
+                path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
+            ),
+            ui: createVsCodeConnectionImportUi(vscode),
+            onImported: () => connections.handleLoadConnections()
+        });
+
         webviewView.webview.onDidReceiveMessage(async message => {
             switch (message.command) {
                 case 'getSnippets':         await snippets.handleGetSnippets(); break;
@@ -99,6 +112,7 @@ class SnippetSidebarProvider {
                     if (ok) await connections.handleLoadConnections();
                     break;
                 }
+                case 'importConnections':        await connectionImport.handleImportConnections(); break;
                 case 'testConnection':           await connections.handleTestConnection(message.connectionConfig); break;
                 // Opens (or shows) the tab of that connection.
                 case 'connectToSaved':           await vscode.commands.executeCommand('sqlwayfarer.openConnection', message.connectionName); break;
