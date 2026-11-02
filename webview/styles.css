@@ -2862,6 +2862,31 @@ table.fp-cols .fp-center { text-align: center; }
     line-height: 1.5;
 }
 
+.index-changes {
+    margin-top: 8px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.index-changes summary {
+    cursor: pointer;
+}
+
+.index-changes-group {
+    margin-top: 6px;
+}
+
+.index-changes-label {
+    font-weight: 600;
+}
+
+.index-changes ul {
+    margin: 2px 0 0;
+    padding-left: 18px;
+    max-height: 160px;
+    overflow-y: auto;
+    font-family: var(--vscode-editor-font-family, monospace);
+}
+
 .index-notice-actions {
     display: flex;
     gap: 8px;
