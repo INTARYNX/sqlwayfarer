@@ -290,6 +290,7 @@
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/language": "^6.13.1",
+    "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
@@ -305,6 +306,7 @@
     "dagre": "^0.8.5",
     "eslint": "^9.25.1",
     "playwright": "^1.63.0",
+    "sql-formatter": "^15.9.0",
     "typescript": "^5.1.6",
     "webpack": "^5.107.2",
     "webpack-cli": "^5.1.4"

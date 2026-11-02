@@ -26,7 +26,9 @@ import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
 import { sql, MSSQL } from '@codemirror/lang-sql';
+import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
+import { formatSqlScript } from './formatSql';
 
 // Colors match the ones webview/styles.css used for the old overlay-based
 // highlighter (sql-tok-*), themselves VS Code Dark+ values - same look,
@@ -111,6 +113,22 @@ const vsCodeTheme = EditorView.theme({
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
         backgroundColor: 'var(--vscode-editor-selectionBackground) !important'
     },
+    // The find / replace panel (Ctrl+H), in the colors of VS Code's own widgets.
+    '.cm-panels': {
+        backgroundColor: 'var(--vscode-editorWidget-background)',
+        color: 'var(--vscode-editorWidget-foreground, var(--vscode-editor-foreground))'
+    },
+    '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--vscode-editorWidget-border, transparent)' },
+    '.cm-search input, .cm-search button': {
+        backgroundColor: 'var(--vscode-input-background)',
+        color: 'var(--vscode-input-foreground)',
+        border: '1px solid var(--vscode-input-border, transparent)',
+        borderRadius: '2px'
+    },
+    '.cm-search button': { backgroundImage: 'none', cursor: 'pointer' },
+    '.cm-search button:hover': { backgroundColor: 'var(--vscode-toolbar-hoverBackground)' },
+    '.cm-searchMatch': { backgroundColor: 'var(--vscode-editor-findMatchHighlightBackground)' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--vscode-editor-findMatchBackground)' },
     '.cm-go-separator': {
         color: '#d7ba7d',
         fontWeight: '700'
@@ -138,6 +156,9 @@ function baseExtensions(options) {
         // (queryManager.js). CodeMirror's default binding for it inserts a
         // blank line, which would happen *and* run the query - so that one
         // entry is dropped and the shortcut is left to the extension.
+        // Ctrl+F stays the page's own search; Ctrl+H opens find / replace here.
+        search({ top: true }),
+        keymap.of([{ key: 'Mod-h', run: openSearchPanel, preventDefault: true }, ...searchKeymap.filter(binding => binding.key !== 'Mod-f')]),
         keymap.of([...defaultKeymap.filter(binding => binding.key !== 'Mod-Enter'), ...historyKeymap, indentWithTab]),
         sql({ dialect: MSSQL }),
         syntaxHighlighting(sqlHighlightStyle),
@@ -161,6 +182,7 @@ function attach(container, options = {}) {
         doc: options.initialDoc || '',
         extensions: [
             ...baseExtensions(options),
+            keymap.of([{ key: 'Shift-Alt-f', run: () => { container.dispatchEvent(new Event('sw-format')); return true; }, preventDefault: true }]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged && update.transactions.some(tr => tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('undo') || tr.isUserEvent('redo'))) {
                     onUserInput();
@@ -170,6 +192,20 @@ function attach(container, options = {}) {
     });
 
     container.cmView = view;
+
+    // Formats the selection, or the whole script without one: one change, so
+    // one undo step. Returns false when the text cannot be parsed (nothing is touched).
+    container.formatSql = () => {
+        const sel = view.state.selection.main;
+        const whole = sel.empty;
+        const from = whole ? 0 : sel.from;
+        const to = whole ? view.state.doc.length : sel.to;
+        const original = view.state.sliceDoc(from, to);
+        const formatted = formatSqlScript(original);
+        if (formatted === null) return false;
+        if (formatted !== original) view.dispatch({ changes: { from, to, insert: formatted }, userEvent: 'input.format' });
+        return true;
+    };
 
     // Focus state, in the shape the rest of the webview needs. The element
     // that actually takes focus is CodeMirror's own contenteditable
