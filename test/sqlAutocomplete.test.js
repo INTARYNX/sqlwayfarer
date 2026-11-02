@@ -395,4 +395,9 @@ suite('SqlAutocomplete._snippetItems (imported snippets)', () => {
 		assert.strictEqual(item.snippet, undefined);
 		assert.strictEqual(item.detail, 'my snippet');
 	});
+
+	test('a plain snippet holding $CURSOR$ is expanded as a snippet, not inserted as text', () => {
+		const item = SqlAutocomplete._snippetItems([{ name: 'top', sql: 'SELECT TOP 10 * FROM $CURSOR$' }]).find(i => i.label === 'top');
+		assert.deepStrictEqual(item.snippet, { sql: 'SELECT TOP 10 * FROM $CURSOR$', placeholders: [] });
+	});
 });

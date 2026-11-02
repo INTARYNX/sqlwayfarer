@@ -1176,7 +1176,7 @@ class SqlAutocomplete {
         for (const ab of SqlAutocomplete.ABBREVIATIONS) push(ab.abbr, ab.sql, 'snippet', true);
         for (const sn of custom || []) {
             if (!sn || !sn.name || !sn.sql) continue;
-            if (!sn.abbreviation && !sn.placeholders) { push(sn.name, sn.sql, 'my snippet', false); continue; }
+            if (!sn.abbreviation && !sn.placeholders && !/\$(?:CURSOR|SELECTEDTEXT)\$/.test(sn.sql)) { push(sn.name, sn.sql, 'my snippet', false); continue; }
             // Imported (SQL Prompt) snippet: found by its abbreviation or its name, expanded with its fields.
             const label = sn.abbreviation || sn.name;
             out.push({
