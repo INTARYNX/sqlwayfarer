@@ -825,7 +825,8 @@ class IndexService {
     }
 
     _statsFilePath(indexFile) {
-        return indexFile.replace(/\.json$/, '.stats.json');
+        // Its own folder: no database name can collide with it.
+        return path.join(path.dirname(indexFile), '_stats', path.basename(indexFile));
     }
 
     // Keeps the figures of this build next to the index. Never fails the build.
@@ -837,6 +838,7 @@ class IndexService {
             const run = stats.finish({ totalObjects: total, reusedObjects: Math.max(0, total - stats._objects.length), removedObjects: removed });
             run.parserThreads = this._parserPool.threadCount ? this._parserPool.threadCount() : 0;
             const file = this._statsFilePath(indexFile);
+            await fs.mkdir(path.dirname(file), { recursive: true });
             let history = null;
             try { history = JSON.parse(await fs.readFile(file, 'utf8')); } catch { /* first run */ }
             await fs.writeFile(file, JSON.stringify(addRun(history, run), null, 2), 'utf8');
