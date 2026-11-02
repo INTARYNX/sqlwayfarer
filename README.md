@@ -15,6 +15,33 @@ It is built for the day you inherit a legacy SQL Server database — no document
 
 ---
 
+## Why this exists
+
+Most of the time you do not get to design the database you work on. You inherit it: hundreds of tables, procedures that call procedures, triggers nobody remembers writing, a column whose name made sense to someone who left years ago. Before every change you have to answer the same questions — *what reads this column? what writes to this table? what fires when I delete a row?* — and reading code to answer them does not scale.
+
+SQL Wayfarer was built by a developer who maintains exactly that kind of database, to answer those questions inside VS Code, without a second tool and without guessing. Everything in it serves one goal: **let you change a complicated database without being afraid of it.**
+
+It is deliberately not a deployment tool, a schema-compare tool or a data editor. It is for understanding, tracing, documenting and querying a SQL Server or Azure SQL database.
+
+## Free, with no strings attached
+
+- **Free, and it stays free.** There is no paid tier, no "pro" edition, no account, no licence key and no upsell — now or later. It is not a commercial product and is not meant to become one. Tools with comparable query-editor features (Redgate SQL Prompt, for example) are paid; this one is a gift to the people who have to live in databases like these.
+- **Open source, MIT.** You can read every line of what runs against your server, and fork it.
+- **No telemetry.** Nothing is collected and nothing is sent anywhere. Details in [Privacy](#privacy).
+
+## Can you trust it?
+
+A tool that tells you "this is safe to change" has to earn that. Here is what it does, and what it does not claim.
+
+- **It reads; it does not write behind your back.** Browsing, inspection, indexing, the footprint, the query graph and the data dictionary only read. The only things that write are the queries you run yourself (destructive ones — `UPDATE`/`DELETE` without `WHERE`, `TRUNCATE`, `DROP` — ask for confirmation first) and the Comments tab, which saves `MS_Description` extended properties when you save them. Scripts it generates are placed in the editor, never run.
+- **It starts from what SQL Server itself reports.** Dependencies come from the server's own metadata (`sys.dm_sql_referenced_entities`); a real T-SQL parser then adds what the metadata cannot say: which columns, and which operations. On the AdventureWorks sample database, the dependencies it finds match the server's own, 154 out of 154.
+- **It says when it does not know.** Dynamic SQL, a reference it cannot resolve, a definition it could not parse cleanly: each one is flagged as *possible*, *ambiguous* or *partial* instead of making the result look complete.
+- **It does not start heavy work on its own.** The dependency index is only built when you ask for it, with a notice that explains what it costs. When the schema changes, the Explorer lists *which* objects an update would re-analyze, and waits for you.
+- **It is tested.** The parser, the autocompletion (more than a hundred scenarios: CTEs, temp tables, table variables, table-valued functions, `MERGE`...), the pages in a headless browser, and a suite that runs against a real SQL Server.
+- **What is not proven yet.** It is young. Validation on very large, tangled production schemas is ongoing, Microsoft Entra ID sign-in is beta, and integrated Windows authentication has seen limited testing. If it gets something wrong on your database, that is the most useful bug report there is.
+
+---
+
 ## Overview
 
 Every change to a database raises the same question: what else does this touch? SQL Wayfarer answers it by tracing column-level lineage and dependency chains through views, procedures, functions and triggers — including the trigger cascades a procedure fires that you'd never see by reading its code — so you know the real impact before you make a change, not after.
@@ -75,10 +102,14 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 - **Select a query in the editor and the graph covers that query only**; with no selection, the whole buffer is graphed
 - Three tabs, as in the Table Footprint: **Graph** (the join graph), **Schema** (the PK/FK relations between those tables), and **Tables** (their columns, keys and descriptions)
 - **SQL Snippets**: a quick-insert dropdown (built-in templates plus your own custom snippets, managed from the *Snippets* tab of the SQL Wayfarer sidebar)
-- **Context-aware autocompletion**: suggestions follow the clause you are in (tables after `FROM`/`JOIN`, columns in `SELECT`/`WHERE`/`ON`, procedures after `EXEC`, parameters after `EXEC proc`). Columns are offered without a prefix, from the tables of the current statement only (aliases, subqueries, CTEs, derived tables, temp tables and table variables included). After `JOIN`, the tables related by foreign key come first with their `ON` condition. Matching is fuzzy (`ho` → `HumanOrders`), `Ctrl+Space` after `*` expands it to the column list, a details line shows type, nullability and keys, and abbreviations such as `ssf` expand to snippets. Everything is configurable under `sqlwayfarer.autocomplete.*` (trigger, matching, keyword case, accept keys, aliases, brackets, system objects...)
+- **Context-aware autocompletion**: suggestions follow the clause you are in (tables after `FROM`/`JOIN`, columns in `SELECT`/`WHERE`/`ON`, procedures after `EXEC`, parameters after `EXEC proc`). Columns are offered without a prefix, from the tables of the current statement only (aliases, subqueries, CTEs, derived tables, temp tables and table variables included). After `JOIN`, the tables related by foreign key come first with their `ON` condition. Matching is fuzzy (`ho` → `HumanOrders`), `Ctrl+Space` after `*` expands it to the column list, a details line shows type, nullability and keys, data types are offered where a type is expected (`DECLARE`, `CAST`, `CREATE TABLE`, procedure parameters), `ORDER BY` offers the aliases of the select list, a `JOIN` without a foreign key proposes the key columns the two tables share, table-valued functions expose their columns, and abbreviations such as `ssf` expand to snippets. Everything is configurable under `sqlwayfarer.autocomplete.*` (trigger, matching, keyword case, accept keys, aliases, brackets, system objects...)
 - **Go to definition**: `Ctrl+Click` (`Cmd+Click` on macOS) or double-click an object name — aliases and cross-database references included — to jump to it in the Explorer
 - **Destructive statement guardrails**: `UPDATE`/`DELETE` without a `WHERE` clause (detected by a real T-SQL parser, so batches and subqueries are analyzed correctly), `TRUNCATE TABLE`, and `DROP` require explicit confirmation before running
-- **Copy / CSV export** on every result set: tab-separated copy that pastes straight into Excel, and CSV export with RFC 4180 escaping and a UTF-8 BOM so accents survive Excel
+- **Copy / CSV export** on every result set: tab-separated copy that pastes straight into Excel, and CSV export with RFC 4180 escaping and a UTF-8 BOM so accents survive Excel (JSON too, see below)
+- **Format SQL** (`Shift+Alt+F`, or the toolbar button): the selection, or the whole script; `GO` lines are kept and each batch is formatted on its own. A script that cannot be parsed is left untouched
+- **Find and replace** in the editor with `Ctrl+H`
+- **Large results**: the grid draws 2 000 rows at a time with **Show more** / **Show all**; Copy and the exports always include every row. Double-click a cell to copy it
+- **Export** every result set as CSV or JSON
 - Persistent query history with deduplication
 
 ### Schema Explorer
@@ -149,6 +180,8 @@ You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 ## Known Limitations
 
 - Encrypted object definitions cannot be retrieved by design (SQL Server restriction).
+- The formatter (`sql-formatter`) lays out standard T-SQL; some clauses such as `OUTPUT` are kept as plain text.
+- Microsoft Entra ID sign-in is beta, and integrated Windows authentication (a small helper program, Windows only) has seen limited testing.
 - Very large databases may experience slower initial indexing (each code object is parsed once for dependencies and column lineage; subsequent refreshes are incremental).
 - T-SQL syntax highlighting covers standard cases; complex dialect features may not be fully highlighted.
 - Dependency operations and column lineage are detected via static analysis of T-SQL: dynamic SQL (`EXEC` of a string), calls through another procedure, or references used only as a parameter type are shown without a specific operation. The Table Footprint additionally scans module text for qualified names of known objects to catch tables referenced only inside dynamic SQL, but marks them as low-confidence "possible" (read/write direction unknown).
@@ -171,7 +204,7 @@ You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 
 ## License
 
-SQL Wayfarer is open source under the [MIT License](LICENSE): free to use, copy, modify and distribute, including for commercial use.
+SQL Wayfarer is open source under the [MIT License](LICENSE): free to use, copy, modify and distribute. It is offered with no commercial intent.
 
 ---
 
