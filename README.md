@@ -8,6 +8,8 @@ It is built for the day you inherit a legacy SQL Server database — no document
 
 [![VS Code Marketplace](https://vsmarketplacebadges.dev/version/intarynx.sqlwayfarer.svg)](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/intarynx/sqlwayfarer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![No telemetry](https://img.shields.io/badge/telemetry-none-blue)
 
 > **Early Access** — Core features are stable and actively developed. Feedback and bug reports are welcome via [GitHub Issues](https://github.com/intarynx/sqlwayfarer/issues).
 
@@ -152,6 +154,24 @@ You can also open the panel via `Ctrl+Shift+P` → **Open SQL Wayfarer**.
 - Dependency operations and column lineage are detected via static analysis of T-SQL: dynamic SQL (`EXEC` of a string), calls through another procedure, or references used only as a parameter type are shown without a specific operation. The Table Footprint additionally scans module text for qualified names of known objects to catch tables referenced only inside dynamic SQL, but marks them as low-confidence "possible" (read/write direction unknown).
 - Column lineage favors recall over precision: an unqualified column in a multi-table statement is attributed to every table in scope and flagged as ambiguous (`~`) rather than dropped.
 - A table referenced without its schema is resolved against the schema of the module that mentions it, like SQL Server does. When several schemas carry that name and the module's own schema is not one of them, the reference is reported as unresolved: the analysis cannot know which table it is, and guessing it would follow the wrong triggers.
+
+---
+
+## Privacy
+
+**SQL Wayfarer has no telemetry.** It collects no usage data, no analytics and no crash reports, and sends nothing to its author or to any third party.
+
+- The only network connection it makes is to the SQL Server you connect to. With *Microsoft Entra ID* authentication it also goes through the Microsoft sign-in of VS Code, as any extension using that account does.
+- Passwords are kept in the VS Code secret storage, never in settings or on disk in clear text.
+- The dependency index, the query history and the drafts stay on your computer.
+- The webview loads no remote resource (no CDN, no remote font).
+- The rating reminder only opens the Marketplace page, in your browser, when you click it.
+
+---
+
+## License
+
+SQL Wayfarer is open source under the [MIT License](LICENSE): free to use, copy, modify and distribute, including for commercial use.
 
 ---
 
