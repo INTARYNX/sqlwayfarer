@@ -80,4 +80,15 @@ function childText(element, name) {
     return child ? child.text.trim() : '';
 }
 
-module.exports = { parseXml, childrenNamed, childText };
+// The trimmed text of the first element called name at any depth below element; '' when absent.
+function descendantText(element, name) {
+    const wanted = name.toLowerCase();
+    for (const child of element.children) {
+        if (child.name.toLowerCase() === wanted) return child.text.trim();
+        const deeper = descendantText(child, name);
+        if (deeper) return deeper;
+    }
+    return '';
+}
+
+module.exports = { parseXml, childrenNamed, childText, descendantText };

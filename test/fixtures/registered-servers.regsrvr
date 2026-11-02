@@ -6,70 +6,266 @@
   </identity>
   <definitions>
     <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
       <data>
-        <RegisteredServers:RegisteredServersStore xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-          <RegisteredServers:ServerGroup>
-            <RegisteredServers:Name>DatabaseEngineServerGroup</RegisteredServers:Name>
-            <RegisteredServers:Description>Builtin group that contains the DatabaseEngine servers</RegisteredServers:Description>
-            <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-            <RegisteredServers:RegisteredServers>
-              <RegisteredServers:RegisteredServer>
-                <RegisteredServers:Name>Local dev</RegisteredServers:Name>
-                <RegisteredServers:Description />
-                <RegisteredServers:ServerName>localhost</RegisteredServers:ServerName>
-                <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-                <RegisteredServers:ConnectionStringWithEncryptedPassword>data source=localhost;integrated security=True;pooling=False;connect timeout=30;encrypt=False;trustservercertificate=True;packet size=4096</RegisteredServers:ConnectionStringWithEncryptedPassword>
-              </RegisteredServers:RegisteredServer>
-            </RegisteredServers:RegisteredServers>
-            <RegisteredServers:ServerGroups>
-              <RegisteredServers:ServerGroup>
-                <RegisteredServers:Name>Production</RegisteredServers:Name>
-                <RegisteredServers:Description>Live servers</RegisteredServers:Description>
-                <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-                <RegisteredServers:RegisteredServers>
-                  <RegisteredServers:RegisteredServer>
-                    <RegisteredServers:Name>ERP</RegisteredServers:Name>
-                    <RegisteredServers:Description>The ERP &amp; billing</RegisteredServers:Description>
-                    <RegisteredServers:ServerName>tcp:erp-sql\PROD,14330</RegisteredServers:ServerName>
-                    <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-                    <RegisteredServers:ConnectionStringWithEncryptedPassword>data source="tcp:erp-sql\PROD,14330";initial catalog=Erp;user id=svc_read;password=AQAAANCMnd8BFdERjHoAwE;encrypt=True;trustservercertificate=False</RegisteredServers:ConnectionStringWithEncryptedPassword>
-                  </RegisteredServers:RegisteredServer>
-                </RegisteredServers:RegisteredServers>
-                <RegisteredServers:ServerGroups>
-                  <RegisteredServers:ServerGroup>
-                    <RegisteredServers:Name>Europe</RegisteredServers:Name>
-                    <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-                    <RegisteredServers:RegisteredServers>
-                      <RegisteredServers:RegisteredServer>
-                        <RegisteredServers:Name>Paris</RegisteredServers:Name>
-                        <RegisteredServers:ServerName>paris-sql</RegisteredServers:ServerName>
-                        <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-                        <RegisteredServers:ConnectionStringWithEncryptedPassword>data source=paris-sql;integrated security=True</RegisteredServers:ConnectionStringWithEncryptedPassword>
-                      </RegisteredServers:RegisteredServer>
-                      <RegisteredServers:RegisteredServer>
-                        <RegisteredServers:Name>Azure</RegisteredServers:Name>
-                        <RegisteredServers:ServerName>contoso.database.windows.net</RegisteredServers:ServerName>
-                        <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
-                        <RegisteredServers:ConnectionStringWithEncryptedPassword>data source=contoso.database.windows.net;authentication="Active Directory Interactive";encrypt=True</RegisteredServers:ConnectionStringWithEncryptedPassword>
-                      </RegisteredServers:RegisteredServer>
-                    </RegisteredServers:RegisteredServers>
-                  </RegisteredServers:ServerGroup>
-                </RegisteredServers:ServerGroups>
-              </RegisteredServers:ServerGroup>
-            </RegisteredServers:ServerGroups>
-          </RegisteredServers:ServerGroup>
-          <RegisteredServers:ServerGroup>
-            <RegisteredServers:Name>AnalysisServicesServerGroup</RegisteredServers:Name>
-            <RegisteredServers:ServerType>AnalysisServices</RegisteredServers:ServerType>
-            <RegisteredServers:RegisteredServers>
-              <RegisteredServers:RegisteredServer>
-                <RegisteredServers:Name>Cube</RegisteredServers:Name>
-                <RegisteredServers:ServerName>cube-host</RegisteredServers:ServerName>
-                <RegisteredServers:ServerType>AnalysisServices</RegisteredServers:ServerType>
-              </RegisteredServers:RegisteredServer>
-            </RegisteredServers:RegisteredServers>
-          </RegisteredServers:ServerGroup>
-        </RegisteredServers:RegisteredServersStore>
+        <RegisteredServers:ServerGroup xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:ServerGroups>
+            <sfc:Collection><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production</sml:Uri></sfc:Reference><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Empty</sml:Uri></sfc:Reference></sfc:Collection>
+          </RegisteredServers:ServerGroups>
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">DatabaseEngineServerGroup</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+        </RegisteredServers:ServerGroup>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:ServerGroup xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:ServerGroups>
+            <sfc:Collection><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/Europe</sml:Uri></sfc:Reference><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/R%26D%20lab</sml:Uri></sfc:Reference></sfc:Collection>
+          </RegisteredServers:ServerGroups>
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Production</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+        </RegisteredServers:ServerGroup>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/Europe</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:ServerGroup xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:ServerGroups>
+            <sfc:Collection></sfc:Collection>
+          </RegisteredServers:ServerGroups>
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Europe</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+        </RegisteredServers:ServerGroup>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/R%26D%20lab</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:ServerGroup xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:ServerGroups>
+            <sfc:Collection></sfc:Collection>
+          </RegisteredServers:ServerGroups>
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">R&amp;D lab</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+        </RegisteredServers:ServerGroup>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Empty</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:ServerGroup xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:ServerGroups>
+            <sfc:Collection></sfc:Collection>
+          </RegisteredServers:ServerGroups>
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Empty</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+        </RegisteredServers:ServerGroup>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/RegisteredServer/Local%20dev</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Local dev</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerName type="string">localhost</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source=localhost;pooling=False;multipleactiveresultsets=False;connect timeout=30;encrypt=False;trustservercertificate=True;packet size=4096</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">0</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/RegisteredServer/ERP</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">ERP</RegisteredServers:Name>
+          <RegisteredServers:Description type="string">The ERP &amp; billing</RegisteredServers:Description>
+          <RegisteredServers:ServerName type="string">tcp:erp-sql\PROD,14330</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source="tcp:erp-sql\PROD,14330";initial catalog=Erp;user id=svc_read;password=AQAAANCMnd8BFdERjHoAwE;pooling=False;encrypt=True;trust server certificate=False;packet size=4096</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">1</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/Europe/RegisteredServer/Paris</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/Europe</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Paris</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerName type="string">paris-sql</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source=paris-sql;integrated security=True;pooling=False;multiple active result sets=False;connect timeout=30;encrypt=True;trust server certificate=True;packet size=4096;command timeout=0</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">0</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/Europe/RegisteredServer/Azure</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/Europe</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Azure</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerName type="string">contoso.database.windows.net</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source=contoso.database.windows.net;authentication="Active Directory Interactive";encrypt=True;packet size=4096</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">3</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/R%26D%20lab/RegisteredServer/Sandbox</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/DatabaseEngineServerGroup/ServerGroup/Production/ServerGroup/R%26D%20lab</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Sandbox</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerName type="string">sandbox\SQL2022</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source=sandbox\SQL2022;initial catalog=Lab;integrated security=True;encrypt=False</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">0</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/AnalysisServicesServerGroup/RegisteredServer/Cube</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/AnalysisServicesServerGroup</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">Cube</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerName type="string">cube-host</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">AnalysisServices</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source=cube-host</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">0</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
+      </data>
+    </document>
+    <document>
+      <docinfo>
+        <aliases>
+          <alias>/RegisteredServersStore/ServerGroup/MruSqlConnectionsGroup/RegisteredServer/recent</alias>
+        </aliases>
+        <sfc:version DomainVersion="1" />
+      </docinfo>
+      <data>
+        <RegisteredServers:RegisteredServer xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:sfc="http://schemas.microsoft.com/sqlserver/sfc/serialization/2007/08" xmlns:sml="http://schemas.serviceml.org/sml/2007/02" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <RegisteredServers:Parent><sfc:Reference sml:ref="true"><sml:Uri>/RegisteredServersStore/ServerGroup/MruSqlConnectionsGroup</sml:Uri></sfc:Reference></RegisteredServers:Parent>
+          <RegisteredServers:Name type="string">recent</RegisteredServers:Name>
+          <RegisteredServers:Description type="string" />
+          <RegisteredServers:ServerName type="string">recent-host</RegisteredServers:ServerName>
+          <RegisteredServers:UseCustomConnectionColor type="boolean">false</RegisteredServers:UseCustomConnectionColor>
+          <RegisteredServers:CustomConnectionColorArgb type="int">0</RegisteredServers:CustomConnectionColorArgb>
+          <RegisteredServers:ServerType type="ServerType">DatabaseEngine</RegisteredServers:ServerType>
+          <RegisteredServers:ConnectionStringWithEncryptedPassword type="string">data source=recent-host;integrated security=True</RegisteredServers:ConnectionStringWithEncryptedPassword>
+          <RegisteredServers:CredentialPersistenceType type="CredentialPersistenceType">None</RegisteredServers:CredentialPersistenceType>
+          <RegisteredServers:OtherParams type="string" />
+          <RegisteredServers:AuthenticationType type="int">0</RegisteredServers:AuthenticationType>
+          <RegisteredServers:ActiveDirectoryTenant type="string" />
+        </RegisteredServers:RegisteredServer>
       </data>
     </document>
   </definitions>

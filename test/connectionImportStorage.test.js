@@ -28,7 +28,7 @@ suite('connection import into the real storage', () => {
 		const reloaded = new ConnectionStorage(context);
 		await reloaded.initialize();
 		const all = Object.fromEntries(reloaded.getSavedConnections().map(c => [c.name, c]));
-		assert.deepStrictEqual(Object.keys(all).sort(), ['Azure', 'ERP', 'Local dev', 'Paris']);
+		assert.deepStrictEqual(Object.keys(all).sort(), ['Azure', 'ERP', 'Local dev', 'Paris', 'Sandbox']);
 		assert.strictEqual(all.Paris.group, 'Production/Europe');
 		assert.deepStrictEqual([all.ERP.server, all.ERP.port, all.ERP.authType, all.ERP.username, all.ERP.database], ['erp-sql\\PROD', '14330', 'sql', 'svc_read', 'Erp']);
 		assert.deepStrictEqual([...context._secrets.keys()].filter(k => k.startsWith('sqlwayfarer.password.')), [], 'no password is stored');

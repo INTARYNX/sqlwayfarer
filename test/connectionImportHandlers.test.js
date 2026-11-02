@@ -41,9 +41,9 @@ suite('ConnectionImportHandlers: registered servers file', () => {
 	test('the servers of the file are offered and the chosen ones saved with their group', async () => {
 		const { handlers, posted, saves, offered, reloaded } = setup({ answers: { source: 'file', file: fixture } });
 		await handlers.handleImportConnections();
-		assert.strictEqual(offered[0].length, 4);
-		assert.deepStrictEqual(saves.map(s => [s.name, s.group || '']), [['Local dev', ''], ['ERP', 'Production'], ['Paris', 'Production/Europe'], ['Azure', 'Production/Europe']]);
-		assert.deepStrictEqual(posted, [{ command: 'connectionsImported', added: 4, overwritten: 0, failed: 0 }]);
+		assert.strictEqual(offered[0].length, 5);
+		assert.deepStrictEqual(saves.map(s => [s.name, s.group || '']), [['Local dev', ''], ['ERP', 'Production'], ['Paris', 'Production/Europe'], ['Azure', 'Production/Europe'], ['Sandbox', 'Production/R&D lab']]);
+		assert.deepStrictEqual(posted, [{ command: 'connectionsImported', added: 5, overwritten: 0, failed: 0 }]);
 		assert.strictEqual(reloaded(), 1);
 		assert.ok(saves.every(s => !('password' in s)));
 	});
