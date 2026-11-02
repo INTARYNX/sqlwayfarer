@@ -902,6 +902,12 @@ class SqlAutocomplete {
             return { label: cased + '()', insert: cased + '()', caretBack: 1, kind: 'function', detail: 'function', priority, match: name, usageKey: `fn|${name.toLowerCase()}` };
         };
 
+        // A data type is expected here.
+        if (a.typeContext) {
+            for (const t of SqlAutocomplete.TYPE_KEYWORDS) items.push(kw(t, 5));
+            return { items };
+        }
+
         const g = a.group ? a.group.kind : null;
         if (g === 'insertcols') {
             SqlAutocomplete._columnItems(items, a.insertTarget ? [a.insertTarget] : [], a, e, { qualify: false });
@@ -960,6 +966,10 @@ class SqlAutocomplete {
             if (g !== 'values' && clause !== 'values') {
                 SqlAutocomplete._columnItems(items, a.sources, a, e, { qualify: true });
                 if (typed.length > 0) SqlAutocomplete._aliasItems(items, a);
+            }
+            // CONVERT(<type>, expr): the type comes first.
+            if (g === 'expr' && a.prevWord === '(' && a.group.opener && /^(convert|try_convert)$/i.test(a.group.opener.v)) {
+                for (const t of SqlAutocomplete.TYPE_KEYWORDS) items.push(kw(t, -1));
             }
             for (const v of a.variables) {
                 items.push({ label: v.name, insert: v.name, kind: 'variable', detail: v.type, priority: typed.startsWith('@') ? 0 : 2, match: v.name, usageKey: `var|${v.name.toLowerCase()}` });
