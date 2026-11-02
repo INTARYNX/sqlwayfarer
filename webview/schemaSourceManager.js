@@ -74,13 +74,16 @@ class SchemaSourceManager {
         this._schema = message.schema || null;
         this._run = message.run || null;
         if (this.select) this.select.value = message.activeName || '';
-        // What was selected belonged to the previous schema.
-        const explorerSelect = document.getElementById('databaseSelect');
-        if (explorerSelect && explorerSelect.value) {
-            explorerSelect.value = '';
-            explorerSelect.dispatchEvent(new Event('change'));
+        // What was selected belonged to the previous schema (a restore after a
+        // reconnect keeps it: the source is the same).
+        if (!message.restoring) {
+            const explorerSelect = document.getElementById('databaseSelect');
+            if (explorerSelect && explorerSelect.value) {
+                explorerSelect.value = '';
+                explorerSelect.dispatchEvent(new Event('change'));
+            }
+            this.queryDatabase = '';
         }
-        this.queryDatabase = '';
         this.render();
         if (this.active) vscode.postMessage({ command: 'getQueryDatabases' });
         if (window.queryManager) window.queryManager.refreshRunState();
