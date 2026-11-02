@@ -28,6 +28,7 @@ class QueryManager {
     static MAX_RENDERED_ROWS = 2000;
     static DEFAULT_COLUMN_WIDTH = 120;
     static SYNTAX_CHECK_DELAY_MS = 700;
+    static SYNTAX_RETRY_MS = 35000;
     static MIN_COLUMN_WIDTH = 40;
 
     constructor() {
@@ -492,6 +493,7 @@ class QueryManager {
 
     clearSyntaxDiagnostics() {
         clearTimeout(this._syntaxTimer);
+        clearTimeout(this._syntaxRetryTimer);
         this._syntaxId = (this._syntaxId || 0) + 1; // an answer still on its way is for nothing
         this._syntaxText = null;
         if (typeof this.input.setDiagnostics === 'function') this.input.setDiagnostics([]);
@@ -516,7 +518,15 @@ class QueryManager {
     onSyntaxResult(message) {
         // The answer of an older text, or for a text that has changed since: a newer check follows.
         if (message.requestId !== this._syntaxId || this.input.value !== this._syntaxText) return;
-        if (message.unavailable) return; // no connection for the check right now: what is shown stays
+        if (message.unavailable) {
+            // No connection for the check right now: what is shown stays, and the
+            // text is asked again once the extension has had its pause.
+            const text = this._syntaxText;
+            this._syntaxText = null;
+            clearTimeout(this._syntaxRetryTimer);
+            this._syntaxRetryTimer = setTimeout(() => { if (this.syntaxEnabled && this.input.value === text) this.requestSyntaxCheck(false); }, QueryManager.SYNTAX_RETRY_MS);
+            return;
+        }
         this.input.setDiagnostics(message.diagnostics || []);
     }
 
