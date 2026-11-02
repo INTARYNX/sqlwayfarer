@@ -158,6 +158,9 @@ class ObjectsTabManager {
         this._loadedForDatabase = null; // which database the displayed index belongs to
         this._rawIndexData = null; // last index received, formatted lazily (see _renderJsonIfNeeded)
         this._jsonRendered = false;
+        this.statsContent = document.getElementById('indexStatsContent');
+        this.view = 'json'; // json | stats - which part of the Index window is shown
+        this._statsMarkdown = '';
         this.initEventListeners();
     }
 
@@ -174,6 +177,13 @@ class ObjectsTabManager {
             if (!target) return;
             if (target.dataset.indexAction === 'build') this.buildIndex();
             else if (target.dataset.indexAction === 'dismiss') this.dismissNotice();
+        });
+        // The Index / Stats tabs of the Index window, and the report button of the Stats view.
+        this.modalOverlay.addEventListener('click', (e) => {
+            const tab = e.target.closest('[data-index-view]');
+            if (tab) { this.showView(tab.dataset.indexView); return; }
+            const action = e.target.closest('[data-index-stats-action]');
+            if (action && action.dataset.indexStatsAction === 'copy') this.copyStatsReport();
         });
         if (this.modalCloseBtn) {
             this.modalCloseBtn.addEventListener('click', () => this.closeModal());
@@ -193,10 +203,35 @@ class ObjectsTabManager {
     openModal() {
         this.modalOverlay.classList.add('visible');
         this._renderJsonIfNeeded();
+        if (this.view === 'stats') this.requestStats();
     }
 
     closeModal() {
         this.modalOverlay.classList.remove('visible');
+    }
+
+    // Switches the Index window between the raw index and the statistics of the builds.
+    showView(view) {
+        this.view = view;
+        this.modalOverlay.querySelectorAll('[data-index-view]').forEach(tab => tab.classList.toggle('active', tab.dataset.indexView === view));
+        this.objectsJsonContent.hidden = view !== 'json';
+        if (this.statsContent) this.statsContent.hidden = view !== 'stats';
+        if (view === 'stats') this.requestStats();
+    }
+
+    requestStats() {
+        if (this.currentDatabase) vscode.postMessage({ command: 'getBuildStats', database: this.currentDatabase });
+    }
+
+    onBuildStats(message) {
+        if (message.database !== this.currentDatabase || !this.statsContent) return;
+        this._statsMarkdown = message.markdown || '';
+        this.statsContent.innerHTML = IndexStatsView.html({ runs: message.runs });
+    }
+
+    copyStatsReport() {
+        if (!this._statsMarkdown) return;
+        navigator.clipboard.writeText(this._statsMarkdown).catch(() => {});
     }
 
     // Builds the collapsible tree for the current index, deferred until the
@@ -470,6 +505,9 @@ class ObjectsTabManager {
             this.hideNotice();
             this.setStatus('ready', 'Index up to date');
         }
+
+        // A build just finished: its figures are new.
+        if (this.view === 'stats') this.requestStats();
 
         if (this.modalOverlay.classList.contains('visible')) {
             this._renderJsonIfNeeded();
@@ -2787,6 +2825,12 @@ class MessageHandler {
 
             case 'dataDictionaryExported':
                 this.explorerManager.onDictionaryExported();
+                break;
+
+            case 'buildStats':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onBuildStats(message);
+                }
                 break;
 
             case 'csvExported':
