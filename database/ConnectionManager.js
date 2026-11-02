@@ -111,7 +111,8 @@ class ConnectionManager {
             return new SspiPool(config, this._sspiHelperPath).connect();
         }
         const source = this._tokenSources.get(config);
-        if (!source) return sql.connect(config);
+        // Its own pool: sql.connect() would share mssql's one global pool between every connection.
+        if (!source) return new sql.ConnectionPool(config).connect();
         return this._createEntraPool(config, source).connect();
     }
 

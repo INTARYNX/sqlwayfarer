@@ -132,24 +132,26 @@ suite('ConnectionManager.buildConnectionConfig (Entra ID)', () => {
 });
 
 suite('ConnectionManager.connect', () => {
+	// Each connection is a pool of its own (never mssql's global one): the pool's connect() is what is faked.
 	let originalConnect;
+	const stubConnect = fn => { sql.ConnectionPool.prototype.connect = function () { return fn(); }; };
 
 	setup(() => {
-		originalConnect = sql.connect;
+		originalConnect = sql.ConnectionPool.prototype.connect;
 	});
 
 	teardown(() => {
-		sql.connect = originalConnect;
+		sql.ConnectionPool.prototype.connect = originalConnect;
 	});
 
 	test('a failed reconnect leaves the previous connection active instead of none at all', async () => {
 		const cm = manager();
 		const firstConnection = { close: async () => {} };
-		sql.connect = async () => firstConnection;
+		stubConnect(async () => firstConnection);
 		await cm.connect({ server: 'first-server', username: 'sa', password: 'pw' });
 		assert.strictEqual(cm.getServerName(), 'first-server');
 
-		sql.connect = async () => { throw new Error('ELOGIN: wrong password'); };
+		stubConnect(async () => { throw new Error('ELOGIN: wrong password'); });
 		await assert.rejects(() => cm.connect({ server: 'second-server', username: 'sa', password: 'bad' }));
 
 		// The old connection must still be the active one - connect() closes it
@@ -162,14 +164,14 @@ suite('ConnectionManager.connect', () => {
 		const cm = manager();
 		let closed = false;
 		const firstConnection = { close: async () => { closed = true; } };
-		sql.connect = async () => firstConnection;
+		stubConnect(async () => firstConnection);
 		await cm.connect({ server: 'first-server' });
 
 		let secondConnectStartedBeforeClose = null;
-		sql.connect = async () => {
+		stubConnect(async () => {
 			secondConnectStartedBeforeClose = !closed;
 			return { close: async () => {} };
-		};
+		});
 		await cm.connect({ server: 'second-server' });
 
 		assert.strictEqual(secondConnectStartedBeforeClose, true, 'the new connect() must be attempted before the old one is closed');
@@ -179,13 +181,32 @@ suite('ConnectionManager.connect', () => {
 
 	test('getServerName survives a disconnect, instead of falling back to "unknown"', async () => {
 		const cm = manager();
-		sql.connect = async () => ({ close: async () => {} });
+		stubConnect(async () => ({ close: async () => {} }));
 		await cm.connect({ server: 'my-server' });
 
 		await cm.dispose();
 
 		assert.strictEqual(cm.isConnected(), false);
 		assert.strictEqual(cm.getServerName(), 'my-server', 'the index cache key must stay stable through a reconnect gap');
+	});
+});
+
+suite('ConnectionManager: one pool per connection', () => {
+	test('two managers never share a pool, so closing one leaves the other alone', async () => {
+		const original = sql.ConnectionPool.prototype.connect;
+		const pools = [];
+		sql.ConnectionPool.prototype.connect = function () { pools.push(this); return Promise.resolve(this); };
+		try {
+			const a = manager();
+			const b = manager();
+			await a.connect({ server: 'one', username: 'sa', password: 'pw' });
+			await b.connect({ server: 'two', username: 'sa', password: 'pw' });
+			assert.strictEqual(pools.length, 2);
+			assert.notStrictEqual(pools[0], pools[1]);
+			assert.deepStrictEqual(pools.map(p => p.config.server), ['one', 'two']);
+		} finally {
+			sql.ConnectionPool.prototype.connect = original;
+		}
 	});
 });
 
