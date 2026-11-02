@@ -2006,6 +2006,34 @@ body.vscode-high-contrast .qp-tt-header {
     font-size: 12px;
 }
 
+/* Column resize: a grip on the right edge of each header; once a column was
+   resized the table lays out by the widths and long values are cut with "...". */
+.rs-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 7px;
+    cursor: col-resize;
+    touch-action: none;
+}
+
+.rs-resizer:hover,
+.rs-resizer:active {
+    background: var(--vscode-focusBorder);
+}
+
+table.rs-fixed {
+    table-layout: fixed;
+}
+
+table.rs-fixed th,
+table.rs-fixed td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 th.rs-sortable {
     cursor: pointer;
     user-select: none;

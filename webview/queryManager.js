@@ -26,6 +26,8 @@ class QueryManager {
     // itself is untouched - Copy and CSV export work on the full result
     // set, only the grid shows a prefix of it.
     static MAX_RENDERED_ROWS = 2000;
+    static DEFAULT_COLUMN_WIDTH = 120;
+    static MIN_COLUMN_WIDTH = 40;
 
     constructor() {
         this.runBtn = document.getElementById('runQueryBtn');
@@ -107,7 +109,21 @@ class QueryManager {
         this.input.addEventListener('dblclick', () => this.goToDefinition());
         // Tabs and Copy / CSV buttons are re-rendered with every result set: one
         // delegated listener on the container instead of per-element bindings.
+        // Dragging the edge of a column header resizes it (double-click: back to automatic widths).
+        this.resultsContainer.addEventListener('pointerdown', (e) => {
+            const handle = e.target.closest('.rs-resizer');
+            if (handle && e.button === 0) this.startColumnResize(handle, e);
+        });
+        this.resultsContainer.addEventListener('dblclick', (e) => {
+            const handle = e.target.closest('.rs-resizer');
+            if (!handle) return;
+            const index = Number(handle.parentElement.dataset.rsIndex);
+            if (this._gridState[index]) delete this._gridState[index].widths;
+            this.rerenderResultTable(index);
+        });
         this.resultsContainer.addEventListener('click', (e) => {
+            // The handle belongs to the header, but a drag on it is not a sort.
+            if (e.target.closest('.rs-resizer')) return;
             const tab = e.target.closest('button[data-rs-tab]');
             if (tab) {
                 this.showResultSet(Number(tab.dataset.rsTab));
@@ -716,12 +732,16 @@ class QueryManager {
             drawn.some(row => typeof row[col] === 'number')
             && drawn.every(row => row[col] === null || row[col] === undefined || typeof row[col] === 'number')));
 
-        let html = '<table><thead><tr>';
+        // Once a column was resized every column has a width and the table lays out by them.
+        const widths = state.widths || null;
+        let html = widths
+            ? `<table class="rs-fixed" style="width:${QueryManager.totalWidth(columns, widths)}px">${QueryManager.colgroupHtml(columns, widths)}<thead><tr>`
+            : '<table><thead><tr>';
         columns.forEach(col => {
             const sorted = state.sortCol === col;
             const arrow = sorted ? ` <i class="codicon codicon-arrow-${state.sortDir === 1 ? 'up' : 'down'}"></i>` : '';
             html += `<th data-sort-col="${this.escapeHtml(col)}" data-rs-index="${index}" `
-                + `class="rs-sortable${sorted ? ' sorted' : ''}${numeric.has(col) ? ' rs-num' : ''}" title="Click to sort">${this.escapeHtml(col)}${arrow}</th>`;
+                + `class="rs-sortable${sorted ? ' sorted' : ''}${numeric.has(col) ? ' rs-num' : ''}" title="Click to sort">${this.escapeHtml(col)}${arrow}<span class="rs-resizer" title="Drag to resize, double-click to reset"></span></th>`;
         });
         html += '</tr></thead><tbody>';
 
@@ -743,6 +763,51 @@ class QueryManager {
                 + `<button data-rs-action="more" data-rs-all="1" data-rs-index="${index}">Show all</button></p>`;
         }
         return html;
+    }
+
+    static totalWidth(columns, widths) {
+        return columns.reduce((sum, col) => sum + (widths[col] || QueryManager.DEFAULT_COLUMN_WIDTH), 0);
+    }
+
+    static colgroupHtml(columns, widths) {
+        return '<colgroup>' + columns.map(col => `<col style="width:${widths[col] || QueryManager.DEFAULT_COLUMN_WIDTH}px">`).join('') + '</colgroup>';
+    }
+
+    // Starts a drag on a header's right edge. The first drag freezes the widths
+    // the columns have now; the table then keeps them (see buildResultSetTableHtml).
+    startColumnResize(handle, event) {
+        event.preventDefault();
+        event.stopPropagation();
+        const th = handle.parentElement;
+        const table = th.closest('table');
+        const index = Number(th.dataset.rsIndex);
+        const columns = [...table.querySelectorAll('thead th')].map(t => t.dataset.sortCol);
+        const state = this._gridState[index] || (this._gridState[index] = {});
+        if (!state.widths) {
+            state.widths = {};
+            table.querySelectorAll('thead th').forEach(t => { state.widths[t.dataset.sortCol] = Math.round(t.getBoundingClientRect().width); });
+            table.classList.add('rs-fixed');
+            table.insertAdjacentHTML('afterbegin', QueryManager.colgroupHtml(columns, state.widths));
+        }
+        const position = columns.indexOf(th.dataset.sortCol);
+        const colElement = table.querySelectorAll('col')[position];
+        const startX = event.clientX;
+        const startWidth = state.widths[th.dataset.sortCol];
+        handle.setPointerCapture(event.pointerId);
+        const move = (e) => {
+            const width = Math.max(QueryManager.MIN_COLUMN_WIDTH, Math.round(startWidth + e.clientX - startX));
+            state.widths[th.dataset.sortCol] = width;
+            colElement.style.width = `${width}px`;
+            table.style.width = `${QueryManager.totalWidth(columns, state.widths)}px`;
+        };
+        const end = () => {
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('pointerup', end);
+            handle.removeEventListener('pointercancel', end);
+        };
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', end);
+        handle.addEventListener('pointercancel', end);
     }
 
     // Client-side view only - the underlying result set (and what Copy/CSV
