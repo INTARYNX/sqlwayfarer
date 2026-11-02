@@ -55,9 +55,12 @@ class SnippetHandlers {
     // tweaked version doesn't pile up duplicates.
     async handleAddSnippet(name, sql, abbreviation = '') {
         if (!name || !name.trim() || !sql || !sql.trim()) return;
-        const snippets = this._getSnippets().filter(s => s.name !== name.trim());
-        const snippet = { name: name.trim(), sql, createdAt: Date.now() };
+        const all = this._getSnippets();
+        const snippets = all.filter(s => s.name !== name.trim());
+        // Re-saving keeps what the form does not show (description, fields, source).
+        const snippet = Object.assign({}, all.find(s => s.name === name.trim()), { name: name.trim(), sql, createdAt: Date.now() });
         if (abbreviation && abbreviation.trim()) snippet.abbreviation = abbreviation.trim();
+        else if (abbreviation !== undefined) delete snippet.abbreviation;
         snippets.push(snippet);
         snippets.sort((a, b) => a.name.localeCompare(b.name));
         await this._globalState.update(SNIPPETS_KEY, snippets);

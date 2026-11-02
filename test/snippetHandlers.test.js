@@ -109,4 +109,18 @@ suite('SnippetHandlers: import and edit', () => {
 		await handlers.handleUpdateSnippet('mine', 'mine', 'SELECT 1', '');
 		assert.strictEqual('abbreviation' in state.get(KEY)[0], false);
 	});
+
+	test('saving again under an imported name keeps its fields', async () => {
+		const { handlers, state } = setup([{ name: 'H1', sql: 'OLD', createdAt: 1, source: 'SQL Prompt', description: 'about', placeholders: [{ id: 'S', default: '' }] }], {});
+		await handlers.handleAddSnippet('H1', 'NEW');
+		const saved = state.get(KEY)[0];
+		assert.deepStrictEqual([saved.sql, saved.description, saved.placeholders.length], ['NEW', 'about', 1]);
+	});
+
+	test('a change made while the dialog is open is not lost', async () => {
+		const { handlers, state } = setup([], { source: 'files', paths: [path.join(dir, 'h1.sqlpromptsnippet')], choice: 'keep' });
+		handlers._importUi.confirmImport = async () => { await handlers.handleAddSnippet('during', 'SELECT 1'); return 'keep'; };
+		await handlers.handleImportSnippets();
+		assert.deepStrictEqual(state.get(KEY).map(s => s.name).sort(), ['H1', 'during']);
+	});
 });
