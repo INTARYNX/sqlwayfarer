@@ -133,6 +133,7 @@ module.exports = [
 	['database. lists its objects, schema-qualified', 'SELECT * FROM OtherDb.|', ['Person.Person']],
 	['function after APPLY', 'SELECT * FROM dbo.Depts d CROSS APPLY dbo.|', ['fnInline','fnMulti']],
 	['table hint', 'SELECT * FROM dbo.Employees WITH (|', ['NOLOCK']],
+	['join without a foreign key: same-name columns are proposed', 'SELECT * FROM dbo.Employees e JOIN dbo.Depts d ON |', ['e.DeptID = d.DeptID']],
 	['JOIN a CTE', 'WITH c AS (SELECT DeptID FROM dbo.Depts) SELECT * FROM dbo.Employees e JOIN c ON c.|', ['DeptID']],
 	['IN (SELECT ... correlated', 'SELECT * FROM dbo.Employees e WHERE e.DeptID IN (SELECT d.| FROM dbo.Depts d)', ['DeptID','DeptName']],
 	['COUNT(', 'SELECT COUNT(e.|) FROM dbo.Employees e', ['ID']],

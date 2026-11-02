@@ -580,6 +580,41 @@ class SqlAutocomplete {
         return items;
     }
 
+    // "a.DeptID = b.DeptID" for the columns the new table shares by name (and type)
+    // with a table already in the statement, when the name looks like a key.
+    static buildNameJoinSuggestions(joinCtx, e, textBeforeCaret) {
+        const KEY_NAME_RE = /(^|[a-z])(id|key|code|no|number|ref)$/i;
+        const newObj = SqlAutocomplete._resolveObjectRef(joinCtx.table, e.objects);
+        if (!newObj) return [];
+        const newColumns = e.getColumns(e.currentDatabase, newObj.qualified_name);
+        if (!newColumns) {
+            SqlAutocomplete._addNeeds(e.needs, [{ database: e.currentDatabase, qualifiedName: newObj.qualified_name }]);
+            return [];
+        }
+        const newAlias = joinCtx.alias || newObj.object_name || newObj.name;
+        const newTableLower = joinCtx.table.replace(/[[\]\s]/g, '').toLowerCase();
+        const items = [];
+        for (const ref of SqlAutocomplete.scanTableRefs(textBeforeCaret)) {
+            if (ref.source.toLowerCase() === newTableLower) continue;
+            const otherObj = SqlAutocomplete._resolveObjectRef(ref.source, e.objects);
+            if (!otherObj || otherObj.qualified_name.toLowerCase() === newObj.qualified_name.toLowerCase()) continue;
+            const otherColumns = e.getColumns(e.currentDatabase, otherObj.qualified_name);
+            if (!otherColumns) {
+                SqlAutocomplete._addNeeds(e.needs, [{ database: e.currentDatabase, qualifiedName: otherObj.qualified_name }]);
+                continue;
+            }
+            const otherAlias = ref.alias || otherObj.object_name || otherObj.name;
+            for (const c of otherColumns) {
+                if (!KEY_NAME_RE.test(c.name)) continue;
+                const same = newColumns.find(n => n.name.toLowerCase() === c.name.toLowerCase() && (n.type || '') === (c.type || ''));
+                if (!same) continue;
+                const condition = `${otherAlias}.${c.name} = ${newAlias}.${same.name}`;
+                items.push({ label: condition, insert: condition, kind: 'joinCondition', detail: 'same column name' });
+            }
+        }
+        return items.slice(0, 3);
+    }
+
     // Build the suggestion list for a given context.
     // getColumns(database, qualifiedName) returns cached columns or undefined;
     // when undefined is hit, needsColumns tells the caller which {database,
@@ -871,6 +906,12 @@ class SqlAutocomplete {
         if (joinCtx && e.foreignKeys.length) {
             fkItems = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, e.objects, text.slice(a.stmtStart || 0, caret), e.foreignKeys);
             for (const it of fkItems) { it.priority = -10; it.match = it.label; }
+        }
+
+        // No foreign key between them: the same-name key columns are the next best.
+        if (joinCtx && fkItems.length === 0) {
+            fkItems = SqlAutocomplete.buildNameJoinSuggestions(joinCtx, e, text.slice(a.stmtStart || 0, caret));
+            for (const it of fkItems) { it.priority = -5; it.match = it.label; }
         }
 
         // When to pop up on its own: enough letters typed, or right after a
