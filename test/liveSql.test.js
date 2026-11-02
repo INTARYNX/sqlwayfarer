@@ -333,6 +333,18 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 			assert.deepStrictEqual([...index.objects['dbo.uspMergeLive'].tableWrites].sort(), ['dbo.auditlive', 'dbo.employees']);
 		});
 
+		test('every build is recorded in the statistics, with where the time went', async () => {
+			const { runs } = await service.getBuildStats(DB);
+			assert.deepStrictEqual(runs.map(r => r.mode).reverse(), ['full', 'incremental', 'force', 'force', 'force']);
+			const full = runs[runs.length - 1];
+			assert.ok(full.analyzedObjects >= 6 && full.durationMs > 0, 'the full build analyzed the objects');
+			assert.ok(full.cumulative.queryMs > 0 && full.cumulative.parseMs > 0, 'the server and the parser both cost something');
+			assert.ok(full.slowest.length > 0 && full.byType.length > 0);
+			const incremental = runs[runs.length - 2];
+			assert.ok(incremental.analyzedObjects >= 1 && incremental.analyzedObjects <= 2, 'an update analyzes only the changed object');
+			assert.ok(incremental.reusedObjects >= 4);
+		});
+
 		test('the features that need the index say so when it is missing', async () => {
 			const fresh = new IndexService(makeConnectionManager(), new DatabaseService(makeConnectionManager()));
 			fresh._indexDir = path.join(indexDir, 'empty');
