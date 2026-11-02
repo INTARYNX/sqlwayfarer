@@ -45,8 +45,8 @@ suite('messages from the panel page reach a handler', () => {
 
 suite('messages from the extension reach the page', () => {
 	test('every command the panel and its handlers post is handled by the page', () => {
-		// SavedConnectionHandlers talks to the sidebar (tested below).
-		const files = ['panels/SqlWayfarerPanel.js', ...list('panels/handlers').filter(f => !/SavedConnectionHandlers/.test(f))];
+		// SavedConnectionHandlers and ConnectionImportHandlers talk to the sidebar (tested below).
+		const files = ['panels/SqlWayfarerPanel.js', ...list('panels/handlers').filter(f => !/SavedConnectionHandlers|ConnectionImportHandlers/.test(f))];
 		const posted = new Map();
 		for (const file of files) {
 			// post({ command: 'x' ... }) / this._post({ ... }) / webview.postMessage({ ... })
