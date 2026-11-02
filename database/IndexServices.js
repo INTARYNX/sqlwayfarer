@@ -11,7 +11,7 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
     // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
     // table-level writes, 5 = parseErrors for the incomplete analyses);
     // older cached files rebuild.
-const INDEX_FORMAT_VERSION = 5;
+const INDEX_FORMAT_VERSION = 6;
 
 class IndexService {
     // How many objects' dependency queries run concurrently during a build.
