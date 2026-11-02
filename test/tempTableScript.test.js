@@ -97,4 +97,16 @@ suite('TempTableScript.build', () => {
 		assert.deepStrictEqual([TempTableScript.tableName(0), TempTableScript.tableName(1)], ['#Results', '#Results2']);
 		assert.ok(/CREATE TABLE #Results2/.test(TempTableScript.build(set, '#Results2')));
 	});
+
+	test('no column: nothing is scripted, no broken CREATE TABLE', () => {
+		const script = TempTableScript.build({ columns: [], rows: [{}], totalRows: 1 });
+		assert.ok(/no column/.test(script) && !/CREATE TABLE/.test(script));
+	});
+
+	test('what the driver cannot carry (sub-millisecond, the offset) is said in a comment', () => {
+		const script = TempTableScript.build({ columns: ['a', 'b', 'c'], types: [t('datetime2(7)', 'datetime'), t('datetimeoffset(7)', 'datetimeoffset'), t('int', 'number')], rows: [], totalRows: 0 });
+		assert.ok(/-- Values of \[a\], \[b\] are scripted to the millisecond/.test(script));
+		const plain = TempTableScript.build({ columns: ['n'], types: [t('int', 'number')], rows: [], totalRows: 0 });
+		assert.ok(!/millisecond/.test(plain));
+	});
 });

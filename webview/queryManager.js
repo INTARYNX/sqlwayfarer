@@ -880,6 +880,10 @@ class QueryManager {
     // the rows fetched, whatever the filter and the sort of the grid).
     scriptAsTempTable(set, index) {
         if (!this.openScriptInNewTab) return;
+        if (!set.columns || set.columns.length === 0) {
+            this.setStatus('This result set has no column: there is nothing to script.', 'error');
+            return;
+        }
         this.openScriptInNewTab(TempTableScript.build(set, TempTableScript.tableName(index)));
         this.setStatus(`${set.rows.length} row(s) scripted as ${TempTableScript.tableName(index)} in a new tab.`, 'success');
     }
