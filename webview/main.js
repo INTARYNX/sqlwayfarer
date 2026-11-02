@@ -2892,6 +2892,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const indexingModalManager = new IndexingModalManager();
     const queryManager = new QueryManager();
     const queryFileManager = new QueryFileManager(queryManager);
+    queryManager.openScriptInNewTab = text => queryFileManager.addDraftTabWithContent(text);
     const footprintManager = new FootprintManager();
     const schemaSourceManager = new SchemaSourceManager();
 

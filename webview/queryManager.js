@@ -144,6 +144,7 @@ class QueryManager {
             const action = button.dataset.rsAction;
             if (action === 'copy') this.copyResultSet(set);
             else if (action === 'json') this.exportResultSetJson(set, index);
+            else if (action === 'temp') this.scriptAsTempTable(set, index);
             else if (action === 'more') this.showMoreRows(index, button.dataset.rsAll === '1');
             else this.exportResultSetCsv(set, index);
         });
@@ -707,6 +708,7 @@ class QueryManager {
             + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
             + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
             + `<button data-rs-action="json" data-rs-index="${index}" title="Export this result set as a JSON file (an array of objects)"><i class="codicon codicon-json"></i> JSON</button>`
+            + `<button data-rs-action="temp" data-rs-index="${index}" title="Script this result set as CREATE TABLE #Results + INSERT, in a new query tab"><i class="codicon codicon-table"></i> #Temp</button>`
             + `</div>`
             + (set.rows.length < set.totalRows
                 ? `<p class="truncation-note"><i class="codicon codicon-warning"></i> Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`
@@ -763,6 +765,14 @@ class QueryManager {
                 + `<button data-rs-action="more" data-rs-all="1" data-rs-index="${index}">Show all</button></p>`;
         }
         return html;
+    }
+
+    // The result set as CREATE TABLE #Results + INSERT, in a new query tab (all
+    // the rows fetched, whatever the filter and the sort of the grid).
+    scriptAsTempTable(set, index) {
+        if (!this.openScriptInNewTab) return;
+        this.openScriptInNewTab(TempTableScript.build(set, TempTableScript.tableName(index)));
+        this.setStatus(`${set.rows.length} row(s) scripted as ${TempTableScript.tableName(index)} in a new tab.`, 'success');
     }
 
     static totalWidth(columns, widths) {
