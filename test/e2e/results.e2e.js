@@ -66,6 +66,7 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		check(after < before && after >= 40 && Math.abs(before - after - 80) <= 2, `dragging left narrows the column by the distance (${before} -> ${after})`);
 		check(await p.evaluate(() => document.querySelector('.result-set-pane table').classList.contains('rs-fixed')), 'the table lays out by the widths');
 		check(await p.evaluate(() => !document.querySelector('th.sorted')), 'the drag did not sort');
+		check(await p.evaluate(() => { const t = document.querySelector('.result-set-pane table').getBoundingClientRect(); const w = document.querySelector('.result-set-pane .result-set-table-wrap').getBoundingClientRect(); return Math.abs(t.width - w.width) <= 1; }), 'the table still spans the whole grid (no blank on the right)');
 
 		const idBefore = await width('id');
 		await p.click('th[data-sort-col="id"]', { position: { x: 8, y: 8 } });
