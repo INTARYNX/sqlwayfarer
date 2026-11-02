@@ -107,11 +107,15 @@ suite('DatabaseService.getObjectTypes (live SQL Server)', () => {
 		`);
 		await pool.request().batch(`CREATE DATABASE [${SCRATCH_DB}]`);
 
-		const request = pool.request();
-		request.database = SCRATCH_DB;
-		await request.batch('CREATE TABLE dbo.LiveTable (Id int PRIMARY KEY)');
-		await request.batch('CREATE VIEW dbo.LiveView AS SELECT Id FROM dbo.LiveTable');
-		await request.batch('CREATE PROCEDURE dbo.LiveProc AS SELECT 1 AS Value');
+		// The mssql driver ignores request.database: a pool opened on the scratch database is used.
+		const scratch = await new (require('mssql').ConnectionPool)(Object.assign({}, JSON.parse(LIVE_CONFIG), { database: SCRATCH_DB })).connect();
+		try {
+			await scratch.request().batch('CREATE TABLE dbo.LiveTable (Id int PRIMARY KEY)');
+			await scratch.request().batch('CREATE VIEW dbo.LiveView AS SELECT Id FROM dbo.LiveTable');
+			await scratch.request().batch('CREATE PROCEDURE dbo.LiveProc AS SELECT 1 AS Value');
+		} finally {
+			await scratch.close();
+		}
 	}
 
 	// A connection manager on top of the real pool, with the same contract
@@ -127,9 +131,8 @@ suite('DatabaseService.getObjectTypes (live SQL Server)', () => {
 			},
 			executeQueryInDatabase: async (database, query, params = null) => {
 				const request = pool.request();
-				request.database = database;
 				for (const [name, value] of Object.entries(params || {})) request.input(name, value);
-				return await request.query(query);
+				return await request.query(`USE [${database.replace(/]/g, ']]')}];\n${query}`);
 			}
 		};
 		return new DatabaseService(connectionManager);
@@ -146,6 +149,7 @@ suite('DatabaseService.getObjectTypes (live SQL Server)', () => {
 	suiteTeardown(async () => {
 		if (!pool) return;
 		await pool.request().batch(`
+			USE master;
 			IF DB_ID('${SCRATCH_DB}') IS NOT NULL BEGIN
 				ALTER DATABASE [${SCRATCH_DB}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 				DROP DATABASE [${SCRATCH_DB}];
