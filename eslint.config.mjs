@@ -55,6 +55,7 @@ export default [{
             SnippetManager: "readonly",
             QueryFileManager: "readonly",
             FootprintManager: "readonly",
+            IndexStatsView: "readonly",
             ConnectionStatus: "readonly",
             swIcon: "readonly",
             swObjectIcon: "readonly",

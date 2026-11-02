@@ -330,17 +330,22 @@
     <div id="objectsModalOverlay" class="modal-overlay objects-modal-overlay">
         <div class="modal-dialog modal-dialog-wide">
             <div class="modal-header">
-                <h3>Database index (JSON)</h3>
+                <h3>Database index</h3>
                 <button id="objectsModalCloseBtn" class="modal-close">×</button>
             </div>
             <div class="modal-body">
                 <div class="objects-section">
                     <div class="objects-header">
+                        <div class="index-view-tabs" role="tablist">
+                            <button class="index-view-tab active" role="tab" data-index-view="json">Index</button>
+                            <button class="index-view-tab" role="tab" data-index-view="stats">Stats</button>
+                        </div>
                         <button id="forceReindexBtn" class="force-reindex-btn" disabled><i class="codicon codicon-refresh"></i> Force Reindex</button>
                     </div>
                     <div id="objectsJsonContent">
                         <p class="placeholder-text">Select a database to view the raw JSON index of all objects.</p>
                     </div>
+                    <div id="indexStatsContent" class="index-stats-content" hidden></div>
                 </div>
             </div>
         </div>
@@ -463,6 +468,7 @@
     <script src="{{FILE_TREE_URI}}"></script>
     <script src="{{QUERY_FILE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
+    <script src="{{INDEX_STATS_VIEW_URI}}"></script>
     <script src="{{MAIN_SCRIPT_URI}}"></script>
 </body>
 </html>

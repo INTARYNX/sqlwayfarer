@@ -2112,8 +2112,9 @@ th.rs-sortable.sorted {
 
 .objects-header {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
+    gap: 12px;
     margin-bottom: 15px;
 }
 
@@ -2911,4 +2912,128 @@ table.fp-cols .fp-center { text-align: center; }
     color: var(--vscode-textLink-foreground);
     text-decoration: underline;
     cursor: pointer;
+}
+
+/* Index window: the Index / Stats tabs and the statistics of the builds. */
+.index-view-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.index-view-tab {
+    width: auto;
+    margin: 0;
+    padding: 4px 14px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.index-view-tab.active {
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder);
+}
+
+.index-stats-content h4 {
+    margin: 16px 0 6px;
+    font-weight: 600;
+}
+
+.stats-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 8px 0;
+    color: var(--vscode-descriptionForeground);
+}
+
+.stats-toolbar button {
+    width: auto;
+    margin: 0;
+}
+
+.stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.stats-card {
+    padding: 10px 12px;
+    background: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+    border-radius: 4px;
+}
+
+.stats-card-value {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.stats-card-label,
+.stats-card-hint,
+.stats-note {
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+}
+
+.stats-note {
+    margin: 2px 0 6px;
+}
+
+.stats-bar-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 260px) 1fr minmax(110px, auto);
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0;
+}
+
+.stats-bar {
+    height: 10px;
+    background: var(--vscode-progressBar-background, #0e639c);
+    background: color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.stats-bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--vscode-focusBorder);
+}
+
+.stats-bar-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-bar-value small {
+    color: var(--vscode-descriptionForeground);
+}
+
+.stats-problems {
+    color: var(--vscode-terminal-ansiYellow, #b58900);
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-table th,
+.stats-table td {
+    text-align: left;
+    padding: 4px 10px 4px 0;
+    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+}
+
+.stats-table th {
+    color: var(--vscode-descriptionForeground);
+    font-weight: 600;
 }
