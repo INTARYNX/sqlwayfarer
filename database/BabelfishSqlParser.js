@@ -983,7 +983,7 @@ class BabelfishSqlParser {
         if (this._fastPrediction) {
             try {
                 return this._parseOnce(sqlDefinition, collectErrors, true);
-            } catch (err) {
+            } catch {
                 // Not accepted by the fast stage: the full parse decides.
             }
         }
