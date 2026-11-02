@@ -771,12 +771,21 @@ class SqlAutocomplete {
         const analysis = SqlContext.analyze(text, caret, tok.tokenStart);
         if (analysis.inLiteral) return result;
 
+        // "USE other_db" earlier in the text: the statement is resolved there.
+        let objects = env.objects || [];
+        let currentDatabase = env.currentDatabase || null;
+        if (analysis.useDatabase && analysis.useDatabase.toLowerCase() !== (currentDatabase || '').toLowerCase()) {
+            const other = env.getDatabaseObjects ? env.getDatabaseObjects(analysis.useDatabase) : undefined;
+            if (other) { objects = other; currentDatabase = analysis.useDatabase; }
+            else needs.databaseObjects.push(analysis.useDatabase);
+        }
+
         const e = {
             // `objects` resolves what the statement names (even sys.objects); `visible` is what is offered.
-            objects: env.objects || [],
-            visible: SqlAutocomplete._visibleObjects(env.objects || [], settings),
+            objects,
+            visible: SqlAutocomplete._visibleObjects(objects, settings),
             databases: env.databases || [],
-            currentDatabase: env.currentDatabase || null,
+            currentDatabase,
             foreignKeys: env.foreignKeys || [],
             getColumns: env.getColumns || (() => undefined),
             getDatabaseObjects: env.getDatabaseObjects || (() => undefined),

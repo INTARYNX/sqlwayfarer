@@ -638,6 +638,15 @@ class SqlContext {
             else if (SqlContext._isPunct(lastTok, ';') && lastTok.e <= start) stmt = null;
         }
 
+        // Database selected by the last "USE db" before the caret (null when none).
+        result.useDatabase = null;
+        for (const st of statements) {
+            if (tokens[st.from].s >= caret) break;
+            if (SqlContext._isWord(tokens[st.from], 'use') && SqlContext._isName(tokens[st.from + 1])) {
+                result.useDatabase = tokens[st.from + 1].v.replace(/^\[|\]$/g, '');
+            }
+        }
+
         const defs = SqlContext._definitions(lexed, batch);
         result.temps = defs.temps;
         result.variables = defs.variables;
