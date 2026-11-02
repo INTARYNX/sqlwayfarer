@@ -23,13 +23,18 @@ class ConnectionImportHandlers {
     }
 
     async handleImportConnections() {
-        const source = await this._ui.pickSource();
-        if (!source) return;
-        const entries = source === 'cms' ? await this._readCms() : await this._readFile();
-        if (!entries || entries.length === 0) return;
-        await this._offer(entries);
+        try {
+            const source = await this._ui.pickSource();
+            if (!source) return;
+            const found = source === 'cms' ? await this._readCms() : await this._readFile();
+            if (found) await this._offer(found);
+        } catch (error) {
+            console.error('Connection import failed:', error);
+            this._ui.error(`Import failed: ${error.message}`);
+        }
     }
 
+    // { entries, skipped } of the Central Management Server, or null (said to the user).
     async _readCms() {
         const saved = this._storage.getSavedConnections();
         if (saved.length === 0) {
@@ -41,9 +46,14 @@ class ConnectionImportHandlers {
         const manager = this._createManager();
         try {
             await manager.connectWithSaved(name);
-            const entries = await readCmsServers(manager);
-            if (entries.length === 0) this._ui.info(`No registered server in the Central Management Server of '${name}'.`);
-            return entries;
+            const found = await readCmsServers(manager);
+            if (found.entries.length === 0) {
+                this._ui.info(found.skipped.length
+                    ? `No server of the Central Management Server of '${name}' can be imported (${found.skipped[0].reason}).`
+                    : `No registered server in the Central Management Server of '${name}'.`);
+                return null;
+            }
+            return found;
         } catch (error) {
             this._ui.error(`Could not read the Central Management Server of '${name}': ${error.message}${/permission|denied/i.test(error.message) ? ' (reading it takes the ServerGroupReaderRole role in msdb)' : ''}`);
             return null;
@@ -65,25 +75,21 @@ class ConnectionImportHandlers {
             return null;
         }
         const parsed = parseRegisteredServersFile(text);
-        if (parsed.entries.length === 0) this._ui.error(parsed.errors[0] || 'No registered server found in the file.');
-        return parsed.entries;
+        if (parsed.entries.length === 0) {
+            this._ui.error(parsed.errors[0] || `No server of the file can be imported (${parsed.skipped[0].reason}).`);
+            return null;
+        }
+        return parsed;
     }
 
-    async _offer(entries) {
+    async _offer({ entries, skipped }) {
         const plan = planConnectionImport(this._storage.getSavedConnections(), entries);
         const chosen = await this._ui.pickEntries(plan);
         if (!chosen || chosen.length === 0) return;
 
-        let added = 0;
-        let overwritten = 0;
-        let failed = 0;
-        for (const item of chosen) {
-            const result = await this._storage.saveConnection(item.config);
-            if (!result.success) failed++;
-            else if (item.sameName) overwritten++;
-            else added++;
-        }
-        this._post({ command: 'connectionsImported', added, overwritten, failed });
+        const result = await this._storage.saveConnections(chosen.map(item => item.config));
+        const overwritten = chosen.filter(item => item.sameName && result.saved.includes(item.config.name)).length;
+        this._post({ command: 'connectionsImported', added: result.saved.length - overwritten, overwritten, failed: result.failed.length, skipped: skipped.length });
         await this._onImported();
     }
 }

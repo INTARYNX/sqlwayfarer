@@ -12,7 +12,10 @@ function setup({ saved = [], answers = {}, manager = null } = {}) {
 	const saves = [];
 	const storage = {
 		getSavedConnections: () => saved,
-		saveConnection: async config => { saves.push(config); return { success: config.name !== 'FAIL' }; }
+		saveConnections: async configs => {
+			for (const config of configs) saves.push(config);
+			return { saved: configs.filter(c => c.name !== 'FAIL').map(c => c.name), failed: configs.filter(c => c.name === 'FAIL').map(c => c.name) };
+		}
 	};
 	const offered = [];
 	const ui = {
@@ -43,7 +46,7 @@ suite('ConnectionImportHandlers: registered servers file', () => {
 		await handlers.handleImportConnections();
 		assert.strictEqual(offered[0].length, 5);
 		assert.deepStrictEqual(saves.map(s => [s.name, s.group || '']), [['Local dev', ''], ['ERP', 'Production'], ['Paris', 'Production/Europe'], ['Azure', 'Production/Europe'], ['Sandbox', 'Production/R&D lab']]);
-		assert.deepStrictEqual(posted, [{ command: 'connectionsImported', added: 5, overwritten: 0, failed: 0 }]);
+		assert.deepStrictEqual(posted, [{ command: 'connectionsImported', added: 5, overwritten: 0, failed: 0, skipped: 0 }]);
 		assert.strictEqual(reloaded(), 1);
 		assert.ok(saves.every(s => !('password' in s)));
 	});
@@ -55,7 +58,7 @@ suite('ConnectionImportHandlers: registered servers file', () => {
 		});
 		await handlers.handleImportConnections();
 		assert.deepStrictEqual(saves.map(s => s.name), ['ERP', 'Paris']);
-		assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 1, overwritten: 1, failed: 0 });
+		assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 1, overwritten: 1, failed: 0, skipped: 0 });
 	});
 
 	test('a failed save is counted, the others go on', async () => {
@@ -65,7 +68,24 @@ suite('ConnectionImportHandlers: registered servers file', () => {
 		try {
 			const { handlers, posted } = setup({ answers: { source: 'file', file } });
 			await handlers.handleImportConnections();
-			assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 1, overwritten: 0, failed: 1 });
+			assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 1, overwritten: 0, failed: 1, skipped: 0 });
+		} finally { await fs.rm(dir, { recursive: true, force: true }); }
+	});
+
+	test('an exception anywhere is told to the user, not lost', async () => {
+		const { handlers, messages } = setup({ answers: { source: 'file', file: fixture, pick: () => { throw new Error('picker broke'); } } });
+		await handlers.handleImportConnections();
+		assert.ok(/Import failed: picker broke/.test(messages.error[0]));
+	});
+
+	test('a named pipe is counted as skipped, the others are offered', async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'sqlwf-regsrvr-'));
+		const file = path.join(dir, 'x.regsrvr');
+		await fs.writeFile(file, '<S><RegisteredServer><Name>Pipe</Name><ServerName>np:\\\\h\\pipe\\q</ServerName></RegisteredServer><RegisteredServer><Name>OK</Name><ServerName>b</ServerName></RegisteredServer></S>');
+		try {
+			const { handlers, posted } = setup({ answers: { source: 'file', file } });
+			await handlers.handleImportConnections();
+			assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 1, overwritten: 0, failed: 0, skipped: 1 });
 		} finally { await fs.rm(dir, { recursive: true, force: true }); }
 	});
 
@@ -106,7 +126,7 @@ suite('ConnectionImportHandlers: Central Management Server', () => {
 		assert.strictEqual(manager.connectedTo, 'CMS');
 		assert.strictEqual(manager.disposed, true);
 		assert.deepStrictEqual(saves.map(s => [s.name, s.server, s.port, s.group || '', s.authType]), [['ERP', 'erp', '1444', 'Prod', 'windows'], ['Dev', 'dev', '', '', 'windows']]);
-		assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 2, overwritten: 0, failed: 0 });
+		assert.deepStrictEqual(posted[0], { command: 'connectionsImported', added: 2, overwritten: 0, failed: 0, skipped: 0 });
 	});
 
 	test('without any saved connection, the user is told to save the CMS one first', async () => {

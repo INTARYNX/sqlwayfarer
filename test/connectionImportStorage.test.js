@@ -15,6 +15,31 @@ function fakeContext() {
 	};
 }
 
+suite('ConnectionStorage.saveConnections', () => {
+	test('several connections are written once, a nameless one is refused, no secret is touched', async () => {
+		const context = fakeContext();
+		let writes = 0;
+		const store = context.secrets.store;
+		context.secrets.store = async (k, v) => { writes++; return store(k, v); };
+		const storage = new ConnectionStorage(context);
+		await storage.initialize();
+		const result = await storage.saveConnections([{ name: 'a', server: 'x' }, { name: 'b', server: 'y', password: 'ignored' }, { server: 'nameless' }]);
+		assert.deepStrictEqual(result, { saved: ['a', 'b'], failed: [''] });
+		assert.strictEqual(writes, 1);
+		assert.deepStrictEqual([...context._secrets.keys()], ['sqlwayfarer.connections']);
+	});
+
+	test('a failing write leaves the connections as they were', async () => {
+		const context = fakeContext();
+		const storage = new ConnectionStorage(context);
+		await storage.initialize();
+		await storage.saveConnections([{ name: 'keep', server: 'x' }]);
+		context.secrets.store = async () => { throw new Error('disk full'); };
+		await assert.rejects(() => storage.saveConnections([{ name: 'new', server: 'y' }]), /disk full/);
+		assert.deepStrictEqual(storage.getSavedConnections().map(c => c.name), ['keep']);
+	});
+});
+
 suite('connection import into the real storage', () => {
 	test('imported connections keep their group, hold no password, and survive a reload', async () => {
 		const context = fakeContext();
