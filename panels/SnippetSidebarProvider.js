@@ -75,8 +75,9 @@ class SnippetSidebarProvider {
         webviewView.webview.onDidReceiveMessage(async message => {
             switch (message.command) {
                 case 'getSnippets':         await snippets.handleGetSnippets(); break;
-                case 'addSnippet':          await snippets.handleAddSnippet(message.name, message.sql); break;
-                case 'updateSnippet':       await snippets.handleUpdateSnippet(message.oldName, message.newName, message.sql); break;
+                case 'addSnippet':          await snippets.handleAddSnippet(message.name, message.sql, message.abbreviation); break;
+                case 'updateSnippet':       await snippets.handleUpdateSnippet(message.oldName, message.newName, message.sql, message.abbreviation); break;
+                case 'importSnippets':      await snippets.handleImportSnippets(); break;
                 case 'deleteSnippet':       await snippets.handleDeleteSnippet(message.name); break;
                 // The extension asks, a webview cannot show a dialog.
                 case 'confirmDeleteSnippet': {

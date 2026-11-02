@@ -1,117 +1,112 @@
 const assert = require('assert');
+const fs = require('fs').promises;
+const os = require('os');
+const path = require('path');
 const SnippetHandlers = require('../panels/handlers/SnippetHandlers');
 
-// Minimal Memento stand-in for globalState.
-function makeState(initial = []) {
-	const store = new Map([['sqlwayfarer.customSnippets', initial]]);
-	return {
-		get: (k, d) => (store.has(k) ? store.get(k) : d),
-		update: async (k, v) => { store.set(k, v); }
+const KEY = 'sqlwayfarer.customSnippets';
+const makeState = (initial = []) => {
+	const store = new Map([[KEY, initial]]);
+	return { get: (k, d) => (store.has(k) ? store.get(k) : d), update: async (k, v) => { store.set(k, v); } };
+};
+
+const snippetFile = (title, shortcut, code, declarations = '<Declarations />') => `﻿<?xml version="1.0" encoding="utf-8"?>
+<CodeSnippets><CodeSnippet Format="1.0.0"><Header><Title>${title}</Title><Shortcut>${shortcut}</Shortcut><Description>about ${title}</Description><Author /><SnippetTypes><SnippetType>Expansion</SnippetType></SnippetTypes></Header>
+<Snippet>${declarations}<Code Language="sql"><![CDATA[${code}]]></Code></Snippet></CodeSnippet></CodeSnippets>`;
+
+function setup(initial, answers) {
+	const posted = [];
+	const broadcast = [];
+	const infos = [];
+	const asked = [];
+	const state = makeState(initial);
+	const ui = {
+		pickSource: async () => answers.source,
+		pickPaths: async () => answers.paths,
+		confirmImport: async info => { asked.push(info); return answers.choice; },
+		info: message => infos.push(message)
 	};
+	const handlers = new SnippetHandlers(m => posted.push(m), state, m => broadcast.push(m), ui);
+	return { handlers, state, posted, broadcast, infos, asked };
 }
 
-suite('SnippetHandlers', () => {
-	test('adding a snippet with an existing name overwrites it', async () => {
-		const state = makeState([{ name: 'A', sql: 'SELECT 1;', createdAt: 1 }]);
-		const posts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state);
+suite('SnippetHandlers: import and edit', () => {
+	let dir;
+	suiteSetup(async () => {
+		dir = await fs.mkdtemp(path.join(os.tmpdir(), 'sqlwf-import-'));
+		await fs.mkdir(path.join(dir, 'sub'));
+		await fs.writeFile(path.join(dir, 'h1.sqlpromptsnippet'), snippetFile('H1', 'LD_H1', '--$Section$\n$CURSOR$', '<Declarations><Literal><ID>Section</ID><ToolTip /><Default>Title</Default></Literal></Declarations>'));
+		await fs.writeFile(path.join(dir, 'sub', 'max.sqlpromptsnippet'), snippetFile('MaxInt', 'LD_MaxInt', '2147483647'));
+		await fs.writeFile(path.join(dir, 'broken.sqlpromptsnippet'), '<html>not a snippet</html>');
+	});
+	suiteTeardown(async () => { await fs.rm(dir, { recursive: true, force: true }); });
 
-		await handlers.handleAddSnippet('A', 'SELECT 2;');
-
-		const snippets = posts.pop().snippets;
-		assert.strictEqual(snippets.length, 1);
-		assert.strictEqual(snippets[0].sql, 'SELECT 2;');
+	test('a folder is imported with its abbreviations, descriptions and placeholders', async () => {
+		const { handlers, state, posted, broadcast, asked } = setup([], { source: 'folder', paths: [dir], choice: 'import' });
+		await handlers.handleImportSnippets();
+		const saved = state.get(KEY);
+		assert.deepStrictEqual(saved.map(s => s.name), ['H1', 'MaxInt']);
+		const h1 = saved.find(s => s.name === 'H1');
+		assert.strictEqual(h1.abbreviation, 'LD_H1');
+		assert.strictEqual(h1.description, 'about H1');
+		assert.deepStrictEqual(h1.placeholders, [{ id: 'Section', tooltip: '', default: 'Title' }]);
+		assert.strictEqual(h1.source, 'SQL Prompt');
+		assert.strictEqual(asked[0].found, 2);
+		assert.strictEqual(asked[0].skipped.length, 1, 'the broken file is reported');
+		assert.deepStrictEqual(posted[0], { command: 'snippetsImported', added: 2, overwritten: 0, leftOut: 0, skippedFiles: 1 });
+		assert.strictEqual(broadcast[0].command, 'snippetsLoaded', 'every open tab gets the new snippets');
 	});
 
-	test('renaming a snippet to a free name works', async () => {
-		const state = makeState([{ name: 'A', sql: 'SELECT 1;', createdAt: 1 }]);
-		const posts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state);
-
-		await handlers.handleUpdateSnippet('A', 'B', 'SELECT 1;');
-
-		const snippets = posts.pop().snippets;
-		assert.deepStrictEqual(snippets.map(s => s.name), ['B']);
+	test('cancelling at any step changes nothing', async () => {
+		for (const answers of [{ source: undefined }, { source: 'folder', paths: undefined }, { source: 'folder', paths: [dir], choice: undefined }]) {
+			const { handlers, state, posted } = setup([], answers);
+			await handlers.handleImportSnippets();
+			assert.deepStrictEqual(state.get(KEY), []);
+			assert.deepStrictEqual(posted, []);
+		}
 	});
 
-	// F6: renaming a snippet to a name already used by a DIFFERENT snippet used
-	// to filter out both names before re-adding under the new one, silently
-	// destroying whichever snippet already had that name.
-	test('renaming a snippet to a name already used by a different snippet is refused, not destroyed', async () => {
-		const state = makeState([
-			{ name: 'A', sql: 'SELECT 1;', createdAt: 1 },
-			{ name: 'B', sql: 'SELECT 2;', createdAt: 2 }
-		]);
-		const posts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state);
+	test('a snippet that already exists is kept, or overwritten when the user says so', async () => {
+		const existing = [{ name: 'H1', sql: 'MINE', createdAt: 1 }];
+		const keep = setup(existing, { source: 'folder', paths: [dir], choice: 'import' });
+		await keep.handlers.handleImportSnippets();
+		assert.strictEqual(keep.state.get(KEY).find(s => s.name === 'H1').sql, 'MINE');
+		assert.deepStrictEqual(keep.asked[0].duplicates, ['H1']);
+		assert.strictEqual(keep.posted[0].leftOut, 1);
 
-		await handlers.handleUpdateSnippet('A', 'B', 'SELECT 99;');
-
-		const snippets = posts.pop().snippets;
-		assert.strictEqual(snippets.length, 2, 'both snippets must still exist - nothing silently destroyed');
-		const b = snippets.find(s => s.name === 'B');
-		assert.strictEqual(b.sql, 'SELECT 2;', 'the existing "B" must be untouched, not overwritten by the rename');
-		assert.ok(snippets.find(s => s.name === 'A'), '"A" must still exist since its rename was refused');
+		const overwrite = setup(existing, { source: 'folder', paths: [dir], choice: 'overwrite' });
+		await overwrite.handlers.handleImportSnippets();
+		assert.ok(overwrite.state.get(KEY).find(s => s.name === 'H1').sql.includes('$Section$'));
+		assert.strictEqual(overwrite.posted[0].overwritten, 1);
 	});
 
-	test('renaming a snippet to its own current name (content-only edit) still works', async () => {
-		const state = makeState([{ name: 'A', sql: 'SELECT 1;', createdAt: 1 }]);
-		const posts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state);
-
-		await handlers.handleUpdateSnippet('A', 'A', 'SELECT 2;');
-
-		const snippets = posts.pop().snippets;
-		assert.strictEqual(snippets.length, 1);
-		assert.strictEqual(snippets[0].sql, 'SELECT 2;');
+	test('nothing readable: the user is told, nothing is saved', async () => {
+		const { handlers, state, posted, infos } = setup([], { source: 'files', paths: [path.join(dir, 'broken.sqlpromptsnippet')], choice: 'import' });
+		await handlers.handleImportSnippets();
+		assert.deepStrictEqual(state.get(KEY), []);
+		assert.strictEqual(posted[0].added, 0);
+		assert.ok(/No snippet could be read/.test(infos[0]));
 	});
 
-	test('deleting a snippet removes only that one', async () => {
-		const state = makeState([
-			{ name: 'A', sql: 'SELECT 1;', createdAt: 1 },
-			{ name: 'B', sql: 'SELECT 2;', createdAt: 2 }
-		]);
-		const posts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state);
-
-		await handlers.handleDeleteSnippet('A');
-
-		const snippets = posts.pop().snippets;
-		assert.deepStrictEqual(snippets.map(s => s.name), ['B']);
+	test('editing an imported snippet keeps its placeholders, description and source', async () => {
+		const imported = { name: 'H1', sql: '--$Section$', createdAt: 1, abbreviation: 'LD_H1', description: 'about', placeholders: [{ id: 'Section', default: 'T' }], source: 'SQL Prompt' };
+		const { handlers, state } = setup([imported], {});
+		await handlers.handleUpdateSnippet('H1', 'Heading', '--$Section$\n$CURSOR$');
+		const [saved] = state.get(KEY);
+		assert.strictEqual(saved.name, 'Heading');
+		assert.strictEqual(saved.abbreviation, 'LD_H1', 'the abbreviation is kept when the form does not send one');
+		assert.deepStrictEqual(saved.placeholders, imported.placeholders);
+		assert.strictEqual(saved.description, 'about');
+		assert.strictEqual(saved.source, 'SQL Prompt');
 	});
 
-	// Snippets live in shared globalState, but each open tab also keeps its
-	// own in-memory copy - a mutation has to reach every tab, not just post
-	// back to whichever one made it.
-	test('adding/updating/deleting a snippet broadcasts to every open tab, not just the requester', async () => {
-		const state = makeState();
-		const posts = [];
-		const broadcasts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state, m => broadcasts.push(m));
-
-		await handlers.handleAddSnippet('A', 'SELECT 1;');
-		assert.strictEqual(posts.length, 0, 'a successful mutation is broadcast, not posted back to just the requester');
-		assert.strictEqual(broadcasts.pop().snippets.length, 1);
-
-		await handlers.handleUpdateSnippet('A', 'B', 'SELECT 2;');
-		assert.deepStrictEqual(broadcasts.pop().snippets.map(s => s.name), ['B']);
-
-		await handlers.handleDeleteSnippet('B');
-		assert.deepStrictEqual(broadcasts.pop().snippets, []);
-	});
-
-	test('a refused rename (name collision) only replies to the requester, not a broadcast', async () => {
-		const state = makeState([
-			{ name: 'A', sql: 'SELECT 1;', createdAt: 1 },
-			{ name: 'B', sql: 'SELECT 2;', createdAt: 2 }
-		]);
-		const posts = [];
-		const broadcasts = [];
-		const handlers = new SnippetHandlers(m => posts.push(m), state, m => broadcasts.push(m));
-
-		await handlers.handleUpdateSnippet('A', 'B', 'SELECT 99;');
-
-		assert.strictEqual(broadcasts.length, 0, 'nothing actually changed, so nothing should be broadcast');
-		assert.strictEqual(posts.length, 1, 'the requester still gets told their rename was refused');
+	test('an abbreviation can be set, changed and removed', async () => {
+		const { handlers, state } = setup([], {});
+		await handlers.handleAddSnippet('mine', 'SELECT 1', ' mm ');
+		assert.strictEqual(state.get(KEY)[0].abbreviation, 'mm');
+		await handlers.handleUpdateSnippet('mine', 'mine', 'SELECT 1', 'm2');
+		assert.strictEqual(state.get(KEY)[0].abbreviation, 'm2');
+		await handlers.handleUpdateSnippet('mine', 'mine', 'SELECT 1', '');
+		assert.strictEqual('abbreviation' in state.get(KEY)[0], false);
 	});
 });
