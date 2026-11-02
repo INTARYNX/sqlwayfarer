@@ -11,51 +11,37 @@ class ExportHandlers {
         this._dataDictionaryService = dataDictionaryService;
     }
 
-    // The webview builds the CSV text (it already holds the rows); this side
-    // only owns the save dialog and the file write.
-    async handleExportCsv(csv, defaultName) {
+    // The webview builds the text (it already holds the rows); this side only
+    // owns the save dialog and the file write. The answer carries the format.
+    async _saveText(text, defaultName, format, extension, bom) {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
             const defaultDir = workspaceFolder ? workspaceFolder.uri.fsPath : os.homedir();
             const uri = await vscode.window.showSaveDialog({
-                defaultUri: vscode.Uri.file(path.join(defaultDir, defaultName || 'results.csv')),
-                filters: { CSV: ['csv'] }
+                defaultUri: vscode.Uri.file(path.join(defaultDir, defaultName || `results.${extension}`)),
+                filters: { [format]: [extension] }
             });
             if (!uri) {
-                this._post({ command: 'csvExported', success: false, cancelled: true });
+                this._post({ command: 'resultsExported', format, success: false, cancelled: true });
                 return;
             }
-
-            // BOM so Excel opens the file as UTF-8 instead of guessing ANSI.
-            await fs.writeFile(uri.fsPath, '\ufeff' + csv, 'utf8');
-            this._post({ command: 'csvExported', success: true, path: uri.fsPath });
+            await fs.writeFile(uri.fsPath, (bom ? '\ufeff' : '') + text, 'utf8');
+            this._post({ command: 'resultsExported', format, success: true, path: uri.fsPath });
         } catch (error) {
-            console.error('CSV export failed:', error);
-            vscode.window.showErrorMessage(`CSV export failed: ${error.message}`);
-            this._post({ command: 'csvExported', success: false, message: error.message });
+            console.error(`${format} export failed:`, error);
+            vscode.window.showErrorMessage(`${format} export failed: ${error.message}`);
+            this._post({ command: 'resultsExported', format, success: false, message: error.message });
         }
     }
 
-    // Same as the CSV export, for JSON (UTF-8, no BOM: JSON is not read by Excel).
-    async handleExportJson(json, defaultName) {
-        try {
-            const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-            const defaultDir = workspaceFolder ? workspaceFolder.uri.fsPath : os.homedir();
-            const uri = await vscode.window.showSaveDialog({
-                defaultUri: vscode.Uri.file(path.join(defaultDir, defaultName || 'results.json')),
-                filters: { JSON: ['json'] }
-            });
-            if (!uri) {
-                this._post({ command: 'csvExported', format: 'JSON', success: false, cancelled: true });
-                return;
-            }
-            await fs.writeFile(uri.fsPath, json, 'utf8');
-            this._post({ command: 'csvExported', format: 'JSON', success: true, path: uri.fsPath });
-        } catch (error) {
-            console.error('JSON export failed:', error);
-            vscode.window.showErrorMessage(`JSON export failed: ${error.message}`);
-            this._post({ command: 'csvExported', format: 'JSON', success: false, message: error.message });
-        }
+    // BOM so Excel opens the file as UTF-8 instead of guessing ANSI.
+    handleExportCsv(csv, defaultName) {
+        return this._saveText(csv, defaultName, 'CSV', 'csv', true);
+    }
+
+    // UTF-8, no BOM: JSON is not read by Excel.
+    handleExportJson(json, defaultName) {
+        return this._saveText(json, defaultName, 'JSON', 'json', false);
     }
 
     async handleExportDataDictionary(database, full = false) {

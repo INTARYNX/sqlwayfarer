@@ -2852,7 +2852,7 @@ class MessageHandler {
                 }
                 break;
 
-            case 'csvExported':
+            case 'resultsExported':
                 if (this.queryManager) {
                     this.queryManager.onCsvExported(message);
                 }
