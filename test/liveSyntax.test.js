@@ -74,12 +74,12 @@ suite('live SQL Server: syntax check', function () {
 		assert.strictEqual(real.recordset[0].answer, 42, 'a query on the other connection still runs');
 	});
 
-	test('a lost session is rebuilt by the next check', async () => {
+	test('a session the server dropped is replaced by the check itself', async () => {
 		await checker.check('SELECT 1');
 		// The server drops the session under the checker.
 		// (Only this process's other sessions: the checker's own.)
 		await other.executeQuery(`DECLARE @s nvarchar(max) = N''; SELECT @s += N'KILL ' + CAST(session_id AS nvarchar(10)) + N';' FROM sys.dm_exec_sessions WHERE is_user_process = 1 AND session_id <> @@SPID AND host_process_id = ${process.pid}; EXEC (@s)`);
-		await assert.rejects(() => checker.check('SELECT 1'));
-		assert.deepStrictEqual(await checker.check('SELECT 1'), [], 'the next check opens a new session');
+		assert.deepStrictEqual(await checker.check('SELECT 1'), [], 'the check goes on, on a new session');
+		assert.deepStrictEqual(await checker.check('SELECT FROM').then(d => d.length), 1);
 	});
 });
