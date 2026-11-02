@@ -60,6 +60,7 @@ class TempTableScript {
     // result) is typed from its values.
     static build(set, tableName = '#Results') {
         const columns = set.columns || [];
+        if (columns.length === 0) return '-- This result set has no column: there is nothing to script.\n';
         const types = columns.map((col, i) => (set.types && set.types[i]) || TempTableScript.inferType(set.rows || [], col));
         const names = columns.map((col, i) => col === '' ? `Column${i + 1}` : col);
         const unsupported = names.filter((n, i) => types[i].kind === 'unsupported');
@@ -67,6 +68,9 @@ class TempTableScript {
         const lines = [`-- Result set scripted as a temp table (${(set.rows || []).length} row(s)).`];
         if ((set.rows || []).length < set.totalRows) lines.push(`-- Only the first ${set.rows.length} of ${set.totalRows} rows were fetched (Max rows).`);
         if (unsupported.length) lines.push(`-- Not scripted, NULL instead: ${unsupported.map(TempTableScript.bracket).join(', ')} (type that has no literal).`);
+        // What the driver hands over: dates as a JS Date (milliseconds, UTC).
+        const approximate = names.filter((n, i) => ['datetime2', 'time', 'datetimeoffset'].some(t => types[i].sql.startsWith(t)));
+        if (approximate.length) lines.push(`-- Values of ${approximate.map(TempTableScript.bracket).join(', ')} are scripted to the millisecond, a datetimeoffset in UTC (+00:00): the driver gives no more.`);
         lines.push(`IF OBJECT_ID('tempdb..${tableName}') IS NOT NULL DROP TABLE ${tableName};`);
         lines.push(`CREATE TABLE ${tableName} (`);
         lines.push(names.map((n, i) => `    ${TempTableScript.bracket(n)} ${types[i].sql} ${types[i].nullable === false ? 'NOT NULL' : 'NULL'}`).join(',\n'));

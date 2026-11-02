@@ -107,6 +107,10 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		check((await p.locator('#queryStatus').textContent()).includes('2 row(s) scripted as #Results in a new tab'), 'the status says what was done');
 		const tabsAfter = await p.evaluate(() => document.getElementById('queryTabsCount') ? document.getElementById('queryTabsCount').textContent : '');
 		check(tabsAfter !== tabsBefore, `a new tab was opened (${tabsBefore} -> ${tabsAfter})`);
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [{ columns: [], rows: [], totalRows: 0 }] });
+		const tabs = await p.evaluate(() => document.getElementById('queryTabsCount') ? document.getElementById('queryTabsCount').textContent : '');
+		await p.click('button[data-rs-action="temp"]');
+		check((await p.locator('#queryStatus').textContent()).includes('no column') && (await p.evaluate(() => document.getElementById('queryTabsCount') ? document.getElementById('queryTabsCount').textContent : '')) === tabs, 'a result set without a column opens nothing and says why');
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
 		check.done();
 		await p.close();
