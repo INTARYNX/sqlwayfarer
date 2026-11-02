@@ -27,7 +27,7 @@ suite('live SQL Server: Central Management Server import', function () {
 		getConnection: () => savedConnection(),
 		getConnectionPassword: async () => live.password,
 		getSavedConnections: () => [savedConnection()],
-		saveConnection: async () => ({ success: true })
+		saveConnections: async configs => ({ saved: configs.map(c => c.name), failed: [] })
 	});
 
 	async function addGroup(name, parentId) {
@@ -79,7 +79,7 @@ suite('live SQL Server: Central Management Server import', function () {
 	});
 
 	test('the registered servers and their groups are read back from msdb', async () => {
-		const mine = (await readCmsServers(manager)).filter(e => e.group.startsWith(ROOT_GROUP));
+		const mine = (await readCmsServers(manager)).entries.filter(e => e.group.startsWith(ROOT_GROUP));
 		const byName = Object.fromEntries(mine.map(e => [e.name, e]));
 		assert.deepStrictEqual(Object.keys(byName).sort(), ['Lyon', 'Paris', 'Top']);
 		assert.deepStrictEqual([byName.Paris.server, byName.Paris.port, byName.Paris.group], ['paris-sql', '14330', `${ROOT_GROUP}/Europe`]);
@@ -89,7 +89,7 @@ suite('live SQL Server: Central Management Server import', function () {
 
 	test('the whole import, through a real connection: read, offer, save', async () => {
 		const saved = [];
-		const handlers = new ConnectionImportHandlers(() => {}, Object.assign(storage(), { saveConnection: async config => { saved.push(config); return { success: true }; } }), {
+		const handlers = new ConnectionImportHandlers(() => {}, Object.assign(storage(), { saveConnections: async configs => { saved.push(...configs); return { saved: configs.map(c => c.name), failed: [] }; } }), {
 			createManager: () => new ConnectionManager(storage()),
 			ui: {
 				pickSource: async () => 'cms',

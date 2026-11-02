@@ -46,6 +46,27 @@ class ConnectionStorage {
         }
     }
 
+    // Several connections at once (an import), written to the secret storage
+    // once instead of once each. No password is touched. Returns the names that
+    // were saved and the ones refused (no name).
+    async saveConnections(configs) {
+        const before = new Map(this._savedConnections);
+        const saved = [];
+        const failed = [];
+        for (const config of configs) {
+            if (!config || !config.name) { failed.push((config && config.name) || ''); continue; }
+            this._savedConnections.set(config.name, { ...config, password: undefined });
+            saved.push(config.name);
+        }
+        try {
+            await this._persistConnections();
+        } catch (error) {
+            this._savedConnections = before;
+            throw error;
+        }
+        return { saved, failed };
+    }
+
     async deleteConnection(connectionName) {
         try {
             if (!connectionName) throw new Error('Connection name is required');
