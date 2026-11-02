@@ -687,16 +687,16 @@ class SqlContext {
         }
         if (group) {
             const opener = tokens[group.open - 1];
-            const opener2 = tokens[group.open - 2];
             let kind = 'expr';
             if ((scope.firstWord === 'insert') && (clause === 'into' || clause === 'insert')) kind = 'insertcols';
             else if (clause === 'values') kind = 'values';
             else if (SqlContext._isWord(opener, 'with') || (SqlContext._isName(opener) && SqlContext.TABLE_HINTS.has((tokens[group.open + 1] || {}).lc))) kind = 'hints';
-            else if (clause === 'start' && SqlContext._isName(opener) && SqlContext._isWord(opener2, 'table')) kind = 'definition';
+            else if (SqlContext._isWord(opener, 'table') || SqlContext._followsTableKeyword(tokens, group.open - 1)) kind = 'definition';
             result.group = { kind, open: group.open, close: group.close, opener };
         }
 
         result.insertTarget = scope.insertTarget || (root.insertTarget || null);
+        result.typeContext = SqlContext._isTypePosition(tokens, before, result, root);
         SqlContext._collectVisible(result, scope, block, defs);
         // The INSERT target can be a temp table or a table variable too.
         if (result.insertTarget) {
@@ -704,6 +704,40 @@ class SqlContext {
             SqlContext._bind(result.insertTarget, result.ctes, defs);
         }
         return result;
+    }
+
+    // Is tokens[idx] the last part of a (dotted) name that follows the TABLE keyword?
+    // "CREATE TABLE dbo.T (" -> true.
+    static _followsTableKeyword(tokens, idx) {
+        while (idx >= 0 && SqlContext._isName(tokens[idx])) {
+            idx--;
+            if (SqlContext._isPunct(tokens[idx], '.')) idx--;
+            else break;
+        }
+        return idx >= 0 && SqlContext._isWord(tokens[idx], 'table');
+    }
+
+    // Is the caret where a data type is expected: after a variable in DECLARE or
+    // in the parameter list of a procedure, after a column name in a CREATE TABLE
+    // definition, after ADD / ALTER COLUMN <name>.
+    static _isTypePosition(tokens, before, result, root) {
+        const prev = tokens[before];
+        if (!prev || !root) return false;
+        const isVar = t => !!t && t.t === 'w' && t.v.startsWith('@') && !t.v.startsWith('@@');
+        const varIdx = isVar(prev) ? before : (SqlContext._isWord(prev, 'as') && isVar(tokens[before - 1]) ? before - 1 : -1);
+        if (varIdx >= 0 && !result.group) {
+            const first = root.firstWord;
+            if (first === 'declare' || result.clause === 'declare') return true;
+            if ((first === 'create' || first === 'alter') && (result.clause === 'start' || result.clause === 'other')) {
+                const b = tokens[varIdx - 1];
+                return SqlContext._isPunct(b, ',') || SqlContext._isPunct(b, '(') || SqlContext._isName(b);
+            }
+        }
+        if (root.firstWord === 'alter' && SqlContext._isName(prev) && before >= 1
+            && (SqlContext._isWord(tokens[before - 1], 'add') || SqlContext._isWord(tokens[before - 1], 'column'))) return true;
+        if (result.group && result.group.kind === 'definition' && SqlContext._isName(prev) && before >= 1
+            && (SqlContext._isPunct(tokens[before - 1], '(') || SqlContext._isPunct(tokens[before - 1], ','))) return true;
+        return false;
     }
 
     static _lastTokenBefore(tokens, pos) {
