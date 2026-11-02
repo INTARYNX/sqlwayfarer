@@ -32,6 +32,7 @@ import { snippet } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import { formatSqlScript } from './formatSql';
 import { toTemplate } from './snippetTemplate';
+import { findToken } from './findToken';
 
 // Colors match the ones webview/styles.css used for the old overlay-based
 // highlighter (sql-tok-*), themselves VS Code Dark+ values - same look,
@@ -51,7 +52,7 @@ const sqlHighlightStyle = HighlightStyle.define([
 // T-SQL keyword, so the lezer SQL grammar tags it the same blue as every
 // other keyword. A dedicated decoration recolors standalone "GO [N]" lines
 // so batch boundaries stand out the way they do in SSMS. Cosmetic only -
-// QueryHandlers.splitBatches (panels/handlers/QueryHandlers.js) is the
+// splitBatches (database/sqlBatches.js) is the
 // actual authority on where batches split, this just mirrors its regex
 // closely enough to look right.
 const GO_LINE_RE = /^[ \t]*GO([ \t]+\d+)?[ \t]*(--.*)?$/i;
@@ -308,10 +309,8 @@ function attach(container, options = {}) {
             const line = doc.line(item.line);
             let from = line.from + (line.text.length - line.text.trimStart().length);
             let to = line.to;
-            if (item.near) {
-                const at = line.text.toLowerCase().indexOf(item.near.toLowerCase());
-                if (at >= 0) { from = line.from + at; to = from + item.near.length; }
-            }
+            const found = findToken(line.text, item.near);
+            if (found) { from = line.from + found.from; to = line.from + found.to; }
             if (to <= from) { from = line.from; to = Math.max(line.to, Math.min(line.from + 1, doc.length)); }
             if (to > from) diagnostics.push({ from, to, severity: 'error', message: item.message, source: 'SQL Server' });
         }
