@@ -683,6 +683,11 @@ class SqlContext {
 
         result.insertTarget = scope.insertTarget || (root.insertTarget || null);
         SqlContext._collectVisible(result, scope, block, defs);
+        // The INSERT target can be a temp table or a table variable too.
+        if (result.insertTarget) {
+            result.insertTarget = Object.assign({}, result.insertTarget);
+            SqlContext._bind(result.insertTarget, result.ctes, defs);
+        }
         return result;
     }
 
