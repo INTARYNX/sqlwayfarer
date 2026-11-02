@@ -1274,12 +1274,19 @@ class SqlAutocomplete {
                 || (!s.alias && parts.length && parts.join('.').toLowerCase() === baseLower)
                 || (!s.alias && parts.length && parts[parts.length - 1].toLowerCase() === baseLower);
         });
-        if (found && found.kind !== 'table') {
-            const { columns, needs } = SqlAutocomplete.resolveSourceColumns(found, e, 0);
+        // OUTPUT inserted. / deleted.: the columns of the statement's target.
+        let output = null;
+        if (!found && (baseLower === 'inserted' || baseLower === 'deleted') && a.root) {
+            output = a.root.firstWord === 'insert' ? a.insertTarget
+                : (a.sources.find(s => s.level === 0 && s.target) || a.sources.find(s => s.level === 0));
+        }
+        const owner = found && found.kind !== 'table' ? found : output;
+        if (owner) {
+            const { columns, needs } = SqlAutocomplete.resolveSourceColumns(owner, e, 0);
             SqlAutocomplete._addNeeds(e.needs, needs);
             return columns.map((c, order) => ({
                 order, label: c.name, parts: [c.name], kind: 'column', detail: e.settings.showTypes ? c.type : '', priority: 0, match: c.name,
-                info: SqlAutocomplete._columnInfo(c, found.alias || found.parts.join('.')),
+                info: SqlAutocomplete._columnInfo(c, owner.alias || owner.parts.join('.')),
                 usageKey: `col|${baseLower}.${c.name.toLowerCase()}`
             }));
         }
