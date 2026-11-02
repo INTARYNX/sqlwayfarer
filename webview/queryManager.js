@@ -32,6 +32,7 @@ class QueryManager {
         this.estimatedPlanBtn = document.getElementById('estimatedPlanBtn');
         this.includeActualPlanToggle = document.getElementById('includeActualPlanToggle');
         this.queryGraphBtn = document.getElementById('queryGraphBtn');
+        this.formatBtn = document.getElementById('formatQueryBtn');
         // SSMS-style "Include Actual Execution Plan" toggle (Ctrl+M) - when on,
         // Run Query also captures the real plan instead of needing a separate action.
         this.includeActualPlan = false;
@@ -74,6 +75,8 @@ class QueryManager {
         if (this.queryGraphBtn) {
             this.queryGraphBtn.addEventListener('click', () => this.showQueryGraph());
         }
+        if (this.formatBtn) this.formatBtn.addEventListener('click', () => this.formatQuery());
+        this.input.addEventListener('sw-format', () => this.formatQuery());
         this.cancelBtn.addEventListener('click', () => this.cancelQuery());
         this.historySelect.addEventListener('change', () => this.applyHistorySelection());
         this.snippetsSelect.addEventListener('change', () => this.applySnippetSelection());
@@ -429,6 +432,15 @@ class QueryManager {
         this.setResultsHtml('<p class="placeholder-text">Generating estimated plan...</p>');
 
         vscode.postMessage({ command: 'getEstimatedPlan', database, query });
+    }
+
+    // Formats the selection, or the whole script. Leaves the text alone when it
+    // cannot be parsed.
+    formatQuery() {
+        if (typeof this.input.formatSql !== 'function') return;
+        if (this.input.formatSql()) this.setStatus('Formatted.', 'success');
+        else this.setStatus('Could not format: the SQL could not be parsed. The text is unchanged.', 'error');
+        this.input.focus();
     }
 
     cancelQuery() {

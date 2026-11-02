@@ -45,4 +45,27 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		check.done();
 		await p.close();
 	});
+
+	test('the editor formats the query, and opens find / replace', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		await p.click('[data-tab=query]');
+		await p.evaluate(() => { document.getElementById('queryInput').value = 'select a,b from t where a=1'; });
+		await p.click('#formatQueryBtn');
+		const formatted = await p.evaluate(() => document.getElementById('queryInput').value);
+		check(/^SELECT\n {4}a,\n {4}b\nFROM\n {4}t\nWHERE\n {4}a = 1$/.test(formatted), 'the button formats: ' + JSON.stringify(formatted));
+		await p.evaluate(() => { document.getElementById('queryInput').value = 'select from where((('; });
+		await p.click('#formatQueryBtn');
+		check(await p.evaluate(() => document.getElementById('queryInput').value) === 'select from where(((', 'an unparseable text is left alone');
+		await p.click('.cm-content');
+		await p.keyboard.press('Control+h');
+		check(await p.$('.cm-search') !== null, 'Ctrl+H opens find / replace');
+		check(await p.$('.cm-search input[name=replace]') !== null, 'with a replace field');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
 });
