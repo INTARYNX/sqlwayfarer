@@ -1317,7 +1317,9 @@ class SqlAutocomplete {
     static resolveSourceColumns(src, e, depth = 0) {
         const out = { columns: [], needs: [] };
         if (depth > 5) return out;
-        if (src.kind === 'table') {
+        if (src.kind === 'table' || src.kind === 'function') {
+            // A table-valued function exposes its columns like a table does.
+            const types = src.kind === 'function' ? ['Function'] : ['Table', 'View'];
             const parts = src.parts;
             let database = e.currentDatabase;
             let objects = e.objects;
@@ -1331,7 +1333,7 @@ class SqlAutocomplete {
                 }
             }
             const obj = SqlAutocomplete._resolveObjectRef(name, objects);
-            if (!obj || (obj.object_type !== 'Table' && obj.object_type !== 'View')) return out;
+            if (!obj || !types.includes(obj.object_type)) return out;
             const cols = e.getColumns(database, obj.qualified_name);
             if (!cols) out.needs.push({ database, qualifiedName: obj.qualified_name });
             else out.columns = cols.map(c => ({ name: c.name, type: c.type || '', nullable: c.nullable, isPrimaryKey: c.isPrimaryKey, isIdentity: c.isIdentity, table: obj.qualified_name }));
