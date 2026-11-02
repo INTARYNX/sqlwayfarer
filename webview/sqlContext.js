@@ -553,8 +553,8 @@ class SqlContext {
                     const t = tokens[k];
                     const prev = tokens[k - 1];
                     if (t.t !== 'w' || !t.v.startsWith('@') || t.v.startsWith('@@')) continue;
-                    // A declaration starts after DECLARE, a comma, "(" or the procedure name.
-                    const declares = k === st.from + 1 || SqlContext._isPunct(prev, ',') || SqlContext._isPunct(prev, '(')
+                    // A declaration starts after DECLARE (also inside a procedure body), a comma, "(" or the procedure name.
+                    const declares = k === st.from + 1 || SqlContext._isWord(prev, 'declare') || SqlContext._isPunct(prev, ',') || SqlContext._isPunct(prev, '(')
                         || (SqlContext._isName(prev) && SqlContext._isName(tokens[k - 2]) && /^(procedure|proc|function)$/.test(tokens[k - 2].lc));
                     if (!declares) continue;
                     let j = k + 1;
