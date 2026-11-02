@@ -10,6 +10,7 @@ package-lock.json
 dist/
 out/
 *.vsix
+helper/*.exe
 
 # VS Code
 # The debug configuration IS tracked: it is the only way to run the extension

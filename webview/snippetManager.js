@@ -14,6 +14,7 @@
 // addSnippet/deleteSnippet/updateSnippet commands the Query editor's own
 // quick "Snippets" dropdown uses - snippets are global, so an edit made here
 // is broadcast to every open tab's dropdown too (see SnippetHandlers).
+// Same look as the connections: filter and "+" on top, rows, an inline form.
 class SnippetManager {
     constructor() {
         this.customSnippets = [];
@@ -24,48 +25,64 @@ class SnippetManager {
     }
 
     initDOMElements() {
+        const byId = id => document.getElementById(id);
         this.elements = {
-            newBtn: document.getElementById('newSnippetBtn'),
-            list: document.getElementById('snippetManagerList'),
-            formOverlay: document.getElementById('snippetFormOverlay'),
-            formTitle: document.getElementById('snippetFormTitle'),
-            formCloseBtn: document.getElementById('snippetFormCloseBtn'),
-            cancelFormBtn: document.getElementById('cancelSnippetFormBtn'),
-            saveFormBtn: document.getElementById('saveSnippetBtn'),
-            nameInput: document.getElementById('snippetNameInput'),
-            sqlInput: document.getElementById('snippetSqlInput'),
-            formStatus: document.getElementById('snippetFormStatus')
+            listView: byId('snippetListView'),
+            formView: byId('snippetFormView'),
+            newBtn: byId('newSnippetBtn'),
+            filter: byId('snippetFilter'),
+            list: byId('snippetManagerList'),
+            backBtn: byId('snippetFormBackBtn'),
+            formTitle: byId('snippetFormTitle'),
+            saveBtn: byId('saveSnippetBtn'),
+            nameInput: byId('snippetNameInput'),
+            sqlInput: byId('snippetSqlInput'),
+            formStatus: byId('snippetFormStatus')
         };
     }
 
     initEventListeners() {
-        this.elements.newBtn.addEventListener('click', () => this.openForm());
-        this.elements.formCloseBtn.addEventListener('click', () => this.closeForm());
-        this.elements.cancelFormBtn.addEventListener('click', () => this.closeForm());
-        this.elements.saveFormBtn.addEventListener('click', () => this.saveForm());
-        this.elements.formOverlay.addEventListener('click', (e) => {
-            if (e.target === this.elements.formOverlay) this.closeForm();
+        const e = this.elements;
+        e.newBtn.addEventListener('click', () => this.openForm());
+        e.backBtn.addEventListener('click', () => this.closeForm());
+        e.saveBtn.addEventListener('click', () => this.saveForm());
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !e.formView.hidden) this.closeForm();
         });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.elements.formOverlay.classList.contains('visible')) {
-                this.closeForm();
+        e.filter.addEventListener('input', () => this.renderList());
+        e.filter.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                e.filter.value = '';
+                this.renderList();
             }
         });
 
         // Rows are re-rendered on every update: one delegated listener instead
         // of per-row bindings.
-        this.elements.list.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-snippet-action]');
-            if (!btn) return;
-            const row = btn.closest('[data-snippet-name]');
+        e.list.addEventListener('click', event => {
+            const row = event.target.closest('[data-snippet-name]');
             if (!row) return;
-            const name = row.dataset.snippetName;
-            const isBuiltin = row.dataset.snippetBuiltin === 'true';
-
-            if (btn.dataset.snippetAction === 'edit') this.editCustomSnippet(name);
-            else if (btn.dataset.snippetAction === 'duplicate') this.duplicateSnippet(name, isBuiltin);
-            else if (btn.dataset.snippetAction === 'delete') this.deleteSnippet(name);
+            const button = event.target.closest('button[data-snippet-action]');
+            // A custom snippet opens for editing; a built-in one has no
+            // default action (it is only duplicated, from its button).
+            const action = button ? button.dataset.snippetAction
+                : (row.dataset.snippetBuiltin === 'true' ? null : 'edit');
+            this.runAction(row, action);
         });
+        e.list.addEventListener('keydown', event => {
+            const row = event.target.closest('[data-snippet-name]');
+            if (!row || event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
+            event.preventDefault();
+            this.runAction(row, 'edit');
+        });
+    }
+
+    runAction(row, action) {
+        const name = row.dataset.snippetName;
+        const isBuiltin = row.dataset.snippetBuiltin === 'true';
+        if (action === 'edit') this.editCustomSnippet(name);
+        else if (action === 'duplicate') this.duplicateSnippet(name, isBuiltin);
+        else if (action === 'delete') this.deleteSnippet(name);
     }
 
     onSnippetsLoaded(snippets) {
@@ -73,49 +90,63 @@ class SnippetManager {
         this.renderList();
     }
 
-    renderList() {
-        const builtinRows = BUILTIN_SNIPPETS.map(s => this.buildRowHtml(s.name, s.sql, true)).join('');
-        const customRows = this.customSnippets.length > 0
-            ? this.customSnippets.map(s => this.buildRowHtml(s.name, s.sql, false)).join('')
-            : '<p class="placeholder-text">No custom snippets yet - click "+ New Snippet" to add one.</p>';
+    matchesFilter(snippet) {
+        const needle = this.elements.filter.value.trim().toLowerCase();
+        return !needle || snippet.name.toLowerCase().includes(needle) || snippet.sql.toLowerCase().includes(needle);
+    }
 
-        this.elements.list.innerHTML = `
-            <div class="snippet-group-label">Built-in</div>
-            ${builtinRows}
-            <div class="snippet-group-label">Custom</div>
-            ${customRows}
-        `;
+    renderList() {
+        const filtering = this.elements.filter.value.trim() !== '';
+        const custom = this.customSnippets.filter(s => this.matchesFilter(s));
+        const builtin = BUILTIN_SNIPPETS.filter(s => this.matchesFilter(s));
+
+        let html = '';
+        if (custom.length > 0) {
+            html += `<div class="sb-group-label">Custom</div>${custom.map(s => this.buildRowHtml(s.name, s.sql, false)).join('')}`;
+        } else if (!filtering && this.customSnippets.length === 0) {
+            html += '<div class="sb-group-label">Custom</div><p class="sb-empty">No custom snippet yet.<br>Click + to add one.</p>';
+        }
+        if (builtin.length > 0) {
+            html += `<div class="sb-group-label">Built-in</div>${builtin.map(s => this.buildRowHtml(s.name, s.sql, true)).join('')}`;
+        }
+        if (!html) html = '<p class="sb-empty">No snippet matches.</p>';
+        this.elements.list.innerHTML = html;
     }
 
     buildRowHtml(name, sql, isBuiltin) {
         const preview = sql.replace(/\s+/g, ' ').trim().slice(0, 90);
         const actions = isBuiltin
-            ? `<button type="button" data-snippet-action="duplicate" title="Duplicate as a custom snippet"><i class="codicon codicon-copy"></i></button>`
-            : `<button type="button" data-snippet-action="edit" title="Edit"><i class="codicon codicon-edit"></i></button>
-               <button type="button" data-snippet-action="duplicate" title="Duplicate"><i class="codicon codicon-copy"></i></button>
-               <button type="button" data-snippet-action="delete" title="Delete"><i class="codicon codicon-trash"></i></button>`;
+            ? `<button type="button" class="sb-icon-btn" data-snippet-action="duplicate" title="Duplicate as a custom snippet" aria-label="Duplicate"><i class="codicon codicon-copy"></i></button>`
+            : `<button type="button" class="sb-icon-btn" data-snippet-action="edit" title="Edit" aria-label="Edit"><i class="codicon codicon-edit"></i></button>
+               <button type="button" class="sb-icon-btn" data-snippet-action="duplicate" title="Duplicate" aria-label="Duplicate"><i class="codicon codicon-copy"></i></button>
+               <button type="button" class="sb-icon-btn" data-snippet-action="delete" title="Delete" aria-label="Delete"><i class="codicon codicon-trash"></i></button>`;
+        const interactive = isBuiltin ? '' : ' clickable" role="button" tabindex="0';
 
-        return `<div class="snippet-row" data-snippet-name="${this.escapeHtml(name)}" data-snippet-builtin="${isBuiltin}">
-            <div class="snippet-row-main">
-                <div class="snippet-row-name">${this.escapeHtml(name)}</div>
-                <div class="snippet-row-preview">${this.escapeHtml(preview)}</div>
+        return `<div class="sb-row${interactive}" data-snippet-name="${this.escapeHtml(name)}" data-snippet-builtin="${isBuiltin}">
+            <i class="codicon codicon-${isBuiltin ? 'lock' : 'code'} sb-row-icon"></i>
+            <div class="sb-row-main">
+                <div class="sb-row-name">${this.escapeHtml(name)}</div>
+                <div class="sb-row-sub">${this.escapeHtml(preview)}</div>
             </div>
-            <div class="snippet-row-actions">${actions}</div>
+            <div class="sb-row-actions">${actions}</div>
         </div>`;
     }
 
     openForm(snippet = null) {
+        const e = this.elements;
         this.editingOriginalName = snippet ? snippet.name : null;
-        this.elements.formTitle.textContent = snippet ? 'Edit Snippet' : 'New Snippet';
-        this.elements.nameInput.value = snippet ? snippet.name : '';
-        this.elements.sqlInput.value = snippet ? snippet.sql : '';
-        this.elements.formStatus.textContent = '';
-        this.elements.formOverlay.classList.add('visible');
-        this.elements.nameInput.focus();
+        e.formTitle.textContent = snippet ? `Edit ${snippet.name}` : 'New snippet';
+        e.nameInput.value = snippet ? snippet.name : '';
+        e.sqlInput.value = snippet ? snippet.sql : '';
+        this.showFormStatus('', '');
+        e.listView.hidden = true;
+        e.formView.hidden = false;
+        e.nameInput.focus();
     }
 
     closeForm() {
-        this.elements.formOverlay.classList.remove('visible');
+        this.elements.formView.hidden = true;
+        this.elements.listView.hidden = false;
         this.editingOriginalName = null;
     }
 
@@ -136,9 +167,9 @@ class SnippetManager {
         this.elements.nameInput.select();
     }
 
+    // The extension asks - a webview cannot show a dialog of its own.
     deleteSnippet(name) {
-        if (!confirm(`Delete snippet "${name}"?`)) return;
-        vscode.postMessage({ command: 'deleteSnippet', name });
+        vscode.postMessage({ command: 'confirmDeleteSnippet', name });
     }
 
     saveForm() {
@@ -173,7 +204,7 @@ class SnippetManager {
     }
 
     showFormStatus(message, type) {
-        this.elements.formStatus.className = 'status ' + type;
+        this.elements.formStatus.className = 'sb-status ' + type;
         this.elements.formStatus.textContent = message;
     }
 

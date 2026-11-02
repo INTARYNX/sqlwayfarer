@@ -103,11 +103,36 @@ class IndexHandlers {
         }
     }
 
-    // The only entry point that builds/loads the dependency index now - fired
-    // once when the user opens the Explorer tab (or switches database while
-    // already there), never automatically on connect. Cheap when the cached
-    // index's schema checksum still matches; a real (progress-reported) build
-    // otherwise.
+    // Where the index of the database stands (none / ready / stale / building),
+    // for the Explorer notice. Reads only - never builds anything.
+    async handleGetIndexStatus(database) {
+        if (!database) return;
+        try {
+            const status = await this._indexService.getIndexStatus(database);
+            this._post({ command: 'indexStatus', database, ...status });
+        } catch (error) {
+            console.warn('Could not read the index status:', error.message);
+            this._post({ command: 'indexStatus', database, state: 'unknown' });
+        }
+    }
+
+    // The cached index, as it is (possibly stale), for the Index viewer.
+    // Reads only - never builds anything.
+    async handleLoadIndex(database) {
+        if (!database) return;
+        try {
+            const index = await this._indexService.peekIndex(database);
+            this._post({ command: 'indexResult', indexData: index, database });
+        } catch (error) {
+            console.warn('Could not load the index:', error.message);
+            this._post({ command: 'indexResult', indexData: null, database });
+        }
+    }
+
+    // BUILDS the dependency index - or updates it when only some objects
+    // changed. Only ever called from the Explorer's "Build index" / "Update
+    // index" buttons: the user decides, because on a big database this reads
+    // every definition and takes a while.
     async handleGetIndex(database) {
         if (!database) {
             this._post({ command: 'error', message: 'No database specified for indexing' });

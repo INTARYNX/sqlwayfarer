@@ -18,8 +18,8 @@ class DatabaseHandlers {
             // is called on every (re)connection, and _currentSelectedDatabase
             // stays filled in after a disconnection. Clearing it relaunched a
             // full reindexing of a large database that was already cached.
-            // The expiry is already handled by getIndex through the schema
-            // checksum (incremental update), the persistent cache never needs
+            // A changed schema is reported by getIndexStatus ("stale") and the
+            // user decides whether to update; the persistent cache never needs
             // to be dropped just because the databases are listed.
             this._post({ command: 'requestCurrentDatabase' });
         } catch (error) {
@@ -68,6 +68,18 @@ class DatabaseHandlers {
         } catch (error) {
             console.warn('Failed to get columns for autocomplete:', error.message);
             this._post({ command: 'objectColumnsLoaded', database, objectName, columns: [] });
+        }
+    }
+
+    // Parameters of a procedure for "EXEC proc @..." completion. Same
+    // fail-quiet rule as the column list.
+    async handleGetObjectParameters(database, objectName) {
+        try {
+            const parameters = await this._databaseService.getObjectParameters(database, objectName);
+            this._post({ command: 'objectParametersLoaded', database, objectName, parameters });
+        } catch (error) {
+            console.warn('Failed to get parameters for autocomplete:', error.message);
+            this._post({ command: 'objectParametersLoaded', database, objectName, parameters: [] });
         }
     }
 

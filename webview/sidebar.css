@@ -1,0 +1,479 @@
+/* === SIDEBAR (activity bar view, see panels/SnippetSidebarProvider.js) === */
+/* Self-contained: the view is narrow and has its own look - a list per tab
+   (filter + "+" on top, rows, an inline form with a back arrow) that follows
+   the VS Code theme. */
+
+html, body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    color: var(--vscode-foreground);
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size, 13px);
+}
+
+/* VS Code puts vscode-light / vscode-dark on the body: the native controls
+   (checkboxes, dropdown, scrollbars) follow the theme. */
+body.vscode-dark,
+body.vscode-high-contrast {
+    color-scheme: dark;
+}
+
+body.vscode-light,
+body.vscode-high-contrast-light {
+    color-scheme: light;
+}
+
+input[type="checkbox"] {
+    accent-color: var(--vscode-focusBorder);
+}
+
+.sw-icon {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    vertical-align: middle;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.codicon {
+    font-size: 16px;
+    vertical-align: middle;
+}
+
+button, input, select, textarea {
+    font-family: inherit;
+    font-size: inherit;
+    box-sizing: border-box;
+}
+
+/* The icon font draws its glyphs left of the middle of their box (about 0.07
+   to 0.16em depending on the icon, measured), so an icon alone in a button
+   looks off-centre even though its box is centred. Each icon gets the nudge
+   that brings its ink to the middle; the play triangle a little more, since
+   its visual weight sits on the base, not in the middle of its width. In em,
+   so it follows the icon size. */
+.codicon {
+    --icon-nudge: 0.09em;
+}
+.codicon-play { --icon-nudge: 0.22em; }
+.codicon-git-merge,
+.codicon-arrow-left { --icon-nudge: 0.125em; }
+.codicon-copy { --icon-nudge: 0.16em; }
+.codicon-history { --icon-nudge: 0.13em; }
+.codicon-add,
+.codicon-trash { --icon-nudge: 0.1em; }
+.codicon-save,
+.codicon-graph,
+.codicon-graph-line,
+.codicon-edit,
+.codicon-folder-opened,
+.codicon-compass { --icon-nudge: 0.07em; }
+
+.sb-icon-btn .codicon {
+    position: relative;
+    left: var(--icon-nudge);
+}
+
+/* --- Tabs ------------------------------------------------------------- */
+.sb-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+    flex: none;
+}
+
+.sb-tab {
+    padding: 8px 10px 6px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--vscode-foreground);
+    opacity: 0.65;
+    cursor: pointer;
+}
+
+.sb-tab:hover {
+    opacity: 1;
+}
+
+.sb-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--vscode-focusBorder);
+}
+
+.sb-tab:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.sb-view {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    padding: 8px;
+}
+
+.sb-view.active {
+    display: flex;
+}
+
+/* A view shows its list or its form, never both. */
+.sb-list-view, .sb-form-view {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.sb-list-view[hidden], .sb-form-view[hidden] {
+    display: none;
+}
+
+/* --- Toolbar: filter + add --------------------------------------------- */
+.sb-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.sb-filter {
+    flex: 1;
+    min-width: 0;
+}
+
+.sb-input {
+    width: 100%;
+    padding: 4px 6px;
+    color: var(--vscode-input-foreground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 2px;
+}
+
+.sb-input:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.sb-input::placeholder {
+    /* The theme's own placeholder colour, as is: dimming it further made it
+       unreadable (about 2:1). */
+    color: var(--vscode-input-placeholderForeground);
+}
+
+.sb-icon-btn {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+}
+
+.sb-icon-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.sb-icon-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+/* --- List --------------------------------------------------------------- */
+.sb-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.sb-group-label {
+    padding: 8px 8px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+}
+
+.sb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
+}
+
+.sb-row.clickable {
+    cursor: pointer;
+}
+
+.sb-row:hover,
+.sb-row:focus-within {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.sb-row:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.sb-row-icon {
+    flex: none;
+    opacity: 0.75;
+}
+
+.sb-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.sb-row-name,
+.sb-row-sub {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sb-row-sub {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.sb-row-flags {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.sb-row:hover .sb-row-flags,
+.sb-row:focus-within .sb-row-flags {
+    display: none;
+}
+
+/* Marks a connection that has a tab open. */
+.sb-open-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--vscode-terminal-ansiGreen);
+}
+
+.sb-last-used {
+    opacity: 0.8;
+}
+
+/* Hidden until the row is hovered or has the keyboard focus. */
+.sb-row-actions {
+    display: none;
+    flex: none;
+}
+
+.sb-row:hover .sb-row-actions,
+.sb-row:focus-within .sb-row-actions {
+    display: flex;
+}
+
+.sb-row-actions .sb-icon-btn {
+    width: 22px;
+    height: 22px;
+}
+
+.sb-row-actions .codicon {
+    font-size: 14px;
+}
+
+.sb-row-actions .sw-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.sb-empty {
+    margin: 0;
+    padding: 20px 8px;
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+}
+
+.sb-empty .sb-btn {
+    margin-top: 10px;
+}
+
+/* --- Inline form --------------------------------------------------------- */
+.sb-form-view {
+    overflow-y: auto;
+}
+
+.sb-form-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.sb-form-header span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sb-field {
+    margin-bottom: 8px;
+}
+
+.sb-field label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.sb-field-row {
+    display: flex;
+    gap: 6px;
+}
+
+.sb-field-row > .sb-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.sb-field-row > .sb-field.narrow {
+    flex: 0 0 76px;
+}
+
+.sb-hint {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.sb-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-bottom: 8px;
+}
+
+.sb-checks label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.sb-checks input {
+    margin: 0;
+}
+
+textarea.sb-input {
+    flex: 1;
+    min-height: 160px;
+    resize: vertical;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: var(--vscode-editor-font-size, 12px);
+}
+
+.sb-field.grow {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+/* The result of a save or a test sits right above the buttons, in sight. */
+.sb-status {
+    margin: 4px 0 8px;
+    padding: 6px 8px;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+}
+
+.sb-status:empty {
+    display: none;
+}
+
+.sb-status.success {
+    background: var(--vscode-inputValidation-infoBackground, rgba(35, 209, 139, 0.15));
+    border: 1px solid var(--vscode-terminal-ansiGreen);
+}
+
+.sb-status.error {
+    background: var(--vscode-inputValidation-errorBackground, rgba(241, 76, 76, 0.15));
+    border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-terminal-ansiRed));
+}
+
+/* Right under the fields and their status, where the eyes are. In the
+   snippet form the SQL box grows and pushes them down. */
+.sb-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+/* Pushed to the left; when the row wraps in a narrow sidebar it just flows. */
+.sb-actions .leading {
+    margin-right: auto;
+}
+
+.sb-btn {
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    color: var(--vscode-button-secondaryForeground);
+    background: var(--vscode-button-secondaryBackground);
+    cursor: pointer;
+}
+
+.sb-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.sb-btn.primary {
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+}
+
+.sb-btn.primary:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.sb-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.sb-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+}
+
+.sb-build-info {
+    flex: none;
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}

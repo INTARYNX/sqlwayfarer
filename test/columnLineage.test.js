@@ -272,8 +272,8 @@ suite('BabelfishSqlParser.analyzeOperations alias resolution', () => {
 suite('IndexService.getColumnUsage', () => {
 	function makeServiceWithIndex(objects) {
 		const service = new IndexService({ getServerName: () => 's' }, null);
-		// Bypass getIndex's disk/database round-trip: usage lookup is pure
-		service.getIndex = async () => ({ objects });
+		// Bypass peekIndex's disk round-trip: usage lookup is pure
+		service.peekIndex = async () => ({ objects });
 		return service;
 	}
 

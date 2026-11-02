@@ -22,7 +22,7 @@
 // sqlAutocomplete.js's caret-pixel positioning needed a real rewrite (CM's
 // coordsAtPos vs the old mirror-div trick), see its own comments.
 import { EditorView, keymap, lineNumbers, drawSelection, dropCursor, rectangularSelection, crosshairCursor, placeholder, Decoration, ViewPlugin } from '@codemirror/view';
-import { EditorState, RangeSetBuilder } from '@codemirror/state';
+import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
 import { sql, MSSQL } from '@codemirror/lang-sql';
@@ -232,6 +232,15 @@ function attach(container, options = {}) {
             scrollIntoView: true
         });
     };
+    // Puts the caret on a line (1-based) and selects it, scrolled into view.
+    // Beyond the document, the last line.
+    container.goToLine = (lineNumber) => {
+        const doc = view.state.doc;
+        const line = doc.line(Math.max(1, Math.min(Number(lineNumber) || 1, doc.lines)));
+        view.dispatch({ selection: { anchor: line.from, head: line.to }, scrollIntoView: true });
+        view.focus();
+    };
+
     container.focus = () => view.focus();
     // 'scroll' doesn't bubble, and the element that actually scrolls is
     // view.scrollDOM (a descendant of container, CM's own .cm-scroller) -
@@ -257,4 +266,30 @@ function attach(container, options = {}) {
     return container;
 }
 
-window.SqlCodeMirror = { attach };
+// A read-only view of some SQL - the definition shown by the Code tab of the
+// Explorer - with the same colours as the query editor. setLineNumbers() shows
+// or hides the gutter without rebuilding the view.
+function readOnlyView(container, doc, options = {}) {
+    const gutter = new Compartment();
+    const view = new EditorView({
+        parent: container,
+        doc: doc || '',
+        extensions: [
+            EditorState.readOnly.of(true),
+            gutter.of(options.lineNumbers ? lineNumbers() : []),
+            drawSelection(),
+            sql({ dialect: MSSQL }),
+            syntaxHighlighting(sqlHighlightStyle),
+            goHighlighter,
+            vsCodeTheme,
+            EditorView.theme({ '.cm-content': { padding: '10px 0' } }),
+            EditorView.lineWrapping
+        ]
+    });
+    return {
+        setLineNumbers(on) { view.dispatch({ effects: gutter.reconfigure(on ? lineNumbers() : []) }); },
+        destroy() { view.destroy(); }
+    };
+}
+
+window.SqlCodeMirror = { attach, readOnlyView };

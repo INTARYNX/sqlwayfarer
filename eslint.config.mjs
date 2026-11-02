@@ -25,6 +25,15 @@ export default [{
         "valid-typeof": "warn",
     },
 }, {
+    // The e2e suites run callbacks inside the browser page (window, document...).
+    files: ["test/e2e/**/*.js"],
+    languageOptions: {
+        sourceType: "commonjs",
+        globals: { ...globals.node, ...globals.mocha, ...globals.browser, appState: "readonly" },
+    },
+},
+
+{
     // Browser side: classic <script> tags sharing one global scope, plus the
     // VS Code webview API.
     files: ["webview/**/*.js"],
@@ -39,12 +48,17 @@ export default [{
             BUILTIN_SNIPPETS: "readonly",
             FileTree: "readonly",
             SqlAutocomplete: "readonly",
+            SqlContext: "readonly",
+            SqlMatcher: "readonly",
             QueryManager: "readonly",
             TabManager: "readonly",
             SnippetManager: "readonly",
             QueryFileManager: "readonly",
             FootprintManager: "readonly",
-            ConnectionManager: "readonly",
+            ConnectionStatus: "readonly",
+            swIcon: "readonly",
+            swObjectIcon: "readonly",
+            SidebarConnections: "readonly",
             CommentsManager: "readonly",
             CodeViewManager: "readonly",
             Viz: "readonly",

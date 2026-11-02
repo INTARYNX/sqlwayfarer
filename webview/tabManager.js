@@ -10,13 +10,10 @@
 // Tab manager
 class TabManager {
     constructor() {
-        // [data-tab], not .tab-button: the Configuration tab is an icon
-        // button now (a cog), not a text tab.
         this.tabButtons = document.querySelectorAll('[data-tab]');
         this.tabContents = document.querySelectorAll('.tab-content');
         this.explorerToolbarActions = document.getElementById('explorerToolbarActions');
         this.queryToolbarActions = document.getElementById('queryToolbarActions');
-        this.newPanelBtn = document.getElementById('newPanelBtn');
         this.initEventListeners();
         this.updateToolbarActions(appState.activeTab);
     }
@@ -28,13 +25,6 @@ class TabManager {
             // click target and carry no data-tab of its own.
             button.addEventListener('click', () => this.switchTab(button.dataset.tab));
         });
-        if (this.newPanelBtn) {
-            // Opens a brand-new SQL Wayfarer tab with its own independent
-            // connection (see SqlWayfarerPanel.createOrShow) - unlike the
-            // internal Configuration/Query/Explorer tabs above, this isn't
-            // local UI state, so it goes through the extension host.
-            this.newPanelBtn.addEventListener('click', () => vscode.postMessage({ command: 'openNewPanel' }));
-        }
     }
 
     switchTab(tabName) {
@@ -69,8 +59,8 @@ class TabManager {
     }
 
     // The single top toolbar shows different controls per tab: Dictionary/Full/
-    // Objects for Explorer, Run Query/Max rows/History for Query, nothing extra
-    // for Configuration (the database selector itself is always visible).
+    // Objects for Explorer, Run Query/Max rows/History for Query (the database
+    // selector itself is always visible).
     updateToolbarActions(tabName) {
         if (this.explorerToolbarActions) {
             this.explorerToolbarActions.style.display = tabName === 'explorer' ? '' : 'none';
@@ -86,18 +76,15 @@ class TabManager {
             vscode.postMessage({ command: 'getDatabases' });
             return;
         }
-        // The dependency index is only ever built from here, not on connect -
-        // a big database shouldn't pay the indexing cost just to run a query.
+        // Only asks where the dependency index stands (and the Explorer shows a
+        // notice with the choice). It is never built here: a big database
+        // shouldn't pay the indexing cost just because the Explorer is opened.
         if (window.objectsTabManager) {
             window.objectsTabManager.requestIndex(appState.currentDatabase);
         }
     }
 
-    showStatus(message, type) {
-        const statusElement = document.getElementById('connectionStatus');
-        if (statusElement) {
-            statusElement.className = 'status ' + type;
-            statusElement.textContent = message;
-        }
+    showStatus(message) {
+        if (window.connectionStatus) window.connectionStatus.showStatus(message);
     }
 }

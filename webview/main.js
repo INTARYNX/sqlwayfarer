@@ -12,13 +12,11 @@ const vscode = acquireVsCodeApi();
 // Global application state
 class AppState {
     constructor() {
-        this.activeTab = 'configuration';
+        this.activeTab = 'query';
         this.activeDetailsTab = 'structure';
         this.isConnected = false;
         this.currentDatabase = null;
         this.selectedObject = null;
-        this.savedConnections = [];
-        this.connectionConfig = null;
         this.currentDependencies = null;
         this.pendingVisualization = null;
         this.allObjects = [];
@@ -153,7 +151,10 @@ class ObjectsTabManager {
         this.modalOverlay = document.getElementById('objectsModalOverlay');
         this.modalCloseBtn = document.getElementById('objectsModalCloseBtn');
         this.currentDatabase = null;
-        this.status = 'none'; // none | indexing | ready | error
+        this.status = 'none'; // none | indexing | ready | stale | error
+        this.noticeEl = document.getElementById('indexNotice');
+        this.state = 'unknown'; // what the host said: none | ready | stale | building | unknown
+        this._dismissed = new Set(); // databases whose notice the user closed with "Not now"
         this._loadedForDatabase = null; // which database the displayed index belongs to
         this._rawIndexData = null; // last index received, formatted lazily (see _renderJsonIfNeeded)
         this._jsonRendered = false;
@@ -167,6 +168,13 @@ class ObjectsTabManager {
         if (this.indicatorBtn) {
             this.indicatorBtn.addEventListener('click', () => this.openModal());
         }
+        // The notice's buttons, and any "Build index" link shown in place of a missing result.
+        document.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-index-action]');
+            if (!target) return;
+            if (target.dataset.indexAction === 'build') this.buildIndex();
+            else if (target.dataset.indexAction === 'dismiss') this.dismissNotice();
+        });
         if (this.modalCloseBtn) {
             this.modalCloseBtn.addEventListener('click', () => this.closeModal());
         }
@@ -213,11 +221,14 @@ class ObjectsTabManager {
         }
     }
 
-    // Called when database changes. Does NOT fetch/build the index itself -
-    // that only happens from TabManager.onExplorerTabActivated, so switching
-    // databases while on the Query tab never pays an indexing cost.
+    // Called when database changes. Never builds anything: when Explorer is
+    // open it only asks where the index of the new database stands, otherwise
+    // that waits until Explorer is opened (TabManager.onExplorerTabActivated).
     onDatabaseChanged(database) {
         this.currentDatabase = database;
+        this.state = 'unknown';
+        this.hideNotice();
+        appState.indexState = 'unknown';
 
         if (!database) {
             this.showPlaceholder();
@@ -230,26 +241,111 @@ class ObjectsTabManager {
         this.forceReindexBtn.disabled = false;
         this.indicatorBtn.disabled = false;
 
-        // Switching database while Explorer is already open should still index
-        // the new one; switching from Query/Configuration shouldn't fetch
-        // anything until the user actually opens Explorer (see requestIndex).
         if (appState.activeTab === 'explorer') {
             this.requestIndex(database);
         } else {
             this.showPlaceholder();
-            this.setStatus('none', 'Not indexed yet - open Explorer to index this database');
+            this.setStatus('none', 'Index status is checked when Explorer is opened');
         }
     }
 
-    // Fetches/builds the index for `database` - cheap if already cached and
-    // the schema checksum hasn't changed, a real (progress-reported) build
-    // otherwise. Skipped if already showing that database's index.
+    // Asks the host where the index of `database` stands (none / ready / stale /
+    // building). Only looks: the index is built when the user asks for it
+    // (buildIndex), never as a side effect of opening the Explorer.
     requestIndex(database) {
-        if (!database || this._loadedForDatabase === database) return;
-        this.showLoading();
+        if (!database) return;
+        vscode.postMessage({ command: 'getIndexStatus', database });
+    }
+
+    // The host's answer to requestIndex.
+    onIndexStatus(message) {
+        if (message.database !== this.currentDatabase) return;
+        this.state = message.state;
+        appState.indexState = message.state;
+
+        switch (message.state) {
+            case 'ready':
+            case 'stale':
+                this.setStatus(message.state, message.state === 'ready'
+                    ? 'Index up to date'
+                    : 'Index out of date - the schema changed since it was built');
+                // Load what is cached (for the viewer) - this reads, it does not build.
+                if (this._loadedForDatabase !== message.database) {
+                    vscode.postMessage({ command: 'loadIndex', database: message.database });
+                }
+                if (message.state === 'stale' && !this._dismissed.has(message.database)) this.showNotice('stale', message);
+                else this.hideNotice();
+                break;
+            case 'none':
+                this._loadedForDatabase = null;
+                this._rawIndexData = null;
+                this._jsonRendered = false;
+                this.setStatus('none', 'Index not built - see the notice in Explorer');
+                this.objectsJsonContent.innerHTML = '<p class="placeholder-text">The index of this database has not been built yet. Use "Build index" in the Explorer notice.</p>';
+                if (!this._dismissed.has(message.database)) this.showNotice('none', message);
+                else this.hideNotice();
+                break;
+            case 'building':
+                this.setStatus('indexing', 'Indexing...');
+                this.hideNotice();
+                break;
+            default:
+                this.setStatus('none', 'Index status unavailable');
+                this.hideNotice();
+        }
+    }
+
+    // The explanation and the choice, shown above the Explorer while there is
+    // no usable index. kind: 'none' | 'stale'.
+    showNotice(kind, message) {
+        if (!this.noticeEl) return;
+        const db = this.escapeHtml(this.currentDatabase);
+        const icon = '<i class="codicon codicon-info index-notice-icon"></i>';
+        let body;
+        if (kind === 'stale') {
+            const built = message.builtAt ? this.escapeHtml(new Date(message.builtAt).toLocaleString()) : 'earlier';
+            body = `
+                <strong>The index of ${db} is out of date</strong>
+                <p>It was built on ${built}, and the schema has changed since. Dependencies and column usage may be wrong or missing for the objects that changed.</p>
+                <p>Updating only re-analyzes the objects that changed, so it is much quicker than the first build. Nothing is updated until you choose to.</p>`;
+        } else {
+            body = `
+                <strong>The dependency index of ${db} is not built</strong>
+                <p>The index records which views, procedures, functions and triggers use which tables and columns. It is what the dependency <em>Tree</em> and <em>Graph</em>, the column usage, the write footprint and the query graph rely on (the data dictionary also lists dependencies from it).</p>
+                <p>Building it reads the definition of every object of the database: from a few seconds to several minutes on a large one, with some load on the server. It only runs when you ask. The result is saved on this computer, so the next time only the changed objects are analyzed.</p>
+                <p>Without the index, everything else works as usual: the object list, structure, code, comments, search and the Query tab.</p>`;
+        }
+        this.noticeEl.innerHTML = `
+            ${icon}
+            <div class="index-notice-body">
+                ${body}
+                <div class="index-notice-actions">
+                    <button class="primary" data-index-action="build">${kind === 'stale' ? 'Update index' : 'Build index'}</button>
+                    <button data-index-action="dismiss">Not now</button>
+                </div>
+            </div>`;
+        this.noticeEl.hidden = false;
+    }
+
+    hideNotice() {
+        if (this.noticeEl) this.noticeEl.hidden = true;
+    }
+
+    // "Not now": the notice stays away for this database until the panel is reopened.
+    dismissNotice() {
+        if (this.currentDatabase) this._dismissed.add(this.currentDatabase);
+        this.hideNotice();
+    }
+
+    // The user's decision to build (or update) the index.
+    buildIndex() {
+        const database = this.currentDatabase;
+        if (!database) return;
+        this.hideNotice();
+        this.showLoading('Indexing...');
         this.setStatus('indexing', 'Indexing...');
-        // Explorer's own object list/graph stay greyed out until displayIndex
-        // unlocks them - they'd otherwise read from a stale or half-built index.
+        // The object list/graph stay greyed out until displayIndex unlocks them -
+        // they'd otherwise read from a stale or half-built index.
         if (window.explorerManager) window.explorerManager.setPanelsLocked(true);
         vscode.postMessage({ command: 'getIndex', database });
     }
@@ -294,6 +390,7 @@ class ObjectsTabManager {
         if (result.database && result.database !== this.currentDatabase) return;
         this.objectsJsonContent.innerHTML = `<p class="placeholder-text">${this.escapeHtml(result.message)}</p>`;
         this.setStatus(this.currentDatabase ? 'error' : 'none', result.message);
+        this.requestIndex(this.currentDatabase);
     }
 
     escapeHtml(text) {
@@ -327,6 +424,8 @@ class ObjectsTabManager {
             if (database === this.currentDatabase) {
                 this.objectsJsonContent.innerHTML = '<p class="placeholder-text">No index data available.</p>';
                 this.setStatus(this.currentDatabase ? 'error' : 'none', 'Indexing failed or was cancelled');
+                // Offer the choice again.
+                this.requestIndex(database);
             }
             return;
         }
@@ -340,7 +439,15 @@ class ObjectsTabManager {
 
         this._rawIndexData = indexData;
         this._jsonRendered = false;
-        this.setStatus('ready', 'Index up to date');
+        // A loaded cached index may be out of date: keep what the status said.
+        if (this.state === 'stale') {
+            this.setStatus('stale', 'Index out of date - the schema changed since it was built');
+        } else {
+            this.state = 'ready';
+            appState.indexState = 'ready';
+            this.hideNotice();
+            this.setStatus('ready', 'Index up to date');
+        }
 
         if (this.modalOverlay.classList.contains('visible')) {
             this._renderJsonIfNeeded();
@@ -360,14 +467,17 @@ class ObjectsTabManager {
 
         if (success) {
             this.setStatus('ready', 'Index up to date');
-            // Request the index data
+            // Read the index that was just built (this does not build anything).
+            this._loadedForDatabase = null;
+            this.state = 'ready';
             vscode.postMessage({
-                command: 'getIndex',
+                command: 'loadIndex',
                 database: database
             });
         } else {
             this.objectsJsonContent.innerHTML = `<p class="placeholder-text">Indexing failed: ${this.escapeHtml(message)}</p>`;
             this.setStatus('error', message);
+            if (database === this.currentDatabase) this.requestIndex(database);
         }
     }
 
@@ -387,8 +497,6 @@ class IndexingModalManager {
         this.cancelBtn = document.getElementById('indexingCancelBtn');
         this._previousFocus = null;
         this.database = null;
-        this._showTimer = null;
-        this._pendingShow = null;
         this.cancelBtn.addEventListener('click', () => {
             this.cancelBtn.disabled = true;
             this.messageEl.textContent = 'Cancelling…';
@@ -412,7 +520,6 @@ class IndexingModalManager {
     }
 
     show(message, database) {
-        this.cancelScheduledShow();
         this.database = database;
         this.messageEl.textContent = message;
         this.progressFill.style.width = '0%';
@@ -421,24 +528,6 @@ class IndexingModalManager {
         this.overlay.classList.add('visible');
         this._previousFocus = document.activeElement;
         this.cancelBtn.focus();
-    }
-
-    // Used for the plain (non-forced) getIndex path, where most calls resolve
-    // almost instantly off a valid cache - showing the modal immediately would
-    // just flash it open/closed on every ordinary tab/database switch. Only
-    // pops up for the slow case (real rebuild, or a big cached index to parse)
-    // that actually needs the feedback and the Cancel button.
-    scheduleShow(message, database) {
-        this._pendingShow = { message, database };
-        clearTimeout(this._showTimer);
-        this._showTimer = setTimeout(() => {
-            if (this._pendingShow) this.show(this._pendingShow.message, this._pendingShow.database);
-        }, 400);
-    }
-
-    cancelScheduledShow() {
-        clearTimeout(this._showTimer);
-        this._pendingShow = null;
     }
 
     updateProgress(progress, current, total, message) {
@@ -450,7 +539,6 @@ class IndexingModalManager {
     }
 
     hide() {
-        this.cancelScheduledShow();
         this.overlay.classList.remove('visible');
         if (this._previousFocus && typeof this._previousFocus.focus === 'function') {
             this._previousFocus.focus();
@@ -541,6 +629,9 @@ class DatabaseSelectorManager {
     }
 
     showReadyGlow() {
+        // Once per tab: reopening the Explorer must not nag again.
+        if (this._glowShown) return;
+        this._glowShown = true;
         this.databaseSelect.classList.add('database-ready-glow');
 
         setTimeout(() => {
@@ -1034,6 +1125,7 @@ class ExplorerManager {
     initEventListeners() {
         this.elements.databaseSelect.addEventListener('change', () => this.handleDatabaseChange());
         this.elements.exportDictionaryBtn.addEventListener('click', () => this.handleExportDictionary());
+        this.initObjectListKeyboard();
 
         // Cross-database dependency links (Dependencies table, dependency tree).
         // Their markup is re-rendered on every selection, so the click is
@@ -1137,9 +1229,10 @@ class ExplorerManager {
         appState.currentDatabase = database;
         this.elements.exportDictionaryBtn.disabled = !database;
 
-        // Panels are no longer locked here - indexing (and the lock around it,
-        // see ObjectsTabManager.requestIndex) only starts once Explorer is
-        // actually opened for this database, not on every database switch.
+        // The explorer works as soon as a database is chosen: it does not wait
+        // for the dependency index, which is only built when the user asks
+        // (the lock around a build: see ObjectsTabManager.buildIndex).
+        this.setPanelsLocked(!database);
 
         vscode.postMessage({
             command: 'setCurrentDatabase',
@@ -1194,9 +1287,11 @@ class ExplorerManager {
         const prevSelected = this.elements.objectList.querySelector('.selected');
         if (prevSelected) {
             prevSelected.classList.remove('selected');
+            prevSelected.removeAttribute('aria-selected');
         }
 
         element.classList.add('selected');
+        element.setAttribute('aria-selected', 'true');
         appState.selectedObject = obj;
         this._currentDetailsDatabase = appState.currentDatabase;
 
@@ -1314,6 +1409,15 @@ class ExplorerManager {
         }
     }
 
+    // The extension moved this tab to another database (another saved
+    // connection of the same server was opened). Same path as picking it by hand.
+    selectDatabase(database) {
+        const match = (appState.databases || []).find(db => db.toLowerCase() === database.toLowerCase());
+        if (!match) return;
+        this.elements.databaseSelect.value = match;
+        this.elements.databaseSelect.dispatchEvent(new Event('change'));
+    }
+
     // Stale responses (user switched database again before this arrived) are
     // dropped, same guard as onTableStatsLoaded.
     onForeignKeysLoaded(database, foreignKeys) {
@@ -1390,17 +1494,28 @@ class ExplorerManager {
         this._openPopupMenu(anchorBtn, items, { alignRight: true });
     }
 
-    // Popup mechanics for the script menu: one menu open at a time,
-    // closed by any outside click.
-    _openPopupMenu(anchorBtn, items, { alignRight = false } = {}) {
+    // Popup mechanics for the script menu and the context menu: one menu open
+    // at a time, closed by any outside click or Escape, usable with the
+    // keyboard (arrows, Home/End, Enter) - the focus goes back to where it was.
+    // `at` ({ x, y }) opens it at a point (right click) instead of under an anchor.
+    _openPopupMenu(anchorBtn, items, { alignRight = false, at = null } = {}) {
         this.closePopupMenu();
         if (items.length === 0) return;
+        const returnFocus = document.activeElement;
 
         const menu = document.createElement('div');
         menu.className = 'script-menu';
-        items.forEach(({ label, title, onClick }) => {
+        menu.setAttribute('role', 'menu');
+        items.forEach(({ label, title, onClick, separatorBefore }) => {
+            if (separatorBefore) {
+                const separator = document.createElement('div');
+                separator.className = 'script-menu-separator';
+                separator.setAttribute('role', 'separator');
+                menu.appendChild(separator);
+            }
             const item = document.createElement('button');
             item.className = 'script-menu-item';
+            item.setAttribute('role', 'menuitem');
             item.textContent = label;
             if (title) item.title = title;
             item.addEventListener('click', (e) => {
@@ -1410,12 +1525,18 @@ class ExplorerManager {
             });
             menu.appendChild(item);
         });
+        menu.addEventListener('keydown', (e) => this._onPopupMenuKey(e, menu, returnFocus));
 
         document.body.appendChild(menu);
-        const rect = anchorBtn.getBoundingClientRect();
-        menu.style.top = `${Math.min(rect.bottom + 2, window.innerHeight - menu.offsetHeight - 8)}px`;
-        const left = alignRight ? rect.right - menu.offsetWidth : rect.left;
-        menu.style.left = `${Math.min(Math.max(8, left), window.innerWidth - menu.offsetWidth - 8)}px`;
+        if (at) {
+            menu.style.top = `${Math.max(8, Math.min(at.y, window.innerHeight - menu.offsetHeight - 8))}px`;
+            menu.style.left = `${Math.max(8, Math.min(at.x, window.innerWidth - menu.offsetWidth - 8))}px`;
+        } else {
+            const rect = anchorBtn.getBoundingClientRect();
+            menu.style.top = `${Math.min(rect.bottom + 2, window.innerHeight - menu.offsetHeight - 8)}px`;
+            const left = alignRight ? rect.right - menu.offsetWidth : rect.left;
+            menu.style.left = `${Math.min(Math.max(8, left), window.innerWidth - menu.offsetWidth - 8)}px`;
+        }
 
         this._popupMenu = menu;
         this._popupMenuCloser = (e) => {
@@ -1423,6 +1544,29 @@ class ExplorerManager {
         };
         // Deferred so the opening click does not immediately close the menu
         setTimeout(() => document.addEventListener('click', this._popupMenuCloser), 0);
+        const first = menu.querySelector('.script-menu-item');
+        if (first) first.focus();
+    }
+
+    _onPopupMenuKey(event, menu, returnFocus) {
+        const entries = [...menu.querySelectorAll('.script-menu-item')];
+        const index = entries.indexOf(document.activeElement);
+        let next = null;
+        switch (event.key) {
+            case 'ArrowDown': next = entries[(index + 1) % entries.length]; break;
+            case 'ArrowUp': next = entries[(index - 1 + entries.length) % entries.length]; break;
+            case 'Home': next = entries[0]; break;
+            case 'End': next = entries[entries.length - 1]; break;
+            case 'Escape':
+            case 'Tab':
+                event.preventDefault();
+                this.closePopupMenu();
+                if (returnFocus && returnFocus.focus) returnFocus.focus();
+                return;
+            default: return;
+        }
+        event.preventDefault();
+        if (next) next.focus();
     }
 
     closePopupMenu() {
@@ -1432,6 +1576,129 @@ class ExplorerManager {
             this._popupMenu = null;
             this._popupMenuCloser = null;
         }
+    }
+
+    // ---- Keyboard and context menu of the object list ------------------------
+
+    // The rows that can be reached now: the schema headers, and the objects
+    // that are neither filtered out nor in a collapsed schema.
+    _visibleObjectRows() {
+        return [...this.elements.objectList.querySelectorAll('.schema-header:not(.hidden), .object-item:not(.hidden):not(.schema-collapsed)')];
+    }
+
+    initObjectListKeyboard() {
+        const list = this.elements.objectList;
+        // One tab stop for the whole list; the rows are moved between with the
+        // arrow keys (their own tabindex is -1).
+        list.tabIndex = 0;
+        list.setAttribute('role', 'tree');
+        list.setAttribute('aria-label', 'Database objects');
+        list.addEventListener('focus', (e) => {
+            // Coming from outside: go to the selected object, or the first row.
+            if (e.target !== list || list.contains(e.relatedTarget)) return;
+            const rows = this._visibleObjectRows();
+            const target = rows.find(r => r.classList.contains('selected')) || rows[0];
+            if (target) target.focus();
+        });
+        list.addEventListener('keydown', (e) => this._onObjectListKey(e));
+        list.addEventListener('contextmenu', (e) => {
+            const row = e.target.closest('.object-item');
+            if (!row) return;
+            e.preventDefault();
+            this.openObjectContextMenu(row, { x: e.clientX, y: e.clientY });
+        });
+    }
+
+    _onObjectListKey(event) {
+        const row = event.target.closest('.schema-header, .object-item');
+        if (!row || event.altKey || event.ctrlKey || event.metaKey) return;
+        const rows = this._visibleObjectRows();
+        const index = rows.indexOf(row);
+        const isHeader = row.classList.contains('schema-header');
+        let target = null;
+
+        switch (event.key) {
+            case 'ArrowDown': target = rows[index + 1]; break;
+            case 'ArrowUp': target = rows[index - 1]; break;
+            case 'PageDown': target = rows[Math.min(index + 10, rows.length - 1)]; break;
+            case 'PageUp': target = rows[Math.max(index - 10, 0)]; break;
+            case 'Home': target = rows[0]; break;
+            case 'End': target = rows[rows.length - 1]; break;
+            case 'ArrowRight':
+                if (isHeader) {
+                    if (row.classList.contains('collapsed')) this._toggleSchemaCollapse(row.dataset.schema);
+                    else target = rows[index + 1] && !rows[index + 1].classList.contains('schema-header') ? rows[index + 1] : null;
+                }
+                break;
+            case 'ArrowLeft':
+                if (isHeader) {
+                    if (!row.classList.contains('collapsed')) this._toggleSchemaCollapse(row.dataset.schema);
+                } else {
+                    target = this.elements.objectList.querySelector(`.schema-header[data-schema="${CSS.escape(row.dataset.schema)}"]`);
+                }
+                break;
+            case 'Enter':
+            case ' ':
+                if (isHeader) this._toggleSchemaCollapse(row.dataset.schema);
+                else row.click();
+                break;
+            case 'ContextMenu':
+                if (!isHeader) {
+                    const box = row.getBoundingClientRect();
+                    this.openObjectContextMenu(row, { x: box.left + 24, y: box.bottom });
+                }
+                break;
+            case 'F10':
+                if (event.shiftKey && !isHeader) {
+                    const box = row.getBoundingClientRect();
+                    this.openObjectContextMenu(row, { x: box.left + 24, y: box.bottom });
+                    break;
+                }
+                return;
+            default:
+                // Typing the start of a name jumps to the next object that begins with it.
+                if (event.key.length === 1 && /\S/.test(event.key)) {
+                    this._objectTypeahead = (this._objectTypeahead || '') + event.key.toLowerCase();
+                    clearTimeout(this._objectTypeaheadTimer);
+                    this._objectTypeaheadTimer = setTimeout(() => { this._objectTypeahead = ''; }, 600);
+                    const needle = this._objectTypeahead;
+                    const ordered = rows.slice(index + 1).concat(rows.slice(0, index + 1));
+                    target = ordered.find(r => (r.querySelector('.object-name-with-icon, .schema-name')?.textContent || '').trim().toLowerCase().startsWith(needle));
+                    break;
+                }
+                return;
+        }
+        event.preventDefault();
+        if (target) {
+            target.focus();
+            target.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    // Right click (or the menu key) on an object: what the row's own buttons
+    // offer, plus opening its details and copying its name.
+    openObjectContextMenu(row, at) {
+        const obj = (appState.allObjects || []).find(o => o.name === row.dataset.name);
+        if (!obj) return;
+        const database = appState.currentDatabase;
+        const qualified = this._getQualifiedName(obj);
+        const items = [{ label: 'Show details', onClick: () => this.handleObjectClick(row, obj) }];
+        if (obj.object_type === 'Table' || obj.object_type === 'View') {
+            items.push({ label: 'Select top 10 rows', onClick: () => this.handlePeekTop10(obj) });
+        }
+        this._getScriptOptions(obj.object_type).forEach((opt, i) => items.push({
+            label: `Script: ${opt.label}`,
+            separatorBefore: i === 0,
+            onClick: () => vscode.postMessage({
+                command: 'generateScript', database, objectName: qualified, objectType: obj.object_type, scriptType: opt.type
+            })
+        }));
+        items.push({
+            label: 'Copy name',
+            separatorBefore: true,
+            onClick: () => navigator.clipboard.writeText(qualified).catch(() => {})
+        });
+        this._openPopupMenu(row, items, { at });
     }
 
     _buildStatsBadge(qualifiedName) {
@@ -1482,6 +1749,9 @@ class ExplorerManager {
                 <span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${this.escapeHtml(schema)}</span>
                 <span class="schema-count">(${objectsBySchema[schema].length})</span>
             `;
+                schemaHeader.tabIndex = -1;
+                schemaHeader.setAttribute('role', 'treeitem');
+                schemaHeader.setAttribute('aria-expanded', String(!this._collapsedSchemas.has(schema)));
                 schemaHeader.addEventListener('click', () => this._toggleSchemaCollapse(schema));
                 this.elements.objectList.appendChild(schemaHeader);
             }
@@ -1489,6 +1759,8 @@ class ExplorerManager {
             objectsBySchema[schema].forEach(obj => {
                 const div = document.createElement('div');
                 div.className = 'object-item';
+                div.tabIndex = -1;
+                div.setAttribute('role', 'treeitem');
 
                 const objectDisplayName = obj.object_name || obj.name.split('.').pop();
 
@@ -1514,6 +1786,8 @@ class ExplorerManager {
                 if (this._getScriptOptions(obj.object_type).length > 0) {
                     const scriptBtn = document.createElement('button');
                     scriptBtn.className = 'object-script-btn';
+                    // Reached from the keyboard through the context menu.
+                    scriptBtn.tabIndex = -1;
                     scriptBtn.title = 'Generate a SQL script for this object';
                     scriptBtn.innerHTML = '<i class="codicon codicon-file-code"></i>';
                     scriptBtn.addEventListener('click', (e) => {
@@ -1526,8 +1800,9 @@ class ExplorerManager {
                 if (obj.object_type === 'Table' || obj.object_type === 'View') {
                     const peekBtn = document.createElement('button');
                     peekBtn.className = 'object-peek-btn';
+                    peekBtn.tabIndex = -1;
                     peekBtn.title = 'Run SELECT TOP 10 * FROM this object';
-                    peekBtn.textContent = '▶ Top 10';
+                    peekBtn.innerHTML = `${swIcon('run')} Top 10`;
                     peekBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.handlePeekTop10(obj);
@@ -1566,6 +1841,7 @@ class ExplorerManager {
     _applySchemaCollapseState() {
         this.elements.objectList.querySelectorAll('.schema-header').forEach(header => {
             header.classList.toggle('collapsed', this._collapsedSchemas.has(header.dataset.schema));
+            header.setAttribute('aria-expanded', String(!this._collapsedSchemas.has(header.dataset.schema)));
         });
         // A separate class from .hidden (used by the search/type filter) so the
         // two stay independent - an item is visible only when neither hides it.
@@ -1575,20 +1851,7 @@ class ExplorerManager {
     }
 
     _getObjectTypeIcon(objectType) {
-        switch (objectType) {
-            case 'Table':
-                return '<i class="codicon codicon-table"></i>';
-            case 'View':
-                return '<i class="codicon codicon-eye"></i>';
-            case 'Procedure':
-                return '<i class="codicon codicon-gear"></i>';
-            case 'Function':
-                return '<i class="codicon codicon-wrench"></i>';
-            case 'Trigger':
-                return '<i class="codicon codicon-zap"></i>';
-            default:
-                return '<i class="codicon codicon-file"></i>';
-        }
+        return swObjectIcon(objectType, null);
     }
     _groupObjectsBySchema(objects) {
         const grouped = {};
@@ -1754,6 +2017,7 @@ class ExplorerManager {
                 <div class="graph-placeholder">
                     <h3><i class="codicon codicon-graph"></i> Dependency Graph</h3>
                     <p class="placeholder-text">No dependencies found for ${this.escapeHtml(objectName)}</p>
+                    ${this.indexMissingHtml()}
                 </div>
             `;
             return;
@@ -1803,12 +2067,19 @@ class ExplorerManager {
         }
     }
 
+    // Shown in place of a result that needs the dependency index while it is
+    // not built: an empty result would read as "no dependencies".
+    indexMissingHtml() {
+        if (appState.indexState !== 'none') return '';
+        return `<p class="placeholder-text index-missing">The dependency index of this database is not built, so dependencies cannot be shown. <button class="link-btn" data-index-action="build">Build index</button></p>`;
+    }
+
     displayDependencyTree(treeData) {
         const container = document.getElementById('treeContainer');
         if (!container) return;
 
         if (!treeData) {
-            container.innerHTML = '<p class="placeholder-text">No dependency data</p>';
+            container.innerHTML = `<p class="placeholder-text">No dependency data</p>${this.indexMissingHtml()}`;
             return;
         }
 
@@ -1861,10 +2132,10 @@ class ExplorerManager {
 
     buildColumnsTable(columns) {
         if (!columns || columns.length === 0) {
-            return '<h3>Columns</h3><p>No columns found.</p>';
+            return `<h3>${swIcon('table')} Columns</h3><p>No columns found.</p>`;
         }
 
-        let html = '<h3>Columns</h3>';
+        let html = `<h3>${swIcon('table')} Columns</h3>`;
         html += `<table>
            <tr>
                <th>Name</th>
@@ -1926,13 +2197,13 @@ class ExplorerManager {
             const writes = refs.filter(r => r.write).length;
             const uncertain = refs.filter(r => !r.confident).length;
             const label = `${refs.length} object${refs.length > 1 ? 's' : ''}` +
-                (writes ? ` · ${writes}✍` : '') + (uncertain ? ' · ~' : '');
+                (writes ? ` · ${writes} <i class="codicon codicon-edit"></i>` : '') + (uncertain ? ' · ~' : '');
 
             cell.innerHTML = '';
             const btn = document.createElement('button');
             btn.className = 'col-usage-btn';
-            btn.textContent = label;
-            btn.title = 'Objects referencing this column (✍ = writes, ~ = uncertain matches). Click for the list.';
+            btn.innerHTML = label;
+            btn.title = 'Objects referencing this column (pencil = writes, ~ = uncertain matches). Click for the list.';
             const columnLabel = cell.dataset.columnLabel || cell.dataset.column;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1994,7 +2265,13 @@ class ExplorerManager {
         matching.forEach(ref => {
             const item = document.createElement('button');
             item.className = 'column-usage-item';
-            item.textContent = `${ref.object}${ref.write ? ' ✍' : ''}${ref.confident ? '' : ' (?)'}`;
+            item.append(ref.object);
+            if (ref.write) {
+                const pencil = document.createElement('i');
+                pencil.className = 'codicon codicon-edit';
+                item.append(' ', pencil);
+            }
+            if (!ref.confident) item.append(' (?)');
             item.title = `${ref.write ? 'Writes to' : 'Reads'} this column${ref.confident ? '' : ' (ambiguous, unqualified reference)'}. Click to reveal in Explorer.`;
             item.addEventListener('click', () => {
                 const obj = (appState.allObjects || []).find(o =>
@@ -2030,7 +2307,7 @@ class ExplorerManager {
     }
 
     buildIndexesTable(indexes) {
-        let html = '<h3>Indexes</h3>';
+        let html = `<h3>${swIcon('index')} Indexes</h3>`;
 
         if (indexes && indexes.length > 0) {
             html += '<table><tr><th>Name</th><th>Type & Properties</th><th>Columns</th><th>Details</th></tr>';
@@ -2039,7 +2316,7 @@ class ExplorerManager {
                 let badges = '';
 
                 if (idx.is_primary_key === true || idx.is_primary_key === 1) {
-                    badges += '<span class="index-badge index-primary">Primary Key</span>';
+                    badges += `<span class="index-badge index-primary">${swIcon('key')} Primary Key</span>`;
                 }
 
                 if (idx.is_unique === true || idx.is_unique === 1) {
@@ -2088,7 +2365,7 @@ class ExplorerManager {
     }
 
     buildForeignKeysTable(foreignKeys) {
-        let html = '<h3>Foreign Keys</h3>';
+        let html = `<h3>${swIcon('fk')} Foreign Keys</h3>`;
 
         if (foreignKeys && foreignKeys.length > 0) {
             html += '<table><tr><th>Name</th><th>Column</th><th>Referenced Table</th><th>Referenced Column</th><th>Actions</th></tr>';
@@ -2121,10 +2398,10 @@ class ExplorerManager {
 
     buildDependenciesSection(dependencies) {
         if (!dependencies) {
-            return '<h3>Dependencies</h3><p>No dependency information available.</p>';
+            return '<h3><i class="codicon codicon-type-hierarchy"></i> Dependencies</h3><p>No dependency information available.</p>';
         }
 
-        let html = '<h3>Dependencies</h3>';
+        let html = '<h3><i class="codicon codicon-type-hierarchy"></i> Dependencies</h3>';
 
         html += '<h4>Dependencies (objects this depends on):</h4>';
         if (dependencies.dependsOn && dependencies.dependsOn.length > 0) {
@@ -2139,7 +2416,7 @@ class ExplorerManager {
             });
             html += '</table>';
         } else {
-            html += '<p>No dependencies found.</p>';
+            html += `<p>No dependencies found.</p>${this.indexMissingHtml()}`;
         }
 
         html += '<h4>Referenced by (objects that depend on this):</h4>';
@@ -2183,8 +2460,8 @@ class ExplorerManager {
 
 // Main message handler
 class MessageHandler {
-    constructor(connectionManager, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager, indexingModalManager, queryManager, queryFileManager) {
-        this.connectionManager = connectionManager;
+    constructor(connectionStatus, explorerManager, tabManager, commentsManager, detailsTabManager, codeViewManager, objectsTabManager, indexingModalManager, queryManager, queryFileManager) {
+        this.connectionStatus = connectionStatus;
         this.explorerManager = explorerManager;
         this.tabManager = tabManager;
         this.commentsManager = commentsManager;
@@ -2201,34 +2478,20 @@ class MessageHandler {
         const message = event.data;
 
         switch (message.command) {
-            case 'savedConnectionsLoaded':
-                this.connectionManager.onSavedConnectionsLoaded(message.connections, message.lastConnection, message.autoConnect, message.busyConnection);
-                break;
-
-            case 'connectionLoadedForDisplay':
-                this.connectionManager.onConnectionLoadedForDisplay(message.connection);
-                break;
-
-            case 'connectionSaved':
-                this.connectionManager.onConnectionSaved(message);
-                break;
-
-            case 'connectionDeleted':
-                this.connectionManager.onConnectionDeleted(message);
-                break;
-
-            case 'testConnectionResult':
-                this.connectionManager.onTestConnectionResult(message);
-                break;
-
             case 'connectionStatus':
-                this.connectionManager.onConnectionStatus(message);
-                if (message.success) {
-                    this.databaseSelector.showReadyGlow();
+                if (this.connectionStatus.onConnectionStatus(message)) {
                     // Land directly on Query after every successful connection -
                     // Explorer (and its indexing) is opt-in, see TabManager.
                     this.tabManager.switchTab('query');
                 }
+                break;
+
+            case 'connectionLost':
+                this.connectionStatus.onConnectionLost(message.message);
+                break;
+
+            case 'connectionRecovered':
+                this.connectionStatus.hideBanner();
                 break;
 
             case 'requestCurrentDatabase':
@@ -2244,6 +2507,9 @@ class MessageHandler {
 
             case 'databasesLoaded':
                 this.explorerManager.onDatabasesLoaded(message.databases, message.currentDatabase);
+                // Only worth a hint when nothing is selected yet - a
+                // connection saved with a database opens on it.
+                if (!appState.currentDatabase) this.databaseSelector.showReadyGlow();
                 // The tab the panel was on, when the page was rebuilt.
                 if (message.activeTab) {
                     this.tabManager.switchTab(message.activeTab);
@@ -2258,8 +2524,24 @@ class MessageHandler {
                 }
                 break;
 
+            case 'selectDatabase':
+                this.explorerManager.selectDatabase(message.database);
+                break;
+
             case 'objectsLoaded':
                 this.explorerManager.onObjectsLoaded(message.objects);
+                break;
+
+            case 'autocompleteSettings':
+                if (this.queryManager) {
+                    this.queryManager.autocomplete.applySettings(message.settings);
+                }
+                break;
+
+            case 'objectParametersLoaded':
+                if (this.queryManager) {
+                    this.queryManager.autocomplete.onParametersLoaded(message.database, message.objectName, message.parameters);
+                }
                 break;
 
             case 'autocompleteObjectsLoaded':
@@ -2334,6 +2616,12 @@ class MessageHandler {
                 }
                 break;
 
+            case 'indexStatus':
+                if (this.objectsTabManager) {
+                    this.objectsTabManager.onIndexStatus(message);
+                }
+                break;
+
             case 'indexingProgress':
                 if (this.objectsTabManager) {
                     this.objectsTabManager.onIndexingProgress(message);
@@ -2380,16 +2668,8 @@ class MessageHandler {
                 }
                 if (this.indexingModalManager) {
                     const startMessage = message.forced ? 'Force reindexing started...' : 'Indexing started...';
-                    // Force reindex was explicitly requested by the user, so show
-                    // feedback immediately; the plain getIndex path (fired on every
-                    // Explorer/database switch) usually resolves off a valid cache
-                    // in well under a second, so it's debounced to avoid flashing
-                    // the modal open/closed on the common fast path.
-                    if (message.forced) {
-                        this.indexingModalManager.show(startMessage, message.database);
-                    } else {
-                        this.indexingModalManager.scheduleShow(startMessage, message.database);
-                    }
+                    // A build only ever starts from a user action, so show it at once.
+                    this.indexingModalManager.show(startMessage, message.database);
                 }
                 break;
 
@@ -2504,11 +2784,7 @@ class MessageHandler {
 
     handleError(message) {
         console.error('SQL Wayfarer Error:', message);
-        if (appState.activeTab === 'configuration') {
-            this.connectionManager.showStatus(message, 'error');
-        } else {
-            this.tabManager.showStatus(message, 'error');
-        }
+        this.connectionStatus.showStatus(message);
     }
 }
 
@@ -2522,7 +2798,7 @@ document.addEventListener('DOMContentLoaded', function () {
     vscode.postMessage({ command: 'panelReady' });
 
     const tabManager = new TabManager();
-    const connectionManager = new ConnectionManager();
+    const connectionStatus = new ConnectionStatus();
     const explorerManager = new ExplorerManager();
     const commentsManager = new CommentsManager();
     const codeViewManager = new CodeViewManager();
@@ -2534,7 +2810,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const footprintManager = new FootprintManager();
 
     const messageHandler = new MessageHandler(
-        connectionManager,
+        connectionStatus,
         explorerManager,
         tabManager,
         commentsManager,
@@ -2555,9 +2831,9 @@ document.addEventListener('DOMContentLoaded', function () {
     window.queryManager = queryManager;
     window.queryFileManager = queryFileManager;
     window.tabManager = tabManager;
+    window.connectionStatus = connectionStatus;
     window.footprintManager = footprintManager;
 
     window.addEventListener('message', (event) => messageHandler.handleMessage(event));
 
-    connectionManager.loadSavedConnections();
 });

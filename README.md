@@ -52,25 +52,28 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 
 ### Local Schema Index
 *How the analysis above stays fast on a large database*
+- **You decide when to index**: nothing is analyzed on its own. The Explorer shows a notice explaining what the index is and what building it costs, with **Build index** / **Not now**; a schema that changed since is offered as **Update index**. Without an index, the object list, structure, code, comments, search and the Query tab work as usual; only the dependency Tree/Graph, column usage, write footprint and query graph need it
 - Schema, dependency, and column-lineage metadata are indexed locally per connection (keyed by server + database, surviving VS Code restarts), so browsing, dependency, and lineage lookups stay fast after the first scan
-- **Incremental refresh**: when the schema changes, only added or modified objects are re-analyzed; a full rebuild only happens on first indexing or Force Reindex
+- **Incremental refresh**: when the schema changes, only added or modified objects are re-analyzed; a full rebuild only happens on the first build you ask for or on Force Reindex
 - Real progress reporting (8 objects analyzed concurrently per step), cancellable mid-index
 
 ### Query Tool
 *Every open buffer lives in one dropdown under the Query tab — no editor-tab clutter, however many scripts you have open*
-- **Multiple buffers per tab**: pick from a dropdown under "Query" showing every open buffer — a draft, or a `.sql` file on disk you can save straight back to (`Ctrl+S` or the Save button) — without ever spawning a native VS Code editor tab. Each buffer remembers which database it was last run against, restored automatically when you switch back to it.
+- **Multiple buffers per tab**: pick from a dropdown under "Query" showing every open buffer — a draft, or a `.sql` file on disk you can save straight back to (`Ctrl+S` or the Save button) — without ever spawning a native VS Code editor tab. Each buffer remembers which database it was last run against, restored automatically when you switch back to it. The chevron next to "Query" opens that list and shows how many buffers are open; `Ctrl+Alt+PageDown` / `Ctrl+Alt+PageUp` go to the next / previous one.
+- **The color of the editor's focus frame tells the state of the query**: purple for a draft that is not in a file, orange for a file with unsaved changes, the theme's focus color for a file saved as it is on disk
 - **Workspace SQL file browser**: a collapsible side panel (folder icon next to the Query tab) lists every `.sql` file in the workspace, including subfolders, with a filter box and per-folder collapse.
 - **Crash recovery**: unsaved drafts and in-progress edits to an open file are snapshotted continuously and restored automatically if VS Code closes unexpectedly — nothing saved to disk is ever auto-modified, only the in-editor buffer is recovered.
 - Run free-form T-SQL against the selected database, with multiple result sets, a configurable row cap (up to **Unlimited**), and cancellation of long-running queries
 - **Result grid filtering and sorting**: filter rows by any text, click a column header to sort — resets on every new run
+- **Errors point to their line**: `Line 12` in an error message is a link that puts the cursor on that line of the editor
 - **Messages tab**: `PRINT` / `RAISERROR` output collects in its own tab, interleaved in the order it actually happened relative to each result set, instead of attaching to whichever grid happened to be active
 - **Execution plans**: Estimated Plan and Actual Plan buttons render the query plan inline, with dark-mode support
 - **Query graph**: a button in the Query toolbar graphs what the editor's query touches — the tables it reads, the join conditions between them, and the tables reached through the procedures, functions and views it calls
 - The joins come from a real T-SQL parser, so the edges are the ones the query actually writes: `ON` conditions with their columns, `LEFT`/`INNER`/`CROSS` kinds, comma joins (flagged as inferred), and CTEs or derived tables resolved to the tables behind them
 - **Select a query in the editor and the graph covers that query only**; with no selection, the whole buffer is graphed
 - Three tabs, as in the Table Footprint: **Graph** (the join graph), **Schema** (the PK/FK relations between those tables), and **Tables** (their columns, keys and descriptions)
-- **SQL Snippets**: a quick-insert dropdown (built-in templates plus your own custom snippets, managed from the Configuration tab)
-- **Schema-aware autocompletion**: object names, schema-prefixed lookups, and alias-resolved column suggestions (`FROM Employee e` → `e.` lists Employee's columns)
+- **SQL Snippets**: a quick-insert dropdown (built-in templates plus your own custom snippets, managed from the *Snippets* tab of the SQL Wayfarer sidebar)
+- **Context-aware autocompletion**: suggestions follow the clause you are in (tables after `FROM`/`JOIN`, columns in `SELECT`/`WHERE`/`ON`, procedures after `EXEC`, parameters after `EXEC proc`). Columns are offered without a prefix, from the tables of the current statement only (aliases, subqueries, CTEs, derived tables, temp tables and table variables included). After `JOIN`, the tables related by foreign key come first with their `ON` condition. Matching is fuzzy (`ho` → `HumanOrders`), `Ctrl+Space` after `*` expands it to the column list, a details line shows type, nullability and keys, and abbreviations such as `ssf` expand to snippets. Everything is configurable under `sqlwayfarer.autocomplete.*` (trigger, matching, keyword case, accept keys, aliases, brackets, system objects...)
 - **Go to definition**: `Ctrl+Click` (`Cmd+Click` on macOS) or double-click an object name — aliases and cross-database references included — to jump to it in the Explorer
 - **Destructive statement guardrails**: `UPDATE`/`DELETE` without a `WHERE` clause (detected by a real T-SQL parser, so batches and subqueries are analyzed correctly), `TRUNCATE TABLE`, and `DROP` require explicit confirmation before running
 - **Copy / CSV export** on every result set: tab-separated copy that pastes straight into Excel, and CSV export with RFC 4180 escaping and a UTF-8 BOM so accents survive Excel
@@ -81,7 +84,8 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 - Filterable object list organized by schema and type, with live match counts per schema
 - **Search in code**: find every view, procedure, or function whose definition mentions a given text ("where is this column used?")
 - **Table statistics at a glance**: each table shows a badge with its row count and reserved size (e.g. `1.2M · 340 MB`), loaded from allocation metadata in a single query — instant even on very large databases
-- **▶ Top 10** button on tables and views to peek at data instantly
+- **Top 10** button on tables and views to peek at data instantly
+- **Keyboard and context menu**: the object list is one tab stop; arrow keys move through schemas and objects (`←`/`→` fold a schema, `Home`/`End`, typing a letter jumps to a name), `Enter` opens the details, and right click or `Shift+F10` (the menu key) opens a menu: details, top 10 rows, scripts, copy name
 - Native `Ctrl+F` search across object lists, code, and query results
 
 ### Object Inspector
@@ -105,16 +109,18 @@ A 📜 button on every object in the Explorer generates ready-to-edit scripts st
 ### Documentation
 - Read and write MS_Description extended properties directly from the panel
 - **Data dictionary export**: generate a complete Markdown data dictionary of the database — every table, view, procedure, and function with columns, keys, parameters, cross-linked dependencies, and your extended-property descriptions
-- **Full mode** (a checkbox next to the Dictionary button): additionally documents, per table, indexes, incoming foreign-key relations, CHECK/UNIQUE constraints, and triggers, plus a compact per-table Mermaid ER diagram, a whole-database model summary, User Defined Types, and row counts and size. Full mode exports a **folder of linked files** (a `README.md` index plus one file per page of objects) instead of a single document, so large schemas never produce one file too big for a Markdown viewer to render
+- **With details** (a checkbox next to the Dictionary button): additionally documents, per table, indexes, incoming foreign-key relations, CHECK/UNIQUE constraints, and triggers, plus a compact per-table Mermaid ER diagram, a whole-database model summary, User Defined Types, and row counts and size. This mode exports a **folder of linked files** (a `README.md` index plus one file per page of objects) instead of a single document, so large schemas never produce one file too big for a Markdown viewer to render
 
 ### Connection Management
-- Save and switch between multiple SQL Server connections
+- Save and manage your connections from the **SQL Wayfarer sidebar** (activity bar): create, edit, delete and test them there. Each connection opens in its own SQL Wayfarer tab (click it in the list, or use the *Open SQL Wayfarer* command); a connection that is already open is shown instead of opened twice, and a dot marks the open ones. The sidebar has a *Connections* and a *Snippets* tab with the same layout: a filter box and a + on top, then the list (sorted; the filter searches name, server or database, and Enter opens the first match), and an inline form with a back arrow. A server + login has one tab: opening another saved connection of the same server (say, another database) shows that tab and moves it to the database of the connection you picked; a connection saved with a database opens on it
 - Secure credential storage integrated with VS Code
 - Connection testing with live feedback
-- SQL login, or a Windows account typed as `DOMAIN\user` in the username field
+- SQL login, or a Windows account typed as `DOMAIN\user` in the username field (sent with its password, NTLM)
+- **Windows authentication (current user)**: pick it as the authentication of a connection to sign in with the Windows session running VS Code (SSPI/Kerberos, like SSMS). Nothing is stored. Windows only. It runs through a small helper program shipped with the extension (`helper/SqlWayfarerSspi.exe`, built on the .NET Framework that comes with Windows)
 - **Microsoft Entra ID** (Azure SQL) — *beta, not yet tested against a live Azure SQL; please report problems via GitHub Issues*: pick *Microsoft Entra ID* as the authentication of a connection. It signs in with the Microsoft account of VS Code (MFA and single sign-on included), stores no password, and renews the token in the background. The connection is always encrypted
-- **Authentication limits**: a Windows account (`DOMAIN\user`) is sent to the server with its password (NTLM), saved once in VS Code's secret storage. **Integrated authentication** (the current Windows session, SSPI/Kerberos) is not supported: the underlying driver, tedious, is pure JavaScript and cannot call SSPI
-- **Auto-connect**: the last connection used is reconnected automatically when the panel opens (toggleable, and the last connection stays pre-selected either way)
+- **Authentication limits**: a Windows account typed as `DOMAIN\user` is sent to the server with its password (NTLM), saved once in VS Code's secret storage. Integrated authentication needs the *Windows authentication (current user)* option above, and is not available on macOS or Linux
+- **Open the last connection straight away** (setting `sqlwayfarer.openLastConnection`, on by default): the *Open SQL Wayfarer* command opens the last connection used instead of asking which one
+- **Lost connection**: when the server stops answering (restart, network), a bar offers **Reconnect** - the tab, its queries and its selected database stay as they are, and the bar goes away by itself if the connection comes back
 
 ## Getting Started
 

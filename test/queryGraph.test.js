@@ -250,7 +250,7 @@ suite('QueryGraphService.analyze', () => {
 	function makeService({ index = INDEX, foreignKeys = [], connectionManager = {} } = {}) {
 		return new QueryGraphService(
 			connectionManager,
-			{ getIndex: async () => index },
+			{ requireIndex: async () => index },
 			{ getForeignKeys: async () => foreignKeys }
 		);
 	}

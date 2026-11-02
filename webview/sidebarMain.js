@@ -7,26 +7,41 @@
  */
 'use strict';
 
-// Bootstrap for the activity bar sidebar's snippet manager (see
-// panels/SnippetSidebarProvider.js) - much smaller than webview/main.js since
-// this view hosts only SnippetManager, not the full SQL Wayfarer panel.
+// Bootstrap for the activity bar sidebar (see panels/SnippetSidebarProvider.js):
+// two tabs, the saved connections and the snippets - much smaller than
+// webview/main.js since this view is not the full SQL Wayfarer panel.
 const vscode = acquireVsCodeApi();
 
 document.addEventListener('DOMContentLoaded', () => {
     const snippetManager = new SnippetManager();
+    const connections = new SidebarConnections();
 
-    // The one clear "open a tab" affordance now that this view's main
-    // content is the snippet list, not a launcher item - without it, opening
-    // the very first tab means digging for the small title-bar icon or the
-    // command palette.
-    document.getElementById('openPanelBtn').addEventListener('click', () => {
-        vscode.postMessage({ command: 'openNewPanel' });
-    });
+    // Which tab was open comes back when the view is rebuilt.
+    const tabs = document.querySelectorAll('[data-sb-tab]');
+    const views = document.querySelectorAll('[data-sb-view]');
+    const showTab = name => {
+        tabs.forEach(tab => {
+            const active = tab.dataset.sbTab === name;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-selected', String(active));
+        });
+        views.forEach(view => view.classList.toggle('active', view.dataset.sbView === name));
+        vscode.setState({ tab: name });
+    };
+    tabs.forEach(tab => tab.addEventListener('click', () => showTab(tab.dataset.sbTab)));
+    const saved = vscode.getState();
+    showTab(saved && saved.tab === 'snippets' ? 'snippets' : 'connections');
 
     window.addEventListener('message', (event) => {
         const message = event.data;
-        if (message.command === 'snippetsLoaded') {
-            snippetManager.onSnippetsLoaded(message.snippets);
+        switch (message.command) {
+            case 'snippetsLoaded':           snippetManager.onSnippetsLoaded(message.snippets); break;
+            case 'savedConnectionsLoaded':   connections.onSavedConnectionsLoaded(message); break;
+            case 'openConnectionsChanged':   connections.onOpenConnectionsChanged(message.names); break;
+            case 'connectionSaved':          connections.onConnectionSaved(message); break;
+            case 'connectionDeleted':        connections.onConnectionDeleted(message); break;
+            case 'testConnectionResult':     connections.onTestConnectionResult(message); break;
+            case 'connectionsError':         connections.onError(message.message); break;
         }
     });
 });

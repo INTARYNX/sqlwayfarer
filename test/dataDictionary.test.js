@@ -90,7 +90,7 @@ suite('DataDictionaryService.render', () => {
 	test('renders table sections with PK marker, types and cleaned defaults', () => {
 		assert.ok(markdown.includes('#### dbo.Customer'));
 		assert.ok(markdown.includes('> Customer master data'));
-		assert.ok(markdown.includes('🔑 **CustomerID** | int · identity'));
+		assert.ok(markdown.includes('**CustomerID** (PK) | int · identity'));
 		assert.ok(markdown.includes('nvarchar(50)'), 'nvarchar byte length should be halved');
 		assert.ok(markdown.includes('decimal(10,2)'));
 		assert.ok(markdown.includes('| 0 |'), 'default ((0)) should be cleaned to 0');
@@ -101,7 +101,7 @@ suite('DataDictionaryService.render', () => {
 	});
 
 	test('renders foreign keys with a link to the referenced table', () => {
-		assert.ok(markdown.includes('`FK_Order_Customer`: CustomerID → [dbo.Customer](#dbocustomer) (CustomerID)'));
+		assert.ok(markdown.includes('`FK_Order_Customer`: CustomerID references [dbo.Customer](#dbocustomer) (CustomerID)'));
 	});
 
 	test('renders cross-linked dependencies', () => {
@@ -149,14 +149,14 @@ suite('DataDictionaryService.renderPages (multi-file full export)', () => {
 		const orderPage = result.files.find(f => f.content.includes('#### dbo.Order')).content;
 		const customerFile = result.files.find(f => f.content.includes('#### dbo.Customer')).name;
 		assert.ok(
-			orderPage.includes(`→ [dbo.Customer](${customerFile}#dbocustomer)`),
-			orderPage.match(/Foreign keys[\s\S]*?→.*$/m)
+			orderPage.includes(`references [dbo.Customer](${customerFile}#dbocustomer)`),
+			orderPage.match(/Foreign keys[\s\S]*?references.*$/m)
 		);
 	});
 
 	test('page files carry a Mermaid ER neighborhood and a back-link to the index', () => {
 		const orderPage = result.files.find(f => f.content.includes('#### dbo.Order')).content;
-		assert.ok(orderPage.includes('[← Index](README.md)'));
+		assert.ok(orderPage.includes('[Back to index](README.md)'));
 		assert.ok(orderPage.includes('```mermaid'), 'ER diagram present in full mode');
 	});
 });

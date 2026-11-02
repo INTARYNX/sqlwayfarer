@@ -40,6 +40,26 @@
             border-radius: 50%;
             animation: sqlwayfarer-spin 0.8s linear infinite;
         }
+        #appLoading .failure-icon {
+            font-size: 28px;
+            color: var(--vscode-errorForeground, #f14c4c);
+        }
+        #appLoading #appLoadingTitle {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        #appLoading #appLoadingRetryBtn {
+            padding: 4px 14px;
+            border: 1px solid transparent;
+            border-radius: 2px;
+            color: var(--vscode-button-foreground);
+            background: var(--vscode-button-background);
+            font: inherit;
+            cursor: pointer;
+        }
+        #appLoading #appLoadingRetryBtn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
         #appLoading .loading-detail {
             opacity: 0.7;
             font-size: 12px;
@@ -49,46 +69,61 @@
     </style>
 </head>
 <body>
-    <!-- Removed by the webview once it is up and running - see
-         connectionManager.endLoading(). -->
+    {{ICON_SPRITE}}
+    <!-- Covers the app while the tab connects. Removed once connected; when the
+         connection fails it shows why, with a Retry - see ConnectionStatus. -->
     <div id="appLoading">
-        <div class="spinner"></div>
-        <div>SQL Wayfarer is starting…</div>
+        <div class="spinner" id="appLoadingSpinner"></div>
+        <i class="codicon codicon-error failure-icon" id="appLoadingIcon" style="display: none;"></i>
+        <div id="appLoadingTitle">Connecting…</div>
         <div class="loading-detail" id="appLoadingDetail"></div>
+        <div class="loading-detail" id="appLoadingHint" style="display: none;">If the connection needs changing, edit it in the SQL Wayfarer sidebar, then retry.</div>
+        <button id="appLoadingRetryBtn" style="display: none;">Retry</button>
     </div>
     <div class="container">
+        <!-- Shown when the connection to the server is lost, see ConnectionStatus. -->
+        <div id="connectionBanner" class="connection-banner" role="alert" hidden>
+            <i class="codicon codicon-debug-disconnect"></i>
+            <span id="connectionBannerText"></span>
+            <button id="connectionBannerBtn" type="button" class="primary">Reconnect</button>
+        </div>
         <!-- Single-line toolbar: tabs + database selector + actions -->
         <div class="app-toolbar">
             <div class="tab-nav">
-                <button class="tab-icon-button active" data-tab="configuration" title="Configuration (connection settings)"><i class="codicon codicon-settings"></i></button>
                 <button id="queryFilesBtn" class="tab-icon-button" title="Browse .sql files in the workspace (including subfolders)"><i class="codicon codicon-folder-opened"></i></button>
                 <span class="query-tab-wrap">
-                    <button class="tab-button" data-tab="query" title="Double-click to switch between open queries">Query<span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
-                    <button id="queryTabsBtn" class="tab-icon-button" title="Open the list of open queries (same as double-clicking the Query tab)"><i class="codicon codicon-add"></i></button>
+                    <button class="tab-button active" data-tab="query" title="Double-click to switch between open queries">Query<span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
+                    <button id="queryTabsBtn" class="tab-icon-button" title="Open queries - switch between them or start a new draft (also: double-click the Query tab; Ctrl+Alt+PageUp / PageDown to go to the previous / next one)"><i class="codicon codicon-chevron-down"></i><span id="queryTabsCount" class="qtab-count" hidden></span></button>
                     <div id="queryTabsDropdown" class="query-tabs-dropdown" role="menu"></div>
                 </span>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
-                <button id="newPanelBtn" class="tab-icon-button" title="Open a new SQL Wayfarer tab (its own independent connection)"><i class="codicon codicon-compass"></i></button>
             </div>
             <div class="header-actions">
+                <!-- First: every action below works on this database. -->
+                <div class="database-selector-inline">
+                    <label for="databaseSelect" class="database-icon" title="Database"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-database"/></svg></label>
+                    <select id="databaseSelect" aria-label="Database" disabled>
+                        <option value="">Select a database...</option>
+                    </select>
+                </div>
                 <!-- Shown only while the Explorer tab is active - see TabManager.updateToolbarActions -->
                 <div id="explorerToolbarActions" class="toolbar-actions" style="display: none;">
                     <button id="exportDictionaryBtn" disabled title="Export a Markdown data dictionary of the selected database"><i class="codicon codicon-library"></i> Dictionary</button>
-                    <label class="full-doc-option" title="Full mode: also include indexes, incoming relations, CHECK/UNIQUE constraints and triggers (runs a few more queries)">
-                        <input type="checkbox" id="dictionaryFullChk"> Full
+                    <label class="full-doc-option" title="With details: the dictionary also lists indexes, incoming relations, CHECK/UNIQUE constraints and triggers (runs a few more queries)">
+                        <input type="checkbox" id="dictionaryFullChk"> With details
                     </label>
                     <button id="objectsIndicatorBtn" class="objects-indicator" disabled title="No database selected">
                         <span id="objectsIndicatorDot" class="indicator-dot dot-none"></span>
-                        Objects
+                        Index
                     </button>
                 </div>
                 <!-- Shown only while the Query tab is active -->
                 <div id="queryToolbarActions" class="toolbar-actions" style="display: none;">
                     <button id="saveQueryFileBtn" class="icon-btn" disabled title="Save (Ctrl+S)"><i class="codicon codicon-save"></i></button>
-                    <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (F5 / Ctrl+Enter)"><i class="codicon codicon-play"></i></button>
-                    <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><i class="codicon codicon-graph-line"></i></button>
-                    <button id="includeActualPlanToggle" class="icon-btn plan-btn plan-toggle-btn" disabled title="Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan"><i class="codicon codicon-graph"></i></button>
-                    <button id="queryGraphBtn" class="icon-btn" disabled title="Query graph - the tables read by the query, how they are joined, and the tables reached through its procedures and functions. With a selection: that query only; without one: the whole query."><i class="codicon codicon-git-merge"></i></button>
+                    <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (F5 / Ctrl+Enter)"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-run"/></svg></button>
+                    <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-plan"/></svg></button>
+                    <button id="includeActualPlanToggle" class="icon-btn plan-btn plan-toggle-btn" disabled title="Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-plan-actual"/></svg></button>
+                    <button id="queryGraphBtn" class="icon-btn" disabled title="Query graph - the tables read by the query, how they are joined, and the tables reached through its procedures and functions. With a selection: that query only; without one: the whole query."><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-join"/></svg></button>
                     <button id="cancelQueryBtn" class="cancel-query-btn" style="display: none;"><i class="codicon codicon-stop-circle"></i> Cancel</button>
                     <label class="query-option">Max rows
                         <select id="maxRowsSelect">
@@ -99,24 +134,18 @@
                             <option value="0" title="Up to 200,000 rows - can be slow for very large result sets">Unlimited</option>
                         </select>
                     </label>
-                    <span class="query-select-wrap">
+                    <span class="query-select-wrap icon-select" title="Recent queries">
                         <i class="codicon codicon-history"></i>
-                        <select id="queryHistorySelect" class="query-history-select" title="Recent queries">
+                        <select id="queryHistorySelect" class="query-history-select" aria-label="Recent queries">
                             <option value="">History…</option>
                         </select>
                     </span>
-                    <span class="query-select-wrap">
+                    <span class="query-select-wrap icon-select" title="Insert a SQL snippet at the cursor">
                         <i class="codicon codicon-code"></i>
-                        <select id="querySnippetsSelect" class="query-history-select" title="Insert a SQL snippet at the cursor">
+                        <select id="querySnippetsSelect" class="query-history-select" aria-label="Insert a SQL snippet at the cursor">
                             <option value="">Snippets…</option>
                         </select>
                     </span>
-                </div>
-                <div class="database-selector-inline">
-                    <label for="databaseSelect">Database:</label>
-                    <select id="databaseSelect" disabled>
-                        <option value="">Select a database...</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -124,113 +153,10 @@
         <!-- Tab Content -->
         <div class="tab-container">
 
-            <!-- Configuration Tab -->
-            <div id="configurationTab" class="tab-content active">
-                <div class="configuration-columns">
-                <div class="connection-section">
-                    <h2>Connection</h2>
-                    <div id="buildInfo" style="font-size: 0.8em; opacity: 0.6; margin-bottom: 8px;">Build: {{BUILD_TIME}}</div>
-
-                    <!-- Main Connection Interface -->
-                    <div class="connection-main">
-                        <div class="input-group">
-                            <label for="connectionSelect">Connection:</label>
-                            <select id="connectionSelect">
-                                <option value="">Loading connections...</option>
-                            </select>
-                        </div>
-                        
-                        <div class="connection-actions">
-                            <button id="connectBtn">Connect</button>
-                            <button id="editBtn" style="display: none;">Edit</button>
-                            <button id="deleteBtn" style="display: none;">Delete</button>
-                        </div>
-
-                        <label class="filter-checkbox auto-connect-option" title="Reconnect to the last used connection automatically when the panel opens">
-                            <input type="checkbox" id="autoConnectChk" checked>
-                            Auto-connect on startup
-                        </label>
-                    </div>
-                    
-                    <!-- Connection Settings (Initially Hidden) -->
-                    <div id="connectionSettings" class="connection-inputs" style="display: none;">
-                        <div class="section-header">
-                            <span id="settingsTitle">New Connection</span>
-                            <button id="closeSettingsBtn" type="button" style="float: right; width: auto;">Close</button>
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="serverInput">Server:</label>
-                            <input type="text" id="serverInput" placeholder="localhost">
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="portInput">Port (optional):</label>
-                            <input type="number" id="portInput" placeholder="1433">
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="databaseInput">Database (optional):</label>
-                            <input type="text" id="databaseInput" placeholder="master">
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="authTypeSelect">Authentication:</label>
-                            <select id="authTypeSelect">
-                                <option value="sql">SQL login or Windows account</option>
-                                <option value="entra">Microsoft Entra ID (Azure SQL)</option>
-                            </select>
-                        </div>
-
-                        <div id="entraAuthHint" class="input-group" style="display: none;">
-                            <small>Signs in with the Microsoft account of VS Code. Nothing is stored; the connection is always encrypted.</small>
-                        </div>
-
-                        <div id="sqlAuthFields">
-                        <div class="input-group">
-                            <label for="usernameInput">Username:</label>
-                            <input type="text" id="usernameInput" placeholder="sa">
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="passwordInput">Password:</label>
-                            <input type="password" id="passwordInput" placeholder="Password" autocomplete="new-password">
-                        </div>
-                        </div>
-                        
-                        <div class="checkbox-group">
-                            <label>
-                                <input type="checkbox" id="encryptCheckbox"> 
-                                Encrypt Connection
-                            </label>
-                        </div>
-                        
-                        <div class="checkbox-group">
-                            <label>
-                                <input type="checkbox" id="trustCertCheckbox" checked> 
-                                Trust Server Certificate
-                            </label>
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="connectionNameInput">Connection Name:</label>
-                            <input type="text" id="connectionNameInput" placeholder="My SQL Server">
-                        </div>
-                        
-                        <div class="connection-actions">
-                            <button id="saveConnectionBtn">Save Connection</button>
-                            <button id="testConnectionBtn">Test Connection</button>
-                            <button id="cancelSettingsBtn" type="button">Cancel</button>
-                        </div>
-                    </div>
-                    
-                    <div id="connectionStatus"></div>
-                </div>
-                </div>
-            </div>
-
             <!-- Explorer Tab -->
             <div id="explorerTab" class="tab-content">
+                <!-- Where the dependency index stands, and the choice to build it - filled by ObjectsTabManager -->
+                <div id="indexNotice" class="index-notice" role="region" aria-label="Dependency index" hidden></div>
                 <div class="explorer-section locked">
                     <div class="explorer-lock-overlay">
                         <p>Select a database to activate the explorer.</p>
@@ -293,7 +219,6 @@
 
                         <!-- Structure Tab (existing details) -->
                         <div id="structureDetailsTab" class="details-tab-content active">
-                            <div class="section-header">Details</div>
                             <div id="detailsContent">
                                 <p>Select a table to view its structure, indexes, and constraints.</p>
                             </div>
@@ -357,7 +282,7 @@
             </div>
 
             <!-- Query Tab -->
-            <div id="queryTab" class="tab-content">
+            <div id="queryTab" class="tab-content active">
                 <div class="query-tab-body">
                     <!-- Left panel: workspace .sql files (including subfolders), toggled by the folder icon in the tab bar -->
                     <div id="sqlFilesPanel" class="sql-files-panel">
@@ -404,7 +329,7 @@
     <div id="objectsModalOverlay" class="modal-overlay objects-modal-overlay">
         <div class="modal-dialog modal-dialog-wide">
             <div class="modal-header">
-                <h3>Database Objects - Raw JSON Index</h3>
+                <h3>Database index (JSON)</h3>
                 <button id="objectsModalCloseBtn" class="modal-close">×</button>
             </div>
             <div class="modal-body">
@@ -523,12 +448,15 @@
     <script src="{{CYTOSCAPE_URI}}"></script>
     <script src="{{CYTOSCAPE_DAGRE_URI}}"></script>
     <script src="{{QUERY_PLAN_URI}}"></script>
+    <script src="{{ICONS_URI}}"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>
-    <script src="{{CONNECTION_MANAGER_URI}}"></script>
+    <script src="{{CONNECTION_STATUS_URI}}"></script>
     <script src="{{COMMENTS_MANAGER_URI}}"></script>
     <script src="{{CODE_VIEW_MANAGER_URI}}"></script>
     <script src="{{BUILTIN_SNIPPETS_URI}}"></script>
     <script src="{{SQL_EDITOR_URI}}"></script>
+    <script src="{{SQL_MATCHER_URI}}"></script>
+    <script src="{{SQL_CONTEXT_URI}}"></script>
     <script src="{{SQL_AUTOCOMPLETE_URI}}"></script>
     <script src="{{QUERY_MANAGER_URI}}"></script>
     <script src="{{FILE_TREE_URI}}"></script>

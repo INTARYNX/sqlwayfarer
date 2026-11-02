@@ -26,6 +26,37 @@ class PanelRegistry {
         return this._panels.find(p => p !== excludePanel && p.connectionIdentity === identity) || null;
     }
 
+    // The panel opened for this saved connection, if any.
+    findByConnectionName(name) {
+        if (!name) return null;
+        return this._panels.find(p => p.connectionName === name) || null;
+    }
+
+    // A saved connection was renamed: its tab follows, so it is still found
+    // (and still shown as open) under the new name.
+    renameConnection(oldName, newName) {
+        const panel = this.findByConnectionName(oldName);
+        if (!panel) return;
+        panel.renameConnection(newName);
+        this.notifyOpenConnectionsChanged();
+    }
+
+    // Names of the saved connections that have a tab open.
+    openConnectionNames() {
+        return this._panels.map(p => p.connectionName).filter(Boolean);
+    }
+
+    // Tells whoever shows the list of connections (the sidebar) which ones
+    // have a tab open. Only the targets that asked for it are called: the
+    // panels have no use for it.
+    notifyOpenConnectionsChanged() {
+        const names = this.openConnectionNames();
+        for (const panel of this._panels) {
+            if (typeof panel.onOpenConnectionsChanged !== 'function') continue;
+            try { panel.onOpenConnectionsChanged(names); } catch (error) { console.warn('PanelRegistry.notifyOpenConnectionsChanged: a target failed', error); }
+        }
+    }
+
     broadcast(message) {
         // One stale/disposed target throwing (e.g. posting to a webview mid-
         // teardown) must never stop the rest from getting the message - a

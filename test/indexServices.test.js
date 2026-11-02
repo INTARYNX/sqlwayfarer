@@ -511,3 +511,115 @@ suite('IndexService concurrency', () => {
 		await assert.doesNotReject(() => promiseB);
 	});
 });
+
+// The index is built when the user asks for it, never as a side effect of
+// reading something that could use it.
+suite('IndexService never builds on its own', () => {
+	const DependencyService = require('../database/DependencyService');
+	let tempDir;
+	let queries;
+
+	setup(async () => {
+		tempDir = path.join(os.tmpdir(), `sqlwayfarer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		await fs.mkdir(tempDir, { recursive: true });
+		queries = 0;
+	});
+
+	teardown(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	});
+
+	// A connection manager that counts every query, listing `objects` for the schema query.
+	function makeService(objects) {
+		const cm = {
+			getServerName: () => 'testserver',
+			executeQueryInDatabase: async () => {
+				queries++;
+				return { recordset: objects, recordsets: [objects, []] };
+			}
+		};
+		const service = new IndexService(cm, null);
+		service._indexDir = tempDir;
+		return service;
+	}
+
+	const objectsV1 = [makeObject('dbo', 'T1', 'U'), makeObject('dbo', 'V1', 'V')];
+
+	test('peekIndex finds nothing and runs no query when no index was built', async () => {
+		const service = makeService(objectsV1);
+		assert.strictEqual(await service.peekIndex('Db'), null);
+		assert.strictEqual(queries, 0);
+		assert.strictEqual(service.isBuildInProgress('Db'), false);
+	});
+
+	test('the features that read the index leave it unbuilt and run no query', async () => {
+		const service = makeService(objectsV1);
+		const dependencies = new DependencyService({ executeQueryInDatabase: async () => { queries++; return { recordset: [] }; } }, null);
+		dependencies.setIndexService(service);
+		assert.deepStrictEqual(await dependencies.getDependencies('Db', 'dbo.V1'), { dependsOn: [], referencedBy: [] });
+		assert.deepStrictEqual(await dependencies.getDependencyTree('Db', 'dbo.V1'), { name: 'dbo.V1', dependencies: [] });
+		assert.strictEqual(await service.getColumnUsage('Db', 'dbo.T1'), null);
+		assert.deepStrictEqual(await service.getObjectDependencies('Db', 'dbo.V1'), []);
+		assert.deepStrictEqual(await service.findDependents('Db', 'dbo.T1'), []);
+		await assert.rejects(() => service.requireIndex('Db'), error => error.code === 'INDEX_NOT_BUILT' && /Build index/.test(error.message));
+		assert.strictEqual(queries, 0);
+		assert.strictEqual(service.isBuildInProgress('Db'), false);
+	});
+
+	test('the status says none, then ready once the user built it, then stale after a schema change', async () => {
+		let objects = objectsV1;
+		const service = makeService(objects);
+		service._connectionManager.executeQueryInDatabase = async () => ({ recordset: objects, recordsets: [[], []] });
+		assert.deepStrictEqual(await service.getIndexStatus('Db'), { state: 'none' });
+
+		await service.getIndex('Db'); // the user's "Build index"
+		const ready = await service.getIndexStatus('Db');
+		assert.strictEqual(ready.state, 'ready');
+		assert.strictEqual(ready.totalObjects, 2);
+		assert.ok(ready.builtAt);
+		assert.ok(await service.peekIndex('Db'));
+
+		objects = [...objectsV1, makeObject('dbo', 'T2', 'U')];
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'stale');
+		// ...and looking at it did not update it.
+		assert.strictEqual((await service.peekIndex('Db')).totalObjects, 2);
+	});
+
+	test('the status is "building" while the user\'s build runs, and peek waits for it', async () => {
+		let release;
+		const gate = new Promise(resolve => { release = resolve; });
+		const service = makeService(objectsV1);
+		service._connectionManager.executeQueryInDatabase = async () => { await gate; return { recordset: objectsV1, recordsets: [[], []] }; };
+		const build = service.getIndex('Db');
+		assert.deepStrictEqual(await service.getIndexStatus('Db'), { state: 'building' });
+		const peeked = service.peekIndex('Db');
+		release();
+		await build;
+		assert.strictEqual((await peeked).totalObjects, 2);
+	});
+
+	test('a cancelled build leaves nothing behind for peek', async () => {
+		const service = makeService(objectsV1);
+		service._connectionManager.executeQueryInDatabase = async () => { throw Object.assign(new Error('cancelled'), { code: 'INDEXING_CANCELLED' }); };
+		await assert.rejects(() => service.getIndex('Db'));
+		assert.strictEqual(await service.peekIndex('Db'), null);
+	});
+
+	test('an index in an older format counts as not built', async () => {
+		const service = makeService(objectsV1);
+		const file = service._getIndexFilePath('Db', 'testserver');
+		await fs.mkdir(path.dirname(file), { recursive: true });
+		await fs.writeFile(file, JSON.stringify({ database: 'Db', formatVersion: 1, objects: {} }));
+		assert.strictEqual(await service.peekIndex('Db'), null);
+		assert.deepStrictEqual(await service.getIndexStatus('Db'), { state: 'none' });
+	});
+
+	test('force reindex clears what peek had remembered', async () => {
+		const service = makeService(objectsV1);
+		service._connectionManager.executeQueryInDatabase = async () => ({ recordset: objectsV1, recordsets: [[], []] });
+		await service.getIndex('Db');
+		const first = await service.peekIndex('Db');
+		await service.forceReindex('Db');
+		assert.notStrictEqual(await service.peekIndex('Db'), first);
+	});
+});

@@ -23,8 +23,12 @@ class QueryFileManager {
     constructor(queryManager) {
         this.queryManager = queryManager;
         this.input = document.getElementById('queryInput');
+        // Carries the state of the active query for the stylesheet (the colour
+        // of the focus frame), see updateEditorState().
+        this.inputWrap = this.input.closest('.query-input-wrap');
         this.queryTabButton = document.querySelector('.tab-button[data-tab="query"]');
         this.queryTabsBtn = document.getElementById('queryTabsBtn');
+        this.queryTabsCount = document.getElementById('queryTabsCount');
         this.activeTabLabel = document.getElementById('queryActiveTabLabel');
         this.tabsDropdown = document.getElementById('queryTabsDropdown');
         this.saveBtn = document.getElementById('saveQueryFileBtn');
@@ -66,6 +70,14 @@ class QueryFileManager {
             }
         });
         this.input.addEventListener('input', () => this.onEditorInput());
+        // Ctrl+Alt+PageDown / PageUp: the next / previous open query. Capture
+        // phase, so the editor does not get to it first.
+        document.addEventListener('keydown', (e) => {
+            if (!e.ctrlKey || !e.altKey || (e.key !== 'PageDown' && e.key !== 'PageUp')) return;
+            if (appState.activeTab !== 'query' || this.tabs.length < 2) return;
+            e.preventDefault();
+            this.cycleTab(e.key === 'PageDown' ? 1 : -1);
+        }, true);
 
         // A single click only switches to the Query tab (TabManager's own
         // click listener on this same button) - the sub-tabs dropdown opens
@@ -169,6 +181,13 @@ class QueryFileManager {
         this.render();
     }
 
+    cycleTab(step) {
+        const index = this.tabs.findIndex(t => t.id === this.activeTabId);
+        const next = this.tabs[(index + step + this.tabs.length) % this.tabs.length];
+        this.switchTab(next.id);
+        this.queryManager.input.focus();
+    }
+
     // A brand-new tab adopts whatever database is currently selected (first
     // activation only); an already-known one restores its own.
     _applyTabDatabase(tab) {
@@ -235,7 +254,7 @@ class QueryFileManager {
 
     // queryFilesBtn lives in the global tab-nav (next to the tab buttons
     // themselves), not inside the Query tab's own toolbar, so it's reachable
-    // (and not disabled) from Configuration/Explorer too - but the panel it
+    // (and not disabled) from Explorer too - but the panel it
     // toggles only exists inside #queryTab, which is display:none unless
     // that tab is active. Toggling the 'visible' class alone from another
     // tab was a silent no-op: switch to the Query tab and force the panel
@@ -551,6 +570,11 @@ class QueryFileManager {
     render() {
         const active = this._activeTab();
         this.activeTabLabel.textContent = active ? (active.fileName || active.draftLabel) : '';
+        // The list of open queries is one click away - and how many there are
+        // shows on its button as soon as there is more than one.
+        this.queryTabsCount.hidden = this.tabs.length < 2;
+        this.queryTabsCount.textContent = String(this.tabs.length);
+        this.activeTabLabel.title = 'Frame of the editor - purple: draft, not in a file; orange: file with unsaved changes; blue: saved file';
         if (this.tabsDropdown.classList.contains('visible')) this.renderTabsDropdown();
         this.updateSaveButtonState();
     }
@@ -563,6 +587,18 @@ class QueryFileManager {
         const content = this.queryManager.getEditorContent();
         const dirty = tab.fileName ? content !== tab.savedContent : content.trim() !== '';
         this.saveBtn.disabled = !dirty;
+        this.updateEditorState(tab, content);
+    }
+
+    // What the colour of the editor's focus frame says about the active query:
+    //   draft     - not in a file (purple)
+    //   modified  - a file with changes not saved yet (orange)
+    //   saved     - a file, as on disk (the theme's focus colour)
+    updateEditorState(tab, content) {
+        if (!this.inputWrap) return;
+        let state = '';
+        if (tab) state = !tab.fileName ? 'draft' : (content !== tab.savedContent ? 'modified' : 'saved');
+        this.inputWrap.dataset.queryState = state;
     }
 
     renderTabsDropdown() {

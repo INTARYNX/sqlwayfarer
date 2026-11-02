@@ -7,11 +7,17 @@
  */
 'use strict';
 
-// SQL autocompletion for the query textarea.
+// SqlContext (sqlContext.js) and SqlMatcher (sqlMatcher.js) are globals, like
+// every class shared between the webview's classic scripts.
+
+// SQL autocompletion for the query editor.
 // Objects come from the already-loaded explorer index (appState.allObjects);
 // columns are fetched on demand from the backend and cached per object.
-// The pure logic (context extraction, alias parsing, suggestion building)
-// lives in static methods so it can be unit-tested without a DOM.
+// The pure logic lives in static methods so it can be unit-tested without a
+// DOM: compute() is the entry point (context via SqlContext, ranking via
+// SqlMatcher, behaviour via the sqlwayfarer.autocomplete.* settings).
+// The older building blocks (extractContext, buildSuggestions, join
+// conditions...) are still used by it, and are tested on their own.
 class SqlAutocomplete {
     constructor(textarea) {
         this.textarea = textarea;
@@ -29,8 +35,25 @@ class SqlAutocomplete {
         this.pendingColumns = new Set();
         this.objectsCache = {};       // database (lower) -> objects[], for cross-database references
         this.pendingObjectsDbs = new Set();
+        this.paramsCache = {};        // "database::qualifiedName" (lower) -> [{ name, type, isOutput }]
+        this.pendingParams = new Set();
+        this.customSnippets = [];     // the user's own snippets, offered by name
+        this.pendingForce = false;    // the list was forced (Ctrl+Space) while data was still loading
+        this.settings = SqlAutocomplete.normalizeSettings(null);
+        this.usage = new Map();       // usageKey -> times accepted (this session)
 
         this.initEventListeners();
+        vscode.postMessage({ command: 'getAutocompleteSettings' });
+    }
+
+    setSnippets(snippets) {
+        this.customSnippets = snippets || [];
+    }
+
+    // Settings arrive from the extension host (sqlwayfarer.autocomplete.*).
+    applySettings(raw) {
+        this.settings = SqlAutocomplete.normalizeSettings(raw);
+        if (!this.settings.enabled) this.hide();
     }
 
     // === Event wiring ===
@@ -81,15 +104,21 @@ class SqlAutocomplete {
                 this.select(this.selectedIndex - 1);
                 break;
             case 'Enter':
-            case 'Tab':
+            case 'Tab': {
                 if (e.ctrlKey || e.metaKey) {
                     this.hide(); // let Ctrl+Enter reach the "run query" shortcut
+                    return;
+                }
+                const keys = this.settings.acceptKeys;
+                if ((e.key === 'Enter' && keys === 'tab') || (e.key === 'Tab' && keys === 'enter')) {
+                    this.hide(); // that key is not an accept key: the editor gets it
                     return;
                 }
                 e.preventDefault();
                 e.stopPropagation();
                 this.accept();
                 break;
+            }
             case 'Escape':
                 e.preventDefault();
                 e.stopPropagation();
@@ -115,6 +144,8 @@ class SqlAutocomplete {
         this.pendingObjectsDbs.clear();
         this.columnsCache = {};
         this.pendingColumns.clear();
+        this.paramsCache = {};
+        this.pendingParams.clear();
         this.hide();
     }
 
@@ -122,8 +153,23 @@ class SqlAutocomplete {
         const key = SqlAutocomplete._colKey(database, objectName);
         this.pendingColumns.delete(key);
         this.columnsCache[key] = columns || [];
-        // Refresh only if the user is still typing in the editor.
-        if (this.isEditorFocused()) this.update();
+        this.refreshAfterLoad();
+    }
+
+    onParametersLoaded(database, objectName, parameters) {
+        const key = SqlAutocomplete._colKey(database, objectName);
+        this.pendingParams.delete(key);
+        this.paramsCache[key] = parameters || [];
+        this.refreshAfterLoad();
+    }
+
+    // Refresh only if the user is still typing in the editor; a list forced with
+    // Ctrl+Space while the data was loading stays forced.
+    refreshAfterLoad() {
+        if (!this.isEditorFocused()) return;
+        const force = this.pendingForce;
+        this.pendingForce = false;
+        this.update(force);
     }
 
     // Objects of a database other than the one currently selected, fetched on
@@ -132,60 +178,42 @@ class SqlAutocomplete {
         const key = (database || '').toLowerCase();
         this.pendingObjectsDbs.delete(key);
         this.objectsCache[key] = objects || [];
-        if (this.isEditorFocused()) this.update();
+        this.refreshAfterLoad();
     }
 
     // === Suggestion computation ===
 
     update(force = false) {
-        const objects = (typeof appState !== 'undefined' && appState.allObjects) || [];
-        const databases = (typeof appState !== 'undefined' && appState.databases) || [];
-        const currentDatabase = typeof appState !== 'undefined' ? appState.currentDatabase : null;
-        const text = this.textarea.value;
-        const caret = this.textarea.selectionStart;
+        if (!this.settings.enabled) { this.hide(); return; }
+        if (!force && !this.settings.autoTrigger && !this.isOpen()) return;
 
-        // "... JOIN Orders o ON" just typed: offer the FK-based condition
-        // before falling back to plain keyword/object completion.
-        const joinCtx = SqlAutocomplete.extractJoinOnContext(text, caret);
-        if (joinCtx) {
-            const foreignKeys = (typeof appState !== 'undefined' && appState.foreignKeys) || [];
-            const joinItems = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, objects, text.slice(0, caret), foreignKeys);
-            if (joinItems.length > 0) {
-                this.ctx = { partialStart: caret };
-                this.render(joinItems);
-                return;
-            }
-        }
+        const state = typeof appState !== 'undefined' ? appState : {};
+        const result = SqlAutocomplete.compute(this.textarea.value, this.textarea.selectionStart, {
+            objects: state.allObjects || [],
+            databases: state.databases || [],
+            currentDatabase: state.currentDatabase || null,
+            foreignKeys: state.foreignKeys || [],
+            getColumns: (database, qualifiedName) => this.columnsCache[SqlAutocomplete._colKey(database, qualifiedName)],
+            getDatabaseObjects: database => this.objectsCache[(database || '').toLowerCase()],
+            getParameters: (database, qualifiedName) => this.paramsCache[SqlAutocomplete._colKey(database, qualifiedName)],
+            snippets: this.customSnippets,
+            settings: this.settings,
+            usage: this.usage,
+            force
+        });
 
-        const ctx = SqlAutocomplete.extractContext(text, caret);
+        for (const need of result.needs.columns) this.requestColumns(need.database, need.qualifiedName);
+        for (const database of result.needs.databaseObjects) this.requestDatabaseObjects(database);
+        for (const need of result.needs.parameters) this.requestParameters(need.database, need.qualifiedName);
+        const loading = result.needs.columns.length + result.needs.databaseObjects.length + result.needs.parameters.length > 0;
+        if (loading) this.pendingForce = force;
 
-        if (!ctx.base && !ctx.partial) {
+        if (result.items.length === 0) {
             this.hide();
             return;
         }
-
-        const aliases = SqlAutocomplete.parseAliases(this.textarea.value);
-        const { items, needsColumns, needsDatabaseObjects } = SqlAutocomplete.buildSuggestions(
-            ctx, objects, aliases,
-            (database, qualifiedName) => this.columnsCache[SqlAutocomplete._colKey(database, qualifiedName)],
-            {
-                minLength: force ? 0 : 2,
-                databases,
-                currentDatabase,
-                getDatabaseObjects: database => this.objectsCache[(database || '').toLowerCase()]
-            }
-        );
-
-        if (needsColumns) this.requestColumns(needsColumns.database, needsColumns.qualifiedName);
-        if (needsDatabaseObjects) this.requestDatabaseObjects(needsDatabaseObjects);
-
-        if (items.length === 0) {
-            this.hide();
-            return;
-        }
-
-        this.ctx = ctx;
-        this.render(items);
+        this.ctx = result.ctx;
+        this.render(result.items);
     }
 
     requestColumns(database, qualifiedName) {
@@ -193,6 +221,13 @@ class SqlAutocomplete {
         if (this.pendingColumns.has(key) || this.columnsCache[key]) return;
         this.pendingColumns.add(key);
         vscode.postMessage({ command: 'getObjectColumns', database, objectName: qualifiedName });
+    }
+
+    requestParameters(database, qualifiedName) {
+        const key = SqlAutocomplete._colKey(database, qualifiedName);
+        if (this.pendingParams.has(key) || this.paramsCache[key]) return;
+        this.pendingParams.add(key);
+        vscode.postMessage({ command: 'getObjectParameters', database, objectName: qualifiedName });
     }
 
     requestDatabaseObjects(database) {
@@ -211,6 +246,7 @@ class SqlAutocomplete {
 
         items.forEach((item, index) => {
             const li = document.createElement('li');
+            li.className = 'ac-item';
             if (index === 0) li.classList.add('selected');
 
             const icon = document.createElement('span');
@@ -239,8 +275,23 @@ class SqlAutocomplete {
             this.dropdown.appendChild(li);
         });
 
+        this.info = null;
+        if (this.settings.showDetails && items.some(i => i.info)) {
+            this.info = document.createElement('li');
+            this.info.className = 'ac-info';
+            this.dropdown.appendChild(this.info);
+        }
         this.dropdown.style.display = '';
+        this.showInfo();
         this.position();
+    }
+
+    // The details line under the list describes the highlighted suggestion.
+    showInfo() {
+        if (!this.info) return;
+        const item = this.items[this.selectedIndex];
+        this.info.textContent = (item && item.info) || '';
+        this.info.style.display = this.info.textContent ? '' : 'none';
     }
 
     // Position the dropdown under the caret. coordsAtOffset (sqlEditor.js,
@@ -260,10 +311,10 @@ class SqlAutocomplete {
     select(index) {
         if (this.items.length === 0) return;
         this.selectedIndex = (index + this.items.length) % this.items.length;
-        [...this.dropdown.children].forEach((li, i) => {
-            li.classList.toggle('selected', i === this.selectedIndex);
-        });
-        this.dropdown.children[this.selectedIndex].scrollIntoView({ block: 'nearest' });
+        const rows = this.dropdown.querySelectorAll('li.ac-item');
+        rows.forEach((li, i) => li.classList.toggle('selected', i === this.selectedIndex));
+        rows[this.selectedIndex].scrollIntoView({ block: 'nearest' });
+        this.showInfo();
     }
 
     accept() {
@@ -273,17 +324,27 @@ class SqlAutocomplete {
             return;
         }
         const ta = this.textarea;
-        const end = ta.selectionStart;
+        const start = item.replaceStart === undefined ? this.ctx.partialStart : item.replaceStart;
+        let end = ta.selectionStart;
+        // "[Emp|]": the closing bracket already there is replaced, not doubled.
+        if (item.insert.endsWith(']') && ta.value[end] === ']') end++;
         // Replace the typed word, not the whole document: the completion
         // stays one undo step and the query around it is left untouched.
         if (typeof ta.replaceRange === 'function') {
-            ta.replaceRange(this.ctx.partialStart, end, item.insert);
+            ta.replaceRange(start, end, item.insert);
         } else {
-            ta.value = ta.value.slice(0, this.ctx.partialStart) + item.insert + ta.value.slice(end);
-            const caret = this.ctx.partialStart + item.insert.length;
+            ta.value = ta.value.slice(0, start) + item.insert + ta.value.slice(end);
+            const caret = start + item.insert.length;
             ta.setSelectionRange(caret, caret);
         }
+        if (item.caretBack) {
+            const caret = start + item.insert.length - item.caretBack;
+            ta.setSelectionRange(caret, caret);
+        }
+        if (item.usageKey) this.usage.set(item.usageKey, (this.usage.get(item.usageKey) || 0) + 1);
         this.hide();
+        // "Sales." / "alias." keep going: show what comes after the dot.
+        if (item.retrigger) this.update(true);
     }
 
     isOpen() {
@@ -298,13 +359,23 @@ class SqlAutocomplete {
 
     static iconFor(kind) {
         switch (kind) {
-            case 'Table': return '<i class="codicon codicon-table"></i>';
-            case 'View': return '<i class="codicon codicon-eye"></i>';
-            case 'Procedure': return '<i class="codicon codicon-gear"></i>';
-            case 'Function': return '<i class="codicon codicon-wrench"></i>';
-            case 'Database': return '<i class="codicon codicon-database"></i>';
-            case 'column': return '▪';
-            case 'joinCondition': return '<i class="codicon codicon-references"></i>';
+            case 'Table':
+            case 'View':
+            case 'Procedure':
+            case 'Function':
+            case 'Database':
+                return swObjectIcon(kind);
+            case 'column': return '<i class="codicon codicon-symbol-field"></i>';
+            case 'joinCondition': return swIcon('join');
+            case 'cte': return swIcon('view');
+            case 'temp': return swIcon('table');
+            case 'alias': return '<i class="codicon codicon-symbol-variable"></i>';
+            case 'variable': return '<i class="codicon codicon-symbol-variable"></i>';
+            case 'schema': return '<i class="codicon codicon-symbol-namespace"></i>';
+            case 'snippet': return '<i class="codicon codicon-symbol-snippet"></i>';
+            case 'columns': return '<i class="codicon codicon-list-flat"></i>';
+            case 'parameter': return '<i class="codicon codicon-symbol-parameter"></i>';
+            case 'function': return swIcon('function');
             default: return '<i class="codicon codicon-symbol-keyword"></i>';
         }
     }
@@ -312,23 +383,32 @@ class SqlAutocomplete {
     // === Pure logic (unit-testable, no DOM) ===
 
     // Split the text before the caret into base + partial around the last dot:
-    // "SELECT e.Na|" -> { base: 'e', partial: 'Na', partialStart: 9 }
+    // "SELECT e.Na|" -> { base: 'e', partial: 'Na', partialStart: 9 }.
+    // Bracketed parts may contain spaces ("[Order D|").
     static extractContext(text, caret) {
-        const before = text.slice(0, caret);
-        const match = before.match(/[A-Za-z0-9_$#@[\].]*$/);
+        const before = text.slice(Math.max(0, caret - 256), caret);
+        const match = SqlAutocomplete.TOKEN_BEFORE_CARET.exec(before);
         const token = match ? match[0] : '';
         const tokenStart = caret - token.length;
-        const lastDot = token.lastIndexOf('.');
+        let lastDot = -1;
+        let inBracket = false;
+        for (let i = 0; i < token.length; i++) {
+            const ch = token[i];
+            if (ch === '[') inBracket = true;
+            else if (ch === ']') inBracket = false;
+            else if (ch === '.' && !inBracket) lastDot = i;
+        }
         // The keyword right before the token - "exec"/"execute" is what makes a
         // bare procedure name a sensible suggestion instead of noise.
         const precedingKeyword = SqlAutocomplete._wordBefore(text, tokenStart);
         if (lastDot === -1) {
-            return { base: '', partial: token, partialStart: tokenStart, precedingKeyword };
+            return { base: '', partial: token, partialStart: tokenStart, tokenStart, precedingKeyword };
         }
         return {
             base: token.slice(0, lastDot),
             partial: token.slice(lastDot + 1),
             partialStart: tokenStart + lastDot + 1,
+            tokenStart,
             precedingKeyword
         };
     }
@@ -508,6 +588,7 @@ class SqlAutocomplete {
     // "Database.Schema.Object" reference work - see _resolveWithinDatabase.
     static buildSuggestions(ctx, objects, aliases, getColumns, options = {}) {
         const minLength = options.minLength === undefined ? 2 : options.minLength;
+        const limit = options.limit || SqlAutocomplete.MAX_ITEMS;
         const partial = (ctx.partial || '').toLowerCase();
         const items = [];
         // A bare procedure name only makes sense right after EXEC/EXECUTE -
@@ -528,7 +609,7 @@ class SqlAutocomplete {
                 }
             }
             items.push(...SqlAutocomplete._flatObjectItems(objects, partial, execContext));
-            return { items: items.slice(0, SqlAutocomplete.MAX_ITEMS) };
+            return { items: items.slice(0, limit) };
         }
 
         const base = ctx.base.replace(/[[\]]/g, '');
@@ -549,10 +630,10 @@ class SqlAutocomplete {
             const dbObjects = isCurrent ? objects : (options.getDatabaseObjects && options.getDatabaseObjects(database));
             if (!dbObjects) return { items: [], needsDatabaseObjects: database };
 
-            return SqlAutocomplete._resolveWithinDatabase(database, remainder, partial, dbObjects, {}, getColumns, execContext);
+            return SqlAutocomplete._resolveWithinDatabase(database, remainder, partial, dbObjects, {}, getColumns, execContext, limit);
         }
 
-        return SqlAutocomplete._resolveWithinDatabase(options.currentDatabase, base, partial, objects, aliases, getColumns, execContext);
+        return SqlAutocomplete._resolveWithinDatabase(options.currentDatabase, base, partial, objects, aliases, getColumns, execContext, limit);
     }
 
     // Every non-Procedure object matching partial, plus Procedures too when
@@ -575,9 +656,9 @@ class SqlAutocomplete {
     // nothing yet ("Database.|") lists everything, a schema name lists that
     // schema's objects, and a table/alias lists its columns (needsColumns
     // includes which database to fetch them from).
-    static _resolveWithinDatabase(database, base, partial, objects, aliases, getColumns, execContext) {
+    static _resolveWithinDatabase(database, base, partial, objects, aliases, getColumns, execContext, limit = SqlAutocomplete.MAX_ITEMS) {
         if (!base) {
-            return { items: SqlAutocomplete._flatObjectItems(objects, partial, execContext).slice(0, SqlAutocomplete.MAX_ITEMS) };
+            return { items: SqlAutocomplete._flatObjectItems(objects, partial, execContext).slice(0, limit) };
         }
 
         const items = [];
@@ -591,7 +672,7 @@ class SqlAutocomplete {
                     items.push({ label: obj.object_name, insert: obj.object_name, kind: obj.object_type, detail: obj.object_type });
                 }
             }
-            return { items: items.slice(0, SqlAutocomplete.MAX_ITEMS) };
+            return { items: items.slice(0, limit) };
         }
 
         // "table." or "alias." -> columns
@@ -606,7 +687,699 @@ class SqlAutocomplete {
                 items.push({ label: col.name, insert: col.name, kind: 'column', detail: col.type });
             }
         }
-        return { items: items.slice(0, SqlAutocomplete.MAX_ITEMS) };
+        return { items: items.slice(0, limit), columnMeta: columns.map(c => Object.assign({ table: obj.qualified_name }, c)) };
+    }
+
+    // === Settings ===
+
+    // Clamp/complete raw settings (from the extension host or a test).
+    static normalizeSettings(raw) {
+        const d = SqlAutocomplete.DEFAULT_SETTINGS;
+        const r = raw || {};
+        const bool = (key) => (typeof r[key] === 'boolean' ? r[key] : d[key]);
+        const oneOf = (key, allowed) => (allowed.includes(r[key]) ? r[key] : d[key]);
+        const int = (key, min, max) => {
+            const v = Number(r[key]);
+            return Number.isFinite(v) ? Math.max(min, Math.min(max, Math.round(v))) : d[key];
+        };
+        return {
+            enabled: bool('enabled'),
+            autoTrigger: bool('autoTrigger'),
+            triggerAfterKeywords: bool('triggerAfterKeywords'),
+            minChars: int('minChars', 0, 5),
+            maxItems: int('maxItems', 5, 100),
+            matching: oneOf('matching', ['prefix', 'contains', 'fuzzy']),
+            keywordCase: oneOf('keywordCase', ['upper', 'lower', 'match']),
+            acceptKeys: oneOf('acceptKeys', ['tabAndEnter', 'tab', 'enter']),
+            showTypes: bool('showTypes'),
+            addAlias: bool('addAlias'),
+            bracketNames: oneOf('bracketNames', ['whenNeeded', 'always', 'never']),
+            columnQualification: oneOf('columnQualification', ['whenAmbiguous', 'always', 'never']),
+            includeSystemObjects: bool('includeSystemObjects'),
+            sortByUsage: bool('sortByUsage'),
+            snippets: bool('snippets'),
+            showDetails: bool('showDetails')
+        };
+    }
+
+    // === Identifier formatting ===
+
+    // One name part, in brackets when it has to be (or the user opened one).
+    static quote(part, mode, force = false) {
+        if (mode === 'never') return part;
+        const plain = /^[\p{L}_@#][\p{L}\p{N}_@#$]*$/u.test(part) && !SqlAutocomplete.RESERVED_IDENTIFIERS.has(part.toLowerCase());
+        if (mode === 'always' || force || !plain) return `[${part.replace(/]/g, ']]')}]`;
+        return part;
+    }
+
+    static _caseKeyword(word, mode, typed) {
+        if (mode === 'lower') return word.toLowerCase();
+        if (mode === 'match') {
+            const letters = typed.replace(/[^\p{L}]/gu, '');
+            if (letters && letters === letters.toLowerCase()) return word.toLowerCase();
+        }
+        return word.toUpperCase();
+    }
+
+    // Short alias from the words of a name: HumanOrders -> ho, order_lines -> ol.
+    static aliasFor(name, used) {
+        const text = name.replace(/^[#@]+/, '');
+        const starts = SqlMatcher.wordStarts(text);
+        let alias = (starts.length ? starts.map(i => text[i]).join('') : text.slice(0, 1)).toLowerCase();
+        if (!alias) alias = 't';
+        if (SqlAutocomplete.RESERVED_IDENTIFIERS.has(alias)) alias += '1';
+        const taken = new Set([...used].map(u => u.toLowerCase()));
+        let candidate = alias;
+        for (let n = 2; taken.has(candidate); n++) candidate = alias + n;
+        return candidate;
+    }
+
+    // === Suggestion engine ===
+
+    // Everything between the text and the dropdown, with no DOM:
+    //   env = { objects, databases, currentDatabase, foreignKeys, getColumns,
+    //           getDatabaseObjects, settings, usage, force }
+    // Returns { items, ctx: { partialStart }, needs: { columns, databaseObjects } }.
+    static compute(text, caret, env) {
+        const settings = SqlAutocomplete.normalizeSettings(env.settings);
+        const needs = { columns: [], databaseObjects: [], parameters: [] };
+        const result = { items: [], ctx: { partialStart: caret }, needs };
+        if (!settings.enabled) return result;
+
+        const tok = SqlAutocomplete.extractContext(text, caret);
+        result.ctx = { partialStart: tok.partialStart };
+        const analysis = SqlContext.analyze(text, caret, tok.tokenStart);
+        if (analysis.inLiteral) return result;
+
+        const e = {
+            // `objects` resolves what the statement names (even sys.objects); `visible` is what is offered.
+            objects: env.objects || [],
+            visible: SqlAutocomplete._visibleObjects(env.objects || [], settings),
+            databases: env.databases || [],
+            currentDatabase: env.currentDatabase || null,
+            foreignKeys: env.foreignKeys || [],
+            getColumns: env.getColumns || (() => undefined),
+            getDatabaseObjects: env.getDatabaseObjects || (() => undefined),
+            getParameters: env.getParameters || (() => undefined),
+            snippets: env.snippets || [],
+            temps: analysis.temps,
+            settings,
+            needs
+        };
+        const forceBracket = tok.partial.startsWith('[') || tok.partial.startsWith('"');
+        const query = tok.partial;
+        // Objects are matched before an item is built: a database can have tens of thousands.
+        e.accepts = obj => SqlMatcher.match(obj.object_name || obj.name, query, settings.matching) !== null
+            || SqlMatcher.match(obj.qualified_name || obj.name, query, settings.matching) !== null;
+
+        let items;
+        if (tok.base) {
+            items = SqlAutocomplete._dottedItems(text, tok, analysis, e);
+        } else {
+            const built = SqlAutocomplete._clauseItems(text, caret, tok, analysis, e, !!env.force);
+            if (!built) return result;
+            items = built.items;
+        }
+
+        // Rank, cut, then write the final text (brackets, keyword case).
+        const ranked = SqlMatcher.rank(items, query, settings.matching, settings.sortByUsage ? env.usage : null)
+            .slice(0, settings.maxItems);
+        for (const item of ranked) {
+            if (item.parts) {
+                item.insert = item.parts.map((p, i) => SqlAutocomplete.quote(p, settings.bracketNames, forceBracket && i === item.parts.length - 1)).join('.')
+                    + (item.suffix || '');
+                if (!item.label) item.label = item.parts[item.parts.length - 1];
+            }
+        }
+        result.items = ranked;
+        return result;
+    }
+
+    // System objects only on request.
+    static _visibleObjects(objects, settings) {
+        if (settings.includeSystemObjects) return objects;
+        const cache = SqlAutocomplete._visibleCache;
+        if (cache.source === objects) return cache.result;
+        const result = objects.filter(o => !SqlAutocomplete.SYSTEM_SCHEMAS.has((o.schema_name || '').toLowerCase()));
+        cache.source = objects;
+        cache.result = result;
+        return result;
+    }
+
+    static _sourceKey(src) {
+        const parts = src.parts.filter(Boolean);
+        return (src.alias || parts[parts.length - 1] || '');
+    }
+
+    // Is the caret where a table-like name is expected?
+    static _sourceRole(a) {
+        if (a.group) return null;
+        const p = a.prevWord;
+        if (['from', 'join', 'using'].includes(p)) return 'table';
+        if (p === ',' && a.clause === 'from') return 'table';
+        if (p === 'apply') return 'apply';
+        if (p === 'update' && a.prev2Word !== 'for' && a.prev2Word !== 'after') return 'table';
+        if (p === 'into' && a.root && ['insert', 'merge'].includes(a.root.firstWord)) return 'table';
+        if (p === 'table' && ['truncate', 'drop', 'alter'].includes(a.prev2Word)) return 'table';
+        if (p === 'exec' || p === 'execute') return 'proc';
+        if (p === 'use') return 'database';
+        return null;
+    }
+
+    // Candidates for the word being typed when there is no "something." before it.
+    // Returns { items } or null when nothing should pop up.
+    static _clauseItems(text, caret, tok, a, e, force) {
+        const settings = e.settings;
+        const typed = tok.partial.replace(/[[\]"]/g, '');
+        const role = SqlAutocomplete._sourceRole(a);
+
+        // "... JOIN t ON |": the foreign-key condition comes first.
+        let fkItems = [];
+        const joinCtx = tok.partial === '' ? SqlAutocomplete.extractJoinOnContext(text, caret) : null;
+        if (joinCtx && e.foreignKeys.length) {
+            fkItems = SqlAutocomplete.buildJoinConditionSuggestions(joinCtx, e.objects, text.slice(a.stmtStart || 0, caret), e.foreignKeys);
+            for (const it of fkItems) { it.priority = -10; it.match = it.label; }
+        }
+
+        // When to pop up on its own: enough letters typed, or right after a
+        // keyword that can only be followed by a name (FROM, JOIN, EXEC...).
+        const paramRole = !role && !a.group && a.clause === 'exec' && SqlAutocomplete._execProcedure(a, e) !== null;
+        if (!force && fkItems.length === 0) {
+            if (typed.length === 0) {
+                if (!(settings.triggerAfterKeywords && (role || paramRole))) return null;
+            } else if (typed.length < settings.minChars && !(paramRole && typed.startsWith('@'))) {
+                return null;
+            } else if (SqlAutocomplete._aliasPosition(a)) {
+                return null; // probably typing an alias: leave it alone
+            }
+        }
+
+        const items = [...fkItems];
+        let keywordOrder = 0;
+        if (force && a.clause === 'select' && !a.group) {
+            const expand = SqlAutocomplete._expandStarItem(text, caret, a, e);
+            if (expand) items.push(expand);
+        }
+        const snippets = () => {
+            if (settings.snippets && typed.length > 0) items.push(...SqlAutocomplete._snippetItems(e.snippets));
+        };
+        const kw = (word, priority, usage = true) => ({
+            label: SqlAutocomplete._caseKeyword(word, settings.keywordCase, typed), kind: 'keyword', priority,
+            insert: SqlAutocomplete._caseKeyword(word, settings.keywordCase, typed), match: word,
+            usageKey: usage ? `kw|${word.toLowerCase()}` : undefined, order: keywordOrder++
+        });
+        const fn = (name, priority) => {
+            const cased = SqlAutocomplete._caseKeyword(name, settings.keywordCase, typed);
+            return { label: cased + '()', insert: cased + '()', caretBack: 1, kind: 'function', detail: 'function', priority, match: name, usageKey: `fn|${name.toLowerCase()}` };
+        };
+
+        const g = a.group ? a.group.kind : null;
+        if (g === 'insertcols') {
+            SqlAutocomplete._columnItems(items, a.insertTarget ? [a.insertTarget] : [], a, e, { qualify: false });
+            return { items };
+        }
+        if (g === 'hints') {
+            for (const h of SqlAutocomplete.HINT_KEYWORDS) items.push(kw(h, 5));
+            return { items };
+        }
+        if (g === 'definition') {
+            for (const t of SqlAutocomplete.TYPE_KEYWORDS) items.push(kw(t, 5));
+            return { items };
+        }
+        if (g === 'expr' && a.prevWord === 'as' && a.group.opener && /^(cast|try_cast|convert|try_convert)$/i.test(a.group.opener.v)) {
+            for (const t of SqlAutocomplete.TYPE_KEYWORDS) items.push(kw(t, 5));
+            return { items };
+        }
+
+        if (role === 'proc') {
+            for (const entry of SqlAutocomplete._objectIndex(e.visible).entries) {
+                if (entry.obj.object_type !== 'Procedure' || !e.accepts(entry.obj)) continue;
+                items.push(SqlAutocomplete._objectItem(entry.obj, 0));
+            }
+            return { items };
+        }
+        if (role === 'database') {
+            for (const db of e.databases) items.push({ label: db, parts: [db], kind: 'Database', detail: 'Database', priority: 0, match: db, usageKey: `db|${db.toLowerCase()}` });
+            return { items };
+        }
+        if (role) {
+            SqlAutocomplete._sourceItems(items, role, a, e);
+            return { items };
+        }
+
+        // EXEC dbo.proc |: its parameters.
+        if (a.clause === 'exec' && !a.group) {
+            const params = SqlAutocomplete._parameterItems(a, e, typed);
+            if (params) {
+                items.push(...params);
+                return { items };
+            }
+        }
+
+        // Statement start: only statement keywords make sense.
+        if (a.clause === 'start' && !a.group) {
+            for (const k of SqlAutocomplete.STATEMENT_KEYWORDS) items.push(kw(k, 0));
+            snippets();
+            return { items };
+        }
+
+        const clause = a.clause;
+        const expression = ['select', 'where', 'on', 'having', 'groupby', 'orderby', 'set', 'output'].includes(clause)
+            || (a.group && (g === 'expr' || g === 'values'));
+
+        if (expression) {
+            if (g !== 'values' && clause !== 'values') {
+                SqlAutocomplete._columnItems(items, a.sources, a, e, { qualify: true });
+                if (typed.length > 0) SqlAutocomplete._aliasItems(items, a);
+            }
+            for (const v of a.variables) {
+                items.push({ label: v.name, insert: v.name, kind: 'variable', detail: v.type, priority: typed.startsWith('@') ? 0 : 2, match: v.name, usageKey: `var|${v.name.toLowerCase()}` });
+            }
+            for (const entry of SqlAutocomplete._objectIndex(e.visible).entries) {
+                if (entry.obj.object_type !== 'Function' || !e.accepts(entry.obj)) continue;
+                const item = SqlAutocomplete._objectItem(entry.obj, 3);
+                item.parts = (entry.obj.schema_name ? [entry.obj.schema_name, entry.obj.object_name] : [entry.obj.object_name]);
+                item.suffix = '()';
+                item.caretBack = 1;
+                items.push(item);
+            }
+            for (const f of SqlAutocomplete.FUNCTIONS) items.push(fn(f, 4));
+            for (const k of SqlAutocomplete.EXPRESSION_KEYWORDS) items.push(kw(k, 5));
+            for (const k of (SqlAutocomplete.CLAUSE_KEYWORDS[clause] || [])) items.push(kw(k, 5));
+            if (a.atLineStart) {
+                for (const k of SqlAutocomplete.STATEMENT_KEYWORDS) items.push(kw(k, 6));
+                snippets();
+            }
+            return { items };
+        }
+
+        if (clause === 'from' || clause === 'join') {
+            for (const k of SqlAutocomplete.AFTER_SOURCE_KEYWORDS) items.push(kw(k, 0));
+            if (a.atLineStart) {
+                for (const k of SqlAutocomplete.STATEMENT_KEYWORDS) items.push(kw(k, 1));
+                snippets();
+            }
+            return { items };
+        }
+        if (clause === 'declare') {
+            for (const t of SqlAutocomplete.TYPE_KEYWORDS) items.push(kw(t, 0));
+            return { items };
+        }
+        if (clause === 'into' || clause === 'insert' || clause === 'exec' || clause === 'use') {
+            return force ? { items: [kw('VALUES', 0), kw('SELECT', 0), kw('EXEC', 0)] } : null;
+        }
+
+        // Anything else (UPDATE t ..., MERGE, DELETE ...): the generic lists.
+        for (const k of SqlAutocomplete.KEYWORDS) items.push(kw(k, 5));
+        for (const db of e.databases) items.push({ label: db, parts: [db], kind: 'Database', detail: 'Database', priority: 3, match: db, usageKey: `db|${db.toLowerCase()}` });
+        for (const entry of SqlAutocomplete._objectIndex(e.visible).entries) {
+            if (entry.obj.object_type === 'Procedure' || !e.accepts(entry.obj)) continue;
+            items.push(SqlAutocomplete._objectItem(entry.obj, 2));
+        }
+        return { items };
+    }
+
+    // The procedure named after EXEC when the caret is past its name:
+    // { obj, used: Set of @params already given } or null.
+    static _execProcedure(a, e) {
+        if (!a.root || !a.block) return null;
+        const tokens = a.root.shared.tokens;
+        const mark = [...a.block.marks].reverse().find(m => m.clause === 'exec');
+        if (!mark) return null;
+        let k = mark.idx + 1;
+        if (!SqlContext._isName(tokens[k]) || tokens[k].v.startsWith('@')) return null;
+        const parts = [tokens[k].v];
+        k++;
+        while (SqlContext._isPunct(tokens[k], '.') && SqlContext._isName(tokens[k + 1])) { parts.push(tokens[k + 1].v); k += 2; }
+        if (a.prevIdx < k - 1) return null; // still typing the name
+        if (a.prevIdx === k - 1 && a.prevWord === '.') return null;
+        const obj = SqlAutocomplete._resolveObjectRef(parts.join('.'), e.objects);
+        if (!obj || obj.object_type !== 'Procedure') return null;
+        const used = new Set();
+        for (let j = k; j <= a.prevIdx; j++) {
+            if (tokens[j].t === 'w' && tokens[j].v.startsWith('@')) used.add(tokens[j].lc);
+        }
+        return { obj, used };
+    }
+
+    // "@Param = " items for the parameters not given yet, plus "all parameters".
+    static _parameterItems(a, e, typed) {
+        const proc = SqlAutocomplete._execProcedure(a, e);
+        if (!proc) return null;
+        const params = e.getParameters(e.currentDatabase, proc.obj.qualified_name);
+        if (!params) {
+            e.needs.parameters.push({ database: e.currentDatabase, qualifiedName: proc.obj.qualified_name });
+            return [];
+        }
+        const open = params.filter(p => !proc.used.has(p.name.toLowerCase()));
+        const items = open.map((p, order) => ({
+            order, label: p.name, insert: `${p.name} = `, kind: 'parameter', priority: 0, match: p.name,
+            detail: [p.type, p.isOutput ? 'OUTPUT' : ''].filter(Boolean).join(' · '),
+            info: `${proc.obj.name} ${p.name} ${p.type}${p.isOutput ? ' OUTPUT' : ''}`,
+            usageKey: `par|${proc.obj.qualified_name.toLowerCase()}|${p.name.toLowerCase()}`
+        }));
+        if (open.length > 1 && !typed.replace('@', '')) {
+            items.unshift({
+                label: 'All parameters', insert: open.map(p => `${p.name} = `).join(',\n    '), kind: 'parameter', priority: -1, match: '',
+                detail: `${open.length} parameters`, info: open.map(p => p.name).join(', ')
+            });
+        }
+        return items;
+    }
+
+    // "SELECT *|" (or "alias.*|") with Ctrl+Space: the list of columns it stands for.
+    static _expandStarItem(text, caret, a, e) {
+        const star = a.prevToken;
+        if (!star || star.t !== 'p' || star.v !== '*' || text.slice(star.e, caret).trim() !== '' || !a.root) return null;
+        const tokens = a.root.shared.tokens;
+        const before = tokens[a.prevIdx - 1];
+        let alias = null;
+        let replaceStart = star.s;
+        if (before && before.t === 'p' && before.v === '.' && SqlContext._isName(tokens[a.prevIdx - 2])) {
+            alias = tokens[a.prevIdx - 2].v;
+            replaceStart = tokens[a.prevIdx - 2].s;
+        } else {
+            const ok = before && ((before.t === 'w' && ['select', 'distinct', 'all', 'percent', 'ties'].includes(before.lc))
+                || (before.t === 'p' && before.v === ',')
+                || (before.t === 'n' && SqlContext._isWord(tokens[a.prevIdx - 2], 'top')));
+            if (!ok) return null; // "a * b": a multiplication
+        }
+        const sources = a.sources.filter(s => s.level === 0
+            && (!alias || SqlAutocomplete._sourceKey(s).toLowerCase() === alias.toLowerCase()));
+        if (sources.length === 0) return null;
+        const names = [];
+        for (const src of sources) {
+            const { columns, needs } = SqlAutocomplete.resolveSourceColumns(src, e, 0);
+            SqlAutocomplete._addNeeds(e.needs, needs);
+            if (needs.length) return null; // still loading: the list refreshes when it arrives
+            const qualifier = SqlAutocomplete._sourceKey(src);
+            const qualify = sources.length > 1 || !!alias;
+            for (const c of columns) {
+                names.push((qualify && qualifier ? [qualifier, c.name] : [c.name]).map(p => SqlAutocomplete.quote(p, e.settings.bracketNames)).join('.'));
+            }
+        }
+        if (names.length === 0) return null;
+        return {
+            label: `Expand * (${names.length} columns)`, insert: names.join(', '), replaceStart, kind: 'columns',
+            detail: `${names.length} columns`, priority: -20, match: '', info: names.join(', ')
+        };
+    }
+
+    // Abbreviations ("ssf" -> SELECT * FROM) and the user's own snippets.
+    static _snippetItems(custom) {
+        const out = [];
+        const push = (name, sql, detail, marked) => {
+            const marker = marked ? sql.indexOf('$0') : -1;
+            const insert = marked ? sql.replace('$0', '') : sql;
+            out.push({
+                label: name, insert, caretBack: marker >= 0 ? insert.length - marker : 0, kind: 'snippet', detail,
+                priority: 1, match: name, usageKey: `snip|${name.toLowerCase()}`, info: insert.trim()
+            });
+        };
+        for (const ab of SqlAutocomplete.ABBREVIATIONS) push(ab.abbr, ab.sql, 'snippet', true);
+        for (const sn of custom || []) {
+            if (sn && sn.name && sn.sql) push(sn.name, sn.sql, 'my snippet', false);
+        }
+        return out;
+    }
+
+    // "FROM Employees e|": the word being typed is (probably) the alias.
+    static _aliasPosition(a) {
+        if (a.clause !== 'from' && a.clause !== 'join') return false;
+        if (a.group || a.prevIdx < 0) return false;
+        // Either the source has no alias yet, or the word being typed *is* its alias.
+        return a.sources.some(s => s.level === 0 && ((!s.alias && s.endIdx === a.prevIdx + 1) || s.aliasIdx === a.prevIdx + 1));
+    }
+
+    static _objectItem(obj, priority) {
+        const parts = obj.schema_name && obj.schema_name.toLowerCase() !== 'dbo' ? [obj.schema_name, obj.object_name || obj.name] : [obj.object_name || obj.name];
+        return {
+            label: obj.name, parts, kind: obj.object_type, detail: obj.object_type, priority,
+            match: [obj.object_name || obj.name, obj.qualified_name || obj.name],
+            info: `${obj.object_type} · ${obj.qualified_name || obj.name}`,
+            usageKey: `obj|${(obj.qualified_name || obj.name).toLowerCase()}`
+        };
+    }
+
+    // Tables, views, CTEs, temp tables, schemas, databases (and, after JOIN,
+    // the foreign-key joins). `role` is 'table' or 'apply'.
+    static _sourceItems(items, role, a, e) {
+        const settings = e.settings;
+        const used = new Set(a.sources.map(s => SqlAutocomplete._sourceKey(s)));
+        const joining = a.prevWord === 'join';
+        const wantsAlias = settings.addAlias && ['from', 'join', ',', 'apply'].includes(a.prevWord);
+
+        // Tables related (by foreign key) to what is already in the statement.
+        const related = new Set();
+        const joinItems = [];
+        if (joining && e.foreignKeys.length) {
+            for (const src of a.sources) {
+                if (src.level !== 0 || src.kind !== 'table') continue;
+                const obj = SqlAutocomplete._resolveObjectRef(src.parts.join('.'), e.objects);
+                if (!obj) continue;
+                const otherAlias = src.alias || obj.object_name || obj.name;
+                const seen = new Set();
+                for (const fk of e.foreignKeys) {
+                    const from = (fk.fromTable || '').toLowerCase();
+                    const to = (fk.toTable || '').toLowerCase();
+                    const mine = obj.qualified_name.toLowerCase();
+                    if (from !== mine && to !== mine) continue;
+                    const otherName = from === mine ? fk.toTable : fk.fromTable;
+                    const newObj = SqlAutocomplete._resolveObjectRef(otherName, e.objects);
+                    if (!newObj) continue;
+                    related.add(newObj.qualified_name.toLowerCase());
+                    if (seen.has(fk.fkName)) continue;
+                    seen.add(fk.fkName);
+                    const edge = SqlAutocomplete._fkEdgesBetween(e.foreignKeys, newObj.qualified_name, obj.qualified_name).find(x => x.fkName === fk.fkName);
+                    if (!edge) continue;
+                    const newAlias = SqlAutocomplete.aliasFor(newObj.object_name || newObj.name, used);
+                    const condition = SqlAutocomplete._formatJoinCondition(edge, newObj.qualified_name, newAlias, otherAlias);
+                    const base = SqlAutocomplete._objectItem(newObj, -1);
+                    joinItems.push({
+                        label: `${newObj.name} ${newAlias} ON ${condition}`, kind: 'joinCondition', detail: `FK ${edge.fkName}`, info: `${newObj.qualified_name} ${newAlias} ON ${condition}`, priority: -1,
+                        parts: base.parts, suffix: ` ${newAlias} ON ${condition}`, match: base.match, usageKey: `join|${edge.fkName.toLowerCase()}`
+                    });
+                }
+            }
+        }
+        items.push(...joinItems.slice(0, 12));
+
+        const types = role === 'apply' ? ['Table', 'View', 'Function'] : ['Table', 'View'];
+        const schemas = new Map();
+        for (const entry of SqlAutocomplete._objectIndex(e.visible).entries) {
+            const obj = entry.obj;
+            if (!types.includes(obj.object_type)) continue;
+            if (obj.schema_name && !schemas.has(obj.schema_name.toLowerCase())) schemas.set(obj.schema_name.toLowerCase(), obj.schema_name);
+            if (!e.accepts(obj)) continue;
+            const item = SqlAutocomplete._objectItem(obj, related.has((obj.qualified_name || '').toLowerCase()) ? 0 : 1);
+            if (wantsAlias && obj.object_type !== 'Function') item.suffix = ' ' + SqlAutocomplete.aliasFor(obj.object_name || obj.name, used);
+            items.push(item);
+        }
+        for (const cte of a.ctes) {
+            items.push({ label: cte.name, parts: [cte.name], kind: 'cte', detail: 'CTE', priority: 0, match: cte.name, usageKey: `cte|${cte.name.toLowerCase()}`, suffix: wantsAlias ? ' ' + SqlAutocomplete.aliasFor(cte.name, used) : undefined });
+        }
+        for (const def of a.temps.values()) {
+            items.push({ label: def.name, insert: def.name, kind: 'temp', detail: def.name.startsWith('@') ? 'table variable' : 'temp table', priority: 0, match: def.name, usageKey: `tmp|${def.name.toLowerCase()}` });
+        }
+        for (const schema of schemas.values()) {
+            items.push({ label: schema, parts: [schema], suffix: '.', retrigger: true, kind: 'schema', detail: 'Schema', priority: 3, match: schema });
+        }
+        if (role !== 'apply') {
+            for (const db of e.databases) {
+                items.push({ label: db, parts: [db], suffix: '.', retrigger: true, kind: 'Database', detail: 'Database', priority: 4, match: db, usageKey: `db|${db.toLowerCase()}` });
+            }
+        }
+    }
+
+    // Columns of the given sources, qualified when the setting (or ambiguity) says so.
+    static _columnItems(items, sources, a, e, { qualify }) {
+        const settings = e.settings;
+        const perSource = [];
+        const count = new Map();
+        for (const src of sources) {
+            const { columns, needs } = SqlAutocomplete.resolveSourceColumns(src, e, 0);
+            SqlAutocomplete._addNeeds(e.needs, needs);
+            perSource.push({ src, columns });
+            for (const c of columns) {
+                const key = c.name.toLowerCase();
+                count.set(key, (count.get(key) || 0) + (src.level === 0 ? 1 : 0));
+            }
+        }
+        const multiple = sources.filter(s => s.level === 0).length > 1;
+        let position = 0;
+        for (const { src, columns } of perSource) {
+            const qualifier = SqlAutocomplete._sourceKey(src);
+            for (const c of columns) {
+                const ambiguous = (count.get(c.name.toLowerCase()) || 0) > 1;
+                const doQualify = qualify && qualifier && (settings.columnQualification === 'always'
+                    || (settings.columnQualification === 'whenAmbiguous' && ambiguous));
+                const where = multiple ? qualifier : '';
+                const detail = [settings.showTypes ? c.type : '', where].filter(Boolean).join(' · ');
+                items.push({
+                    label: c.name, kind: 'column', detail, priority: src.level === 0 ? 0 : 1, match: c.name,
+                    info: SqlAutocomplete._columnInfo(c, qualifier), order: position++,
+                    parts: doQualify ? [qualifier, c.name] : [c.name],
+                    usageKey: `col|${qualifier.toLowerCase()}.${c.name.toLowerCase()}`
+                });
+            }
+        }
+    }
+
+    // "Employees.Name · nvarchar(50) · NOT NULL · PK"
+    static _columnInfo(c, qualifier) {
+        const flags = [];
+        if (c.nullable === true) flags.push('NULL');
+        else if (c.nullable === false) flags.push('NOT NULL');
+        if (c.isPrimaryKey) flags.push('PK');
+        if (c.isIdentity) flags.push('IDENTITY');
+        return [`${c.table || qualifier}.${c.name}`, c.type, ...flags].filter(Boolean).join(' · ');
+    }
+
+    // "e" -> "e." for the tables in scope, so the dot (and its columns) is one keystroke away.
+    static _aliasItems(items, a) {
+        const seen = new Set();
+        for (const src of a.sources) {
+            if (src.level !== 0) continue;
+            const key = SqlAutocomplete._sourceKey(src);
+            if (!key || seen.has(key.toLowerCase())) continue;
+            seen.add(key.toLowerCase());
+            items.push({
+                label: key, parts: [key], suffix: '.', retrigger: true, kind: 'alias',
+                detail: src.parts.filter(Boolean).join('.') || src.kind, priority: 1, match: key, usageKey: `alias|${key.toLowerCase()}`
+            });
+        }
+    }
+
+    static _addNeeds(target, needs) {
+        for (const n of needs) {
+            if (n.databaseObjects) {
+                if (!target.databaseObjects.includes(n.databaseObjects)) target.databaseObjects.push(n.databaseObjects);
+            } else if (!target.columns.some(c => c.database === n.database && c.qualifiedName === n.qualifiedName)) {
+                target.columns.push(n);
+            }
+        }
+    }
+
+    // After "something.": columns of an alias/table/CTE/derived/temp, objects
+    // of a schema or of another database.
+    static _dottedItems(text, tok, a, e) {
+        const base = tok.base.replace(/[[\]"]/g, '');
+        const baseLower = base.toLowerCase();
+
+        // 1. A source of the statement: CTEs, derived tables, temp tables and
+        //    table variables carry their own columns.
+        const found = a.sources.find(s => {
+            const parts = s.parts.filter(Boolean);
+            return (s.alias && s.alias.toLowerCase() === baseLower)
+                || (!s.alias && parts.length && parts.join('.').toLowerCase() === baseLower)
+                || (!s.alias && parts.length && parts[parts.length - 1].toLowerCase() === baseLower);
+        });
+        if (found && found.kind !== 'table') {
+            const { columns, needs } = SqlAutocomplete.resolveSourceColumns(found, e, 0);
+            SqlAutocomplete._addNeeds(e.needs, needs);
+            return columns.map((c, order) => ({
+                order, label: c.name, parts: [c.name], kind: 'column', detail: e.settings.showTypes ? c.type : '', priority: 0, match: c.name,
+                info: SqlAutocomplete._columnInfo(c, found.alias || found.parts.join('.')),
+                usageKey: `col|${baseLower}.${c.name.toLowerCase()}`
+            }));
+        }
+
+        // 2. Real objects: the existing resolution (schema., database.schema.,
+        //    alias -> table columns), unfiltered; ranking happens afterwards.
+        // Aliases of the statement only; the whole-text scan is a fallback for when no statement could be read.
+        const aliases = a.root ? {} : SqlAutocomplete.parseAliases(text);
+        for (const s of a.sources) {
+            if (s.alias && s.kind === 'table') aliases[s.alias.toLowerCase()] = s.parts.filter(Boolean).join('.');
+        }
+        const execContext = SqlAutocomplete.EXEC_KEYWORDS.has(tok.precedingKeyword);
+        const built = SqlAutocomplete.buildSuggestions(
+            Object.assign({}, tok, { partial: '' }), e.objects, aliases, e.getColumns,
+            { minLength: 0, databases: e.databases, currentDatabase: e.currentDatabase, getDatabaseObjects: e.getDatabaseObjects, limit: 100000 }
+        );
+        if (built.needsColumns) SqlAutocomplete._addNeeds(e.needs, [built.needsColumns]);
+        if (built.needsDatabaseObjects) SqlAutocomplete._addNeeds(e.needs, [{ databaseObjects: built.needsDatabaseObjects }]);
+        const columnMeta = new Map();
+        for (const c of built.columnMeta || []) columnMeta.set(c.name.toLowerCase(), c);
+        return built.items.map((it, order) => {
+            const isColumn = it.kind === 'column';
+            const meta = isColumn ? columnMeta.get(it.label.toLowerCase()) : null;
+            return {
+                order, label: it.label, parts: isColumn ? [it.insert] : it.insert.split('.'), kind: it.kind, priority: isColumn ? 0 : 1, match: it.label,
+                info: meta ? SqlAutocomplete._columnInfo(meta, tok.base) : undefined,
+                detail: isColumn && !e.settings.showTypes ? '' : it.detail,
+                usageKey: `${isColumn ? 'col' : 'obj'}|${baseLower}.${it.label.toLowerCase()}`
+            };
+        }).filter(it => it.kind !== 'Procedure' || execContext);
+    }
+
+    // Columns [{ name, type }] a source exposes, plus what still has to be
+    // fetched: { columns, needs: [{ database, qualifiedName } | { databaseObjects }] }.
+    static resolveSourceColumns(src, e, depth = 0) {
+        const out = { columns: [], needs: [] };
+        if (depth > 5) return out;
+        if (src.kind === 'table') {
+            const parts = src.parts;
+            let database = e.currentDatabase;
+            let objects = e.objects;
+            let name = parts.filter(Boolean).join('.');
+            if (parts.length >= 3) {
+                database = parts[0];
+                name = `${parts[1] || 'dbo'}.${parts[2]}`;
+                if (!(database || '').toLowerCase() || (e.currentDatabase || '').toLowerCase() !== database.toLowerCase()) {
+                    objects = e.getDatabaseObjects(database);
+                    if (!objects) { out.needs.push({ databaseObjects: database }); return out; }
+                }
+            }
+            const obj = SqlAutocomplete._resolveObjectRef(name, objects);
+            if (!obj || (obj.object_type !== 'Table' && obj.object_type !== 'View')) return out;
+            const cols = e.getColumns(database, obj.qualified_name);
+            if (!cols) out.needs.push({ database, qualifiedName: obj.qualified_name });
+            else out.columns = cols.map(c => ({ name: c.name, type: c.type || '', nullable: c.nullable, isPrimaryKey: c.isPrimaryKey, isIdentity: c.isIdentity, table: obj.qualified_name }));
+            return out;
+        }
+
+        if (src.kind === 'temp' || src.kind === 'variable') {
+            const def = src.def;
+            if (!def) return out;
+            if (def.columns) { out.columns = def.columns.slice(); return out; }
+            if (def.derived) return SqlAutocomplete._blockColumns(def.derived.scope, def.derived.block, e, depth, null);
+            return out;
+        }
+
+        if (src.kind === 'cte') {
+            const cte = src.cte;
+            if (cte.columns && cte.columns.length) { out.columns = cte.columns.map(name => ({ name, type: '' })); return out; }
+            if (cte.child) return SqlAutocomplete._blockColumns(cte.child, cte.child.blocks[0], e, depth, null);
+            return out;
+        }
+
+        if (src.kind === 'derived') {
+            if (src.columnNames && src.columnNames.length) { out.columns = src.columnNames.map(name => ({ name, type: '' })); return out; }
+            if (src.child) return SqlAutocomplete._blockColumns(src.child, src.child.blocks[0], e, depth, null);
+        }
+        return out;
+    }
+
+    // Output columns of one SELECT block: the named items, plus what its
+    // "*" / "alias.*" items expand to.
+    static _blockColumns(scope, block, e, depth, explicit) {
+        const out = { columns: [], needs: [] };
+        const items = SqlContext.selectItems(scope, block);
+        const columns = items.names.map(name => ({ name, type: '' }));
+        for (const star of items.stars) {
+            const wanted = star.alias
+                ? block.sources.filter(s => SqlAutocomplete._sourceKey(s).toLowerCase() === star.alias.toLowerCase())
+                : block.sources;
+            for (const raw of wanted) {
+                const src = SqlContext.bindInScope(raw, scope, e.temps);
+                const inner = SqlAutocomplete.resolveSourceColumns(src, e, depth + 1);
+                columns.push(...inner.columns);
+                out.needs.push(...inner.needs);
+            }
+        }
+        const seen = new Set();
+        out.columns = (explicit || columns).filter(c => !seen.has(c.name.toLowerCase()) && seen.add(c.name.toLowerCase()));
+        return out;
     }
 
     static _colKey(database, qualifiedName) {
@@ -615,6 +1388,95 @@ class SqlAutocomplete {
 }
 
 SqlAutocomplete.MAX_ITEMS = 15;
+
+// The word (with dotted/bracketed parts) that ends at the caret.
+SqlAutocomplete.TOKEN_BEFORE_CARET = /(?:(?:\[[^\][\r\n]*\]|[\p{L}\p{N}_$#@]+)?\.)*(?:\[[^\][\r\n]*|[\p{L}\p{N}_$#@]*)$/u;
+
+// Defaults of the sqlwayfarer.autocomplete.* settings (package.json has the same).
+SqlAutocomplete.DEFAULT_SETTINGS = {
+    enabled: true,
+    autoTrigger: true,
+    triggerAfterKeywords: true,
+    minChars: 2,
+    maxItems: 20,
+    matching: 'fuzzy',
+    keywordCase: 'upper',
+    acceptKeys: 'tabAndEnter',
+    showTypes: true,
+    addAlias: false,
+    bracketNames: 'whenNeeded',
+    columnQualification: 'whenAmbiguous',
+    includeSystemObjects: false,
+    sortByUsage: true,
+    snippets: true,
+    showDetails: true
+};
+
+SqlAutocomplete._visibleCache = { source: null, result: null };
+SqlAutocomplete.SYSTEM_SCHEMAS = new Set(['sys', 'information_schema']);
+
+// Names that need brackets when used as an identifier.
+SqlAutocomplete.RESERVED_IDENTIFIERS = new Set((
+    'add all alter and any as asc authorization backup begin between break browse bulk by cascade case check checkpoint close clustered '
+    + 'coalesce collate column commit compute constraint contains continue convert create cross current cursor database dbcc deallocate '
+    + 'declare default delete deny desc disk distinct distributed double drop dump else end errlvl escape except exec execute exists exit '
+    + 'external fetch file fillfactor for foreign freetext from full function goto grant group having holdlock identity if in index inner '
+    + 'insert intersect into is join key kill left like lineno load merge national nocheck nonclustered not null nullif of off offsets on '
+    + 'open option or order outer over percent pivot plan precision primary print proc procedure public raiserror read readtext '
+    + 'reconfigure references replication restore restrict return revert revoke right rollback rowcount rule save schema select '
+    + 'session_user set setuser shutdown some statistics system_user table tablesample textsize then to top tran transaction trigger '
+    + 'truncate try_convert tsequal union unique unpivot update updatetext use user values varying view waitfor when where while with writetext'
+).split(' '));
+
+SqlAutocomplete.STATEMENT_KEYWORDS = [
+    'SELECT', 'INSERT INTO', 'UPDATE', 'DELETE FROM', 'WITH', 'DECLARE', 'SET', 'EXEC', 'MERGE', 'IF', 'WHILE', 'BEGIN',
+    'BEGIN TRANSACTION', 'COMMIT', 'ROLLBACK', 'CREATE TABLE', 'CREATE VIEW', 'CREATE PROCEDURE', 'ALTER TABLE',
+    'DROP TABLE', 'TRUNCATE TABLE', 'USE', 'PRINT', 'RETURN', 'THROW', 'GO'
+];
+SqlAutocomplete.AFTER_SOURCE_KEYWORDS = [
+    'WHERE', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'CROSS APPLY', 'OUTER APPLY', 'JOIN',
+    'ON', 'AS', 'GROUP BY', 'ORDER BY', 'HAVING', 'UNION', 'UNION ALL', 'WITH (NOLOCK)', 'OPTION'
+];
+SqlAutocomplete.EXPRESSION_KEYWORDS = [
+    'AND', 'OR', 'NOT', 'NULL', 'IS NULL', 'IS NOT NULL', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'CASE', 'WHEN', 'THEN',
+    'ELSE', 'END', 'DISTINCT', 'AS', 'OVER', 'PARTITION BY'
+];
+SqlAutocomplete.CLAUSE_KEYWORDS = {
+    select: ['FROM', 'INTO', 'TOP', 'ALL'],
+    where: ['GROUP BY', 'ORDER BY', 'HAVING', 'UNION', 'UNION ALL', 'OPTION'],
+    on: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'WHERE', 'GROUP BY', 'ORDER BY', 'UNION'],
+    groupby: ['HAVING', 'ORDER BY', 'UNION', 'WITH ROLLUP'],
+    having: ['ORDER BY', 'UNION'],
+    orderby: ['ASC', 'DESC', 'OFFSET', 'FETCH NEXT', 'UNION'],
+    set: ['FROM', 'WHERE', 'OUTPUT'],
+    output: ['INTO', 'WHERE']
+};
+SqlAutocomplete.FUNCTIONS = [
+    'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ISNULL', 'COALESCE', 'NULLIF', 'IIF', 'CAST', 'TRY_CAST', 'CONVERT', 'TRY_CONVERT',
+    'GETDATE', 'SYSDATETIME', 'DATEADD', 'DATEDIFF', 'DATEPART', 'EOMONTH', 'YEAR', 'MONTH', 'DAY', 'LEN', 'LTRIM', 'RTRIM',
+    'TRIM', 'UPPER', 'LOWER', 'SUBSTRING', 'REPLACE', 'CHARINDEX', 'STUFF', 'CONCAT', 'STRING_AGG', 'FORMAT', 'ABS', 'ROUND',
+    'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'NEWID', 'SCOPE_IDENTITY'
+];
+SqlAutocomplete.TYPE_KEYWORDS = [
+    'INT', 'VARCHAR', 'NVARCHAR', 'DATETIME', 'DATE', 'BIT', 'DECIMAL', 'BIGINT', 'UNIQUEIDENTIFIER', 'VARCHAR(MAX)',
+    'NVARCHAR(MAX)', 'DATETIME2', 'SMALLINT', 'TINYINT', 'NUMERIC', 'MONEY', 'FLOAT', 'REAL', 'DATETIMEOFFSET', 'TIME',
+    'CHAR', 'NCHAR', 'VARBINARY', 'XML', 'TABLE'
+];
+SqlAutocomplete.ABBREVIATIONS = [
+    { abbr: 'ssf', sql: 'SELECT * FROM $0' },
+    { abbr: 'sst', sql: 'SELECT TOP 100 * FROM $0' },
+    { abbr: 'sc', sql: 'SELECT COUNT(*) FROM $0' },
+    { abbr: 'sw', sql: 'SELECT * FROM $0\nWHERE ' },
+    { abbr: 'ii', sql: 'INSERT INTO $0 ()\nVALUES ()' },
+    { abbr: 'upd', sql: 'UPDATE $0\nSET \nWHERE ' },
+    { abbr: 'del', sql: 'DELETE FROM $0\nWHERE ' },
+    { abbr: 'ob', sql: 'ORDER BY $0' },
+    { abbr: 'gb', sql: 'GROUP BY $0' },
+    { abbr: 'cte', sql: 'WITH cte AS (\n    SELECT $0\n)\nSELECT * FROM cte' },
+    { abbr: 'tran', sql: 'BEGIN TRANSACTION;\n$0\nCOMMIT TRANSACTION;' },
+    { abbr: 'trycatch', sql: 'BEGIN TRY\n    $0\nEND TRY\nBEGIN CATCH\n    THROW;\nEND CATCH' }
+];
+SqlAutocomplete.HINT_KEYWORDS = ['NOLOCK', 'READPAST', 'UPDLOCK', 'ROWLOCK', 'HOLDLOCK', 'TABLOCK', 'NOWAIT', 'READUNCOMMITTED'];
 
 // Index over an object list, cached by the list's identity. The explorer
 // replaces the list as a whole (it never mutates it in place), so a new

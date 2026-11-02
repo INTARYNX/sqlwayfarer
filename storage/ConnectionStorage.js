@@ -97,17 +97,6 @@ class ConnectionStorage {
         await this._context.globalState.update('sqlwayfarer.lastConnection', name || undefined);
     }
 
-    // Whether to auto-connect to the last connection on startup. Defaults to
-    // enabled (the feature the user asked for); the checkbox can turn it off.
-    getAutoConnectEnabled() {
-        const value = this._context.globalState.get('sqlwayfarer.autoConnect');
-        return value === undefined ? true : !!value;
-    }
-
-    async setAutoConnectEnabled(enabled) {
-        await this._context.globalState.update('sqlwayfarer.autoConnect', !!enabled);
-    }
-
     async _loadSavedConnections() {
         try {
             const json = await this._context.secrets.get('sqlwayfarer.connections');

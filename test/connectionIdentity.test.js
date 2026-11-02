@@ -21,6 +21,12 @@ suite('connectionIdentity', () => {
 		assert.notStrictEqual(connectionIdentity({ server: 'srv', port: '1433', username: 'nicolas' }), base);
 	});
 
+	test('authType windows ignores a leftover username', () => {
+		const clean = connectionIdentity({ server: 'srv', authType: 'windows' });
+		const stale = connectionIdentity({ server: 'srv', authType: 'windows', username: 'sa' });
+		assert.strictEqual(clean, stale);
+	});
+
 	test('Windows auth (no username) still produces a stable identity, distinct from a SQL login on the same server', () => {
 		const windowsAuth = connectionIdentity({ server: 'srv', port: '1433' });
 		const sqlLogin = connectionIdentity({ server: 'srv', port: '1433', username: 'sa' });
