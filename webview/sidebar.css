@@ -235,8 +235,12 @@ button, input, select, textarea {
     color: var(--vscode-descriptionForeground);
 }
 
-.sb-group-toggle:hover {
+.sb-group-toggle:hover:not(:disabled) {
     color: var(--vscode-foreground);
+}
+
+.sb-group-toggle:disabled {
+    cursor: default;
 }
 
 .sb-group-count {
