@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<model xmlns="http://schemas.serviceml.org/smlif/2007/02">
+  <identity>
+    <name>urn:uuid:11111111-2222-3333-4444-555555555555</name>
+    <baseURI>http://documentcollection</baseURI>
+  </identity>
+  <definitions>
+    <document>
+      <data>
+        <RegisteredServers:RegisteredServersStore xmlns:RegisteredServers="http://schemas.microsoft.com/sqlserver/RegisteredServers/2007/08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <RegisteredServers:ServerGroup>
+            <RegisteredServers:Name>DatabaseEngineServerGroup</RegisteredServers:Name>
+            <RegisteredServers:Description>Builtin group that contains the DatabaseEngine servers</RegisteredServers:Description>
+            <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+            <RegisteredServers:RegisteredServers>
+              <RegisteredServers:RegisteredServer>
+                <RegisteredServers:Name>Local dev</RegisteredServers:Name>
+                <RegisteredServers:Description />
+                <RegisteredServers:ServerName>localhost</RegisteredServers:ServerName>
+                <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+                <RegisteredServers:ConnectionStringWithEncryptedPassword>data source=localhost;integrated security=True;pooling=False;connect timeout=30;encrypt=False;trustservercertificate=True;packet size=4096</RegisteredServers:ConnectionStringWithEncryptedPassword>
+              </RegisteredServers:RegisteredServer>
+            </RegisteredServers:RegisteredServers>
+            <RegisteredServers:ServerGroups>
+              <RegisteredServers:ServerGroup>
+                <RegisteredServers:Name>Production</RegisteredServers:Name>
+                <RegisteredServers:Description>Live servers</RegisteredServers:Description>
+                <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+                <RegisteredServers:RegisteredServers>
+                  <RegisteredServers:RegisteredServer>
+                    <RegisteredServers:Name>ERP</RegisteredServers:Name>
+                    <RegisteredServers:Description>The ERP &amp; billing</RegisteredServers:Description>
+                    <RegisteredServers:ServerName>tcp:erp-sql\PROD,14330</RegisteredServers:ServerName>
+                    <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+                    <RegisteredServers:ConnectionStringWithEncryptedPassword>data source="tcp:erp-sql\PROD,14330";initial catalog=Erp;user id=svc_read;password=AQAAANCMnd8BFdERjHoAwE;encrypt=True;trustservercertificate=False</RegisteredServers:ConnectionStringWithEncryptedPassword>
+                  </RegisteredServers:RegisteredServer>
+                </RegisteredServers:RegisteredServers>
+                <RegisteredServers:ServerGroups>
+                  <RegisteredServers:ServerGroup>
+                    <RegisteredServers:Name>Europe</RegisteredServers:Name>
+                    <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+                    <RegisteredServers:RegisteredServers>
+                      <RegisteredServers:RegisteredServer>
+                        <RegisteredServers:Name>Paris</RegisteredServers:Name>
+                        <RegisteredServers:ServerName>paris-sql</RegisteredServers:ServerName>
+                        <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+                        <RegisteredServers:ConnectionStringWithEncryptedPassword>data source=paris-sql;integrated security=True</RegisteredServers:ConnectionStringWithEncryptedPassword>
+                      </RegisteredServers:RegisteredServer>
+                      <RegisteredServers:RegisteredServer>
+                        <RegisteredServers:Name>Azure</RegisteredServers:Name>
+                        <RegisteredServers:ServerName>contoso.database.windows.net</RegisteredServers:ServerName>
+                        <RegisteredServers:ServerType>DatabaseEngine</RegisteredServers:ServerType>
+                        <RegisteredServers:ConnectionStringWithEncryptedPassword>data source=contoso.database.windows.net;authentication="Active Directory Interactive";encrypt=True</RegisteredServers:ConnectionStringWithEncryptedPassword>
+                      </RegisteredServers:RegisteredServer>
+                    </RegisteredServers:RegisteredServers>
+                  </RegisteredServers:ServerGroup>
+                </RegisteredServers:ServerGroups>
+              </RegisteredServers:ServerGroup>
+            </RegisteredServers:ServerGroups>
+          </RegisteredServers:ServerGroup>
+          <RegisteredServers:ServerGroup>
+            <RegisteredServers:Name>AnalysisServicesServerGroup</RegisteredServers:Name>
+            <RegisteredServers:ServerType>AnalysisServices</RegisteredServers:ServerType>
+            <RegisteredServers:RegisteredServers>
+              <RegisteredServers:RegisteredServer>
+                <RegisteredServers:Name>Cube</RegisteredServers:Name>
+                <RegisteredServers:ServerName>cube-host</RegisteredServers:ServerName>
+                <RegisteredServers:ServerType>AnalysisServices</RegisteredServers:ServerType>
+              </RegisteredServers:RegisteredServer>
+            </RegisteredServers:RegisteredServers>
+          </RegisteredServers:ServerGroup>
+        </RegisteredServers:RegisteredServersStore>
+      </data>
+    </document>
+  </definitions>
+</model>
