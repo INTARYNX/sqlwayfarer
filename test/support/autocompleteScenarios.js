@@ -115,6 +115,7 @@ module.exports = [
 	['ALTER TABLE lists the tables', 'ALTER TABLE |', ['Employees','Depts']],
 	['DROP TABLE lists the tables, not procedures', 'DROP TABLE |', ['Employees'], ['uspP']],
 	['TRUNCATE TABLE', 'TRUNCATE TABLE |', ['Employees']],
+	['DROP PROCEDURE lists procedures', 'DROP PROCEDURE |', ['uspP'], ['Employees']],
 	['EXEC: already used parameters are not offered again', 'EXEC dbo.uspP @a = 1, |', ['@b'], ['@a']],
 	['declared variables after @', 'DECLARE @count int, @name nvarchar(10);\nSELECT @|', ['@count','@name']],
 	['variable in a WHERE', 'DECLARE @id int;\nSELECT * FROM dbo.Employees WHERE ID = @|', ['@id']],
