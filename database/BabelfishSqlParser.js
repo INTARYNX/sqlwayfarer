@@ -461,6 +461,25 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         });
     }
 
+    // OUTPUT ... INTO target: the clause writes that table (a table variable
+    // or a temp table included), with the listed columns when there is a list.
+    visitOutput_clause(ctx) {
+        const tableCtx = this._first(ctx.table_name ? ctx.table_name() : null);
+        if (tableCtx) {
+            const target = this._resolveQualifier(this._clean(tableCtx.getText()));
+            if (target && target !== DERIVED) {
+                this._recordWrite(target);
+                const list = this._first(ctx.column_name_list ? ctx.column_name_list() : null);
+                if (list) {
+                    for (const idNode of this._findAll(list, TSqlParser.RULE_id)) {
+                        this._record(target, this._clean(idNode.getText()), { write: true, confident: true });
+                    }
+                }
+            }
+        }
+        this.visitChildren(ctx);
+    }
+
     visitMerge_statement(ctx) {
         this._enterStatement(ctx, () => {
             const ddl = this._first(ctx.ddl_object ? ctx.ddl_object() : null);
