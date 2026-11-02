@@ -1,6 +1,7 @@
 'use strict';
 
 const vscode = require('vscode');
+const { toMarkdown } = require('../../database/IndexStats');
 
 class IndexHandlers {
     constructor(postMessage, indexService, dependencyService, getCurrentDatabase) {
@@ -113,6 +114,19 @@ class IndexHandlers {
         } catch (error) {
             console.warn('Could not read the index status:', error.message);
             this._post({ command: 'indexStatus', database, state: 'unknown' });
+        }
+    }
+
+    // What the recorded builds of the index cost, for the Stats view.
+    // Reads only.
+    async handleGetBuildStats(database) {
+        if (!database) return;
+        try {
+            const history = await this._indexService.getBuildStats(database);
+            this._post({ command: 'buildStats', database, runs: history.runs || [], markdown: toMarkdown((history.runs || [])[0], database) });
+        } catch (error) {
+            console.warn('Could not read the build statistics:', error.message);
+            this._post({ command: 'buildStats', database, runs: [], markdown: '' });
         }
     }
 
