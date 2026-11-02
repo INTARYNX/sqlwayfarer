@@ -103,10 +103,11 @@ suite('live SQL Server: autocompletion scenarios', function () {
 				getDatabaseObjects: db => objectsByDb[db], settings: {}, usage: new Map(), force: true
 			};
 			const inserts = SqlAutocomplete.compute(text, caret, env).items.map(i => i.insert);
-			for (const m of must) {
+			for (const wanted of must) {
+				const m = wanted.replace(/OtherDb/g, OTHER);
 				assert.ok(inserts.some(i => i === m || i.startsWith(m + ' ') || i.toLowerCase() === m.toLowerCase()), `${m} missing in: ${inserts.slice(0, 15)}`);
 			}
-			for (const m of mustNot) assert.ok(!inserts.includes(m), `${m} must not be offered`);
+			for (const m of mustNot) assert.ok(!inserts.includes(m.replace(/OtherDb/g, OTHER)), `${m} must not be offered`);
 		});
 	}
 });
