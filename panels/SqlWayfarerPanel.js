@@ -32,6 +32,8 @@ const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
 const IndexHandlers = require('./handlers/IndexHandlers');
+const SchemaSourceHandlers = require('./handlers/SchemaSourceHandlers');
+const ConnectionRouter = require('../database/ConnectionRouter');
 const QueryHandlers = require('./handlers/QueryHandlers');
 const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
@@ -100,13 +102,19 @@ class SqlWayfarerPanel {
         // Asks the user, every now and then, to rate the extension: the
         // Marketplace shows the rating right in the search results.
         this._ratingPrompt = new RatingPrompt(context);
-        this._databaseService = new DatabaseService(this._connectionManager);
-        this._indexService = new IndexService(this._connectionManager, this._databaseService);
+        // The schema (Explorer, index, autocompletion, comments, dictionary,
+        // footprint) is read through a router: it follows the run connection
+        // unless the user plugs the schema on another saved connection, say a
+        // development copy while the queries run on production.
+        this._schemaRouter = new ConnectionRouter(this._connectionManager);
+        this._databaseService = new DatabaseService(this._schemaRouter);
+        this._targetDatabaseService = new DatabaseService(this._connectionManager);
+        this._indexService = new IndexService(this._schemaRouter, this._databaseService);
         this._dependencyService = new DependencyService();
-        this._commentsService = new CommentsService(this._connectionManager);
-        this._dataDictionaryService = new DataDictionaryService(this._connectionManager, this._indexService);
-        this._writeFootprintService = new WriteFootprintService(this._connectionManager, this._indexService, this._databaseService);
-        this._queryGraphService = new QueryGraphService(this._connectionManager, this._indexService, this._databaseService);
+        this._commentsService = new CommentsService(this._schemaRouter);
+        this._dataDictionaryService = new DataDictionaryService(this._schemaRouter, this._indexService);
+        this._writeFootprintService = new WriteFootprintService(this._schemaRouter, this._indexService, this._databaseService);
+        this._queryGraphService = new QueryGraphService(this._schemaRouter, this._indexService, this._databaseService);
 
         const post = msg => this.post(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -134,10 +142,22 @@ class SqlWayfarerPanel {
         this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._ratingPrompt.onQuerySucceeded());
         this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
-        this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._databaseService));
+        this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._schemaRouter, this._databaseService));
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
         this._queryGraph = new QueryGraphHandlers(post, this._queryGraphService, getDb);
         this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
+        this._schemaSource = new SchemaSourceHandlers(post, {
+            router: this._schemaRouter,
+            createManager: () => new ConnectionManager(
+                this._connectionStorage,
+                createVsCodeTokenFetcher(vscode),
+                path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
+            ),
+            connectionStorage: this._connectionStorage,
+            targetDatabaseService: this._targetDatabaseService,
+            getOwnName: () => this.connectionName,
+            onChanged: (name, restoring) => this._onSchemaSourceChanged(name, restoring)
+        });
 
         // The page goes up straight away - the webview shows a loading
         // overlay until it is ready (see index.html), so there is no blank
@@ -273,7 +293,7 @@ class SqlWayfarerPanel {
     async _initialize() {
         try {
             this._dependencyService.setIndexService(this._indexService);
-            this._dependencyService.setConnectionManager(this._connectionManager);
+            this._dependencyService.setConnectionManager(this._schemaRouter);
             // Needed to resolve the type of objects living in another database
             // (cross-database dependencies in the Explorer graph).
             this._dependencyService.setDatabaseService(this._databaseService);
@@ -295,6 +315,7 @@ class SqlWayfarerPanel {
             if (this._connectionManager.isConnected()) {
                 this._restorePanelState();
                 this.post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
+                await this._restoreSchemaSource();
                 await this._db.handleGetDatabases();
                 return;
             }
@@ -302,10 +323,29 @@ class SqlWayfarerPanel {
             const saved = this._connectionStorage.getConnection(this.connectionName);
             if (saved && saved.database) this._currentSelectedDatabase = saved.database;
             const ok = await this._conn.handleConnectWithSaved(this.connectionName);
-            if (ok) await this._db.handleGetDatabases();
+            if (ok) {
+                await this._restoreSchemaSource();
+                await this._db.handleGetDatabases();
+            }
         } finally {
             this._connecting = false;
         }
+    }
+
+    // The schema source this tab had (kept with its panel state) is connected again.
+    async _restoreSchemaSource() {
+        const state = this._panelState.get(this.connectionIdentity);
+        if (state && state.schemaSource) await this._schemaSource.restore(state.schemaSource);
+    }
+
+    // The schema now comes from another connection (or is back on the run one):
+    // what was selected and indexed belonged to the previous source.
+    _onSchemaSourceChanged(name, restoring = false) {
+        this._indexService.requestCancelAll();
+        if (restoring) return; // the stored database is kept, the caller lists the databases
+        this._currentSelectedDatabase = null;
+        this._persistPanelState({ database: null, schemaSource: name });
+        this._db.handleGetDatabases();
     }
 
     async _reconnect() {
@@ -351,6 +391,11 @@ class SqlWayfarerPanel {
             // The "Reconnect" of a connection that was lost: a new connection to
             // the same server, the tab itself (queries, selected database) stays.
             case 'reconnect':                   await this._reconnect(); break;
+
+            // Where the schema is read from (see SchemaSourceHandlers)
+            case 'getSchemaSources':            this._schemaSource.handleGetSchemaSources(); break;
+            case 'selectSchemaSource':          await this._schemaSource.handleSelectSchemaSource(message.name); break;
+            case 'getQueryDatabases':           await this._schemaSource.handleGetQueryDatabases(); break;
 
             // Database
             case 'setCurrentDatabase':
@@ -501,6 +546,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
+        html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));
@@ -519,6 +565,7 @@ class SqlWayfarerPanel {
         this._panel.dispose();
 
         this._idx.cancel();
+        this._schemaSource.dispose().catch(() => {});
         // NB: do NOT clear the index here. It is a persistent, checksum-validated
         // on-disk cache keyed by server+database — deleting it when the panel
         // closes forces a full rebuild on every reopen (crippling on large
