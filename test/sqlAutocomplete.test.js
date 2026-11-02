@@ -373,3 +373,26 @@ suite('SqlAutocomplete object index', () => {
 		assert.ok(items.some(i => i.label === 'Employee'));
 	});
 });
+
+suite('SqlAutocomplete._snippetItems (imported snippets)', () => {
+	const imported = { name: 'Heading 1', abbreviation: 'LD_H1', description: 'A book heading', sql: '--$Section$\n$CURSOR$', placeholders: [{ id: 'Section', default: '' }] };
+
+	test('a snippet with an abbreviation is found by it, and by its name', () => {
+		const item = SqlAutocomplete._snippetItems([imported]).find(i => i.snippet);
+		assert.strictEqual(item.label, 'LD_H1');
+		assert.deepStrictEqual(item.match, ['LD_H1', 'Heading 1']);
+		assert.strictEqual(item.detail, 'A book heading');
+		assert.ok(item.info.includes('A book heading') && item.info.includes('$CURSOR$'));
+	});
+
+	test('it carries what the editor needs to expand it', () => {
+		const item = SqlAutocomplete._snippetItems([imported]).find(i => i.snippet);
+		assert.deepStrictEqual(item.snippet, { sql: '--$Section$\n$CURSOR$', placeholders: [{ id: 'Section', default: '' }] });
+	});
+
+	test('a plain custom snippet is as before', () => {
+		const item = SqlAutocomplete._snippetItems([{ name: 'my select', sql: 'SELECT 1' }]).find(i => i.label === 'my select');
+		assert.strictEqual(item.snippet, undefined);
+		assert.strictEqual(item.detail, 'my snippet');
+	});
+});
