@@ -30,11 +30,17 @@ class ParserWorkerPool {
         if (this._disposed) return null;
         if (this._piscina || this._consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return this._piscina;
         try {
+            // Reserve a core for the extension host; modest cap because each
+            // worker loads the generated ANTLR parser tables into its own heap.
+            const threads = Math.max(1, Math.min(4, os.cpus().length - 1));
             this._piscina = new Piscina({
                 filename: path.join(__dirname, 'parseColumnsWorker.js'),
-                // Reserve a core for the extension host; modest cap because each
-                // worker loads the generated ANTLR parser tables into its own heap.
-                maxThreads: Math.max(1, Math.min(4, os.cpus().length - 1))
+                // All the workers stay alive: Piscina ends the idle ones above
+                // minThreads at once, and a new worker starts cold (its parser tables
+                // and caches are built again, seconds each) - the indexing hands its
+                // objects over in batches, so a worker went idle between every two.
+                minThreads: threads,
+                maxThreads: threads
             });
         } catch (error) {
             console.warn('[ParserWorkerPool] Failed to create worker pool, falling back to in-process parsing:', error.message);
