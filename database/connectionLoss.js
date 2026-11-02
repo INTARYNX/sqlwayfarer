@@ -12,6 +12,8 @@ const LOSS_PATTERNS = [
     /\bESOCKET\b/i,
     /\bEPIPE\b/i,
     /\bENOTOPEN\b/i,
+    // a connection that was closed under the services (e.g. the schema source)
+    /^No active connection$/i,
     /connection (?:is |was |has been )?(?:closed|lost|reset|terminated|broken)/i,
     /socket (?:hang up|closed|was closed)/i,
     // tedious, once its connection died

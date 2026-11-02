@@ -82,7 +82,7 @@ class SchemaSourceHandlers {
         await this.handleSelectSchemaSource(name, true);
     }
 
-    _changedMessage(name) {
+    _changedMessage(name, restoring = false) {
         const sources = this._connectionStorage.getSavedConnections();
         const find = n => sources.find(c => c.name === n);
         const own = find(this._getOwnName());
