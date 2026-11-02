@@ -87,6 +87,31 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.close();
 	});
 
+	test('a result set is scripted as a temp table in a new tab', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		const types = [{ sql: 'int', kind: 'number', nullable: false }, { sql: 'nvarchar(50)', kind: 'string', nullable: true }, { sql: 'datetime', kind: 'datetime', nullable: true }];
+		const first = { columns: ['id', 'name', 'at'], types, rows: [{ id: 1, name: "O'Brien", at: '2026-11-02T20:00:15.540Z' }, { id: 2, name: null, at: null }], totalRows: 2 };
+		const second = { columns: ['x'], rows: [{ x: 1.5 }], totalRows: 1 };
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [first, second] });
+		const tabsBefore = await p.evaluate(() => document.getElementById('queryTabsCount') ? document.getElementById('queryTabsCount').textContent : '');
+		check(await p.locator('.result-set-pane[data-rs-pane="0"] button[data-rs-action="temp"]').isVisible(), 'every result set has a #Temp button');
+
+		await p.click('.result-set-pane[data-rs-pane="0"] button[data-rs-action="temp"]');
+		const text = await p.evaluate(() => document.getElementById('queryInput') ? document.getElementById('queryInput').value : '');
+		check(/CREATE TABLE #Results \(\n {4}\[id\] int NOT NULL,\n {4}\[name\] nvarchar\(50\) NULL,\n {4}\[at\] datetime NULL\n\);\nGO/.test(text), 'the new tab holds the CREATE TABLE with the real types: ' + JSON.stringify(text.slice(0, 200)));
+		check(/\(1, N'O''Brien', '2026-11-02T20:00:15.540'\),\n\(2, NULL, NULL\);/.test(text), 'and the rows as INSERT values');
+		check((await p.locator('#queryStatus').textContent()).includes('2 row(s) scripted as #Results in a new tab'), 'the status says what was done');
+		const tabsAfter = await p.evaluate(() => document.getElementById('queryTabsCount') ? document.getElementById('queryTabsCount').textContent : '');
+		check(tabsAfter !== tabsBefore, `a new tab was opened (${tabsBefore} -> ${tabsAfter})`);
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
 	test('the editor formats the query, and opens find / replace', async () => {
 		const check = checker();
 		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });

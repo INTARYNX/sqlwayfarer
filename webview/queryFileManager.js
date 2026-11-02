@@ -213,6 +213,13 @@ class QueryFileManager {
         this.render();
     }
 
+    // A new draft tab that holds text (a script made from a result).
+    addDraftTabWithContent(text) {
+        this.addDraftTab();
+        this.queryManager.loadEditorContent(text);
+        this.onEditorInput();
+    }
+
     closeTab(id) {
         const tab = this.tabs.find(t => t.id === id);
         if (!tab) return;
