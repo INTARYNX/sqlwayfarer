@@ -19,6 +19,15 @@ suite('QueryManager.toDelimited', () => {
 		assert.strictEqual(lines[2], '2,"has,comma","say ""hi""\nline2"');
 	});
 
+	test('JSON is an array of objects in column order, NULL as null, a Date as ISO', () => {
+		const json = QueryManager.toJson({
+			columns: ['id', 'at', 'note'],
+			rows: [{ id: 1, at: new Date('2026-01-02T03:04:05.000Z'), note: null }, { id: 2, at: null }]
+		});
+		assert.deepStrictEqual(JSON.parse(json), [{ id: 1, at: '2026-01-02T03:04:05.000Z', note: null }, { id: 2, at: null, note: null }]);
+		assert.deepStrictEqual(Object.keys(JSON.parse(json)[0]), ['id', 'at', 'note']);
+	});
+
 	test('TSV (clipboard) leaves commas untouched but quotes tabs/newlines', () => {
 		const tsv = QueryManager.toDelimited(set, '\t');
 		assert.ok(tsv.includes('2\thas,comma\t'), 'comma must not be quoted in TSV');

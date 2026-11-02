@@ -122,8 +122,21 @@ class QueryManager {
             const index = Number(button.dataset.rsIndex);
             const set = this.lastResultSets[index];
             if (!set) return;
-            if (button.dataset.rsAction === 'copy') this.copyResultSet(set);
+            const action = button.dataset.rsAction;
+            if (action === 'copy') this.copyResultSet(set);
+            else if (action === 'json') this.exportResultSetJson(set, index);
+            else if (action === 'more') this.showMoreRows(index, button.dataset.rsAll === '1');
             else this.exportResultSetCsv(set, index);
+        });
+
+        // Double-click a cell: its value goes to the clipboard.
+        this.resultsContainer.addEventListener('dblclick', (e) => {
+            const cell = e.target.closest('td');
+            if (!cell || !this.resultsContainer.contains(cell)) return;
+            navigator.clipboard.writeText(cell.textContent).then(
+                () => this.setStatus('Cell copied to clipboard.', 'success'),
+                () => this.setStatus('Copy to clipboard failed.', 'error')
+            );
         });
 
         // Separate listener (not delegated through the click one above) so
@@ -158,18 +171,31 @@ class QueryManager {
         });
     }
 
+    exportResultSetJson(set, index) {
+        const suffix = this.lastResultSets.length > 1 ? `-${index + 1}` : '';
+        this._pendingCsvTruncation = set.rows.length < set.totalRows
+            ? { shown: set.rows.length, total: set.totalRows }
+            : null;
+        vscode.postMessage({
+            command: 'exportJson',
+            json: QueryManager.toJson(set),
+            defaultName: `query-results${suffix}.json`
+        });
+    }
+
     onCsvExported(message) {
         const truncation = this._pendingCsvTruncation;
         this._pendingCsvTruncation = null;
+        const format = message.format || 'CSV';
         if (message.success) {
             const note = truncation
                 ? ` (showing ${truncation.shown} of ${truncation.total} rows - raise Max rows to export more)`
                 : '';
-            this.setStatus(`CSV saved to ${message.path}${note}`, 'success');
+            this.setStatus(`${format} saved to ${message.path}${note}`, 'success');
         } else if (message.cancelled) {
-            this.setStatus('CSV export cancelled.', '');
+            this.setStatus(`${format} export cancelled.`, '');
         } else {
-            this.setStatus(`CSV export failed: ${message.message}`, 'error');
+            this.setStatus(`${format} export failed: ${message.message}`, 'error');
         }
     }
 
@@ -522,7 +548,7 @@ class QueryManager {
         this.activeResultIndex = 0;
         // Filter/sort are per-grid view state, not data - every fresh run
         // starts clean instead of carrying over the previous run's filter.
-        this._gridState = resultSets.map(() => ({ filterText: '', sortCol: null, sortDir: 1 }));
+        this._gridState = resultSets.map(() => ({ filterText: '', sortCol: null, sortDir: 1, limit: QueryManager.MAX_RENDERED_ROWS }));
         const hasMessages = !!(timeline && timeline.some(entry => entry.type === 'message'));
         const hasPlan = planXmls && planXmls.length > 0;
 
@@ -634,6 +660,7 @@ class QueryManager {
             + `<span class="rs-spacer"></span>`
             + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
             + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
+            + `<button data-rs-action="json" data-rs-index="${index}" title="Export this result set as a JSON file (an array of objects)"><i class="codicon codicon-json"></i> JSON</button>`
             + `</div>`
             + (set.rows.length < set.totalRows
                 ? `<p class="truncation-note"><i class="codicon codicon-warning"></i> Showing first ${set.rows.length} of ${set.totalRows} rows (max rows limit).</p>`
@@ -651,9 +678,8 @@ class QueryManager {
 
         const state = this._gridState[index] || {};
         // Only a prefix of the rows is drawn - see MAX_RENDERED_ROWS.
-        const drawn = rows.length > QueryManager.MAX_RENDERED_ROWS
-            ? rows.slice(0, QueryManager.MAX_RENDERED_ROWS)
-            : rows;
+        const limit = state.limit || QueryManager.MAX_RENDERED_ROWS;
+        const drawn = rows.length > limit ? rows.slice(0, limit) : rows;
 
         // A column of numbers (and NULLs) reads better aligned to the right.
         const numeric = new Set(columns.filter(col =>
@@ -682,8 +708,9 @@ class QueryManager {
 
         if (drawn.length < rows.length) {
             html += `<p class="truncation-note"><i class="codicon codicon-warning"></i> `
-                + `The grid shows the first ${drawn.length} of ${rows.length} rows - `
-                + `Copy and CSV export all of them.</p>`;
+                + `The grid shows the first ${drawn.length} of ${rows.length} rows - Copy and the exports include all of them. `
+                + `<button data-rs-action="more" data-rs-index="${index}">Show ${Math.min(QueryManager.MAX_RENDERED_ROWS, rows.length - drawn.length)} more</button> `
+                + `<button data-rs-action="more" data-rs-all="1" data-rs-index="${index}">Show all</button></p>`;
         }
         return html;
     }
@@ -726,6 +753,14 @@ class QueryManager {
         const state = this._gridState[index];
         if (!state) return;
         state.filterText = filterText;
+        this.rerenderResultTable(index);
+    }
+
+    // Draws more rows of the grid (the next page, or all of them).
+    showMoreRows(index, all) {
+        const state = this._gridState[index];
+        if (!state) return;
+        state.limit = all ? Infinity : (state.limit || QueryManager.MAX_RENDERED_ROWS) + QueryManager.MAX_RENDERED_ROWS;
         this.rerenderResultTable(index);
     }
 
@@ -962,6 +997,17 @@ class QueryManager {
             lines.push(set.columns.map(col => escapeField(row[col])).join(separator));
         }
         return lines.join('\r\n');
+    }
+
+    // The rows as a JSON array of objects, keys in column order (a Date becomes
+    // its ISO string, as JSON.stringify does).
+    static toJson(set) {
+        const rows = set.rows.map(row => {
+            const out = {};
+            for (const col of set.columns) out[col] = row[col] === undefined ? null : row[col];
+            return out;
+        });
+        return JSON.stringify(rows, null, 2);
     }
 
     // Collapse to one line and cap length, for a tooltip that stays readable.

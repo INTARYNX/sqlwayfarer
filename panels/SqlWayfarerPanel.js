@@ -455,6 +455,7 @@ class SqlWayfarerPanel {
             // Export
             case 'exportDataDictionary':        await this._export.handleExportDataDictionary(message.database, message.full); break;
             case 'exportCsv':                   await this._export.handleExportCsv(message.csv, message.defaultName); break;
+            case 'exportJson':                  await this._export.handleExportJson(message.json, message.defaultName); break;
 
             default:
                 console.warn(`Unknown command: ${message.command}`);
