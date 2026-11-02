@@ -735,7 +735,7 @@ class QueryManager {
         // Once a column was resized every column has a width and the table lays out by them.
         const widths = state.widths || null;
         let html = widths
-            ? `<table class="rs-fixed" style="width:${QueryManager.totalWidth(columns, widths)}px">${QueryManager.colgroupHtml(columns, widths)}<thead><tr>`
+            ? `<table class="rs-fixed" style="width:${QueryManager.tableWidthStyle(columns, widths)}">${QueryManager.colgroupHtml(columns, widths)}<thead><tr>`
             : '<table><thead><tr>';
         columns.forEach(col => {
             const sorted = state.sortCol === col;
@@ -743,7 +743,7 @@ class QueryManager {
             html += `<th data-sort-col="${this.escapeHtml(col)}" data-rs-index="${index}" `
                 + `class="rs-sortable${sorted ? ' sorted' : ''}${numeric.has(col) ? ' rs-num' : ''}" title="Click to sort">${this.escapeHtml(col)}${arrow}<span class="rs-resizer" title="Drag to resize, double-click to reset"></span></th>`;
         });
-        html += '</tr></thead><tbody>';
+        html += (widths ? '<th class="rs-filler"></th>' : '') + '</tr></thead><tbody>';
 
         drawn.forEach(row => {
             html += '<tr>';
@@ -752,7 +752,7 @@ class QueryManager {
                 const classes = (numeric.has(col) ? 'rs-num' : '') + (isNull ? ' rs-null' : '');
                 html += `<td${classes.trim() ? ` class="${classes.trim()}"` : ''}>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
             });
-            html += '</tr>';
+            html += (widths ? '<td class="rs-filler"></td>' : '') + '</tr>';
         });
         html += '</tbody></table>';
 
@@ -769,8 +769,14 @@ class QueryManager {
         return columns.reduce((sum, col) => sum + (widths[col] || QueryManager.DEFAULT_COLUMN_WIDTH), 0);
     }
 
+    // The last <col> has no width: with the filler cells it takes what the
+    // columns leave, so the table always spans the whole grid.
     static colgroupHtml(columns, widths) {
-        return '<colgroup>' + columns.map(col => `<col style="width:${widths[col] || QueryManager.DEFAULT_COLUMN_WIDTH}px">`).join('') + '</colgroup>';
+        return '<colgroup>' + columns.map(col => `<col style="width:${widths[col] || QueryManager.DEFAULT_COLUMN_WIDTH}px">`).join('') + '<col></colgroup>';
+    }
+
+    static tableWidthStyle(columns, widths) {
+        return `max(100%, ${QueryManager.totalWidth(columns, widths)}px)`;
     }
 
     // Starts a drag on a header's right edge. The first drag freezes the widths
@@ -781,13 +787,17 @@ class QueryManager {
         const th = handle.parentElement;
         const table = th.closest('table');
         const index = Number(th.dataset.rsIndex);
-        const columns = [...table.querySelectorAll('thead th')].map(t => t.dataset.sortCol);
+        const headers = [...table.querySelectorAll('thead th[data-sort-col]')];
+        const columns = headers.map(t => t.dataset.sortCol);
         const state = this._gridState[index] || (this._gridState[index] = {});
         if (!state.widths) {
             state.widths = {};
-            table.querySelectorAll('thead th').forEach(t => { state.widths[t.dataset.sortCol] = Math.round(t.getBoundingClientRect().width); });
+            headers.forEach(t => { state.widths[t.dataset.sortCol] = Math.round(t.getBoundingClientRect().width); });
             table.classList.add('rs-fixed');
             table.insertAdjacentHTML('afterbegin', QueryManager.colgroupHtml(columns, state.widths));
+            table.querySelectorAll('thead tr').forEach(tr => tr.insertAdjacentHTML('beforeend', '<th class="rs-filler"></th>'));
+            table.querySelectorAll('tbody tr').forEach(tr => tr.insertAdjacentHTML('beforeend', '<td class="rs-filler"></td>'));
+            table.style.width = QueryManager.tableWidthStyle(columns, state.widths);
         }
         const position = columns.indexOf(th.dataset.sortCol);
         const colElement = table.querySelectorAll('col')[position];
@@ -798,7 +808,7 @@ class QueryManager {
             const width = Math.max(QueryManager.MIN_COLUMN_WIDTH, Math.round(startWidth + e.clientX - startX));
             state.widths[th.dataset.sortCol] = width;
             colElement.style.width = `${width}px`;
-            table.style.width = `${QueryManager.totalWidth(columns, state.widths)}px`;
+            table.style.width = QueryManager.tableWidthStyle(columns, state.widths);
         };
         const end = () => {
             handle.removeEventListener('pointermove', move);
