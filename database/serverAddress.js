@@ -13,7 +13,9 @@
 // "tcp:host,1433". The extension keeps the port apart (the driver also takes
 // "host\instance" as it is), so the address is split here.
 
+// A named pipe (np:\\host\pipe\..., \\host\pipe\...) is not something the driver connects to: the server comes back empty.
 function parseServerAddress(text) {
+    if (/^\s*(?:np:|\\\\)/i.test(String(text || ''))) return { server: '', port: '' };
     let value = String(text || '').trim().replace(/^(?:tcp|np|lpc):/i, '');
     let port = '';
     const comma = value.lastIndexOf(',');
