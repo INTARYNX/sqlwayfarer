@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const message = event.data;
         switch (message.command) {
             case 'snippetsLoaded':           snippetManager.onSnippetsLoaded(message.snippets); break;
+            case 'snippetsImported':         snippetManager.onSnippetsImported(message); break;
             case 'savedConnectionsLoaded':   connections.onSavedConnectionsLoaded(message); break;
             case 'openConnectionsChanged':   connections.onOpenConnectionsChanged(message.names); break;
             case 'connectionSaved':          connections.onConnectionSaved(message); break;

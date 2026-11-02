@@ -193,4 +193,59 @@ suite('e2e: sidebar (connections, snippets) and panel basics', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('sidebar snippets: import button, abbreviation, imported snippets keep their fields when edited', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'sidebar.html', 'panels/SnippetSidebarProvider.js', 'dark', { width: 320, height: 700 });
+		await p.click('[data-sb-tab=snippets]');
+		await post(p, { command: 'snippetsLoaded', snippets: [
+			{ name: 'Heading <1>', sql: '--$Section$\n$CURSOR$', createdAt: 1, abbreviation: 'LD_H1', description: 'A book heading', placeholders: [{ id: 'Section', default: 'Title' }], source: 'SQL Prompt' },
+			{ name: 'plain', sql: 'SELECT 1', createdAt: 2 }] });
+		const row = p.locator('[data-snippet-name="Heading <1>"]');
+		check(await row.locator('.sb-badge').textContent() === 'LD_H1', 'the abbreviation is shown');
+		check((await row.locator('.sb-row-sub').textContent()).includes('A book heading'), 'with the description under the name');
+		check(!(await p.locator('#snippetManagerList').innerHTML()).includes('<1>'), 'names are escaped');
+		check(await p.locator('[data-snippet-name="plain"] .sb-badge').count() === 0, 'a snippet without abbreviation has no badge');
+		await post(p, { command: 'snippetsLoaded', snippets: [{ name: 'LD_CRLF', sql: 'CHAR(13)', createdAt: 1, abbreviation: 'LD_CRLF' }] });
+		check(await p.locator('[data-snippet-name="LD_CRLF"] .sb-badge').count() === 0, 'an abbreviation equal to the name is not repeated');
+		await post(p, { command: 'snippetsLoaded', snippets: [
+			{ name: 'Heading <1>', sql: '--$Section$\n$CURSOR$', createdAt: 1, abbreviation: 'LD_H1', description: 'A book heading', placeholders: [{ id: 'Section', default: 'Title' }], source: 'SQL Prompt' },
+			{ name: 'plain', sql: 'SELECT 1', createdAt: 2 }] });
+
+		await p.fill('#snippetFilter', 'book');
+		check(await p.locator('#snippetManagerList [data-snippet-name]:not([data-snippet-builtin=true])').count() === 1, 'the filter looks in the description');
+		await p.fill('#snippetFilter', 'ld_h1');
+		check(await p.locator('#snippetManagerList [data-snippet-name]:not([data-snippet-builtin=true])').count() === 1, 'and in the abbreviation');
+		await p.fill('#snippetFilter', '');
+
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('#importSnippetsBtn');
+		check((await sent(p)).some(m => m.command === 'importSnippets'), 'the import button asks the extension');
+		await post(p, { command: 'snippetsImported', added: 24, overwritten: 1, leftOut: 2, skippedFiles: 3 });
+		const status = await p.locator('#snippetsStatus').textContent();
+		check(/24 imported/.test(status) && /1 overwritten/.test(status) && /2 already existed/.test(status) && /3 files could not be read/.test(status), 'the result is told: ' + status);
+		await post(p, { command: 'snippetsImported', added: 0, overwritten: 0, leftOut: 0, skippedFiles: 1 });
+		check(await p.locator('#snippetsStatus.error').count() === 1, 'an import that brought nothing is an error');
+
+		// Editing keeps going through update, with the abbreviation of the form.
+		await row.locator('.sb-row-main').click();
+		check(await p.inputValue('#snippetAbbrInput') === 'LD_H1', 'the form shows the abbreviation');
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.fill('#snippetAbbrInput', 'hh');
+		await p.click('#saveSnippetBtn');
+		const update = (await sent(p)).find(m => m.command === 'updateSnippet');
+		check(update && update.oldName === 'Heading <1>' && update.newName === 'Heading <1>' && update.abbreviation === 'hh', 'saving an edit updates it, abbreviation included: ' + JSON.stringify(update));
+
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('#newSnippetBtn');
+		await p.fill('#snippetNameInput', 'brand new');
+		await p.fill('#snippetAbbrInput', 'bn');
+		await p.fill('#snippetSqlInput', 'SELECT 2');
+		await p.click('#saveSnippetBtn');
+		const add = (await sent(p)).find(m => m.command === 'addSnippet');
+		check(add && add.name === 'brand new' && add.abbreviation === 'bn', 'a new snippet carries its abbreviation: ' + JSON.stringify(add));
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
 });

@@ -30,6 +30,9 @@ class SnippetManager {
             listView: byId('snippetListView'),
             formView: byId('snippetFormView'),
             newBtn: byId('newSnippetBtn'),
+            importBtn: byId('importSnippetsBtn'),
+            status: byId('snippetsStatus'),
+            abbrInput: byId('snippetAbbrInput'),
             filter: byId('snippetFilter'),
             list: byId('snippetManagerList'),
             backBtn: byId('snippetFormBackBtn'),
@@ -44,6 +47,10 @@ class SnippetManager {
     initEventListeners() {
         const e = this.elements;
         e.newBtn.addEventListener('click', () => this.openForm());
+        e.importBtn.addEventListener('click', () => {
+            this.showStatus('', '');
+            vscode.postMessage({ command: 'importSnippets' });
+        });
         e.backBtn.addEventListener('click', () => this.closeForm());
         e.saveBtn.addEventListener('click', () => this.saveForm());
         document.addEventListener('keydown', event => {
@@ -92,7 +99,24 @@ class SnippetManager {
 
     matchesFilter(snippet) {
         const needle = this.elements.filter.value.trim().toLowerCase();
-        return !needle || snippet.name.toLowerCase().includes(needle) || snippet.sql.toLowerCase().includes(needle);
+        return !needle || snippet.name.toLowerCase().includes(needle) || snippet.sql.toLowerCase().includes(needle)
+            || (snippet.abbreviation || '').toLowerCase().includes(needle) || (snippet.description || '').toLowerCase().includes(needle);
+    }
+
+    // The answer of an import: what came in, in a line.
+    onSnippetsImported(message) {
+        const parts = [];
+        if (message.added) parts.push(`${message.added} imported`);
+        if (message.overwritten) parts.push(`${message.overwritten} overwritten`);
+        if (message.leftOut) parts.push(`${message.leftOut} already existed and were kept`);
+        if (message.skippedFiles) parts.push(`${message.skippedFiles} file${message.skippedFiles === 1 ? '' : 's'} could not be read`);
+        const failed = !message.added && !message.overwritten;
+        this.showStatus(parts.length ? `Snippets: ${parts.join(', ')}.` : 'Nothing imported.', failed ? 'error' : 'success');
+    }
+
+    showStatus(message, type) {
+        this.elements.status.className = 'sb-status ' + type;
+        this.elements.status.textContent = message;
     }
 
     renderList() {
@@ -102,7 +126,7 @@ class SnippetManager {
 
         let html = '';
         if (custom.length > 0) {
-            html += `<div class="sb-group-label">Custom</div>${custom.map(s => this.buildRowHtml(s.name, s.sql, false)).join('')}`;
+            html += `<div class="sb-group-label">Custom</div>${custom.map(s => this.buildRowHtml(s.name, s.sql, false, s)).join('')}`;
         } else if (!filtering && this.customSnippets.length === 0) {
             html += '<div class="sb-group-label">Custom</div><p class="sb-empty">No custom snippet yet.<br>Click + to add one.</p>';
         }
@@ -113,7 +137,7 @@ class SnippetManager {
         this.elements.list.innerHTML = html;
     }
 
-    buildRowHtml(name, sql, isBuiltin) {
+    buildRowHtml(name, sql, isBuiltin, snippet = null) {
         const preview = sql.replace(/\s+/g, ' ').trim().slice(0, 90);
         const actions = isBuiltin
             ? `<button type="button" class="sb-icon-btn" data-snippet-action="duplicate" title="Duplicate as a custom snippet" aria-label="Duplicate"><i class="codicon codicon-copy"></i></button>`
@@ -125,8 +149,8 @@ class SnippetManager {
         return `<div class="sb-row${interactive}" data-snippet-name="${this.escapeHtml(name)}" data-snippet-builtin="${isBuiltin}">
             <i class="codicon codicon-${isBuiltin ? 'lock' : 'code'} sb-row-icon"></i>
             <div class="sb-row-main">
-                <div class="sb-row-name">${this.escapeHtml(name)}</div>
-                <div class="sb-row-sub">${this.escapeHtml(preview)}</div>
+                <div class="sb-row-name">${this.escapeHtml(name)}${snippet && snippet.abbreviation && snippet.abbreviation.toLowerCase() !== name.toLowerCase() ? ` <span class="sb-badge" title="Abbreviation: type it in the editor to expand the snippet">${this.escapeHtml(snippet.abbreviation)}</span>` : ''}</div>
+                <div class="sb-row-sub" title="${this.escapeHtml(snippet && snippet.description ? snippet.description : '')}">${this.escapeHtml(snippet && snippet.description ? snippet.description : preview)}</div>
             </div>
             <div class="sb-row-actions">${actions}</div>
         </div>`;
@@ -138,6 +162,7 @@ class SnippetManager {
         e.formTitle.textContent = snippet ? `Edit ${snippet.name}` : 'New snippet';
         e.nameInput.value = snippet ? snippet.name : '';
         e.sqlInput.value = snippet ? snippet.sql : '';
+        e.abbrInput.value = snippet && snippet.abbreviation ? snippet.abbreviation : '';
         this.showFormStatus('', '');
         e.listView.hidden = true;
         e.formView.hidden = false;
@@ -195,10 +220,13 @@ class SnippetManager {
             return;
         }
 
-        if (this.editingOriginalName && this.editingOriginalName !== name) {
-            vscode.postMessage({ command: 'updateSnippet', oldName: this.editingOriginalName, newName: name, sql });
+        const abbreviation = this.elements.abbrInput.value.trim();
+        // An edit always goes through update, renamed or not: it keeps what
+        // the form does not show (description, placeholders) of an imported snippet.
+        if (this.editingOriginalName) {
+            vscode.postMessage({ command: 'updateSnippet', oldName: this.editingOriginalName, newName: name, sql, abbreviation });
         } else {
-            vscode.postMessage({ command: 'addSnippet', name, sql });
+            vscode.postMessage({ command: 'addSnippet', name, sql, abbreviation });
         }
         this.closeForm();
     }
