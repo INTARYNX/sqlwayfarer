@@ -171,4 +171,68 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		check.done();
 		await p.close();
 	});
+
+	test('snippets with placeholders: fields to Tab through, the selection, the dropdown and the abbreviation', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 800 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		const text = () => p.evaluate(() => document.getElementById('queryInput').value);
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		await p.click('[data-tab=query]');
+
+		// Fields: the default of the first is selected, a linked one is typed once, $CURSOR$ is the last stop.
+		await p.evaluate(() => {
+			const ta = document.getElementById('queryInput');
+			ta.value = '';
+			ta.insertSnippet("DECLARE @d int = $Weeks$, @t varchar(10) = '$Day$'; -- $Day$\n$CURSOR$-- end", [{ id: 'Weeks', default: '0' }, { id: 'Day', default: '' }]);
+		});
+		check(await text() === "DECLARE @d int = 0, @t varchar(10) = ''; -- \n-- end", 'the defaults are in: ' + JSON.stringify(await text()));
+		const sel = await p.evaluate(() => { const ta = document.getElementById('queryInput'); return [ta.selectionStart, ta.selectionEnd]; });
+		check(sel[1] - sel[0] === 1, 'the first field is selected (' + sel + ')');
+		await p.keyboard.type('5');
+		await p.keyboard.press('Tab');
+		await p.keyboard.type('Mon');
+		check(await text() === "DECLARE @d int = 5, @t varchar(10) = 'Mon'; -- Mon\n-- end", 'Tab moves to the next field, a linked field is typed once: ' + JSON.stringify(await text()));
+		await p.keyboard.press('Tab');
+		await p.keyboard.type('X');
+		check((await text()).endsWith("-- Mon\nX-- end"), 'the last Tab lands on $CURSOR$: ' + JSON.stringify(await text()));
+
+		// The selection goes where $SELECTEDTEXT$ is.
+		await p.evaluate(() => {
+			const ta = document.getElementById('queryInput');
+			ta.value = 'SELECT 1';
+			ta.setSelectionRange(0, 8);
+			ta.insertSnippet('SET SHOWPLAN_TEXT ON;\nGO\n$SELECTEDTEXT$\nGO\nSET SHOWPLAN_TEXT OFF;', []);
+		});
+		check(await text() === 'SET SHOWPLAN_TEXT ON;\nGO\nSELECT 1\nGO\nSET SHOWPLAN_TEXT OFF;', 'the selected text is wrapped: ' + JSON.stringify(await text()));
+
+		// A snippet with braces and no marker is inserted as it is.
+		await p.evaluate(() => { const ta = document.getElementById('queryInput'); ta.value = ''; ta.insertSnippet("SELECT '{a}', '${x}'", []); });
+		check(await text() === "SELECT '{a}', '${x}'", 'braces are literal: ' + JSON.stringify(await text()));
+
+		// The dropdown of the Query tab.
+		await post({ command: 'snippetsLoaded', snippets: [{ name: 'Heading 1', abbreviation: 'LD_H1', description: 'A book heading', sql: '--$Section$\n$CURSOR$', placeholders: [{ id: 'Section', default: 'Title' }] }] });
+		await p.evaluate(() => { document.getElementById('queryInput').value = ''; });
+		await p.selectOption('#querySnippetsSelect', 'custom:Heading 1');
+		check(await text() === '--Title\n', 'the dropdown expands it: ' + JSON.stringify(await text()));
+		await p.keyboard.type('Intro');
+		check(await text() === '--Intro\n', 'the field is replaced by what is typed: ' + JSON.stringify(await text()));
+
+		// Typing the abbreviation offers it.
+		await p.evaluate(() => { document.getElementById('queryInput').value = ''; });
+		await p.click('.cm-content');
+		await p.keyboard.type('LD_H');
+		await p.keyboard.press('Control+Space');
+		await p.waitForTimeout(250);
+		const offered = await p.evaluate(() => [...document.querySelectorAll('.sql-autocomplete li')].map(li => li.textContent));
+		check(offered.some(t => t.includes('LD_H1')), 'the abbreviation is offered: ' + offered.join(' | '));
+		await p.keyboard.press('Enter');
+		await p.waitForTimeout(150);
+		check(await text() === '--Title\n', 'and expands with its fields: ' + JSON.stringify(await text()));
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
 });

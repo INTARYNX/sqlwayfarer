@@ -326,6 +326,13 @@ class SqlAutocomplete {
         const ta = this.textarea;
         const start = item.replaceStart === undefined ? this.ctx.partialStart : item.replaceStart;
         let end = ta.selectionStart;
+        // A snippet with placeholders: fields to Tab through, not plain text.
+        if (item.snippet && typeof ta.insertSnippet === 'function') {
+            ta.insertSnippet(item.snippet.sql, item.snippet.placeholders || [], start, end);
+            if (item.usageKey) this.usage.set(item.usageKey, (this.usage.get(item.usageKey) || 0) + 1);
+            this.hide();
+            return;
+        }
         // "[Emp|]": the closing bracket already there is replaced, not doubled.
         if (item.insert.endsWith(']') && ta.value[end] === ']') end++;
         // Replace the typed word, not the whole document: the completion
@@ -1168,7 +1175,16 @@ class SqlAutocomplete {
         };
         for (const ab of SqlAutocomplete.ABBREVIATIONS) push(ab.abbr, ab.sql, 'snippet', true);
         for (const sn of custom || []) {
-            if (sn && sn.name && sn.sql) push(sn.name, sn.sql, 'my snippet', false);
+            if (!sn || !sn.name || !sn.sql) continue;
+            if (!sn.abbreviation && !sn.placeholders) { push(sn.name, sn.sql, 'my snippet', false); continue; }
+            // Imported (SQL Prompt) snippet: found by its abbreviation or its name, expanded with its fields.
+            const label = sn.abbreviation || sn.name;
+            out.push({
+                label, insert: sn.sql, kind: 'snippet', detail: sn.description || 'my snippet', priority: 1,
+                match: sn.abbreviation ? [sn.abbreviation, sn.name] : sn.name, usageKey: `snip|${label.toLowerCase()}`,
+                info: [sn.description, sn.sql.trim()].filter(Boolean).join('\n\n'),
+                snippet: { sql: sn.sql, placeholders: sn.placeholders || [] }
+            });
         }
         return out;
     }

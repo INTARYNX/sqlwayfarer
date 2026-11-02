@@ -945,9 +945,21 @@ class QueryManager {
         } else if (value.startsWith('custom:')) {
             const name = value.slice('custom:'.length);
             const snippet = this.customSnippets.find(s => s.name === name);
-            sql = snippet && snippet.sql;
+            if (snippet && snippet.sql) {
+                this.insertCustomSnippet(snippet);
+                return;
+            }
         }
         if (sql) this.insertAtCursor(sql);
+    }
+
+    // A custom snippet may carry placeholders ($Name$ fields to Tab through,
+    // $CURSOR$, $SELECTEDTEXT$ - as in the snippets imported from SQL Prompt).
+    insertCustomSnippet(snippet) {
+        const ta = this.input;
+        ta.focus();
+        if (typeof ta.insertSnippet === 'function') ta.insertSnippet(snippet.sql, snippet.placeholders || []);
+        else this.insertAtCursor(snippet.sql);
     }
 
     // Saves the selected text (or the whole editor content, if nothing is
