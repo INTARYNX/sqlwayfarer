@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const ParserWorkerPool = require('./ParserWorkerPool');
+const { IndexBuildStats, addRun } = require('./IndexStats');
 
 // Bumped when the index entry shape changes (2 = columnRefs for column lineage,
     // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
@@ -192,17 +193,25 @@ class IndexService {
         const indexFile = await this._migrateLegacyIndexFile(database, build.server);
         await this._ensureIndexDir(path.dirname(indexFile));
 
+        const t0 = IndexBuildStats.now();
         const liveObjects = await this._getLiveObjects(database);
+        const listMs = IndexBuildStats.now() - t0;
         const liveChecksum = this._checksumFromObjects(liveObjects);
         let index = await this._loadIndex(indexFile);
 
         if (!index || index.schemaChecksum !== liveChecksum) {
             // With a cached index, only re-analyze objects whose modify_date changed
             // (plus additions/removals) instead of rebuilding everything.
+            const stats = new IndexBuildStats(index ? 'incremental' : 'full', IndexService.CONCURRENT_BATCH_SIZE);
+            stats.phase('listObjectsMs', listMs);
+            const before = index;
             index = index
-                ? await this._updateIndexIncrementally(database, index, liveObjects, liveChecksum, build.server)
-                : await this._buildCompleteIndex(database, liveChecksum, liveObjects, build.server);
+                ? await this._updateIndexIncrementally(database, index, liveObjects, liveChecksum, build.server, stats)
+                : await this._buildCompleteIndex(database, liveChecksum, liveObjects, build.server, stats);
+            const saveStart = IndexBuildStats.now();
             await this._saveIndex(indexFile, index);
+            stats.phase('saveMs', IndexBuildStats.now() - saveStart);
+            await this._recordStats(indexFile, stats, index, before);
         }
         return index;
     }
@@ -241,9 +250,15 @@ class IndexService {
         try { await fs.unlink(indexFile); } catch { /* file may not exist yet */ }
         this._peeked.delete(indexFile);
 
+        const stats = new IndexBuildStats('force', IndexService.CONCURRENT_BATCH_SIZE);
+        const t0 = IndexBuildStats.now();
         const liveObjects = await this._getLiveObjects(database);
-        const index = await this._buildCompleteIndex(database, this._checksumFromObjects(liveObjects), liveObjects, build.server);
+        stats.phase('listObjectsMs', IndexBuildStats.now() - t0);
+        const index = await this._buildCompleteIndex(database, this._checksumFromObjects(liveObjects), liveObjects, build.server, stats);
+        const saveStart = IndexBuildStats.now();
         await this._saveIndex(indexFile, index);
+        stats.phase('saveMs', IndexBuildStats.now() - saveStart);
+        await this._recordStats(indexFile, stats, index, null);
         console.log(`Force reindex complete for ${database}`);
         return index;
     }
@@ -373,7 +388,7 @@ class IndexService {
         };
     }
 
-    async _buildCompleteIndex(database, schemaChecksum, objects, server = this._getCurrentServerName()) {
+    async _buildCompleteIndex(database, schemaChecksum, objects, server = this._getCurrentServerName(), stats = null) {
         console.log(`Building full index for database: ${database} (${objects.length} objects)`);
 
         const index = {
@@ -394,7 +409,9 @@ class IndexService {
         const possibleRefs = {};
         const parseErrors = {};
         const nameMap = this._buildNameMap(objects);
-        const { dependencies, failedKeys } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors);
+        const analysisStart = IndexBuildStats.now();
+        const { dependencies, failedKeys } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors, stats);
+        if (stats) stats.phase('analysisMs', IndexBuildStats.now() - analysisStart);
         this._attachDependencies(index.objects, dependencies);
         this._attachColumnRefs(index.objects, columnRefs);
         this._attachTableWrites(index.objects, tableWrites);
@@ -410,7 +427,7 @@ class IndexService {
     // Reuse cached entries whose per-object checksum (name + type + modify_date)
     // is unchanged; only additions and modified objects get re-analyzed, and
     // entries for dropped objects are discarded.
-    async _updateIndexIncrementally(database, cachedIndex, liveObjects, liveChecksum, server = this._getCurrentServerName()) {
+    async _updateIndexIncrementally(database, cachedIndex, liveObjects, liveChecksum, server = this._getCurrentServerName(), stats = null) {
         const objects = {};
         const objectsByType = {};
         const changed = [];
@@ -444,7 +461,9 @@ class IndexService {
         const parseErrors = {};
         // Name map spans ALL live objects so mentions of unchanged tables are caught.
         const nameMap = this._buildNameMap(liveObjects);
-        const { dependencies, failedKeys } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors);
+        const analysisStart = IndexBuildStats.now();
+        const { dependencies, failedKeys } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors, stats);
+        if (stats) stats.phase('analysisMs', IndexBuildStats.now() - analysisStart);
         this._attachDependencies(objects, dependencies);
         this._attachColumnRefs(objects, columnRefs);
         this._attachTableWrites(objects, tableWrites);
@@ -524,7 +543,7 @@ class IndexService {
     // The same batch also returns OBJECT_DEFINITION, parsed into per-column
     // lineage (columnRefsOut, keyed by clean qualified name), table-level
     // writes (tableWritesOut) and syntax errors (parseErrorsOut) for code objects.
-    async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null, tableWritesOut = null, parseErrorsOut = null) {
+    async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null, tableWritesOut = null, parseErrorsOut = null, stats = null) {
         const dependencies = [];
         const failedKeys = new Set();
         const total = objects.length;
@@ -537,7 +556,7 @@ class IndexService {
 
             const batch = objects.slice(i, i + IndexService.CONCURRENT_BATCH_SIZE);
             const batchResults = await Promise.all(
-                batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut))
+                batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut, stats))
             );
             batch.forEach((obj, idx) => {
                 const { dependencies: objDependencies, depsFailed } = batchResults[idx];
@@ -556,7 +575,7 @@ class IndexService {
     // other object's processing, so callable concurrently. Writes into the
     // shared columnRefsOut/possibleRefsOut maps under this object's own
     // (unique) key, and returns its dependency rows for the caller to merge.
-    async _analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut) {
+    async _analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut, stats = null) {
         const dependencies = [];
         const qualifiedName = `[${obj.schema_name}].[${obj.name}]`;
         const cleanQN = this._removeBrackets(obj.qualified_name);
@@ -570,6 +589,8 @@ class IndexService {
         // Names this object references confidently (resolver + parser); excluded
         // from the possible-ref scan so we only flag the *extra* text mentions.
         const confidentSet = new Set();
+        const measured = { name: cleanQN, type: obj.type, queryMs: 0, parseMs: 0, queueMs: 0, scanMs: 0, definitionChars: 0, parseErrors: 0, depsFailed: false };
+        let queryStart = IndexBuildStats.now();
         try {
             const result = await this._connectionManager.executeQueryInDatabase(database, `
                 SELECT DISTINCT
@@ -593,29 +614,42 @@ class IndexService {
                 confidentSet.add(this._removeBrackets(row.dependency).toLowerCase());
             }
             definition = result.recordsets?.[1]?.[0]?.definition || null;
+            measured.queryMs = IndexBuildStats.now() - queryStart;
         } catch {
+            measured.queryMs = IndexBuildStats.now() - queryStart;
             // Same tolerance as the old server-side BEGIN CATCH: objects with
             // broken or unresolvable references get no dependencies recorded.
             // The definition is still worth parsing (dm_sql_referenced_entities
             // fails on broken references, the parser does not).
             depsFailed = true;
+            measured.depsFailed = true;
             if (wantsDefinition) {
+                queryStart = IndexBuildStats.now();
                 try {
                     const fallback = await this._connectionManager.executeQueryInDatabase(database, `
                         SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;
                     `, { objectName: qualifiedName });
                     definition = fallback.recordset?.[0]?.definition || null;
                 } catch { /* encrypted or gone - no lineage */ }
+                measured.queryMs += IndexBuildStats.now() - queryStart;
             }
         }
 
         if (wantsDefinition && definition) {
+            measured.definitionChars = definition.length;
             let analysis = null;
+            const parseStart = IndexBuildStats.now();
             try {
                 analysis = await this._parserPool.analyzeDefinition(definition);
             } catch (error) {
                 console.warn(`[IndexService] Column parse failed for ${cleanQN}:`, error.message);
             }
+            // The wait includes the time in the worker queue: the parse itself
+            // is what the worker measured (not available in-process).
+            const waited = IndexBuildStats.now() - parseStart;
+            const parsed = analysis && typeof analysis.parseTimeMs === 'number' ? Math.min(analysis.parseTimeMs, waited) : waited;
+            measured.parseMs = parsed;
+            measured.queueMs = waited - parsed;
             if (analysis) {
                 const refs = analysis.columns;
                 const writes = analysis.writes || [];
@@ -631,15 +665,19 @@ class IndexService {
                 // The syntax errors make the analysis partial: the tree was
                 // still walked, but not everything in it could be understood.
                 if (errors.length > 0 && parseErrorsOut) parseErrorsOut[cleanQN] = errors;
+                measured.parseErrors = errors.length;
             }
             // Best-effort dynamic-SQL scan: qualified names of known objects in
             // the text that weren't resolved confidently above.
             if (nameMap && possibleRefsOut) {
+                const scanStart = IndexBuildStats.now();
                 const possible = this._scanPossibleRefs(definition, nameMap, cleanQN.toLowerCase(), confidentSet);
                 if (possible.length) possibleRefsOut[cleanQN] = possible;
+                measured.scanMs = IndexBuildStats.now() - scanStart;
             }
         }
 
+        if (stats) stats.recordObject(measured);
         return { dependencies, depsFailed };
     }
 
@@ -783,6 +821,38 @@ class IndexService {
         } catch (error) {
             if (error.code !== 'ENOENT') console.warn('Failed to load index:', error.message);
             return null;
+        }
+    }
+
+    _statsFilePath(indexFile) {
+        return indexFile.replace(/\.json$/, '.stats.json');
+    }
+
+    // Keeps the figures of this build next to the index. Never fails the build.
+    async _recordStats(indexFile, stats, index, before) {
+        try {
+            const total = Object.keys(index.objects || {}).length;
+            const cachedBefore = before && before.objects ? before.objects : {};
+            const removed = Object.keys(cachedBefore).filter(key => !(index.objects || {})[key]).length;
+            const run = stats.finish({ totalObjects: total, reusedObjects: Math.max(0, total - stats._objects.length), removedObjects: removed });
+            run.parserThreads = this._parserPool.threadCount ? this._parserPool.threadCount() : 0;
+            const file = this._statsFilePath(indexFile);
+            let history = null;
+            try { history = JSON.parse(await fs.readFile(file, 'utf8')); } catch { /* first run */ }
+            await fs.writeFile(file, JSON.stringify(addRun(history, run), null, 2), 'utf8');
+        } catch (error) {
+            console.warn('Could not record the index statistics:', error.message);
+        }
+    }
+
+    // The recorded builds of a database, latest first: { runs: [...] }.
+    // Reads only.
+    async getBuildStats(database) {
+        const file = this._statsFilePath(this._getIndexFilePath(database));
+        try {
+            return JSON.parse(await fs.readFile(file, 'utf8'));
+        } catch {
+            return { runs: [] };
         }
     }
 

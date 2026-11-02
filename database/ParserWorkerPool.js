@@ -43,6 +43,11 @@ class ParserWorkerPool {
         return this._piscina;
     }
 
+    // How many parser threads run (0 once parsing fell back to the extension host).
+    threadCount() {
+        return this._piscina ? this._piscina.options.maxThreads : 0;
+    }
+
     _parseInProcess(definition) {
         if (!this._fallbackParser) {
             this._fallbackParser = new BabelfishSqlParser();

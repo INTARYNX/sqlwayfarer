@@ -12,6 +12,11 @@ const BabelfishSqlParser = require('./BabelfishSqlParser');
 const parser = new BabelfishSqlParser();
 parser.setEnabled(true);
 
+// The time the parse itself took in this worker (parseTimeMs): the caller
+// only sees the total wait, which also holds the time spent in the queue.
 module.exports = function parseDefinition(definition) {
-    return parser.analyzeDefinition(definition);
+    const start = process.hrtime.bigint();
+    const analysis = parser.analyzeDefinition(definition);
+    if (analysis) analysis.parseTimeMs = Number(process.hrtime.bigint() - start) / 1e6;
+    return analysis;
 };
