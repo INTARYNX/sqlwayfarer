@@ -92,8 +92,10 @@
         <div id="snippetListView" class="sb-list-view">
             <div class="sb-toolbar">
                 <input type="text" id="snippetFilter" class="sb-input sb-filter" placeholder="Filter snippets…" aria-label="Filter snippets">
+                <button id="importSnippetsBtn" class="sb-icon-btn" title="Import SQL Prompt snippets (.sqlpromptsnippet files or a folder)" aria-label="Import SQL Prompt snippets"><i class="codicon codicon-cloud-download"></i></button>
                 <button id="newSnippetBtn" class="sb-icon-btn" title="New snippet" aria-label="New snippet"><i class="codicon codicon-add"></i></button>
             </div>
+            <div id="snippetsStatus" class="sb-status"></div>
             <div id="snippetManagerList" class="sb-list"></div>
         </div>
 
@@ -106,8 +108,12 @@
                 <label for="snippetNameInput">Name</label>
                 <input type="text" id="snippetNameInput" class="sb-input" placeholder="e.g. Select top 100">
             </div>
+            <div class="sb-field">
+                <label for="snippetAbbrInput">Abbreviation <small>(optional: type it in the editor to expand the snippet)</small></label>
+                <input type="text" id="snippetAbbrInput" class="sb-input" placeholder="e.g. sel100" spellcheck="false">
+            </div>
             <div class="sb-field grow">
-                <label for="snippetSqlInput">SQL</label>
+                <label for="snippetSqlInput">SQL <small>(<code>$CURSOR$</code> = caret, <code>$SELECTEDTEXT$</code> = the selection)</small></label>
                 <textarea id="snippetSqlInput" class="sb-input" rows="10" placeholder="SELECT TOP 100 *&#10;FROM "></textarea>
             </div>
             <div id="snippetFormStatus" class="sb-status"></div>

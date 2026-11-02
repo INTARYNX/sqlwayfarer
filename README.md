@@ -110,6 +110,7 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 - **Find and replace** in the editor with `Ctrl+H`
 - **Large results**: the grid draws 2 000 rows at a time with **Show more** / **Show all**; Copy and the exports always include every row. Double-click a cell to copy it
 - **Export** every result set as CSV or JSON
+- **Snippets from SQL Prompt**: the *Snippets* tab of the sidebar imports `.sqlpromptsnippet` files, one by one or a whole folder (subfolders included), after showing what was found and which ones already exist (keep them or overwrite). The shortcut becomes the snippet's **abbreviation**: type it in the editor and it is offered. `$Placeholder$` fields (with their default values) are filled in by pressing `Tab` from one to the next, `$CURSOR$` is where the caret ends up, `$SELECTEDTEXT$` is replaced by the text that was selected. Your own snippets can have an abbreviation and use `$CURSOR$` / `$SELECTEDTEXT$` too. Only the files you pick are read
 - Persistent query history with deduplication
 
 ### Schema Explorer

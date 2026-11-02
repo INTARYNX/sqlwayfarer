@@ -2548,6 +2548,11 @@ class MessageHandler {
                 }
                 break;
 
+            case 'snippetsImported':
+                // Imports are started from the sidebar; a tab only says it when it is told.
+                if (this.queryManager) this.queryManager.setStatus(`Snippets imported: ${message.added || 0}${message.overwritten ? `, ${message.overwritten} overwritten` : ''}.`, 'success');
+                break;
+
             case 'schemaSources':
                 if (window.schemaSourceManager) window.schemaSourceManager.onSchemaSources(message);
                 break;
