@@ -18,11 +18,16 @@
 
 const MAX_FILE_CHARS = 1000000;
 
+// A numeric reference outside Unicode stays as it is instead of throwing.
+function fromCode(match, code) {
+    return Number.isInteger(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : match;
+}
+
 function decodeEntities(text) {
     return text
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-        .replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(Number(n)))
-        .replace(/&#x([0-9a-fA-F]+);/g, (m, n) => String.fromCodePoint(parseInt(n, 16)))
+        .replace(/&#(\d+);/g, (m, n) => fromCode(m, Number(n)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (m, n) => fromCode(m, parseInt(n, 16)))
         .replace(/&amp;/g, '&');
 }
 
@@ -129,7 +134,8 @@ function parseSqlPromptSnippetFiles(files) {
     const snippets = [];
     const skipped = [];
     for (const file of files) {
-        const parsed = parseSqlPromptSnippetFile(file.text);
+        let parsed;
+        try { parsed = parseSqlPromptSnippetFile(file.text); } catch (error) { parsed = { snippets: [], errors: [`Cannot be read: ${error.message}`] }; }
         for (const snippet of parsed.snippets) snippets.push(Object.assign({ source: file.path }, snippet));
         for (const error of parsed.errors) skipped.push({ path: file.path, reason: error });
     }
