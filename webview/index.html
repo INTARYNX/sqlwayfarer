@@ -383,6 +383,23 @@
         </div>
     </div>
 
+    <!-- Result columns: the names of a result set's columns, one per line, to copy (all or a part) -->
+    <div id="resultColumnsModalOverlay" class="modal-overlay result-columns-modal-overlay">
+        <div class="modal-dialog modal-dialog-result-columns">
+            <div class="modal-header">
+                <h3 id="resultColumnsModalTitle">Columns</h3>
+                <button id="resultColumnsModalCloseBtn" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="result-columns-toolbar">
+                    <label class="result-columns-option"><input type="checkbox" id="resultColumnsBrackets"> [Brackets]</label>
+                    <button id="resultColumnsCopyBtn" class="column-usage-copy-btn" title="Copy the selected names, or all of them when nothing is selected"><i class="codicon codicon-copy"></i> Copy</button>
+                </div>
+                <textarea id="resultColumnsText" class="result-columns-text" readonly spellcheck="false" aria-label="Column names"></textarea>
+            </div>
+        </div>
+    </div>
+
     <!-- Write Footprint Modal: interactive graph of the tables an object reads/
          writes, including tables reached only through trigger cascades. -->
     <div id="writeFootprintOverlay" class="modal-overlay footprint-modal-overlay">

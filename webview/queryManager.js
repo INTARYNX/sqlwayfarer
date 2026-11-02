@@ -145,6 +145,7 @@ class QueryManager {
             if (action === 'copy') this.copyResultSet(set);
             else if (action === 'json') this.exportResultSetJson(set, index);
             else if (action === 'temp') this.scriptAsTempTable(set, index);
+            else if (action === 'columns') this.showColumnNames(set);
             else if (action === 'more') this.showMoreRows(index, button.dataset.rsAll === '1');
             else this.exportResultSetCsv(set, index);
         });
@@ -708,6 +709,7 @@ class QueryManager {
             + `<button data-rs-action="copy" data-rs-index="${index}" title="Copy to clipboard (tab-separated, pastes into Excel)"><i class="codicon codicon-copy"></i> Copy</button>`
             + `<button data-rs-action="csv" data-rs-index="${index}" title="Export this result set as a CSV file"><i class="codicon codicon-desktop-download"></i> CSV</button>`
             + `<button data-rs-action="json" data-rs-index="${index}" title="Export this result set as a JSON file (an array of objects)"><i class="codicon codicon-json"></i> JSON</button>`
+            + `<button data-rs-action="columns" data-rs-index="${index}" title="List the column names (one per line, to copy)" aria-label="List the column names"><i class="codicon codicon-list-flat"></i></button>`
             + `<button data-rs-action="temp" data-rs-index="${index}" title="Script this result set as CREATE TABLE #Results + INSERT, in a new query tab"><i class="codicon codicon-table"></i> #Temp</button>`
             + `</div>`
             + (set.rows.length < set.totalRows
@@ -765,6 +767,52 @@ class QueryManager {
                 + `<button data-rs-action="more" data-rs-all="1" data-rs-index="${index}">Show all</button></p>`;
         }
         return html;
+    }
+
+    // "a,\nb,\nc": the names one under the other, a comma after each but the last.
+    static columnNames(columns, brackets) {
+        return columns
+            .map((col, i) => col === '' ? `Column${i + 1}` : col)
+            .map(col => brackets ? `[${col.replace(/]/g, ']]')}]` : col)
+            .join(',\n');
+    }
+
+    // A pop-up with the column names, to copy all of them or a part.
+    showColumnNames(set) {
+        if (!this._columnsModal) {
+            const byId = id => document.getElementById(id);
+            const m = this._columnsModal = {
+                overlay: byId('resultColumnsModalOverlay'), title: byId('resultColumnsModalTitle'),
+                text: byId('resultColumnsText'), brackets: byId('resultColumnsBrackets'), copy: byId('resultColumnsCopyBtn')
+            };
+            const close = () => m.overlay.classList.remove('visible');
+            byId('resultColumnsModalCloseBtn').addEventListener('click', close);
+            m.overlay.addEventListener('click', (e) => { if (e.target === m.overlay) close(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && m.overlay.classList.contains('visible')) close(); });
+            m.brackets.addEventListener('change', () => this._renderColumnNames());
+            m.copy.addEventListener('click', () => {
+                // What is selected, or everything.
+                const selected = m.text.value.slice(m.text.selectionStart, m.text.selectionEnd);
+                const text = selected || m.text.value;
+                navigator.clipboard.writeText(text).then(
+                    () => this.setStatus(selected ? 'Selected column names copied.' : `${this._columnsOfModal.length} column name(s) copied.`, 'success'),
+                    () => this.setStatus('Copy to clipboard failed.', 'error')
+                );
+            });
+        }
+        const m = this._columnsModal;
+        this._columnsOfModal = set.columns;
+        m.title.textContent = `Columns (${set.columns.length})`;
+        this._renderColumnNames();
+        m.overlay.classList.add('visible');
+        m.text.focus();
+        m.text.select();
+    }
+
+    _renderColumnNames() {
+        const m = this._columnsModal;
+        m.text.value = QueryManager.columnNames(this._columnsOfModal, m.brackets.checked);
+        m.text.rows = Math.min(Math.max(this._columnsOfModal.length, 4), 20);
     }
 
     // The result set as CREATE TABLE #Results + INSERT, in a new query tab (all
