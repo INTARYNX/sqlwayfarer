@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.setAttribute('aria-selected', String(active));
         });
         views.forEach(view => view.classList.toggle('active', view.dataset.sbView === name));
-        vscode.setState({ tab: name });
+        vscode.setState(Object.assign({}, vscode.getState(), { tab: name }));
     };
     tabs.forEach(tab => tab.addEventListener('click', () => showTab(tab.dataset.sbTab)));
     const saved = vscode.getState();
@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'savedConnectionsLoaded':   connections.onSavedConnectionsLoaded(message); break;
             case 'openConnectionsChanged':   connections.onOpenConnectionsChanged(message.names); break;
             case 'connectionSaved':          connections.onConnectionSaved(message); break;
+            case 'connectionsImported':      connections.onConnectionsImported(message); break;
             case 'connectionDeleted':        connections.onConnectionDeleted(message); break;
             case 'testConnectionResult':     connections.onTestConnectionResult(message); break;
             case 'connectionsError':         connections.onError(message.message); break;

@@ -23,6 +23,8 @@ class SidebarConnections {
         this.openNames = [];
         this.lastConnection = null;
         this.editingName = null;
+        // Groups the user folded, kept with the view (see setState).
+        this.collapsed = new Set(this.savedCollapsed());
         this._statusTimer = null;
         this.initDOMElements();
         this.initEventListeners();
@@ -35,6 +37,7 @@ class SidebarConnections {
             listView: byId('connectionListView'),
             formView: byId('connectionFormView'),
             newBtn: byId('newConnectionBtn'),
+            importBtn: byId('importConnectionsBtn'),
             list: byId('connectionList'),
             filter: byId('connectionFilter'),
             status: byId('connectionsStatus'),
@@ -47,6 +50,7 @@ class SidebarConnections {
             nameInput: byId('connectionNameInput'),
             serverInput: byId('serverInput'),
             portInput: byId('portInput'),
+            groupInput: byId('groupInput'),
             databaseInput: byId('databaseInput'),
             authTypeSelect: byId('authTypeSelect'),
             sqlAuthFields: byId('sqlAuthFields'),
@@ -62,6 +66,7 @@ class SidebarConnections {
     initEventListeners() {
         const e = this.elements;
         e.newBtn.addEventListener('click', () => this.openForm());
+        e.importBtn.addEventListener('click', () => vscode.postMessage({ command: 'importConnections' }));
         e.backBtn.addEventListener('click', () => this.closeForm());
         e.saveBtn.addEventListener('click', () => this.save());
         e.saveAndOpenBtn.addEventListener('click', () => this.save(true));
@@ -87,6 +92,11 @@ class SidebarConnections {
         e.list.addEventListener('click', event => {
             if (event.target.closest('[data-connection-action="new"]')) {
                 this.openForm();
+                return;
+            }
+            const toggle = event.target.closest('[data-group-toggle]');
+            if (toggle) {
+                this.toggleGroup(toggle.dataset.groupToggle);
                 return;
             }
             const row = event.target.closest('[data-connection-name]');
@@ -127,12 +137,28 @@ class SidebarConnections {
         this.renderList();
     }
 
-    // Alphabetical, narrowed by the filter (name, server or database).
+    // Ungrouped first, then by group, alphabetical inside; narrowed by the
+    // filter (name, group, server or database).
     visibleConnections() {
         const needle = this.elements.filter.value.trim().toLowerCase();
+        const compare = (a, b) => (a || '').localeCompare(b || '', undefined, { sensitivity: 'base', numeric: true });
         return this.connections
-            .filter(c => !needle || [c.name, c.server, c.database].some(v => (v || '').toLowerCase().includes(needle)))
-            .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+            .filter(c => !needle || [c.name, c.group, c.server, c.database].some(v => (v || '').toLowerCase().includes(needle)))
+            .sort((a, b) => (!!a.group - !!b.group) || compare(a.group, b.group) || compare(a.name, b.name));
+    }
+
+    savedCollapsed() {
+        try {
+            const state = vscode.getState();
+            return state && Array.isArray(state.collapsedGroups) ? state.collapsedGroups : [];
+        } catch { return []; }
+    }
+
+    toggleGroup(group) {
+        if (this.collapsed.has(group)) this.collapsed.delete(group);
+        else this.collapsed.add(group);
+        try { vscode.setState(Object.assign({}, vscode.getState(), { collapsedGroups: [...this.collapsed] })); } catch { /* not kept */ }
+        this.renderList();
     }
 
     renderList() {
@@ -142,9 +168,27 @@ class SidebarConnections {
             return;
         }
         const visible = this.visibleConnections();
-        this.elements.list.innerHTML = visible.length > 0
-            ? visible.map(c => this.buildRowHtml(c)).join('')
-            : '<p class="sb-empty">No connection matches.</p>';
+        if (visible.length === 0) {
+            this.elements.list.innerHTML = '<p class="sb-empty">No connection matches.</p>';
+            return;
+        }
+        // A filter shows every match, folded or not.
+        const filtering = this.elements.filter.value.trim() !== '';
+        let html = '';
+        let current = '';
+        for (const connection of visible) {
+            const group = connection.group || '';
+            if (group && group !== current) {
+                const size = visible.filter(c => (c.group || '') === group).length;
+                const folded = !filtering && this.collapsed.has(group);
+                html += `<button type="button" class="sb-group-toggle" data-group-toggle="${this.escapeHtml(group)}" aria-expanded="${!folded}">
+                    <i class="codicon codicon-chevron-${folded ? 'right' : 'down'}"></i>${this.escapeHtml(group.split('/').join(' / '))}<span class="sb-group-count">${size}</span></button>`;
+            }
+            current = group;
+            if (group && !filtering && this.collapsed.has(group)) continue;
+            html += this.buildRowHtml(connection);
+        }
+        this.elements.list.innerHTML = html;
     }
 
     buildRowHtml(connection) {
@@ -195,6 +239,7 @@ class SidebarConnections {
         e.nameInput.value = connection ? connection.name : '';
         e.serverInput.value = connection ? connection.server || '' : '';
         e.portInput.value = connection ? connection.port || '' : '';
+        e.groupInput.value = connection ? connection.group || '' : '';
         e.databaseInput.value = connection ? connection.database || '' : '';
         const authType = connection ? connection.authType : 'sql';
         e.authTypeSelect.value = ['entra', 'windows'].includes(authType) ? authType : 'sql';
@@ -225,6 +270,7 @@ class SidebarConnections {
             authType: e.authTypeSelect.value,
             server: e.serverInput.value.trim(),
             port: e.portInput.value.trim(),
+            group: e.groupInput.value.trim().replace(/\s*\/\s*/g, '/').replace(/^\/+|\/+$/g, ''),
             database: e.databaseInput.value.trim(),
             username: e.usernameInput.value.trim(),
             password: e.passwordInput.value,
@@ -283,6 +329,13 @@ class SidebarConnections {
         } else {
             this.showFormStatus(message.message, 'error');
         }
+    }
+
+    onConnectionsImported(message) {
+        const parts = [`${message.added} added`];
+        if (message.overwritten) parts.push(`${message.overwritten} overwritten`);
+        if (message.failed) parts.push(`${message.failed} failed`);
+        this.showStatus(`Connections imported: ${parts.join(', ')}.`, message.failed ? 'error' : 'success');
     }
 
     onConnectionDeleted(message) {
