@@ -2,6 +2,7 @@
 
 const vscode = require('vscode');
 const { bracketIdentifier } = require('../../database/sqlIdentifier');
+const { describeColumn } = require('../../database/columnTypes');
 
 const HISTORY_KEY = 'sqlwayfarer.queryHistory';
 const HISTORY_LIMIT = 50;
@@ -436,7 +437,7 @@ class QueryHandlers {
                 currentSet = null;
                 return;
             }
-            currentSet = { columns: keys, rows: [], totalRows: 0 };
+            currentSet = { columns: keys, types: keys.map(key => describeColumn(columns[key])), rows: [], totalRows: 0 };
             timeline.push({ type: 'resultSet', index: resultSets.length });
             resultSets.push(currentSet);
         });
