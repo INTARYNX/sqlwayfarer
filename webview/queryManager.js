@@ -807,6 +807,8 @@ class QueryManager {
         m.overlay.classList.add('visible');
         m.text.focus();
         m.text.select();
+        // select() scrolls to the end of a long list: back to the first name.
+        m.text.scrollTop = 0;
     }
 
     _renderColumnNames() {

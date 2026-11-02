@@ -141,6 +141,15 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.click('button[data-rs-action="columns"]');
 		await p.mouse.click(5, 5);
 		check(!(await p.locator('#resultColumnsModalOverlay').isVisible()), 'a click outside closes it');
+
+		// A SELECT * on a wide table: the list scrolls inside the pop-up, from its first name.
+		const wide = Array.from({ length: 200 }, (_, i) => `Column_${i + 1}`);
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [{ columns: wide, rows: [Object.fromEntries(wide.map((c, i) => [c, i]))], totalRows: 1 }] });
+		await p.click('button[data-rs-action="columns"]');
+		const box = await p.evaluate(() => { const t = document.getElementById('resultColumnsText'); const d = document.querySelector('.modal-dialog-result-columns').getBoundingClientRect(); return { scrolls: t.scrollHeight > t.clientHeight && getComputedStyle(t).overflowY === 'auto', top: t.scrollTop, fits: d.height <= innerHeight }; });
+		check(box.scrolls && box.fits, 'a long list scrolls inside a pop-up that fits the window');
+		check(box.top === 0, 'and opens on the first name');
+		await p.keyboard.press('Escape');
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
 		check.done();
 		await p.close();
