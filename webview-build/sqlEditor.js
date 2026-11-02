@@ -27,6 +27,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
 import { sql, MSSQL } from '@codemirror/lang-sql';
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
+import { setDiagnostics } from '@codemirror/lint';
 import { snippet } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import { formatSqlScript } from './formatSql';
@@ -294,6 +295,28 @@ function attach(container, options = {}) {
     };
 
     container.focus = () => view.focus();
+
+    // Underlines what the server reported: [{ line, message, near }], lines from
+    // 1. The word the server pointed at ("near 'FROM'") when it is on the line,
+    // else the line itself. An empty list clears them. The positions follow
+    // the edits made afterwards.
+    container.setDiagnostics = (items) => {
+        const doc = view.state.doc;
+        const diagnostics = [];
+        for (const item of items || []) {
+            if (!(item.line >= 1 && item.line <= doc.lines)) continue;
+            const line = doc.line(item.line);
+            let from = line.from + (line.text.length - line.text.trimStart().length);
+            let to = line.to;
+            if (item.near) {
+                const at = line.text.toLowerCase().indexOf(item.near.toLowerCase());
+                if (at >= 0) { from = line.from + at; to = from + item.near.length; }
+            }
+            if (to <= from) { from = line.from; to = Math.max(line.to, Math.min(line.from + 1, doc.length)); }
+            if (to > from) diagnostics.push({ from, to, severity: 'error', message: item.message, source: 'SQL Server' });
+        }
+        view.dispatch(setDiagnostics(view.state, diagnostics));
+    };
     // 'scroll' doesn't bubble, and the element that actually scrolls is
     // view.scrollDOM (a descendant of container, CM's own .cm-scroller) -
     // forward it so a plain container.addEventListener('scroll', ...), as

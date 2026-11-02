@@ -27,6 +27,7 @@ class QueryManager {
     // set, only the grid shows a prefix of it.
     static MAX_RENDERED_ROWS = 2000;
     static DEFAULT_COLUMN_WIDTH = 120;
+    static SYNTAX_CHECK_DELAY_MS = 700;
     static MIN_COLUMN_WIDTH = 40;
 
     constructor() {
@@ -79,6 +80,8 @@ class QueryManager {
         }
         if (this.formatBtn) this.formatBtn.addEventListener('click', () => this.formatQuery());
         this.input.addEventListener('sw-format', () => this.formatQuery());
+        // Syntax check (the setting is the extension's, see setSyntaxEnabled): after a pause in typing.
+        this.input.addEventListener('input', () => this.scheduleSyntaxCheck());
         this.cancelBtn.addEventListener('click', () => this.cancelQuery());
         this.historySelect.addEventListener('change', () => this.applyHistorySelection());
         this.snippetsSelect.addEventListener('change', () => this.applySnippetSelection());
@@ -395,6 +398,10 @@ class QueryManager {
     // focus/caret/status side effects, unlike setQueryText below.
     loadEditorContent(text) {
         this.input.value = text;
+        // Another text: what was underlined belongs to the previous one.
+        if (typeof this.input.setDiagnostics === 'function') this.input.setDiagnostics([]);
+        this._syntaxText = null;
+        this.scheduleSyntaxCheck();
     }
 
     // Fill the editor without running (used by the Explorer script generator)
@@ -404,6 +411,7 @@ class QueryManager {
         this.input.setSelectionRange(0, 0);
         this.input.scrollTop = 0;
         this.setStatus('Script inserted - review and run when ready.', '');
+        this.scheduleSyntaxCheck();
     }
 
     // The single entry point for the Run button, Ctrl+Enter and F5. Whether
@@ -471,9 +479,50 @@ class QueryManager {
 
     // Formats the selection, or the whole script. Leaves the text alone when it
     // cannot be parsed.
+    // === Syntax check ===
+    //
+    // The text goes to the extension 700 ms after the last edit; SQL Server parses
+    // it there (database/SyntaxChecker.js) and the errors come back as lines.
+
+    setSyntaxEnabled(enabled) {
+        this.syntaxEnabled = !!enabled;
+        if (this.syntaxEnabled) this.scheduleSyntaxCheck(true);
+        else this.clearSyntaxDiagnostics();
+    }
+
+    clearSyntaxDiagnostics() {
+        clearTimeout(this._syntaxTimer);
+        this._syntaxId = (this._syntaxId || 0) + 1; // an answer still on its way is for nothing
+        this._syntaxText = null;
+        if (typeof this.input.setDiagnostics === 'function') this.input.setDiagnostics([]);
+    }
+
+    scheduleSyntaxCheck(force = false) {
+        if (!this.syntaxEnabled) return;
+        clearTimeout(this._syntaxTimer);
+        this._syntaxTimer = setTimeout(() => this.requestSyntaxCheck(force), QueryManager.SYNTAX_CHECK_DELAY_MS);
+    }
+
+    requestSyntaxCheck(force) {
+        if (!this.syntaxEnabled || typeof this.input.setDiagnostics !== 'function') return;
+        const text = this.input.value;
+        if (!text.trim()) { this.clearSyntaxDiagnostics(); return; }
+        if (!force && text === this._syntaxText) return;
+        this._syntaxText = text;
+        this._syntaxId = (this._syntaxId || 0) + 1;
+        vscode.postMessage({ command: 'checkSyntax', requestId: this._syntaxId, text });
+    }
+
+    onSyntaxResult(message) {
+        // The answer of an older text, or for a text that has changed since: a newer check follows.
+        if (message.requestId !== this._syntaxId || this.input.value !== this._syntaxText) return;
+        if (message.unavailable) return; // no connection for the check right now: what is shown stays
+        this.input.setDiagnostics(message.diagnostics || []);
+    }
+
     formatQuery() {
         if (typeof this.input.formatSql !== 'function') return;
-        if (this.input.formatSql()) this.setStatus('Formatted.', 'success');
+        if (this.input.formatSql()) { this.setStatus('Formatted.', 'success'); this.scheduleSyntaxCheck(); }
         else this.setStatus('Could not format: the SQL could not be parsed. The text is unchanged.', 'error');
         this.input.focus();
     }

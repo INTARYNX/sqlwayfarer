@@ -2617,6 +2617,14 @@ class MessageHandler {
                 }
                 break;
 
+            case 'diagnosticsSettings':
+                if (this.queryManager) this.queryManager.setSyntaxEnabled(message.syntax);
+                break;
+
+            case 'syntaxResult':
+                if (this.queryManager) this.queryManager.onSyntaxResult(message);
+                break;
+
             case 'objectParametersLoaded':
                 if (this.queryManager) {
                     this.queryManager.autocomplete.onParametersLoaded(message.database, message.objectName, message.parameters);

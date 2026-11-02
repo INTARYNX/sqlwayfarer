@@ -3161,3 +3161,20 @@ table.fp-cols .fp-center { text-align: center; }
     margin: 0;
     white-space: nowrap;
 }
+
+/* Syntax errors under the query text (CodeMirror lint): the tooltip in the theme's colors. */
+.cm-tooltip.cm-tooltip-lint {
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground));
+    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-input-border));
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.cm-tooltip-lint .cm-diagnostic-error {
+    border-left-color: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.cm-tooltip-lint .cm-diagnosticSource {
+    opacity: 0.7;
+}
