@@ -116,17 +116,45 @@ class IndexService {
         const index = await this.peekIndex(database);
         if (!index) return { state: 'none' };
         let stale = false;
+        let changes = null;
         try {
             const live = await this._getLiveObjects(database);
             stale = index.schemaChecksum !== this._checksumFromObjects(live);
+            if (stale) changes = this.diffAgainstSchema(index.objects || {}, live);
         } catch (error) {
             console.warn('Could not compare the index with the schema:', error.message);
         }
-        return {
+        const status = {
             state: stale ? 'stale' : 'ready',
             builtAt: index.lastIncrementalUpdate || index.lastFullIndex || null,
             totalObjects: index.totalObjects || 0
         };
+        if (changes) status.changes = changes;
+        return status;
+    }
+
+    // Which objects an update would re-analyze, by comparing the cached entries
+    // with the live objects (the same rule _updateIndexIncrementally applies):
+    // { modified: [qualifiedName], added: [...], removed: [...] }, sorted.
+    // An entry whose last analysis was incomplete counts as modified.
+    diffAgainstSchema(cachedObjects, liveObjects) {
+        const modified = [];
+        const added = [];
+        const seen = new Set();
+        for (const obj of liveObjects) {
+            const key = this._removeBrackets(obj.qualified_name);
+            seen.add(key);
+            const cached = cachedObjects[key];
+            if (!cached) added.push(key);
+            else if (cached.checksum !== this._entryChecksum(obj) || cached.dependenciesIncomplete) modified.push(key);
+        }
+        const removed = Object.keys(cachedObjects).filter(key => !seen.has(key));
+        const sort = list => list.sort((a, b) => a.localeCompare(b));
+        return { modified: sort(modified), added: sort(added), removed: sort(removed) };
+    }
+
+    _entryChecksum(obj) {
+        return this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`);
     }
 
     // BUILDS (or updates) the index: only for an explicit user action - the
@@ -326,7 +354,7 @@ class IndexService {
             objectId: obj.object_id,
             createDate: obj.create_date,
             modifyDate: obj.modify_date,
-            checksum: this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`),
+            checksum: this._entryChecksum(obj),
             dependencies: [],
             // { tableKey: { columnName: { write, confident } } } from the parser
             columnRefs: {},
@@ -390,7 +418,7 @@ class IndexService {
         for (const obj of liveObjects) {
             const key = this._removeBrackets(obj.qualified_name);
             const cached = cachedIndex.objects[key];
-            const checksum = this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`);
+            const checksum = this._entryChecksum(obj);
             // A previous run's dm_sql_referenced_entities call can fail because
             // it referenced an object that didn't exist YET (e.g. a stored
             // procedure created before a table it SELECTs from). Creating that

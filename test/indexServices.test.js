@@ -623,3 +623,30 @@ suite('IndexService never builds on its own', () => {
 		assert.notStrictEqual(await service.peekIndex('Db'), first);
 	});
 });
+
+suite('IndexService.diffAgainstSchema', () => {
+	const service = new IndexService({ getServerName: () => 'testserver' }, {});
+	const live = (name, modifyDate, type = 'V') => ({ qualified_name: name, type, modify_date: modifyDate });
+	const cachedFor = (obj, extra = {}) => Object.assign({ checksum: service._entryChecksum(obj) }, extra);
+
+	test('lists the modified, new and removed objects', () => {
+		const a = live('dbo.A', '1'); const b = live('dbo.B', '1'); const c = live('dbo.C', '1');
+		const cached = { 'dbo.A': cachedFor(a), 'dbo.B': cachedFor(live('dbo.B', '0')), 'dbo.Gone': cachedFor(live('dbo.Gone', '1')) };
+		assert.deepStrictEqual(service.diffAgainstSchema(cached, [a, b, c]), { modified: ['dbo.B'], added: ['dbo.C'], removed: ['dbo.Gone'] });
+	});
+
+	test('nothing to re-analyze when the schema matches', () => {
+		const a = live('dbo.A', '1');
+		assert.deepStrictEqual(service.diffAgainstSchema({ 'dbo.A': cachedFor(a) }, [a]), { modified: [], added: [], removed: [] });
+	});
+
+	test('an entry whose last analysis was incomplete counts as modified', () => {
+		const a = live('dbo.A', '1');
+		assert.deepStrictEqual(service.diffAgainstSchema({ 'dbo.A': cachedFor(a, { dependenciesIncomplete: true }) }, [a]).modified, ['dbo.A']);
+	});
+
+	test('brackets in the live names are ignored', () => {
+		const a = live('[dbo].[A]', '1');
+		assert.deepStrictEqual(service.diffAgainstSchema({ 'dbo.A': cachedFor(a) }, [a]), { modified: [], added: [], removed: [] });
+	});
+});
