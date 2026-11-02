@@ -550,7 +550,10 @@ class IndexService {
                 FROM sys.dm_sql_referenced_entities(@objectName, N'OBJECT')
                 WHERE referenced_entity_name IS NOT NULL
                   AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''
-                  AND referenced_entity_name != '' AND referenced_minor_id = 0;
+                  AND referenced_entity_name != '' AND referenced_minor_id = 0
+                  -- An ambiguous reference the server could not resolve is a method call
+                  -- (xml.value(), hierarchyid.GetAncestor()...), not an object.
+                  AND NOT (is_ambiguous = 1 AND referenced_id IS NULL);
                 ${wantsDefinition ? "SELECT OBJECT_DEFINITION(OBJECT_ID(@objectName)) AS definition;" : ''}
             `, { objectName: qualifiedName });
 

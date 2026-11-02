@@ -312,6 +312,23 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 			assert.strictEqual((await service.getIndexStatus(DB)).state, 'ready');
 		});
 
+		test('method calls on xml / hierarchyid columns are not dependencies', async () => {
+			await inScratch('CREATE TABLE dbo.XmlDocs (ID int PRIMARY KEY, Doc xml, Node hierarchyid)');
+			await inScratch('CREATE VIEW dbo.vXmlDocs AS SELECT d.ID, d.Doc.value(\'(/a)[1]\', \'int\') AS A, d.Node.GetLevel() AS Lvl, d.Node.ToString() AS Path FROM dbo.XmlDocs d WHERE d.Doc.exist(\'/a\') = 1');
+			const index = await service.forceReindex(DB);
+			assert.deepStrictEqual(index.objects['dbo.vXmlDocs'].dependencies, ['dbo.XmlDocs']);
+		});
+
+		test('a MERGE ... OUTPUT INTO writes the audit table', async () => {
+			await inScratch('CREATE TABLE dbo.AuditLive (Action nvarchar(10), Payload int)');
+			await inScratch(`CREATE PROCEDURE dbo.uspMergeLive AS
+				MERGE dbo.Employees AS t USING (SELECT 1 AS Id) AS s ON t.ID = s.Id
+				WHEN MATCHED THEN UPDATE SET t.Name = 'x'
+				OUTPUT $action, inserted.ID INTO dbo.AuditLive (Action, Payload);`);
+			const index = await service.forceReindex(DB);
+			assert.deepStrictEqual([...index.objects['dbo.uspMergeLive'].tableWrites].sort(), ['dbo.auditlive', 'dbo.employees']);
+		});
+
 		test('the features that need the index say so when it is missing', async () => {
 			const fresh = new IndexService(makeConnectionManager(), new DatabaseService(makeConnectionManager()));
 			fresh._indexDir = path.join(indexDir, 'empty');
