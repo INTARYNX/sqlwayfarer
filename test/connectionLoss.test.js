@@ -35,6 +35,10 @@ suite('isConnectionLostMessage', () => {
 	});
 
 	test('no text, no loss', () => {
+		assert.strictEqual(isConnectionLostMessage('No active connection'), true);
+	});
+
+	test('a closed connection of the schema source is a loss', () => {
 		assert.strictEqual(isConnectionLostMessage(''), false);
 		assert.strictEqual(isConnectionLostMessage(undefined), false);
 		assert.strictEqual(isConnectionLostMessage(null), false);

@@ -352,6 +352,7 @@ class SqlWayfarerPanel {
         if (this._connecting || this._disposed) return;
         this._connectionLost = false;
         try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error closing the lost connection:', error); }
+        await this._schemaSource.reset();
         await this._connect();
     }
 
