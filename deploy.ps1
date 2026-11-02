@@ -49,6 +49,8 @@ $content = $content -replace "`"version`": `"$pkgVersion`"", "`"version`": `"$ne
 Write-Host "Building..."
 & npm run build
 if (-not $?) { Fail "Build failed" }
+& npm run build:helper
+if (-not $?) { Fail "Helper build failed" }
 
 # Publish
 Write-Host "Publishing v$newVersion..."

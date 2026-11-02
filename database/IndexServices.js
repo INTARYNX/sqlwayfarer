@@ -30,6 +30,8 @@ class IndexService {
         // and a second caller for the SAME database joins the existing entry
         // instead of racing a duplicate build.
         this._builds = new Map();
+        // index file -> { mtime, index }: the parsed index peekIndex last read.
+        this._peeked = new Map();
     }
 
     // Ask the running indexing loop for this database to stop at the next
@@ -68,8 +70,68 @@ class IndexService {
         }
     }
 
-    // Concurrent calls for the same database (background indexing + a details
-    // click asking for dependencies or column usage) share one in-flight
+    // The index as it is cached on this computer, WITHOUT ever building or
+    // updating it (null when there is none): the dependency tree, column usage,
+    // dictionary, write footprint... all read the index through here. Building
+    // reads every definition of the database - it only happens when the user
+    // asks for it (getIndex / forceReindex), never as a side effect of looking
+    // at something. A build the user started is awaited, not duplicated.
+    // The index may be out of date; getIndexStatus says so.
+    async peekIndex(database) {
+        const building = this._builds.get(database);
+        if (building) {
+            try { return await building.promise; } catch { return null; }
+        }
+        const indexFile = await this._migrateLegacyIndexFile(database);
+        let mtime;
+        try { mtime = (await fs.stat(indexFile)).mtimeMs; } catch { return null; }
+        const cached = this._peeked.get(indexFile);
+        if (cached && cached.mtime === mtime) return cached.index;
+        const index = await this._loadIndex(indexFile);
+        if (index) this._peeked.set(indexFile, { mtime, index });
+        else this._peeked.delete(indexFile);
+        return index;
+    }
+
+    // peekIndex for the features that cannot work without an index (write
+    // footprint, query graph): a clear error instead of a silent build.
+    async requireIndex(database) {
+        const index = await this.peekIndex(database);
+        if (!index) {
+            const error = new Error('This needs the dependency index of the database, which has not been built. Open the Explorer and choose "Build index" first.');
+            error.code = 'INDEX_NOT_BUILT';
+            throw error;
+        }
+        return index;
+    }
+
+    // Where the index of a database stands, for the Explorer notice:
+    //   building - a build is running
+    //   none     - nothing cached (or in an older format)
+    //   stale    - cached, but the schema changed since (modify_date checksum)
+    //   ready    - cached and current
+    // Only reads: one lightweight sys.objects query, no definition is analyzed.
+    async getIndexStatus(database) {
+        if (this._builds.has(database)) return { state: 'building' };
+        const index = await this.peekIndex(database);
+        if (!index) return { state: 'none' };
+        let stale = false;
+        try {
+            const live = await this._getLiveObjects(database);
+            stale = index.schemaChecksum !== this._checksumFromObjects(live);
+        } catch (error) {
+            console.warn('Could not compare the index with the schema:', error.message);
+        }
+        return {
+            state: stale ? 'stale' : 'ready',
+            builtAt: index.lastIncrementalUpdate || index.lastFullIndex || null,
+            totalObjects: index.totalObjects || 0
+        };
+    }
+
+    // BUILDS (or updates) the index: only for an explicit user action - the
+    // Explorer's "Build index" / "Update index" buttons and Force reindex.
+    // Concurrent calls for the same database share one in-flight
     // promise/build entry: without this, a second call would reset progress/
     // cancel state mid-build and could run a duplicate full rebuild.
     async getIndex(database, progressCallback = null) {
@@ -149,6 +211,7 @@ class IndexService {
         const indexFile = this._getIndexFilePath(database, build.server);
         await this._ensureIndexDir(path.dirname(indexFile));
         try { await fs.unlink(indexFile); } catch { /* file may not exist yet */ }
+        this._peeked.delete(indexFile);
 
         const liveObjects = await this._getLiveObjects(database);
         const index = await this._buildCompleteIndex(database, this._checksumFromObjects(liveObjects), liveObjects, build.server);
@@ -169,6 +232,7 @@ class IndexService {
         // The legacy file too: it would be migrated back on the next index
         // build, and the user asked for the index to be gone.
         const legacyFile = this._legacyIndexFilePath(database);
+        this._peeked.delete(indexFile);
         for (const file of [indexFile, legacyFile]) {
             try {
                 await fs.unlink(file);
@@ -201,13 +265,15 @@ class IndexService {
     }
 
     async getObjectDependencies(database, objectName) {
-        const index = await this.getIndex(database);
+        const index = await this.peekIndex(database);
+        if (!index) return [];
         const obj = index.objects[this._removeBrackets(objectName)];
         return obj?.dependencies || [];
     }
 
     async findDependents(database, targetObject) {
-        const index = await this.getIndex(database);
+        const index = await this.peekIndex(database);
+        if (!index) return [];
         const normalizedTarget = this._removeBrackets(targetObject);
         const dependents = [];
         for (const [, obj] of Object.entries(index.objects)) {
@@ -552,7 +618,8 @@ class IndexService {
      * Returns { columnName: [{ object, type, write, confident }] } (lowercase keys).
      */
     async getColumnUsage(database, tableName) {
-        const index = await this.getIndex(database);
+        const index = await this.peekIndex(database);
+        if (!index) return null; // not built: unavailable, which is not "no references"
         const clean = this._removeBrackets(tableName).toLowerCase();
         const bare = clean.split('.').pop();
 

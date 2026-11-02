@@ -37,7 +37,7 @@ class QueryGraphService {
         if (!sql || !sql.trim()) {
             return QueryGraphService.emptyGraph();
         }
-        const index = await this._indexService.getIndex(database);
+        const index = await this._indexService.requireIndex(database);
         const parsed = this._sqlParser.analyzeJoins(sql);
         if (!parsed) {
             return { ...QueryGraphService.emptyGraph(), parseFailed: true };

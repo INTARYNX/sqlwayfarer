@@ -4,7 +4,6 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 
-const ConnectionStorage = require('../storage/ConnectionStorage');
 const ConnectionManager = require('../database/ConnectionManager');
 const { createVsCodeTokenFetcher } = require('../database/entraToken');
 const DatabaseService = require('../database/DatabaseService');
@@ -18,6 +17,15 @@ const QueryGraphService = require('../database/QueryGraphService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 
+const { connectionIdentity } = require('../database/connectionIdentity');
+const { readIconSprite } = require('./iconSprite');
+const { readAutocompleteSettings } = require('./autocompleteSettings');
+const { isConnectionLostMessage } = require('../database/connectionLoss');
+
+// Messages whose text can tell that the connection was lost.
+const ERROR_COMMANDS = new Set(['error', 'queryError']);
+// Messages that prove the server answered: a lost connection came back.
+const ANSWER_COMMANDS = new Set(['queryResult', 'planResult', 'objectsLoaded', 'databasesLoaded']);
 const { PanelStateStore } = require('./panelState');
 const { RatingPrompt } = require('./ratingPrompt');
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
@@ -33,13 +41,16 @@ const QueryGraphHandlers = require('./handlers/QueryGraphHandlers');
 const SnippetHandlers = require('./handlers/SnippetHandlers');
 
 class SqlWayfarerPanel {
-    constructor(panel, extensionUri, context, panelRegistry) {
+    // connectionStorage: the extension-wide one (the connections are managed
+    // from the sidebar). connectionName: the saved connection this tab is
+    // opened for - a tab never changes connection.
+    constructor(panel, extensionUri, context, panelRegistry, connectionStorage, connectionName) {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._context = context;
         this._disposables = [];
         this._currentSelectedDatabase = null;
-        // Which tab of the panel (configuration / query / explorer) is open.
+        // Which tab of the panel (query / explorer) is open.
         // Mirrors the webview, and is restored with the database when the
         // page is rebuilt - see PanelStateStore.
         this._activeTab = null;
@@ -60,18 +71,31 @@ class SqlWayfarerPanel {
         // Human-readable form of the above (saved connection name, or the
         // server address for an unsaved ad-hoc connection) - shown in the
         // VS Code tab title so several open tabs can be told apart.
-        this.connectionLabel = null;
+        this.connectionLabel = connectionName;
+        // Name of the saved connection this tab was opened for (see
+        // PanelRegistry.findByConnectionName).
+        this.connectionName = connectionName;
+        // Known from the start, not once connected: a second click on a
+        // connection of the same server + login, while this tab is still
+        // connecting, must find this tab instead of opening a doomed second
+        // one (see ConnectionLauncher.open).
+        const saved = connectionStorage.getConnection(connectionName);
+        this.connectionIdentity = saved ? connectionIdentity(saved) : null;
+        // True while a connection attempt is running, so a double click on
+        // Retry does not start two.
+        this._connecting = false;
+        // Set when an error says the connection is gone, until the server
+        // answers again (or the tab reconnects): the webview is told once.
+        this._connectionLost = false;
         this._panelRegistry = panelRegistry;
         this._panelRegistry.register(this);
 
-        // Resolved once the connection storage is readable. The webview asks
-        // for the saved connections as soon as its page loads, which now
-        // happens before the storage has been read - so the handler waits
-        // for this instead of answering with an empty list.
-        this._readyPromise = new Promise(resolve => { this._resolveReady = resolve; });
-
-        this._connectionStorage = new ConnectionStorage(context);
-        this._connectionManager = new ConnectionManager(this._connectionStorage, createVsCodeTokenFetcher(vscode));
+        this._connectionStorage = connectionStorage;
+        this._connectionManager = new ConnectionManager(
+            this._connectionStorage,
+            createVsCodeTokenFetcher(vscode),
+            path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
+        );
         this._panelState = new PanelStateStore(context.workspaceState);
         // Asks the user, every now and then, to rate the extension: the
         // Marketplace shows the rating right in the search results.
@@ -101,7 +125,7 @@ class SqlWayfarerPanel {
             onConnectionChanged: (identity, label) => this._onConnectionChanged(identity, label)
         };
 
-        this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage, panelController, () => this._readyPromise);
+        this._conn = new ConnectionHandlers(post, this._connectionManager, this._connectionStorage, panelController);
         this._db = new DatabaseHandlers(post, this._databaseService, this._dependencyService, this._indexService, getDb);
         this._comments = new CommentsHandlers(post, this._commentsService);
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
@@ -122,6 +146,8 @@ class SqlWayfarerPanel {
         this._update();
 
         this._initialize();
+        // The sidebar shows which connections have a tab.
+        this._panelRegistry.notifyOpenConnectionsChanged();
     }
 
     // One call = one new tab, each with its own independent connection -
@@ -129,7 +155,7 @@ class SqlWayfarerPanel {
     // no "reveal the existing one" shortcut here; PanelRegistry is what lets
     // these multiple instances still coordinate (shared snippets, no two
     // tabs on the same connection) without being a singleton themselves.
-    static createOrShow(extensionUri, context, panelRegistry) {
+    static createOrShow(extensionUri, context, panelRegistry, connectionStorage, connectionName) {
         const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
 
         const panel = vscode.window.createWebviewPanel(
@@ -147,10 +173,12 @@ class SqlWayfarerPanel {
             { enableScripts: true, localResourceRoots: [extensionUri], enableFindWidget: true, retainContextWhenHidden: true }
         );
 
-        return new SqlWayfarerPanel(panel, extensionUri, context, panelRegistry);
+        return new SqlWayfarerPanel(panel, extensionUri, context, panelRegistry, connectionStorage, connectionName);
     }
 
     post(message) {
+        // A connection attempt or a query can end after the tab was closed.
+        if (this._disposed) return;
         // The webview rebuilds the database list from scratch when it gets
         // this message, which wipes the selected database - so the panel's
         // own state travels with it and the webview puts the selection back.
@@ -160,10 +188,41 @@ class SqlWayfarerPanel {
             this._pendingTabRestore = null;
         }
         this._panel.webview.postMessage(message);
+        this._watchConnection(message);
+    }
+
+    // The tab learns that the connection died from the errors that come back
+    // (a query, the object list...), and that it lives again from the answers.
+    _watchConnection(message) {
+        if (!this._connectionLost && ERROR_COMMANDS.has(message.command) && isConnectionLostMessage(message.message)) {
+            this._connectionLost = true;
+            this._panel.webview.postMessage({ command: 'connectionLost', message: 'The connection to the server was lost.' });
+        } else if (this._connectionLost && ANSWER_COMMANDS.has(message.command)) {
+            this._connectionLost = false;
+            this._panel.webview.postMessage({ command: 'connectionRecovered' });
+        }
     }
 
     reveal() {
         this._panel.reveal();
+    }
+
+    // Another saved connection of the same server + login was opened: this
+    // tab serves both, so it moves to that connection's database.
+    selectDatabase(database) {
+        if (!database) return;
+        // Set before anything is sent: a tab still connecting picks it up
+        // with its list of databases.
+        this._currentSelectedDatabase = database;
+        this._persistPanelState({ database });
+        this.post({ command: 'selectDatabase', database });
+    }
+
+    // The saved connection of this tab was renamed (from the sidebar).
+    renameConnection(newName) {
+        this.connectionName = newName;
+        this.connectionLabel = newName;
+        this._updateTitle();
     }
 
     // Called after a successful connect. What the panel remembers (selected
@@ -195,7 +254,8 @@ class SqlWayfarerPanel {
         }
         if (this._pageFresh) {
             this._pageFresh = false;
-            this._activeTab = (state && state.tab) || null;
+            // 'configuration' was the connection form, which no longer exists.
+            this._activeTab = (state && state.tab !== 'configuration' && state.tab) || null;
             this._pendingTabRestore = this._activeTab;
         }
     }
@@ -212,12 +272,6 @@ class SqlWayfarerPanel {
 
     async _initialize() {
         try {
-            await this._connectionStorage.initialize();
-            // Release the waiters first: whoever asked for the saved
-            // connections must get an answer even if the panel is on its way
-            // out.
-            this._resolveReady();
-            if (this._disposed) return;
             this._dependencyService.setIndexService(this._indexService);
             this._dependencyService.setConnectionManager(this._connectionManager);
             // Needed to resolve the type of objects living in another database
@@ -227,15 +281,50 @@ class SqlWayfarerPanel {
             console.log('SqlWayfarerPanel initialized successfully');
         } catch (error) {
             console.error('Error initializing SqlWayfarerPanel:', error);
-            // Release the waiters even on failure - the webview must get an
-            // answer (an empty one) rather than hang on the loading overlay.
-            this._resolveReady();
             vscode.window.showErrorMessage(`Failed to initialize SQL Wayfarer: ${error.message}`);
         }
     }
 
+    // Connects this tab to its saved connection - once the page is up, and
+    // again on Retry. A page rebuilt while the connection is still alive just
+    // gets the status again.
+    async _connect() {
+        if (this._connecting || this._disposed) return;
+        this._connecting = true;
+        try {
+            if (this._connectionManager.isConnected()) {
+                this._restorePanelState();
+                this.post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
+                await this._db.handleGetDatabases();
+                return;
+            }
+            // A connection saved with a database opens on it.
+            const saved = this._connectionStorage.getConnection(this.connectionName);
+            if (saved && saved.database) this._currentSelectedDatabase = saved.database;
+            const ok = await this._conn.handleConnectWithSaved(this.connectionName);
+            if (ok) await this._db.handleGetDatabases();
+        } finally {
+            this._connecting = false;
+        }
+    }
+
+    async _reconnect() {
+        if (this._connecting || this._disposed) return;
+        this._connectionLost = false;
+        try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error closing the lost connection:', error); }
+        await this._connect();
+    }
+
+    // The query editor's autocompletion follows the sqlwayfarer.autocomplete.* settings, live.
+    _postAutocompleteSettings() {
+        this.post({ command: 'autocompleteSettings', settings: readAutocompleteSettings(vscode.workspace.getConfiguration('sqlwayfarer.autocomplete')) });
+    }
+
     _setupEventHandlers() {
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        this._disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('sqlwayfarer.autocomplete')) this._postAutocompleteSettings();
+        }));
         this._panel.webview.onDidReceiveMessage(
             async message => {
                 try {
@@ -251,40 +340,17 @@ class SqlWayfarerPanel {
     }
 
     async _handleMessage(message) {
-        const { conn: c, db: d, comments: cm, idx: ix, query: q, queryFiles: qf } = {
-            conn: this._conn, db: this._db, comments: this._comments, idx: this._idx, query: this._query, queryFiles: this._queryFiles
+        const { db: d, comments: cm, idx: ix, query: q, queryFiles: qf } = {
+            db: this._db, comments: this._comments, idx: this._idx, query: this._query, queryFiles: this._queryFiles
         };
 
         switch (message.command) {
             // Connection
-            case 'connect': {
-                const ok = await c.handleConnect(message.connectionConfig);
-                if (ok) await d.handleGetDatabases();
-                break;
-            }
-            case 'connectWithSaved': {
-                const ok = await c.handleConnectWithSaved(message.connectionName);
-                if (ok) await d.handleGetDatabases();
-                break;
-            }
-            case 'saveConnection': {
-                const ok = await c.handleSaveConnection(message.connectionConfig, message.originalName);
-                if (ok) await c.handleLoadConnections();
-                break;
-            }
-            case 'deleteConnection': {
-                const ok = await c.handleDeleteConnection(message.connectionName);
-                if (ok) await c.handleLoadConnections();
-                break;
-            }
-            case 'loadConnections':             await c.handleLoadConnections(); break;
-            case 'setAutoConnect':              await c.handleSetAutoConnect(message.enabled); break;
-            case 'loadConnectionForDisplay':    await c.handleLoadConnectionForDisplay(message.connectionName); break;
-            case 'testConnection':              await c.handleTestConnection(message.connectionConfig); break;
-            // Re-runs the same command the activity bar/command palette use,
-            // rather than duplicating createOrShow's wiring here - it already
-            // has extensionUri/context/panelRegistry in closure (extension.js).
-            case 'openNewPanel':                 await vscode.commands.executeCommand('sqlwayfarer.sqlwayfarer'); break;
+            // The "Retry" of a tab whose connection failed.
+            case 'retryConnection':             await this._connect(); break;
+            // The "Reconnect" of a connection that was lost: a new connection to
+            // the same server, the tab itself (queries, selected database) stays.
+            case 'reconnect':                   await this._reconnect(); break;
 
             // Database
             case 'setCurrentDatabase':
@@ -311,11 +377,11 @@ class SqlWayfarerPanel {
             // this tab was showing instead of starting from scratch.
             case 'panelReady':
                 this._pageFresh = true;
+                await this._connect();
                 break;
             case 'getDatabases':                await d.handleGetDatabases(); break;
-            // No background indexing here anymore - the dependency index is
-            // only ever built when the user opens the Explorer tab (see
-            // 'getIndex' below), not just from picking a database.
+            // The dependency index is never built on its own: only on the
+            // user's request ('getIndex' below, from the Explorer notice).
             case 'getObjects':                  await d.handleGetObjects(message.database); break;
             case 'getTableDetails':             await d.handleGetTableDetails(message.database, message.table); break;
             case 'getColumnUsage':              await d.handleGetColumnUsage(message.database, message.table); break;
@@ -325,6 +391,8 @@ class SqlWayfarerPanel {
             case 'getTableRowCount':            await d.handleGetTableRowCount(message.database, message.tableName); break;
             case 'getTableSampleData':          await d.handleGetTableSampleData(message.database, message.tableName, message.limit); break;
             case 'getObjectColumns':            await d.handleGetObjectColumns(message.database, message.objectName); break;
+            case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
+            case 'getAutocompleteSettings':      this._postAutocompleteSettings(); break;
             case 'getAutocompleteObjects':       await d.handleGetAutocompleteObjects(message.database); break;
             case 'getForeignKeys':               await d.handleGetForeignKeys(message.database); break;
             case 'searchDefinitions':           await d.handleSearchDefinitions(message.database, message.searchText); break;
@@ -344,6 +412,8 @@ class SqlWayfarerPanel {
             case 'forceReindex':                await ix.handleForceReindex(message.database); break;
             case 'cancelIndexing':              await ix.handleCancelIndexing(message.database); break;
             case 'getIndexStats':               await ix.handleGetIndexStats(message.database); break;
+            case 'getIndexStatus':              await ix.handleGetIndexStatus(message.database); break;
+            case 'loadIndex':                   await ix.handleLoadIndex(message.database); break;
             case 'getIndex':                    await ix.handleGetIndex(message.database); break;
             case 'confirmForceReindex':         await ix.handleConfirmForceReindex(message.database); break;
 
@@ -407,29 +477,21 @@ class SqlWayfarerPanel {
         const htmlPath = path.join(this._extensionUri.fsPath, 'webview', 'index.html');
         let html = fs.readFileSync(htmlPath, 'utf8');
 
-        // mtime of the bundle actually loaded (dist/extension.js) - makes it
-        // possible to check that the last build is really the one under test,
-        // and not a session left running on the previous code.
-        let buildTime = 'unknown';
-        try {
-            const bundlePath = path.join(this._extensionUri.fsPath, 'dist', 'extension.js');
-            buildTime = fs.statSync(bundlePath).mtime.toLocaleString();
-        } catch (error) {
-            console.warn('Could not read build time:', error);
-        }
-        html = html.replace('{{BUILD_TIME}}', buildTime);
-
+        html = html.replace('{{ICON_SPRITE}}', () => readIconSprite(this._extensionUri.fsPath));
         html = html.replace(/\{\{CSP_SOURCE\}\}/g, w.cspSource);
         html = html.replace('{{CODICON_STYLES_URI}}',       u('webview', 'codicons', 'codicon.css'));
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
         html = html.replace('{{CODE_VIEW_STYLES_URI}}',     u('webview', 'codeView.css'));
         html = html.replace('{{QUERY_PLAN_STYLES_URI}}',    u('webview', 'vendor', 'html-query-plan', 'qp.css'));
+        html = html.replace('{{ICONS_URI}}',                u('webview', 'icons.js'));
         html = html.replace('{{TAB_MANAGER_URI}}',          u('webview', 'tabManager.js'));
-        html = html.replace('{{CONNECTION_MANAGER_URI}}',   u('webview', 'connectionManager.js'));
+        html = html.replace('{{CONNECTION_STATUS_URI}}',    u('webview', 'connectionStatus.js'));
         html = html.replace('{{COMMENTS_MANAGER_URI}}',     u('webview', 'commentsManager.js'));
         html = html.replace('{{CODE_VIEW_MANAGER_URI}}',    u('webview', 'codeViewManager.js'));
         html = html.replace('{{BUILTIN_SNIPPETS_URI}}',      u('webview', 'builtinSnippets.js'));
+        html = html.replace('{{SQL_MATCHER_URI}}',          u('webview', 'sqlMatcher.js'));
+        html = html.replace('{{SQL_CONTEXT_URI}}',          u('webview', 'sqlContext.js'));
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
         html = html.replace('{{SQL_EDITOR_URI}}',           u('dist', 'webview', 'sqlEditor.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
@@ -450,6 +512,7 @@ class SqlWayfarerPanel {
     async dispose() {
         this._disposed = true;
         this._panelRegistry.unregister(this);
+        this._panelRegistry.notifyOpenConnectionsChanged();
         this._panel.dispose();
 
         this._idx.cancel();

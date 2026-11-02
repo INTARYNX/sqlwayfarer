@@ -3,6 +3,16 @@
 const parseObjectName = require('./parseObjectName');
 const { bracketIdentifier } = require('./sqlIdentifier');
 
+// "nvarchar" + max_length 100 -> "nvarchar(50)". max_length is in bytes (-1 = max).
+function formatSqlType(type, maxLength, precision, scale) {
+    const t = String(type || '').toLowerCase();
+    if (['char', 'varchar', 'binary', 'varbinary'].includes(t)) return `${t}(${maxLength === -1 ? 'max' : maxLength})`;
+    if (['nchar', 'nvarchar'].includes(t)) return `${t}(${maxLength === -1 ? 'max' : maxLength / 2})`;
+    if (['decimal', 'numeric'].includes(t)) return `${t}(${precision},${scale})`;
+    if (['datetime2', 'datetimeoffset', 'time'].includes(t) && scale !== 7 && scale !== undefined) return `${t}(${scale})`;
+    return type;
+}
+
 class DatabaseService {
     constructor(connectionManager) {
         this._connectionManager = connectionManager;
@@ -128,17 +138,53 @@ class DatabaseService {
 
     // Lightweight column list for query autocompletion - getTableDetails is far
     // too heavy (indexes, FKs, dependencies) to call on every completion request.
+    // The type is the full one (nvarchar(50), decimal(18,2)); the flags feed the
+    // details line of the suggestion list.
     async getObjectColumns(database, objectName) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
         const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT c.name AS column_name, TYPE_NAME(c.user_type_id) AS data_type
+            SELECT c.name AS column_name,
+                   TYPE_NAME(c.user_type_id) AS data_type,
+                   c.max_length, c.precision, c.scale, c.is_nullable, c.is_identity,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM sys.index_columns ic
+                       JOIN sys.indexes i ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+                       WHERE i.is_primary_key = 1 AND ic.object_id = c.object_id AND ic.column_id = c.column_id
+                   ) THEN 1 ELSE 0 END AS is_primary_key
             FROM sys.columns c
             WHERE c.object_id = OBJECT_ID(@objectName)
             ORDER BY c.column_id
         `, { objectName });
 
-        return result.recordset.map(row => ({ name: row.column_name, type: row.data_type }));
+        return result.recordset.map(row => ({
+            name: row.column_name,
+            type: formatSqlType(row.data_type, row.max_length, row.precision, row.scale),
+            nullable: !!row.is_nullable,
+            isIdentity: !!row.is_identity,
+            isPrimaryKey: !!row.is_primary_key
+        }));
+    }
+
+    // Parameters of a procedure or function, for "EXEC proc @..." completion.
+    // (Whether a parameter has a default is not asked: sys.parameters only
+    // maintains it for CLR objects, it is 0 for every Transact-SQL one.)
+    async getObjectParameters(database, objectName) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT p.name AS parameter_name, TYPE_NAME(p.user_type_id) AS data_type,
+                   p.max_length, p.precision, p.scale, p.is_output
+            FROM sys.parameters p
+            WHERE p.object_id = OBJECT_ID(@objectName) AND p.parameter_id > 0
+            ORDER BY p.parameter_id
+        `, { objectName });
+
+        return result.recordset.map(row => ({
+            name: row.parameter_name,
+            type: formatSqlType(row.data_type, row.max_length, row.precision, row.scale),
+            isOutput: !!row.is_output
+        }));
     }
 
     async getTableDetails(database, tableName) {
@@ -454,3 +500,4 @@ class DatabaseService {
 }
 
 module.exports = DatabaseService;
+module.exports.formatSqlType = formatSqlType;

@@ -67,51 +67,46 @@
     gap: 8px;
 }
 
+/* Small buttons of the code header: the normal secondary button, smaller. */
 .code-action-btn {
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: 1px solid var(--vscode-input-border);
-    padding: 4px 8px;
-    font-size: 11px;
-    border-radius: 3px;
-    cursor: pointer;
-    width: auto;
+    padding: 3px 10px;
+    font-size: 12px;
+    border-radius: 2px;
     margin: 0;
     display: flex;
     align-items: center;
     gap: 4px;
 }
 
-.code-action-btn:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
+/* On: the line numbers are showing. */
+.code-action-btn.active {
+    border-color: var(--vscode-focusBorder);
 }
 
 /* flex:1 fills the whole tab height - no max-height cap, which also made
    the old Expand/Collapse button redundant (removed). */
+/* flex:1 fills the whole tab height. The read-only CodeMirror view fills the
+   box and scrolls inside it. */
 .code-content {
     position: relative;
     background: var(--vscode-textCodeBlock-background);
     flex: 1;
-    min-height: 0;
-    overflow: auto;
+    min-height: 240px;
+    overflow: hidden;
     border-radius: 0 0 4px 4px;
 }
 
-.code-editor {
-    display: block;
-    padding: 15px;
-    margin: 0;
-    color: var(--vscode-editor-foreground);
-    font-family: var(--vscode-editor-font-family);
-    font-size: var(--vscode-editor-font-size, 14px);
-    line-height: 1.5;
+.code-cm {
+    position: absolute;
+    inset: 0;
+}
+
+/* Without the editor bundle: plain text, as it was. */
+.code-cm.code-plain {
+    overflow: auto;
+    padding: 10px 15px;
     white-space: pre-wrap;
-    word-wrap: break-word;
-    background: transparent;
-    border: none;
-    overflow: visible;
-    tab-size: 4;
-    -moz-tab-size: 4;
+    font-family: var(--vscode-editor-font-family);
 }
 
 .code-metrics {
@@ -164,8 +159,8 @@
 }
 
 .code-error {
-    background: rgba(220, 53, 69, 0.1);
-    border: 1px solid #dc3545;
+    background: var(--vscode-inputValidation-errorBackground, rgba(220, 53, 69, 0.1));
+    border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-charts-red, #dc3545));
     border-radius: 4px;
     padding: 20px;
     margin: 15px 0;
@@ -182,63 +177,27 @@
 }
 
 /* === OBJECT TYPE INDICATORS === */
+/* The hue says what the object is; the text stays in the normal foreground,
+   so the contrast does not depend on the colour or the theme. */
 .object-type-indicator {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 6px;
+    padding: 2px 8px;
     border-radius: 3px;
-   font-size: 10px;
-   font-weight: bold;
-   text-transform: uppercase;
-   background: var(--vscode-button-secondaryBackground);
-   color: var(--vscode-button-secondaryForeground);
-   border: 1px solid var(--vscode-input-border);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vscode-foreground);
+    background: color-mix(in srgb, var(--badge-hue, var(--vscode-descriptionForeground)) 22%, transparent);
+    border: 1px solid var(--badge-hue, var(--vscode-input-border));
 }
 
-.procedure-indicator {
-   background: #7B1FA2 !important;
-   color: white !important;
-   border-color: #6A1B9A !important;
-}
-
-.procedure-indicator::before {
-   font-family: "codicon";
-   content: "\eaf8"; /* codicon-gear */
-}
-
-.function-indicator {
-   background: #5D4037 !important;
-   color: white !important;
-   border-color: #4E342E !important;
-}
-
-.function-indicator::before {
-   font-family: "codicon";
-   content: "\eb65"; /* codicon-wrench */
-}
-
-.view-indicator {
-   background: #CC6900 !important;
-   color: white !important;
-   border-color: #BF6000 !important;
-}
-
-.view-indicator::before {
-   font-family: "codicon";
-   content: "\ea70"; /* codicon-eye */
-}
-
-.trigger-indicator {
-   background: #C62828 !important;
-   color: white !important;
-   border-color: #B71C1C !important;
-}
-
-.trigger-indicator::before {
-   font-family: "codicon";
-   content: "\ea86"; /* codicon-zap */
-}
+.procedure-indicator { --badge-hue: var(--vscode-charts-purple, #b180d7); }
+.function-indicator { --badge-hue: var(--vscode-charts-yellow, #cca700); }
+.view-indicator { --badge-hue: var(--vscode-charts-orange, #d18616); }
+.trigger-indicator { --badge-hue: var(--vscode-charts-red, #f14c4c); }
 
 /* === TABLE CODE MESSAGE === */
 .table-code-message {
@@ -257,30 +216,6 @@
    font-size: 18px;
    vertical-align: middle;
    margin-right: 8px;
-}
-
-/* === LINE NUMBERS === */
-.code-with-lines {
-   display: flex;
-}
-
-.line-numbers {
-   background: var(--vscode-input-background);
-   border-right: 1px solid var(--vscode-input-border);
-   padding: 15px 8px;
-   font-family: var(--vscode-editor-font-family);
-   font-size: var(--vscode-editor-font-size, 14px);
-   line-height: 1.5;
-   color: var(--vscode-descriptionForeground);
-   user-select: none;
-   white-space: pre;
-   min-width: 40px;
-   text-align: right;
-}
-
-.code-with-lines .code-editor {
-   flex: 1;
-   padding-left: 10px;
 }
 
 /* === RESPONSIVE DESIGN === */
@@ -310,14 +245,4 @@
        gap: 10px;
    }
    
-   .code-editor {
-       font-size: 12px;
-       padding: 10px;
-   }
-   
-   .line-numbers {
-       padding: 10px 4px;
-       font-size: 12px;
-       min-width: 30px;
-   }
 }

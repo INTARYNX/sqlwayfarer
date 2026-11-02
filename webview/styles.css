@@ -3,6 +3,24 @@ html {
     height: 100%;
 }
 
+/* VS Code puts vscode-light / vscode-dark (and the high-contrast pair) on the
+   body: native controls - checkboxes, dropdown lists, scrollbars - follow the
+   theme instead of staying light on a dark page. */
+body.vscode-dark,
+body.vscode-high-contrast {
+    color-scheme: dark;
+}
+
+body.vscode-light,
+body.vscode-high-contrast-light {
+    color-scheme: light;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--vscode-focusBorder);
+}
+
 body {
     height: 100%;
     box-sizing: border-box;
@@ -31,12 +49,56 @@ body {
     vertical-align: middle;
 }
 
+/* SQL Wayfarer's own icons (webview/icons.svg): drawn with the text colour. */
+.sw-icon {
+    width: 1.1em;
+    height: 1.1em;
+    flex: none;
+    vertical-align: middle;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* The icon font draws its glyphs left of the middle of their box (about 0.07
+   to 0.16em depending on the icon, measured), so an icon alone in a button
+   looks off-centre even though its box is centred. Each icon gets the nudge
+   that brings its ink to the middle; the play triangle a little more, since
+   its visual weight sits on the base, not in the middle of its width. In em,
+   so it follows the icon size. */
+.codicon {
+    --icon-nudge: 0.09em;
+}
+.codicon-play { --icon-nudge: 0.22em; }
+.codicon-git-merge,
+.codicon-arrow-left { --icon-nudge: 0.125em; }
+.codicon-copy { --icon-nudge: 0.16em; }
+.codicon-history { --icon-nudge: 0.13em; }
+.codicon-add,
+.codicon-trash { --icon-nudge: 0.1em; }
+.codicon-save,
+.codicon-graph,
+.codicon-graph-line,
+.codicon-edit,
+.codicon-folder-opened,
+.codicon-compass { --icon-nudge: 0.07em; }
+
+.icon-btn .codicon,
+.tab-icon-button .codicon {
+    position: relative;
+    left: var(--icon-nudge);
+}
+
 /* True vertical centering for icon + text. vertical-align anchors to the
    x-height midpoint (icon rides too high); flexbox centers on the real line
    box. flexbox collapses the whitespace text node between icon and label, so
    `gap` (not the markup space) provides the icon/label spacing. */
 button:has(> .codicon),
+button:has(> .sw-icon),
 h3:has(> .codicon),
+h3:has(> .sw-icon),
 h4:has(> .codicon),
 .schema-name,
 .code-stat,
@@ -62,7 +124,7 @@ h4:has(> .codicon),
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     flex-wrap: wrap;
 }
 
@@ -97,15 +159,19 @@ h4:has(> .codicon),
 }
 
 .indicator-dot.dot-ready {
-    background: #2e9e44;
+    background: var(--vscode-charts-green, #2e9e44);
+}
+
+.indicator-dot.dot-stale {
+    background: var(--vscode-charts-yellow, #d9a400);
 }
 
 .indicator-dot.dot-error {
-    background: #dc3545;
+    background: var(--vscode-charts-red, #dc3545);
 }
 
 .indicator-dot.dot-indexing {
-    background: #ff9800;
+    background: var(--vscode-charts-orange, #ff9800);
     animation: indicator-dot-pulse 1s ease-in-out infinite;
 }
 
@@ -117,17 +183,18 @@ h4:has(> .codicon),
 .database-selector-inline {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 250px;
-    margin-left: auto;
+    gap: 6px;
 }
 
 .database-selector-inline label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--vscode-foreground);
-    white-space: nowrap;
+    display: inline-flex;
     margin: 0;
+}
+
+.database-icon .sw-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.85;
 }
 
 .database-selector-inline select {
@@ -138,7 +205,7 @@ h4:has(> .codicon),
     padding: 4px 8px;
     font-size: 13px;
     margin: 0;
-    min-width: 180px;
+    min-width: 170px;
     box-sizing: border-box;
 }
 
@@ -176,15 +243,20 @@ h4:has(> .codicon),
     line-height: 1.4;
 }
 
+.tab-button:not(.active),
+.details-tab-button:not(.active) {
+    opacity: 0.75;
+}
+
 .tab-button:hover {
     background: var(--vscode-list-hoverBackground);
     color: var(--vscode-foreground);
 }
 
 .tab-button.active {
-    color: var(--vscode-button-foreground);
-    border-bottom-color: var(--vscode-button-background);
-    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder);
+    background: transparent;
 }
 
 /* Icon-only toolbar button (folder, "+", cog) - the same shape as the text
@@ -220,11 +292,11 @@ h4:has(> .codicon),
     background: var(--vscode-list-hoverBackground);
 }
 
-/* The icon version of the "active tab" state (the Configuration cog). */
+/* The icon version of the "active tab" state. */
 .tab-icon-button.active {
     opacity: 1;
-    color: var(--vscode-button-foreground);
-    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder);
 }
 
 .tab-content {
@@ -236,6 +308,17 @@ h4:has(> .codicon),
     flex-direction: column;
     flex: 1;
     min-height: 0;
+}
+
+/* === FOCUS === */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.object-item:focus-visible,
+.schema-header:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
 }
 
 /* === FORM ELEMENTS === */
@@ -251,15 +334,27 @@ input, select, button, textarea {
     box-sizing: border-box;
 }
 
+/* A button is secondary unless it is THE action of its place: those carry
+   .primary (the sidebar does the same with .sb-btn / .sb-btn.primary). */
 button {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border-color: var(--vscode-button-border, transparent);
     cursor: pointer;
     width: auto;
     padding: 6px 14px;
 }
 
 button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+button.primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+button.primary:hover {
     background: var(--vscode-button-hoverBackground);
 }
 
@@ -284,176 +379,6 @@ label {
 
 .checkbox-group label {
     font-weight: normal;
-}
-
-/* === CONNECTION SECTION === */
-.configuration-columns {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 20px;
-}
-
-.connection-section {
-    flex: 1 1 420px;
-    max-width: 480px;
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
-    padding: 15px;
-    margin-bottom: 20px;
-}
-
-.connection-main {
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid var(--vscode-input-border);
-}
-
-.connection-actions {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-#connectionSettings {
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
-    padding: 15px;
-    margin-top: 15px;
-    background: var(--vscode-input-background);
-}
-
-/* === SNIPPET MANAGER (activity bar sidebar, see panels/SnippetSidebarProvider.js) === */
-/* A real button, not a link: the generic `button` rule paints every button
-   in primary blue, which would put two blue buttons in a row. */
-.sidebar-open-panel-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 6px;
-    box-sizing: border-box;
-    width: 100%;
-    padding: 6px 10px;
-    margin: 0 0 10px;
-    border: 1px solid transparent;
-    border-radius: 2px;
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-}
-
-.sidebar-open-panel-link:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
-    color: var(--vscode-button-secondaryForeground);
-}
-
-.sidebar-open-panel-link:focus-visible {
-    outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: 1px;
-}
-
-.snippet-manager-hint {
-    margin: -4px 0 12px;
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
-}
-
-.snippet-manager-toolbar {
-    margin-bottom: 12px;
-}
-
-/* Flat divided list, same convention as the Explorer's #objectList/.object-item:
-   hover highlight + left accent border, row actions fade in on hover. */
-.snippet-manager-list {
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.snippet-group-label {
-    padding: 5px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--vscode-descriptionForeground);
-    background: var(--vscode-textCodeBlock-background);
-    border-bottom: 1px solid var(--vscode-input-border);
-}
-
-.snippet-manager-list .placeholder-text {
-    padding: 10px 12px;
-}
-
-.snippet-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 12px;
-    border-bottom: 1px solid var(--vscode-input-border);
-    border-left: 2px solid transparent;
-    transition: background-color 0.1s ease;
-}
-
-.snippet-row:last-child {
-    border-bottom: none;
-}
-
-.snippet-row:hover {
-    background: var(--vscode-list-hoverBackground);
-    border-left-color: var(--vscode-button-background);
-}
-
-.snippet-row-main {
-    flex: 1;
-    min-width: 0;
-}
-
-.snippet-row-name {
-    font-size: 13px;
-}
-
-.snippet-row-preview {
-    font-family: var(--vscode-editor-font-family);
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.snippet-row-actions {
-    display: flex;
-    gap: 2px;
-    flex-shrink: 0;
-    opacity: 0;
-}
-
-.snippet-row:hover .snippet-row-actions {
-    opacity: 1;
-}
-
-.snippet-row-actions button {
-    background: transparent;
-    border: 1px solid transparent;
-    padding: 2px 6px;
-    font-size: 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    width: auto;
-    margin: 0;
-}
-
-.snippet-row-actions button:hover {
-    background: var(--vscode-button-secondaryBackground);
-    border-color: var(--vscode-input-border);
-}
-
-.modal-dialog.modal-dialog-snippet-form {
-    max-width: 560px;
 }
 
 .section-header {
@@ -492,18 +417,30 @@ label {
     align-items: center;
 }
 
-#closeSettingsBtn {
-    background: transparent;
-    border: 1px solid var(--vscode-input-border);
-    color: var(--vscode-foreground);
-    padding: 2px 8px;
-    font-size: 12px;
-    width: auto;
-    margin: 0;
+/* === CONNECTION LOST BAR === */
+.connection-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.15));
+    border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-charts-orange, #d18616));
 }
 
-#closeSettingsBtn:hover {
-    background: var(--vscode-list-hoverBackground);
+.connection-banner[hidden] {
+    display: none;
+}
+
+.connection-banner span {
+    flex: 1;
+}
+
+.connection-banner button {
+    width: auto;
+    margin: 0;
+    padding: 2px 12px;
 }
 
 /* === STATUS MESSAGES === */
@@ -577,6 +514,37 @@ label {
     transition: opacity 0.2s ease, filter 0.2s ease;
 }
 
+.details-panel h3 {
+    margin: 20px 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.details-panel h4 {
+    margin: 14px 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+}
+
+.details-panel .section-header {
+    margin: 14px 0 6px;
+    font-size: 15px;
+}
+
+.selector-panel .section-header {
+    margin: 12px 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+}
+
+.selector-panel .section-header:first-child {
+    margin-top: 0;
+}
+
 .selector-panel {
     flex: 1;
     background: var(--vscode-editor-background);
@@ -624,15 +592,19 @@ label {
     border-radius: 0;
 }
 
+.details-tab-button:hover:not(.active) {
+    opacity: 1;
+}
+
 .details-tab-button:hover {
     background: var(--vscode-list-hoverBackground);
     color: var(--vscode-foreground);
 }
 
 .details-tab-button.active {
-    color: var(--vscode-button-foreground);
-    border-bottom-color: var(--vscode-button-background);
-    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder);
+    background: transparent;
 }
 
 .details-tab-content {
@@ -648,11 +620,10 @@ label {
 
 /* === FILTER SECTION === */
 .filter-section {
-    background: var(--vscode-input-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
-    padding: 12px;
-    margin-bottom: 15px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin-bottom: 12px;
 }
 
 .search-container {
@@ -818,6 +789,11 @@ label {
 }
 
 /* The name grows so badges and buttons align to the right edge */
+.object-item .object-name-with-icon .sw-icon {
+    margin-right: 4px;
+    opacity: 0.85;
+}
+
 .object-item .object-name-with-icon {
     flex: 1 1 auto;
     min-width: 0;
@@ -887,6 +863,18 @@ label {
     margin: 0;
 }
 
+.script-menu-separator {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--vscode-menu-separatorBackground, var(--vscode-input-border));
+}
+
+.script-menu-item:focus-visible {
+    outline: none;
+    background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-menu-selectionForeground, inherit);
+}
+
 .script-menu-item:hover {
     background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
     color: var(--vscode-menu-selectionForeground, inherit);
@@ -954,20 +942,39 @@ table {
 }
 
 th, td {
-    border: 1px solid var(--vscode-input-border);
-    padding: 8px 12px;
+    border: none;
+    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+    padding: 6px 12px;
     text-align: left;
     vertical-align: top;
 }
 
 th {
-    background: var(--vscode-input-background);
-    font-weight: bold;
-    font-size: 12px;
-    color: var(--vscode-foreground);
+    background: var(--vscode-editor-background);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+    border-bottom-color: var(--vscode-input-border);
     position: sticky;
     top: 0;
     z-index: 3;
+}
+
+tr:hover > td {
+    background: var(--vscode-list-hoverBackground);
+}
+
+/* Result grid: numbers on the right, NULL told apart from the text "NULL". */
+.rs-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+td.rs-null {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
 }
 
 /* === INDEX BADGES === */
@@ -983,15 +990,23 @@ th {
     letter-spacing: 0.5px;
     margin-right: 6px;
     white-space: nowrap;
+    /* The hue says what it is, the text stays in the normal foreground: the
+       contrast does not depend on the colour (white on bright blue or green
+       was under 4:1) nor on the theme. */
+    color: var(--vscode-foreground);
+    background: color-mix(in srgb, var(--badge-hue, var(--vscode-descriptionForeground)) 22%, transparent);
+    border: 1px solid var(--badge-hue, var(--vscode-input-border));
 }
 
-.index-primary {
-    background: #dc3545;
-    color: white;
-    border: 1px solid #c82333;
+.index-primary { --badge-hue: var(--vscode-charts-red, #f14c4c); }
+.index-unique { --badge-hue: var(--vscode-charts-blue, #3794ff); }
+.index-clustered { --badge-hue: var(--vscode-charts-green, #89d185); }
+.index-normal { --badge-hue: var(--vscode-charts-purple, #b180d7); }
+
+.index-badge .sw-icon {
+    margin-right: 2px;
 }
 
-.index-primary::before,
 .index-unique::before,
 .index-clustered::before,
 .index-normal::before {
@@ -1000,34 +1015,12 @@ th {
     margin-right: 2px;
 }
 
-.index-primary::before {
-    content: "\eb11"; /* codicon-key */
-}
-
-.index-unique {
-    background: #007bff;
-    color: white;
-    border: 1px solid #0056b3;
-}
-
 .index-unique::before {
     content: "\eb59"; /* codicon-star-full */
 }
 
-.index-clustered {
-    background: #28a745;
-    color: white;
-    border: 1px solid #1e7e34;
-}
-
 .index-clustered::before {
     content: "\eb16"; /* codicon-list-ordered */
-}
-
-.index-normal {
-    background: #6f42c1;
-    color: white;
-    border: 1px solid #5a2d91;
 }
 
 .index-normal::before {
@@ -1179,6 +1172,19 @@ th {
     flex-shrink: 0;
 }
 
+.sql-autocomplete li.ac-info {
+    position: sticky;
+    bottom: -2px;
+    margin: 2px -2px -2px;
+    padding: 4px 10px;
+    cursor: default;
+    pointer-events: none;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background));
+    border-top: 1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-input-border));
+}
+
 .sql-autocomplete .ac-detail {
     margin-left: auto;
     padding-left: 16px;
@@ -1206,8 +1212,13 @@ th {
 }
 
 .cancel-query-btn {
-    background: var(--vscode-terminal-ansiRed, #dc3545);
-    color: #ffffff;
+    background: var(--vscode-statusBarItem-errorBackground, #c72e0f);
+    color: var(--vscode-statusBarItem-errorForeground, #ffffff);
+}
+
+.cancel-query-btn:hover {
+    background: var(--vscode-statusBarItem-errorBackground, #c72e0f);
+    filter: brightness(1.15);
 }
 
 /* Icon-only toolbar buttons (Run/Estimated/Actual Plan): the label moves to
@@ -1215,21 +1226,40 @@ th {
    of wrapping once History/Snippets/status share the row. */
 .icon-btn {
     padding: 5px 8px;
+    background: transparent;
+    color: var(--vscode-foreground);
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.icon-btn:hover:not(:disabled) {
+    background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+/* Run is the one primary action of the toolbar. */
+#runQueryBtn:not(:disabled) {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+#runQueryBtn:hover:not(:disabled) {
+    background: var(--vscode-button-hoverBackground);
 }
 
 .icon-btn .codicon {
     font-size: 15px;
 }
 
-.plan-btn {
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: 1px solid var(--vscode-input-border);
+.tab-icon-button .sw-icon {
+    width: 14px;
+    height: 14px;
 }
 
-.plan-btn:hover:not(:disabled) {
-    background: var(--vscode-button-secondaryHoverBackground);
+.icon-btn .sw-icon {
+    width: 15px;
+    height: 15px;
 }
+
 
 /* Include Actual Execution Plan toggle (SSMS's Ctrl+M equivalent): stays
    visually "pressed" while on, since it changes what Run Query (F5 /
@@ -1429,6 +1459,42 @@ body.vscode-high-contrast .qp-tt-header {
     flex-shrink: 0;
 }
 
+/* An icon that opens a native list: the select lies over the icon, invisible
+   but there - click, keyboard and screen readers work as on any select, and
+   the list is as wide as its longest entry. */
+.icon-select {
+    position: relative;
+    justify-content: center;
+    width: 28px;
+    height: 26px;
+    border-radius: 4px;
+}
+
+.icon-select:hover {
+    background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.icon-select:focus-within {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+}
+
+.icon-select .codicon {
+    font-size: 15px;
+    pointer-events: none;
+}
+
+.icon-select select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
 .query-status {
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
@@ -1447,11 +1513,6 @@ body.vscode-high-contrast .qp-tt-header {
 .search-scope {
     margin-top: 6px;
     font-size: 12px;
-}
-
-.auto-connect-option {
-    margin-top: 10px;
-    opacity: 0.85;
 }
 
 /* "Full" toggle next to the Dictionary button in the header row. Overrides the
@@ -1474,7 +1535,7 @@ body.vscode-high-contrast .qp-tt-header {
 }
 
 .query-status.success {
-    color: #2e9e44;
+    color: var(--vscode-testing-iconPassed, #2e9e44);
 }
 
 .query-status.error {
@@ -1488,6 +1549,16 @@ body.vscode-high-contrast .qp-tt-header {
     flex-shrink: 0;
     height: 140px;
     min-height: 80px;
+    /* The colour of the focus frame tells what state the query is in. */
+    --query-frame: var(--vscode-focusBorder, #007fd4);
+}
+
+.query-input-wrap[data-query-state="modified"] {
+    --query-frame: var(--vscode-charts-orange, #d18616);
+}
+
+.query-input-wrap[data-query-state="draft"] {
+    --query-frame: var(--vscode-charts-purple, #b180d7);
 }
 
 /* Layout only - font, colors and padding are owned by sqlEditor.js's own
@@ -1515,7 +1586,7 @@ body.vscode-high-contrast .qp-tt-header {
     content: '';
     position: absolute;
     inset: 0;
-    border: 1px solid #ffa500;
+    border: 1px solid var(--query-frame);
     border-radius: 2px;
     pointer-events: none;
     z-index: 201;
@@ -1625,6 +1696,22 @@ body.vscode-high-contrast .qp-tt-header {
     display: inline-flex;
 }
 
+.qtab-count {
+    margin-left: 4px;
+    min-width: 14px;
+    padding: 0 4px;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 14px;
+    text-align: center;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+}
+
+.qtab-count[hidden] {
+    display: none;
+}
+
 .query-active-tab-label {
     margin-left: 6px;
     opacity: 0.7;
@@ -1640,8 +1727,9 @@ body.vscode-high-contrast .qp-tt-header {
     min-width: 240px;
     max-width: 360px;
     z-index: 50;
-    background: var(--vscode-dropdown-background);
-    border: 1px solid var(--vscode-dropdown-border);
+    background: var(--vscode-dropdown-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border));
+    border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -1664,7 +1752,8 @@ body.vscode-high-contrast .qp-tt-header {
 }
 
 .query-tabs-dropdown-item.active {
-    background: var(--vscode-list-activeSelectionBackground);
+    background: var(--vscode-list-hoverBackground);
+    box-shadow: inset 2px 0 0 var(--vscode-focusBorder);
 }
 
 .query-tabs-dropdown-item .qtab-name {
@@ -1933,6 +2022,13 @@ th.rs-sortable.sorted {
     margin: 0;
     padding: 2px 10px;
     font-size: 12px;
+    color: var(--vscode-button-secondaryForeground);
+    background: var(--vscode-button-secondaryBackground);
+    border-color: transparent;
+}
+
+.result-set-actions button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .truncation-note {
@@ -1980,6 +2076,16 @@ th.rs-sortable.sorted {
     color: var(--vscode-button-foreground);
 }
 
+.error-line-link {
+    color: var(--vscode-textLink-foreground);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.error-line-link:hover {
+    color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+}
+
 .query-error-box {
     background: rgba(220, 53, 69, 0.1);
     border: 1px solid #dc3545;
@@ -2013,16 +2119,14 @@ th.rs-sortable.sorted {
 .modal-overlay.objects-modal-overlay,
 .modal-overlay.indexing-modal-overlay,
 .modal-overlay.column-usage-modal-overlay,
-.modal-overlay.footprint-modal-overlay,
-.modal-overlay.snippet-form-modal-overlay {
+.modal-overlay.footprint-modal-overlay {
     display: none;
 }
 
 .modal-overlay.objects-modal-overlay.visible,
 .modal-overlay.indexing-modal-overlay.visible,
 .modal-overlay.column-usage-modal-overlay.visible,
-.modal-overlay.footprint-modal-overlay.visible,
-.modal-overlay.snippet-form-modal-overlay.visible {
+.modal-overlay.footprint-modal-overlay.visible {
     display: flex;
 }
 
@@ -2149,7 +2253,7 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-chip.fp-target  { background: #0e639c; }
 .fp-chip.fp-write   { background: #c0392b; }
 .fp-chip.fp-read    { background: #5a6673; }
-.fp-chip.fp-trigger { background: #c77d0a; border: 1px dashed #e8a33d; }
+.fp-chip.fp-trigger { background: #a85f00; border: 1px dashed #e8a33d; }
 .fp-chip.fp-possible { background: #4a5160; border: 1px dashed #8892a0; color: #cfd6de; }
 .fp-chip.fp-via-code  { background: #7d3c98; border: 1px dashed #c39bd3; }
 
@@ -2316,6 +2420,12 @@ table.fp-cols .fp-center { text-align: center; }
     flex-direction: column;
 }
 
+.message-rs-link .codicon,
+.column-usage-item .codicon,
+.col-usage-btn .codicon {
+    font-size: 12px;
+}
+
 .column-usage-item {
     background: transparent;
     border: none;
@@ -2378,23 +2488,14 @@ table.fp-cols .fp-center { text-align: center; }
     margin: 0;
 }
 
+/* A heavy but routine action (it asks for confirmation): the normal secondary
+   button, not an alarm colour. */
 .force-reindex-btn {
-    background: #ff6b35;
-    color: white;
-    border: 1px solid #ff6b35;
-    padding: 8px 16px;
-    font-size: 13px;
-    border-radius: 4px;
-    cursor: pointer;
+    padding: 6px 14px;
     width: auto;
     margin: 0;
-    font-weight: 500;
-    transition: background-color 0.2s ease;
 }
 
-.force-reindex-btn:hover:not(:disabled) {
-    background: #e55a2b;
-}
 
 .force-reindex-btn:disabled {
     background: var(--vscode-button-secondaryBackground);
@@ -2550,7 +2651,8 @@ table.fp-cols .fp-center { text-align: center; }
 
 .database-ready-notification {
     position: absolute;
-    top: 45px;
+    top: 100%;
+    margin-top: 6px;
     right: 0;
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
@@ -2631,10 +2733,6 @@ table.fp-cols .fp-center { text-align: center; }
     }
     
     .explorer-section {
-        flex-direction: column;
-    }
-    
-    .connection-actions {
         flex-direction: column;
     }
     
@@ -2731,4 +2829,57 @@ table.fp-cols .fp-center { text-align: center; }
 .dep-node-external:hover ellipse,
 .dep-node-external:hover polygon {
     stroke-width: 3;
+}
+/* Explorer notice: the dependency index is not built / out of date, and the choice. */
+.index-notice {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin: 0 0 12px;
+    padding: 12px 16px;
+    background: var(--vscode-textBlockQuote-background, var(--vscode-editorWidget-background));
+    border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+    border-left: 3px solid var(--vscode-focusBorder);
+    border-radius: 4px;
+    flex-shrink: 0;
+    max-height: 45%;
+    overflow-y: auto;
+}
+
+.index-notice[hidden] {
+    display: none;
+}
+
+.index-notice-icon {
+    margin-top: 2px;
+    font-size: 16px;
+    color: var(--vscode-focusBorder);
+}
+
+.index-notice-body p {
+    margin: 6px 0 0;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.5;
+}
+
+.index-notice-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.index-notice-actions button {
+    width: auto;
+    margin: 0;
+}
+
+.index-missing .link-btn {
+    width: auto;
+    margin: 0 0 0 4px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--vscode-textLink-foreground);
+    text-decoration: underline;
+    cursor: pointer;
 }

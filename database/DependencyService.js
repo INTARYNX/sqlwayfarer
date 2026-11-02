@@ -59,7 +59,7 @@ class DependencyService {
         try {
             if (!this._indexService) return { dependsOn: [], referencedBy: [] };
 
-            const index = await this._indexService.getIndex(database);
+            const index = await this._indexService.peekIndex(database);
             if (!index || !index.objects) return { dependsOn: [], referencedBy: [] };
 
             const cleanName = objectName.replace(/[\[\]]/g, '');
@@ -262,7 +262,7 @@ class DependencyService {
         try {
             if (!this._indexService) return { name: objectName, dependencies: [] };
 
-            const index = await this._indexService.getIndex(database);
+            const index = await this._indexService.peekIndex(database);
             if (!index || !index.objects) return { name: objectName, dependencies: [] };
 
             const visited = new Set();

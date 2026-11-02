@@ -50,7 +50,11 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Windows authentication helper: only the compiled program ships
+helper/**
+
 # Keep these
+!helper/SqlWayfarerSspi.exe
 !dist/extension.js
 !dist/parseColumnsWorker.js
 !dist/webview/sqlEditor.js

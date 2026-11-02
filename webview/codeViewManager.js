@@ -15,6 +15,8 @@ class CodeViewManager {
         this.currentObjectType = null;
         this.currentDefinition = null;
         this.showLineNumbers = false;
+        // The read-only CodeMirror view of the definition on screen, if any.
+        this._view = null;
         this._attachActionDelegation();
     }
 
@@ -72,13 +74,16 @@ class CodeViewManager {
 
         const objectTypeClass = this.getObjectTypeClass(this.currentObjectType);
         const objectIcon = this.getObjectTypeIcon(this.currentObjectType);
-        
+
+        if (this._view) this._view.destroy();
+        this._view = null;
+
         let html = `
             <div class="code-viewer">
                 <div class="code-header">
                     <div class="code-title">
                         <span class="object-type-indicator ${objectTypeClass}">
-                            ${this.currentObjectType}
+                            ${objectIcon} ${this.currentObjectType}
                         </span>
                         <span>${this.escapeHtml(this.currentObject)}</span>
                     </div>
@@ -89,14 +94,14 @@ class CodeViewManager {
                         <button class="code-action-btn format-btn" data-action="formatCode" title="Format SQL">
                             Format
                         </button>
-                        <button class="code-action-btn" data-action="toggleLineNumbers" title="Toggle line numbers">
-                            ${this.showLineNumbers ? 'Hide Lines' : 'Show Lines'}
+                        <button class="code-action-btn${this.showLineNumbers ? ' active' : ''}" data-action="toggleLineNumbers" aria-pressed="${this.showLineNumbers}" title="Show or hide the line numbers">
+                            Line numbers
                         </button>
                     </div>
                 </div>
                 
                 <div class="code-content">
-                    ${this.renderCodeContent(definition)}
+                    <div class="code-cm"></div>
                 </div>
                 
                 <div class="code-metrics">
@@ -111,43 +116,22 @@ class CodeViewManager {
                             <i class="codicon codicon-graph"></i> <span class="code-stat-value">${this.estimateComplexity(definition)}</span> complexity
                         </div>
                     </div>
-                    <div class="code-info">
-                        Last updated: ${new Date().toLocaleString()}
-                    </div>
                 </div>
             </div>
         `;
 
         container.innerHTML = html;
         this.currentDefinition = definition;
-    }
 
-    // Render code content with optional line numbers
-    renderCodeContent(definition) {
-        const formattedCode = this.highlightSQL(definition);
-        
-        if (this.showLineNumbers) {
-            const lines = definition.split('\n');
-            const lineNumbers = lines.map((_, index) => (index + 1).toString().padStart(3, ' ')).join('\n');
-            
-            return `
-                <div class="code-with-lines">
-                    <div class="line-numbers">${lineNumbers}</div>
-                    <pre class="code-editor">${formattedCode}</pre>
-                </div>
-            `;
+        const host = container.querySelector('.code-cm');
+        if (window.SqlCodeMirror && window.SqlCodeMirror.readOnlyView) {
+            this._view = window.SqlCodeMirror.readOnlyView(host, definition, { lineNumbers: this.showLineNumbers });
         } else {
-            return `<pre class="code-editor">${formattedCode}</pre>`;
+            host.textContent = definition;
+            host.classList.add('code-plain');
         }
     }
 
-    // Basic SQL syntax highlighting
-    highlightSQL(sql) {
-        if (!sql) return '';
-        
-        // Just escape HTML and return plain text - no syntax highlighting
-        return this.escapeHtml(sql);
-    }
         // Display message for tables (no code to show)
         displayTableMessage() {
             const container = document.getElementById('codeContainer');
@@ -230,8 +214,11 @@ class CodeViewManager {
 
     toggleLineNumbers() {
         this.showLineNumbers = !this.showLineNumbers;
-        if (this.currentDefinition) {
-            this.displayCode(this.currentDefinition);
+        if (this._view) this._view.setLineNumbers(this.showLineNumbers);
+        const button = document.querySelector('#codeContainer [data-action="toggleLineNumbers"]');
+        if (button) {
+            button.classList.toggle('active', this.showLineNumbers);
+            button.setAttribute('aria-pressed', String(this.showLineNumbers));
         }
     }
 
@@ -272,10 +259,11 @@ class CodeViewManager {
 
     getObjectTypeIcon(objectType) {
         switch (objectType) {
-            case 'Procedure': return '<i class="codicon codicon-gear"></i>';
-            case 'Function': return '<i class="codicon codicon-wrench"></i>';
-            case 'View': return '<i class="codicon codicon-eye"></i>';
-            case 'Trigger': return '<i class="codicon codicon-zap"></i>';
+            case 'Procedure':
+            case 'Function':
+            case 'View':
+            case 'Trigger':
+                return swObjectIcon(objectType);
             default: return '<i class="codicon codicon-file-code"></i>';
         }
     }

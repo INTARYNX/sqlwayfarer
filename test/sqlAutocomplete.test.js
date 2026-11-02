@@ -1,4 +1,7 @@
 const assert = require('assert');
+// Shared globals of the webview's classic scripts.
+global.SqlContext = require('../webview/sqlContext');
+global.SqlMatcher = require('../webview/sqlMatcher');
 const SqlAutocomplete = require('../webview/sqlAutocomplete');
 
 // Minimal object index, same shape as DatabaseService.getObjects() output.

@@ -24,6 +24,21 @@ npm test           # vscode-test (downloads VS Code on first run)
 npm run package    # build + vsce package -> .vsix
 ```
 
+`npm run test:unit` runs the same tests without VS Code (the six that need the
+`vscode` module are skipped). `npm run test:e2e` renders the real pages
+(`webview/index.html`, `sidebar.html`) in headless Chromium through Playwright
+(`test/e2e/`; run `npm run build` first, and `npx playwright install chromium`
+once); it skips itself when Playwright is missing.
+
+What the suites guard, beyond the unit tests of each module:
+
+- `test/autocompleteFuzz.test.js`: every caret position of a varied SQL corpus,
+  with every setting - no exception, every suggestion insertable, performance.
+- `test/indexNeverAuto.test.js`: the dependency index is only built from the
+  explicit "Build index" / Force reindex actions (static guard on the call sites).
+- `test/webviewProtocol.test.js`: every message has a handler on the other side;
+  every page placeholder is filled in by its provider.
+
 `npm test` needs a desktop session (it opens an Electron window). It works
 here, but it takes ~1 min on the first run (VS Code download).
 
@@ -80,7 +95,9 @@ Two gotchas:
   it uses SSPI). To drive the server from Node, create a temporary SQL login
   (`CREATE LOGIN ... WITH PASSWORD=...`) and drop it afterwards. The
   extension's own saved connections carry a password in the VS Code secret
-  storage, which cannot be read from outside VS Code.
+  storage, which cannot be read from outside VS Code. (The extension itself
+  gets integrated authentication from `helper/SqlWayfarerSspi.exe`, see
+  `database/SspiPool.js`; run `npm run build:helper` once before F5.)
 - **Scratch databases are fine.** Creating a database to test a scenario is
   expected here; drop it when done (`ALTER DATABASE ... SET SINGLE_USER WITH
   ROLLBACK IMMEDIATE; DROP DATABASE ...`).

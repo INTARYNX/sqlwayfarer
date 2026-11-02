@@ -59,6 +59,16 @@ class QueryManager {
 
     initEventListeners() {
         this.runBtn.addEventListener('click', () => this.runQuery());
+        // "Line N" in an error message: delegated, the results are re-rendered.
+        const onErrorLine = (e) => {
+            const link = e.target.closest && e.target.closest('.error-line-link');
+            if (!link) return;
+            if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            this.goToErrorLine(link.dataset.line);
+        };
+        this.resultsContainer.addEventListener('click', onErrorLine);
+        this.resultsContainer.addEventListener('keydown', onErrorLine);
         this.estimatedPlanBtn.addEventListener('click', () => this.runEstimatedPlan());
         this.includeActualPlanToggle.addEventListener('click', () => this.toggleIncludeActualPlan());
         if (this.queryGraphBtn) {
@@ -76,7 +86,7 @@ class QueryManager {
         // F5 is SSMS's own "Execute" shortcut - matched here regardless of which
         // widget inside the Query tab has focus (editor, grid, max rows...), the
         // same reach F5 has in SSMS. Scoped to the Query tab being active so it
-        // doesn't fire while the user is on Explorer/Configuration.
+        // doesn't fire while the user is on Explorer.
         // Capture phase on window, and stopPropagation(): VS Code forwards the
         // webview's key events to the workbench, where F5 is bound to "Select
         // debugger" - so without stopping the event here, running a query also
@@ -350,6 +360,7 @@ class QueryManager {
             return;
         }
 
+        this._runLineOffset = QueryManager.leadingBlankLines(this.input.value);
         this.setRunning(true);
         this.setStatus(this.includeActualPlan ? 'Running with actual execution plan...' : 'Running...', '');
         this.setResultsHtml('<p class="placeholder-text">Running query...</p>');
@@ -386,6 +397,7 @@ class QueryManager {
             return;
         }
 
+        this._runLineOffset = QueryManager.leadingBlankLines(this.input.value);
         this.setRunning(true, false);
         this.setStatus('Generating estimated plan...', '');
         this.setResultsHtml('<p class="placeholder-text">Generating estimated plan...</p>');
@@ -460,9 +472,28 @@ class QueryManager {
         this.setStatus(`Estimated execution plan generated${failedNote}.`, 'success');
     }
 
+    // The error text, escaped, with "Line N" turned into a link to that line of
+    // the editor (the extension reports the line of the query that was run).
+    static linkErrorLines(text, escape) {
+        return escape(text).replace(/\bLine (\d+):/g,
+            '<a class="error-line-link" role="button" tabindex="0" data-line="$1" title="Go to this line">Line $1</a>:');
+    }
+
+    // The query is trimmed before it is sent, so the lines the server counts
+    // start after the blank lines at the top of the editor.
+    static leadingBlankLines(text) {
+        const leading = /^\s*/.exec(text || '')[0];
+        return (leading.match(/\n/g) || []).length;
+    }
+
+    goToErrorLine(reportedLine) {
+        if (typeof this.input.goToLine !== 'function') return;
+        this.input.goToLine(Number(reportedLine) + (this._runLineOffset || 0));
+    }
+
     onQueryError(message) {
         this.setRunning(false);
-        const errorHtml = `<pre class="query-error-box">${this.escapeHtml(message.message)}</pre>`;
+        const errorHtml = `<pre class="query-error-box">${QueryManager.linkErrorLines(message.message, t => this.escapeHtml(t))}</pre>`;
 
         if (Array.isArray(message.resultSets) && message.resultSets.length > 0) {
             // The batch failed partway through - show whatever it produced
@@ -624,19 +655,26 @@ class QueryManager {
             ? rows.slice(0, QueryManager.MAX_RENDERED_ROWS)
             : rows;
 
+        // A column of numbers (and NULLs) reads better aligned to the right.
+        const numeric = new Set(columns.filter(col =>
+            drawn.some(row => typeof row[col] === 'number')
+            && drawn.every(row => row[col] === null || row[col] === undefined || typeof row[col] === 'number')));
+
         let html = '<table><thead><tr>';
         columns.forEach(col => {
             const sorted = state.sortCol === col;
-            const arrow = sorted ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
+            const arrow = sorted ? ` <i class="codicon codicon-arrow-${state.sortDir === 1 ? 'up' : 'down'}"></i>` : '';
             html += `<th data-sort-col="${this.escapeHtml(col)}" data-rs-index="${index}" `
-                + `class="rs-sortable${sorted ? ' sorted' : ''}" title="Click to sort">${this.escapeHtml(col)}${arrow}</th>`;
+                + `class="rs-sortable${sorted ? ' sorted' : ''}${numeric.has(col) ? ' rs-num' : ''}" title="Click to sort">${this.escapeHtml(col)}${arrow}</th>`;
         });
         html += '</tr></thead><tbody>';
 
         drawn.forEach(row => {
             html += '<tr>';
             columns.forEach(col => {
-                html += `<td>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
+                const isNull = row[col] === null || row[col] === undefined;
+                const classes = (numeric.has(col) ? 'rs-num' : '') + (isNull ? ' rs-null' : '');
+                html += `<td${classes.trim() ? ` class="${classes.trim()}"` : ''}>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
             });
             html += '</tr>';
         });
@@ -724,7 +762,7 @@ class QueryManager {
                 const count = set ? set.totalRows : 0;
                 return `<div class="message-rs-marker">`
                     + `<button type="button" class="message-rs-link" data-rs-tab="${entry.index}" `
-                    + `title="Jump to Result ${entry.index + 1}">→ Result ${entry.index + 1} `
+                    + `title="Jump to Result ${entry.index + 1}"><i class="codicon codicon-arrow-right"></i> Result ${entry.index + 1} `
                     + `<span class="result-tab-count">${count} row(s)</span></button></div>`;
             }
             return `<div class="message-line">${this.escapeHtml(entry.text)}</div>`;
@@ -744,14 +782,14 @@ class QueryManager {
             const timeLabel = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
             const queryLabel = entry.query.replace(/\s+/g, ' ').slice(0, 60);
             option.value = String(index);
-            option.textContent = `${entry.success ? '✓' : '✗'} ${timeLabel} [${entry.database}] ${queryLabel}`;
+            option.textContent = `${entry.success ? '' : 'Failed · '}${timeLabel} [${entry.database}] ${queryLabel}`;
             this.historySelect.appendChild(option);
         });
 
         if (this.history.length > 0) {
             const clearOption = document.createElement('option');
             clearOption.value = 'clear';
-            clearOption.textContent = '🗑 Clear history';
+            clearOption.textContent = 'Clear history';
             this.historySelect.appendChild(clearOption);
         }
     }
@@ -777,6 +815,7 @@ class QueryManager {
 
     onSnippetsLoaded(snippets) {
         this.customSnippets = snippets || [];
+        this.autocomplete.setSnippets(this.customSnippets);
         this.renderSnippetsMenu();
     }
 
@@ -809,12 +848,12 @@ class QueryManager {
         manageGroup.label = 'Manage';
         const addOption = document.createElement('option');
         addOption.value = 'add';
-        addOption.textContent = '➕ Save selection as snippet…';
+        addOption.textContent = 'Save selection as snippet…';
         manageGroup.appendChild(addOption);
         if (this.customSnippets.length > 0) {
             const deleteOption = document.createElement('option');
             deleteOption.value = 'delete';
-            deleteOption.textContent = '🗑 Delete a custom snippet…';
+            deleteOption.textContent = 'Delete a custom snippet…';
             manageGroup.appendChild(deleteOption);
         }
         this.snippetsSelect.appendChild(manageGroup);

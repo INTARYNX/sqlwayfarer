@@ -43,6 +43,25 @@ suite('ConnectionManager.buildConnectionConfig', () => {
 		assert.strictEqual(config.port, 1434);
 	});
 
+	test('Windows authentication: no login, no password, no secret lookup', async () => {
+		let asked = false;
+		const manager = new ConnectionManager({
+			getConnectionPassword: async () => { asked = true; return null; },
+			getConnection: () => null
+		});
+		const config = await manager.buildConnectionConfig({
+			server: 'srv', authType: 'windows', name: 'saved', isLoadedConnection: true, username: 'stale'
+		});
+		assert.strictEqual(config.integratedSecurity, true);
+		assert.strictEqual(config.user, undefined);
+		assert.strictEqual(config.password, undefined);
+		assert.strictEqual(asked, false);
+	});
+
+	test('Windows authentication needs the helper', async () => {
+		await assert.rejects(manager().testConnection({ server: 'srv', authType: 'windows' }), /not available/);
+	});
+
 	test('requestTimeout overrides the 15s mssql default', async () => {
 		const config = await manager().buildConnectionConfig({ server: 'srv' });
 		assert.strictEqual(config.requestTimeout, 300000);

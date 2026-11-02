@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <!-- SQL Wayfarer icons: 16x16 grid, drawn with the current text colour (stroke
+         set by .sw-icon in the stylesheets). One source, injected in the panel and
+         in the sidebar (see panels/iconSprite.js); use them through swIcon()
+         (webview/icons.js). Every shape is centred on (8, 8) by construction, so
+         an icon alone in a button needs no correction - except the run triangle,
+         centred on its centre of mass, which is what the eye reads as the middle. -->
+    <symbol id="sw-table" viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M6.5 6.5V13"/></symbol>
+    <symbol id="sw-view" viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1.5" stroke-dasharray="2.2 1.6"/><path d="M2.5 6.5h11M6.5 6.5V13"/></symbol>
+    <symbol id="sw-procedure" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M6.6 5.6v4.8L10.6 8z"/></symbol>
+    <symbol id="sw-function" viewBox="0 0 16 16"><path d="M5 2.5C2.8 5 2.8 11 5 13.5M11 2.5c2.2 2.5 2.2 8.5 0 11M6.5 6l3 4M9.5 6l-3 4"/></symbol>
+    <symbol id="sw-trigger" viewBox="0 0 16 16"><path d="M9.2 2 4.2 8.8h3.6L6.8 14l5-6.8H8.2z"/></symbol>
+    <symbol id="sw-index" viewBox="0 0 16 16"><path d="M2.3 4h6.7M2.3 8h4.7M2.3 12h2.7M12 4v8M9.8 9.8 12 12l2.2-2.2"/></symbol>
+    <symbol id="sw-key" viewBox="0 0 16 16"><circle cx="5.5" cy="10.5" r="2.7"/><path d="M7.5 8.5l6-6M11 5l2 2"/></symbol>
+    <symbol id="sw-fk" viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="5.2" height="4.2" rx="1"/><rect x="9" y="9.3" width="5.2" height="4.2" rx="1"/><path d="M4.4 6.7v4.7H9M7.6 10.2 9 11.4 7.6 12.6"/></symbol>
+    <symbol id="sw-database" viewBox="0 0 16 16"><ellipse cx="8" cy="4.5" rx="4.5" ry="2"/><path d="M3.5 4.5v7c0 1.1 2 2 4.5 2s4.5-.9 4.5-2v-7M3.5 8c0 1.1 2 2 4.5 2s4.5-.9 4.5-2"/></symbol>
+    <symbol id="sw-plan" viewBox="0 0 16 16"><rect x="1.6" y="2" width="4.2" height="3" rx=".8"/><rect x="1.6" y="10.5" width="4.2" height="3" rx=".8"/><path d="M3.7 5v5.5M5.8 3.5h2"/><circle cx="10.8" cy="7.2" r="2.9"/><path d="M12.9 9.3 14.6 11"/></symbol>
+    <symbol id="sw-plan-actual" viewBox="0 0 16 16"><rect x="1.6" y="2" width="4.2" height="3" rx=".8" fill="currentColor"/><rect x="1.6" y="10.5" width="4.2" height="3" rx=".8" fill="currentColor"/><path d="M3.7 5v5.5M5.8 3.5h2"/><path d="M9 4.8v6.4l5-3.2z" fill="currentColor"/></symbol>
+    <symbol id="sw-join" viewBox="0 0 16 16"><circle cx="6" cy="8" r="3.9"/><circle cx="10" cy="8" r="3.9"/></symbol>
+    <symbol id="sw-run" viewBox="0 0 16 16"><path d="M5.8 3.3v9.4L13 8z"/></symbol>
+</svg>

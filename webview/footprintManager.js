@@ -140,7 +140,7 @@ class FootprintManager {
             ids.set(t.qualifiedName, id);
             // A table reached through a procedure or a function is shown apart:
             // the query does not read it directly.
-            const via = (t.via && t.via.length) ? t.via.join(' → ') : '';
+            const via = (t.via && t.via.length) ? t.via.join(' > ') : '';
             elements.push({
                 data: {
                     id, name: t.qualifiedName, kind: t.access === 'via-code' ? 'via-code' : 'direct',
@@ -389,12 +389,12 @@ class FootprintManager {
         const esc = FootprintManager._esc;
         const html = tables.map(t => {
             const rows = t.columns.map(c => {
-                const fk = c.fkRef ? `<span class="fp-fk" title="→ ${esc(c.fkRef)}">FK</span> ` : '';
-                const pk = c.isPk ? '🔑 ' : '';
+                const fk = c.fkRef ? `<span class="fp-fk" title="References ${esc(c.fkRef)}">FK</span> ` : '';
+                const pk = c.isPk ? `${swIcon('key')} ` : '';
                 return `<tr>
                     <td>${pk}${fk}<strong>${esc(c.name)}</strong></td>
                     <td>${esc(c.type)}</td>
-                    <td class="fp-center">${c.nullable ? '✓' : ''}</td>
+                    <td class="fp-center">${c.nullable ? '<i class="codicon codicon-check"></i>' : ''}</td>
                     <td>${esc(c.default)}</td>
                     <td>${esc(c.description)}</td>
                 </tr>`;

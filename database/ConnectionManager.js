@@ -3,13 +3,17 @@
 const sql = require('mssql');
 const { bracketIdentifier } = require('./sqlIdentifier');
 const { EntraTokenSource } = require('./entraToken');
+const { SspiPool } = require('./SspiPool');
 
 class ConnectionManager {
     // tokenFetcher: see entraToken.js. Without one, Entra ID connections are
     // refused with a clear message instead of failing obscurely.
-    constructor(connectionStorage, tokenFetcher = null) {
+    // sspiHelperPath: SqlWayfarerSspi.exe, which carries the Windows
+    // integrated authentication (see SspiPool.js).
+    constructor(connectionStorage, tokenFetcher = null, sspiHelperPath = null) {
         this._connectionStorage = connectionStorage;
         this._tokenFetcher = tokenFetcher;
+        this._sspiHelperPath = sspiHelperPath;
         // Token source of each config built for an Entra ID connection, so
         // connect() can keep the token of the live connection fresh.
         this._tokenSources = new WeakMap();
@@ -28,8 +32,9 @@ class ConnectionManager {
     // connection parameters.
     async buildConnectionConfig(connectionConfig) {
         const isEntra = connectionConfig.authType === 'entra';
+        const isWindows = connectionConfig.authType === 'windows';
         let password = connectionConfig.password;
-        if (!isEntra && !password && connectionConfig.name) {
+        if (!isEntra && !isWindows && !password && connectionConfig.name) {
             password = await this._connectionStorage.getConnectionPassword(connectionConfig.name);
             if (connectionConfig.isLoadedConnection && !password) {
                 throw new Error('Password not found in secure storage');
@@ -49,6 +54,9 @@ class ConnectionManager {
         if (connectionConfig.database) config.database = connectionConfig.database;
         if (isEntra) {
             await this._applyEntraAuthentication(config, options);
+        } else if (isWindows) {
+            // The OS token is used: no login, no password.
+            config.integratedSecurity = true;
         } else if (connectionConfig.username && password) {
             // 'DOMAIN\user' must become { domain, user }: tedious only switches
             // to NTLM (Windows account) when config.domain is set, the way the
@@ -98,6 +106,10 @@ class ConnectionManager {
     }
 
     async _openPool(config) {
+        if (config.integratedSecurity) {
+            if (!this._sspiHelperPath) throw new Error('Windows authentication is not available in this environment');
+            return new SspiPool(config, this._sspiHelperPath).connect();
+        }
         const source = this._tokenSources.get(config);
         if (!source) return sql.connect(config);
         return this._createEntraPool(config, source).connect();
@@ -109,19 +121,6 @@ class ConnectionManager {
         if (this._activeTokenSource) this._activeTokenSource.stop();
         this._activeTokenSource = this._tokenSources.get(config) || null;
         if (this._activeTokenSource) this._activeTokenSource.start();
-    }
-
-    async getConnectionForDisplay(connectionName) {
-        try {
-            const connection = this._connectionStorage.getConnection(connectionName);
-            if (!connection) return null;
-            const display = { ...connection };
-            delete display.password;
-            return display;
-        } catch (error) {
-            console.error('Error getting connection for display:', error);
-            return null;
-        }
     }
 
     async testConnection(connectionConfig) {
@@ -149,8 +148,8 @@ class ConnectionManager {
         const savedConnection = this._connectionStorage.getConnection(connectionName);
         if (!savedConnection) throw new Error(`Connection '${connectionName}' not found`);
 
-        // An Entra ID connection has no password: the sign-in is the secret.
-        if (savedConnection.authType === 'entra') {
+        // An Entra ID or Windows connection has no password: the sign-in is the secret.
+        if (savedConnection.authType === 'entra' || savedConnection.authType === 'windows') {
             await this.connect({ ...savedConnection, isLoadedConnection: true });
             return;
         }
@@ -192,6 +191,7 @@ class ConnectionManager {
     // out a different physical connection per request.
     async acquireConnection() {
         const pool = this.getPool();
+        if (pool instanceof SspiPool) return pool.acquireSession();
         const connection = await pool.acquire();
         // Minimal shape sql.Request's parent needs: acquire/release - always
         // hands back this one already-acquired connection instead of letting

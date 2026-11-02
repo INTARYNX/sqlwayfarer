@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src {{CSP_SOURCE}}; img-src {{CSP_SOURCE}}; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}};">
+    <title>SQL Wayfarer</title>
+    <link href="{{CODICON_STYLES_URI}}" rel="stylesheet">
+    <link href="{{SIDEBAR_STYLES_URI}}" rel="stylesheet">
+</head>
+<body>
+    {{ICON_SPRITE}}
+    <div class="sb-tabs" role="tablist">
+        <button class="sb-tab active" role="tab" data-sb-tab="connections">Connections</button>
+        <button class="sb-tab" role="tab" data-sb-tab="snippets">Snippets</button>
+    </div>
+
+    <!-- Connections: one SQL Wayfarer tab is opened per connection. -->
+    <section id="connectionsView" class="sb-view active" data-sb-view="connections">
+        <div id="connectionListView" class="sb-list-view">
+            <div class="sb-toolbar">
+                <input type="text" id="connectionFilter" class="sb-input sb-filter" placeholder="Filter connections…" aria-label="Filter connections">
+                <button id="newConnectionBtn" class="sb-icon-btn" title="New connection" aria-label="New connection"><i class="codicon codicon-add"></i></button>
+            </div>
+            <div id="connectionsStatus" class="sb-status"></div>
+            <div id="connectionList" class="sb-list"></div>
+        </div>
+
+        <div id="connectionFormView" class="sb-form-view" hidden>
+            <div class="sb-form-header">
+                <button id="connectionFormBackBtn" class="sb-icon-btn" title="Back to the connections" aria-label="Back"><i class="codicon codicon-arrow-left"></i></button>
+                <span id="connectionFormTitle">New connection</span>
+            </div>
+
+            <div class="sb-field">
+                <label for="connectionNameInput">Name</label>
+                <input type="text" id="connectionNameInput" class="sb-input" placeholder="My SQL Server">
+            </div>
+            <div class="sb-field-row">
+                <div class="sb-field">
+                    <label for="serverInput">Server</label>
+                    <input type="text" id="serverInput" class="sb-input" placeholder="localhost">
+                </div>
+                <div class="sb-field narrow">
+                    <label for="portInput">Port</label>
+                    <input type="number" id="portInput" class="sb-input" placeholder="1433">
+                </div>
+            </div>
+            <div class="sb-field">
+                <label for="databaseInput">Database (optional)</label>
+                <input type="text" id="databaseInput" class="sb-input" placeholder="master">
+            </div>
+            <div class="sb-field">
+                <label for="authTypeSelect">Authentication</label>
+                <select id="authTypeSelect" class="sb-input">
+                    <option value="sql">SQL login</option>
+                    <option value="windows">Windows (current user)</option>
+                    <option value="entra">Microsoft Entra ID</option>
+                </select>
+            </div>
+
+            <p id="entraAuthHint" class="sb-hint" hidden>Signs in with the Microsoft account of VS Code. Nothing is stored; the connection is always encrypted.</p>
+            <p id="windowsAuthHint" class="sb-hint" hidden>Signs in as the Windows user running VS Code. Nothing is stored.</p>
+
+            <div id="sqlAuthFields">
+                <div class="sb-field">
+                    <label for="usernameInput">Username <span title="A Windows account is typed as DOMAIN\user and sent with its password">(or DOMAIN\user)</span></label>
+                    <input type="text" id="usernameInput" class="sb-input" placeholder="sa">
+                </div>
+                <div class="sb-field">
+                    <label for="passwordInput">Password</label>
+                    <input type="password" id="passwordInput" class="sb-input" placeholder="Password" autocomplete="new-password">
+                </div>
+            </div>
+
+            <div class="sb-checks">
+                <label><input type="checkbox" id="encryptCheckbox"> Encrypt</label>
+                <label><input type="checkbox" id="trustCertCheckbox" checked> Trust server certificate</label>
+            </div>
+
+            <div id="connectionFormStatus" class="sb-status"></div>
+            <div class="sb-actions">
+                <button id="testConnectionBtn" class="sb-btn leading">Test</button>
+                <button id="saveConnectionBtn" class="sb-btn">Save</button>
+                <button id="saveAndOpenConnectionBtn" class="sb-btn primary" title="Save the connection and open it in a tab">Save &amp; Open</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Snippets: reusable SQL, available from the Snippets dropdown of any Query tab. -->
+    <section id="snippetsView" class="sb-view" data-sb-view="snippets">
+        <div id="snippetListView" class="sb-list-view">
+            <div class="sb-toolbar">
+                <input type="text" id="snippetFilter" class="sb-input sb-filter" placeholder="Filter snippets…" aria-label="Filter snippets">
+                <button id="newSnippetBtn" class="sb-icon-btn" title="New snippet" aria-label="New snippet"><i class="codicon codicon-add"></i></button>
+            </div>
+            <div id="snippetManagerList" class="sb-list"></div>
+        </div>
+
+        <div id="snippetFormView" class="sb-form-view" hidden>
+            <div class="sb-form-header">
+                <button id="snippetFormBackBtn" class="sb-icon-btn" title="Back to the snippets" aria-label="Back"><i class="codicon codicon-arrow-left"></i></button>
+                <span id="snippetFormTitle">New snippet</span>
+            </div>
+            <div class="sb-field">
+                <label for="snippetNameInput">Name</label>
+                <input type="text" id="snippetNameInput" class="sb-input" placeholder="e.g. Select top 100">
+            </div>
+            <div class="sb-field grow">
+                <label for="snippetSqlInput">SQL</label>
+                <textarea id="snippetSqlInput" class="sb-input" rows="10" placeholder="SELECT TOP 100 *&#10;FROM "></textarea>
+            </div>
+            <div id="snippetFormStatus" class="sb-status"></div>
+            <div class="sb-actions">
+                <button id="saveSnippetBtn" class="sb-btn primary">Save</button>
+            </div>
+        </div>
+    </section>
+
+    <div class="sb-build-info">Build: {{BUILD_TIME}}</div>
+
+    <script src="{{BUILTIN_SNIPPETS_URI}}"></script>
+    <script src="{{SNIPPET_MANAGER_URI}}"></script>
+    <script src="{{SIDEBAR_CONNECTIONS_URI}}"></script>
+    <script src="{{SIDEBAR_MAIN_URI}}"></script>
+</body>
+</html>

@@ -294,10 +294,11 @@ class DataDictionaryService {
             userTypes = typesResult.recordset;
         }
 
-        // Dependencies come from the explorer index; the dictionary still works without them.
+        // Dependencies come from the explorer index when one was built; the
+        // dictionary never builds it, and works without it.
         let index = null;
         try {
-            index = await this._indexService.getIndex(database);
+            index = await this._indexService.peekIndex(database);
         } catch (error) {
             console.warn('Data dictionary: index unavailable, skipping dependencies:', error.message);
         }
@@ -582,7 +583,7 @@ class DataDictionaryService {
         lines.push('| Type | Base type | Nullable |');
         lines.push('|------|-----------|:--------:|');
         for (const t of userTypes) {
-            lines.push(`| ${DataDictionaryService.escapeCell(t.qualifiedName)} | ${DataDictionaryService.escapeCell(t.baseType)} | ${t.nullable ? '✓' : ''} |`);
+            lines.push(`| ${DataDictionaryService.escapeCell(t.qualifiedName)} | ${DataDictionaryService.escapeCell(t.baseType)} | ${t.nullable ? 'yes' : ''} |`);
         }
         lines.push('');
     }
@@ -619,14 +620,14 @@ class DataDictionaryService {
         lines.push('|--------|------|:--------:|---------|-------------|');
         for (const col of entry.columns) {
             const isPk = entry.primaryKey.includes(col.column_name);
-            const nameCell = `${isPk ? '🔑 ' : ''}**${col.column_name}**`;
+            const nameCell = `**${col.column_name}**${isPk ? ' (PK)' : ''}`;
             let type = DataDictionaryService.formatDataType(col.data_type, col.max_length, col.precision, col.scale);
             if (col.is_identity) type += ' · identity';
             if (col.is_computed) type += ' · computed';
             const cells = [
                 nameCell,
                 type,
-                col.is_nullable ? '✓' : '',
+                col.is_nullable ? 'yes' : '',
                 DataDictionaryService.cleanDefault(col.default_definition),
                 col.description || ''
             ];
@@ -639,7 +640,7 @@ class DataDictionaryService {
             lines.push('');
             for (const fk of entry.foreignKeys) {
                 const target = `${fk.ref_schema}.${fk.ref_table}`;
-                lines.push(`- \`${fk.fk_name}\`: ${fk.column_name} → ${link(target)} (${fk.ref_column})`);
+                lines.push(`- \`${fk.fk_name}\`: ${fk.column_name} references ${link(target)} (${fk.ref_column})`);
             }
             lines.push('');
         }
@@ -799,7 +800,7 @@ class DataDictionaryService {
         const part = page.partCount ? ` — part ${page.part}/${page.partCount}` : '';
         lines.push(`# ${data.database} — ${page.schema}: ${page.category}${part}`);
         lines.push('');
-        lines.push('[← Index](README.md)');
+        lines.push('[Back to index](README.md)');
         lines.push('');
         const isRoutine = page.category === 'Procedures' || page.category === 'Functions';
         for (const entry of page.entries) {
@@ -824,7 +825,7 @@ class DataDictionaryService {
             lines.push('**Referenced by (foreign keys):**');
             lines.push('');
             for (const r of entry.referencedByFk) {
-                lines.push(`- ${link(r.fromTable)}.${r.fromColumn} → ${r.refColumn} (\`${r.fkName}\`)`);
+                lines.push(`- ${link(r.fromTable)}.${r.fromColumn} references ${r.refColumn} (\`${r.fkName}\`)`);
             }
             lines.push('');
         }
@@ -837,7 +838,7 @@ class DataDictionaryService {
             for (const ix of entry.indexes) {
                 let cols = ix.keyColumns.join(', ');
                 if (ix.includedColumns.length) cols += ` (incl. ${ix.includedColumns.join(', ')})`;
-                lines.push(`| ${esc(ix.name)} | ${esc(cols)} | ${ix.unique ? '✓' : ''} | ${esc((ix.type || '').toLowerCase())} |`);
+                lines.push(`| ${esc(ix.name)} | ${esc(cols)} | ${ix.unique ? 'yes' : ''} | ${esc((ix.type || '').toLowerCase())} |`);
             }
             lines.push('');
         }

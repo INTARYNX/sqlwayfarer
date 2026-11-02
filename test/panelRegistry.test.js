@@ -26,6 +26,42 @@ suite('PanelRegistry', () => {
 		assert.strictEqual(registry.findByConnectionIdentity(null, null), null);
 	});
 
+	test('findByConnectionName finds the tab opened for a saved connection', () => {
+		const registry = new PanelRegistry();
+		const prod = { connectionName: 'Prod' };
+		registry.register(prod);
+		registry.register({ connectionName: null });
+		assert.strictEqual(registry.findByConnectionName('Prod'), prod);
+		assert.strictEqual(registry.findByConnectionName('Dev'), null);
+		assert.strictEqual(registry.findByConnectionName(null), null);
+	});
+
+	test('the sidebar is told which connections have a tab, the panels are not bothered', () => {
+		const registry = new PanelRegistry();
+		const told = [];
+		registry.register({ onOpenConnectionsChanged: names => told.push(names) });
+		registry.register({ connectionName: 'Prod' });
+		registry.register({ connectionName: 'Dev' });
+		registry.notifyOpenConnectionsChanged();
+		assert.deepStrictEqual(told, [['Prod', 'Dev']]);
+	});
+
+	test('renameConnection makes the open tab follow its connection', () => {
+		const registry = new PanelRegistry();
+		const told = [];
+		const renamed = [];
+		const panel = { connectionName: 'Old', renameConnection(name) { this.connectionName = name; renamed.push(name); } };
+		registry.register(panel);
+		registry.register({ onOpenConnectionsChanged: names => told.push(names) });
+		registry.renameConnection('Old', 'New');
+		assert.deepStrictEqual(renamed, ['New']);
+		assert.strictEqual(registry.findByConnectionName('New'), panel);
+		assert.strictEqual(registry.findByConnectionName('Old'), null);
+		assert.deepStrictEqual(told, [['New']]);
+		registry.renameConnection('Nobody', 'Else');
+		assert.strictEqual(told.length, 1, 'renaming a connection with no tab changes nothing');
+	});
+
 	test('unregister removes a panel from later lookups and broadcasts', () => {
 		const registry = new PanelRegistry();
 		const received = [];

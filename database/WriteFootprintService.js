@@ -32,7 +32,7 @@ class WriteFootprintService {
     // Live entry point: pulls the cached index and a fresh trigger→parent map,
     // then delegates to the pure analyzer.
     async analyze(database, objectName) {
-        const index = await this._indexService.getIndex(database);
+        const index = await this._indexService.requireIndex(database);
         const triggers = await this._getTriggerParents(database);
         const footprint = WriteFootprintService.analyzeFootprint({ index, triggers, target: objectName });
         if (footprint.found && footprint.tables.length > 0) {

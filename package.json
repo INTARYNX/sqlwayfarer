@@ -82,6 +82,166 @@
         "icon": "$(compass)"
       }
     ],
+    "configuration": {
+      "title": "SQL Wayfarer",
+      "properties": {
+        "sqlwayfarer.openLastConnection": {
+          "type": "boolean",
+          "default": true,
+          "description": "The Open SQL Wayfarer command opens the last connection used straight away, instead of asking which one."
+        },
+        "sqlwayfarer.autocomplete.enabled": {
+          "type": "boolean",
+          "default": true,
+          "order": 1,
+          "description": "Turn the query editor's autocompletion on or off."
+        },
+        "sqlwayfarer.autocomplete.autoTrigger": {
+          "type": "boolean",
+          "default": true,
+          "order": 2,
+          "description": "Open the suggestions while typing. When off, they only open with Ctrl+Space."
+        },
+        "sqlwayfarer.autocomplete.triggerAfterKeywords": {
+          "type": "boolean",
+          "default": true,
+          "order": 3,
+          "description": "Open the suggestions right after FROM, JOIN, INTO, UPDATE, EXEC and USE, before any letter is typed."
+        },
+        "sqlwayfarer.autocomplete.minChars": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 5,
+          "order": 4,
+          "description": "Letters to type before the suggestions open by themselves."
+        },
+        "sqlwayfarer.autocomplete.maxItems": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 5,
+          "maximum": 100,
+          "order": 5,
+          "description": "Maximum number of suggestions shown."
+        },
+        "sqlwayfarer.autocomplete.matching": {
+          "type": "string",
+          "default": "fuzzy",
+          "enum": [
+            "prefix",
+            "contains",
+            "fuzzy"
+          ],
+          "enumDescriptions": [
+            "Names that start with what you typed.",
+            "Also names that contain it.",
+            "Also initials (ho -> HumanOrders) and scattered letters. Best matches first."
+          ],
+          "order": 6,
+          "description": "How what you typed is matched against names."
+        },
+        "sqlwayfarer.autocomplete.keywordCase": {
+          "type": "string",
+          "default": "upper",
+          "enum": [
+            "upper",
+            "lower",
+            "match"
+          ],
+          "enumDescriptions": [
+            "SELECT",
+            "select",
+            "Follow what you typed: lowercase if you typed lowercase, uppercase otherwise."
+          ],
+          "order": 7,
+          "description": "Case of the keywords and functions inserted."
+        },
+        "sqlwayfarer.autocomplete.acceptKeys": {
+          "type": "string",
+          "default": "tabAndEnter",
+          "enum": [
+            "tabAndEnter",
+            "tab",
+            "enter"
+          ],
+          "enumDescriptions": [
+            "Tab and Enter accept the suggestion.",
+            "Only Tab accepts; Enter always adds a new line.",
+            "Only Enter accepts."
+          ],
+          "order": 8,
+          "description": "Keys that accept the selected suggestion."
+        },
+        "sqlwayfarer.autocomplete.showTypes": {
+          "type": "boolean",
+          "default": true,
+          "order": 9,
+          "description": "Show the data type next to the column suggestions."
+        },
+        "sqlwayfarer.autocomplete.addAlias": {
+          "type": "boolean",
+          "default": false,
+          "order": 10,
+          "description": "After FROM or JOIN, insert a short alias with the table name (HumanOrders -> HumanOrders ho)."
+        },
+        "sqlwayfarer.autocomplete.bracketNames": {
+          "type": "string",
+          "default": "whenNeeded",
+          "enum": [
+            "whenNeeded",
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "[Brackets] only around names that need them (spaces, reserved words).",
+            "Around every name.",
+            "Never."
+          ],
+          "order": 11,
+          "description": "When inserted names are put between square brackets."
+        },
+        "sqlwayfarer.autocomplete.columnQualification": {
+          "type": "string",
+          "default": "whenAmbiguous",
+          "enum": [
+            "whenAmbiguous",
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "alias.Column only when several tables have that column.",
+            "Always alias.Column.",
+            "Never; just the column name."
+          ],
+          "order": 12,
+          "description": "Whether suggested columns are prefixed with their table alias."
+        },
+        "sqlwayfarer.autocomplete.includeSystemObjects": {
+          "type": "boolean",
+          "default": false,
+          "order": 13,
+          "description": "Include sys and INFORMATION_SCHEMA objects in the suggestions."
+        },
+        "sqlwayfarer.autocomplete.sortByUsage": {
+          "type": "boolean",
+          "default": true,
+          "order": 14,
+          "description": "Offer first what you picked before in this session, among equally good matches."
+        },
+        "sqlwayfarer.autocomplete.snippets": {
+          "type": "boolean",
+          "default": true,
+          "order": 15,
+          "description": "Suggest snippets (type its abbreviation, e.g. ssf, then Tab)."
+        },
+        "sqlwayfarer.autocomplete.showDetails": {
+          "type": "boolean",
+          "default": true,
+          "order": 16,
+          "description": "Show a details line under the suggestions (full type, nullability, primary key, foreign key...)."
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -112,10 +272,13 @@
   },
   "scripts": {
     "build": "webpack",
+    "build:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-helper.ps1",
     "lint": "eslint .",
     "test": "vscode-test",
-    "package": "npm run build && vsce package",
-    "publish": "npm run build && vsce publish"
+    "package": "npm run build && npm run build:helper && vsce package",
+    "publish": "npm run build && npm run build:helper && vsce publish",
+    "test:e2e": "mocha --ui tdd \"test/e2e/*.e2e.js\" --timeout 120000",
+    "test:unit": "mocha --ui tdd \"test/*.test.js\" --ignore test/extension.test.js --ignore test/panelState.test.js --ignore test/queryFileHandlers.test.js --ignore test/queryHandlers.test.js --ignore test/ratingPrompt.test.js --ignore test/snippetHandlers.test.js"
   },
   "dependencies": {
     "antlr4": "^4.13.2",
@@ -140,6 +303,7 @@
     "cytoscape-dagre": "^4.0.0",
     "dagre": "^0.8.5",
     "eslint": "^9.25.1",
+    "playwright": "^1.63.0",
     "typescript": "^5.1.6",
     "webpack": "^5.107.2",
     "webpack-cli": "^5.1.4"

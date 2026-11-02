@@ -77,7 +77,7 @@ suite('DependencyService.externalTarget', () => {
 suite('DependencyService.getDependencies', () => {
 	function makeService(objects) {
 		const service = new DependencyService();
-		service.setIndexService({ getIndex: async () => ({ objects }) });
+		service.setIndexService({ peekIndex: async () => ({ objects }) });
 		return service;
 	}
 
