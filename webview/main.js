@@ -302,13 +302,14 @@ class ObjectsTabManager {
         const db = this.escapeHtml(this.currentDatabase);
         const icon = '<i class="codicon codicon-info index-notice-icon"></i>';
         let body;
+        let after = ''; // below the buttons: the list of changed objects can be long
         if (kind === 'stale') {
             const built = message.builtAt ? this.escapeHtml(new Date(message.builtAt).toLocaleString()) : 'earlier';
             body = `
                 <strong>The index of ${db} is out of date</strong>
                 <p>It was built on ${built}, and the schema has changed since. Dependencies and column usage may be wrong or missing for the objects that changed.</p>
-                <p>Updating only re-analyzes the objects that changed, so it is much quicker than the first build. Nothing is updated until you choose to.</p>
-                ${this.changesHtml(message.changes)}`;
+                <p>Updating only re-analyzes the objects that changed, so it is much quicker than the first build. Nothing is updated until you choose to.</p>`;
+            after = this.changesHtml(message.changes);
         } else {
             body = `
                 <strong>The dependency index of ${db} is not built</strong>
@@ -324,6 +325,7 @@ class ObjectsTabManager {
                     <button class="primary" data-index-action="build">${kind === 'stale' ? 'Update index' : 'Build index'}</button>
                     <button data-index-action="dismiss">Not now</button>
                 </div>
+                ${after}
             </div>`;
         this.noticeEl.hidden = false;
     }
