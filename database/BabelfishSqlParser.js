@@ -527,6 +527,18 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         this.visitChildren(ctx);
     }
 
+    // SELECT ... INTO target: creates and fills that table (a temp table
+    // included).
+    visitQuery_specification(ctx) {
+        const into = this._first(ctx.table_name ? ctx.table_name() : null);
+        if (into && ctx.INTO && ctx.INTO()) {
+            const target = this._resolveQualifier(this._clean(into.getText()));
+            if (target && target !== DERIVED) this._recordWrite(target);
+        }
+        this.visitChildren(ctx);
+        return null;
+    }
+
     visitSelect_statement_standalone(ctx) {
         return this.visitSelect_statement(ctx);
     }

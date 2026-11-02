@@ -31,4 +31,10 @@ suite('BabelfishSqlParser OUTPUT INTO', () => {
 		const columns = parser.analyzeDefinition(sql).columns;
 		assert.strictEqual(columns['dbo.auditlog'].payload.write, true);
 	});
+
+	test('SELECT ... INTO writes the new table, a temp table included', () => {
+		assert.deepStrictEqual(writes('SELECT ID, Name INTO #x FROM dbo.Employees WHERE ID > 1'), ['#x']);
+		assert.deepStrictEqual(writes('SELECT * INTO dbo.Copy FROM dbo.Employees'), ['dbo.copy']);
+		assert.deepStrictEqual(writes('SELECT ID FROM dbo.Employees'), []);
+	});
 });
