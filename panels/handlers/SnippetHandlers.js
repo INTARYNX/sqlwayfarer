@@ -5,6 +5,7 @@ const { parseSqlPromptSnippetFiles } = require('../../database/sqlPromptSnippet'
 
 // The editor API is loaded when a dialog is needed, so the rest of this file
 // can be tested without VS Code.
+const BUILTIN_NAMES = require('../../webview/builtinSnippets').map(s => s.name);
 const vscodeApi = () => require('vscode');
 
 const SNIPPETS_KEY = 'sqlwayfarer.customSnippets';
@@ -120,12 +121,12 @@ class SnippetHandlers {
             return;
         }
 
-        const existing = this._getSnippets();
-        const plan = planImport(existing, imported);
+        const plan = planImport(this._getSnippets(), imported, BUILTIN_NAMES);
         const choice = await ui.confirmImport({ found: imported.length, duplicates: plan.duplicates.map(s => s.name), skipped, truncated });
         if (!choice) return;
 
-        const result = mergeSnippets(existing, imported, choice === 'overwrite');
+        // Read again: the saved snippets may have changed while the dialog was open.
+        const result = mergeSnippets(this._getSnippets(), imported, choice === 'overwrite', BUILTIN_NAMES);
         await this._globalState.update(SNIPPETS_KEY, result.snippets);
         this._broadcast({ command: 'snippetsLoaded', snippets: result.snippets });
         this._post({ command: 'snippetsImported', added: result.added, overwritten: result.overwritten, leftOut: result.leftOut, skippedFiles: skipped.length });

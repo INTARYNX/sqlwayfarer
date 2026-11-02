@@ -74,38 +74,46 @@ function toStoredSnippet(parsed, now = Date.now()) {
 }
 
 // Two imported snippets with the same name must not erase each other: the
-// later ones get " (2)", " (3)"...
-function uniqueNames(imported) {
+// later ones get " (2)", " (3)"... A name a built-in snippet already has counts
+// as taken. Each result keeps the name it came with in `base`.
+function uniqueNames(imported, reserved = []) {
     const seen = new Map();
+    for (const name of reserved) seen.set(name, 1);
     return imported.map(snippet => {
-        const key = snippet.name;
-        const count = (seen.get(key) || 0) + 1;
-        seen.set(key, count);
-        return count === 1 ? snippet : Object.assign({}, snippet, { name: `${snippet.name} (${count})` });
+        const count = (seen.get(snippet.name) || 0) + 1;
+        seen.set(snippet.name, count);
+        return { snippet: count === 1 ? snippet : Object.assign({}, snippet, { name: `${snippet.name} (${count})` }), base: snippet.name, count };
     });
 }
 
 // Which imported snippets are new, and which would replace one that exists.
-function planImport(existing, imported) {
+// The twins of a name that exists are duplicates too (they never replace it).
+function planImport(existing, imported, reserved = []) {
     const names = new Set(existing.map(s => s.name));
-    const unique = uniqueNames(imported);
-    return { fresh: unique.filter(s => !names.has(s.name)), duplicates: unique.filter(s => names.has(s.name)) };
+    const fresh = [];
+    const duplicates = [];
+    for (const { snippet, base, count } of uniqueNames(imported, reserved)) {
+        if (names.has(snippet.name) || (count > 1 && names.has(base))) duplicates.push(snippet);
+        else fresh.push(snippet);
+    }
+    return { fresh, duplicates };
 }
 
 // The saved snippets after the import. A duplicate either replaces the
 // existing snippet (overwrite) or is left out.
-function mergeSnippets(existing, imported, overwrite) {
-    const plan = planImport(existing, imported);
+function mergeSnippets(existing, imported, overwrite, reserved = []) {
+    const plan = planImport(existing, imported, reserved);
+    const names = new Set(existing.map(s => s.name));
     let snippets = existing.slice();
     let overwritten = 0;
     if (overwrite) {
-        const replacements = new Map(plan.duplicates.map(s => [s.name, s]));
+        const replacements = new Map(plan.duplicates.filter(s => names.has(s.name)).map(s => [s.name, s]));
         snippets = snippets.map(s => replacements.has(s.name) ? replacements.get(s.name) : s);
-        overwritten = plan.duplicates.length;
+        overwritten = replacements.size;
     }
     snippets.push(...plan.fresh);
     snippets.sort((a, b) => a.name.localeCompare(b.name));
-    return { snippets, added: plan.fresh.length, overwritten, leftOut: overwrite ? 0 : plan.duplicates.length };
+    return { snippets, added: plan.fresh.length, overwritten, leftOut: plan.duplicates.length - overwritten };
 }
 
 module.exports = { collectSnippetFiles, toStoredSnippet, planImport, mergeSnippets, uniqueNames, EXTENSION };

@@ -83,6 +83,20 @@ suite('snippet import: merge', () => {
 		assert.deepStrictEqual(result.snippets.map(s => [s.name, s.sql]), [['twin', 'ONE'], ['twin (2)', 'TWO']]);
 	});
 
+	test('the twins of an existing name are left out with it, not added as "(2)"', () => {
+		const result = mergeSnippets([stored('Foo')], [parsed('Foo', { sql: 'ONE' }), parsed('Foo', { sql: 'TWO' })], false);
+		assert.deepStrictEqual(result.snippets.map(s => s.name), ['Foo']);
+		assert.deepStrictEqual([result.added, result.overwritten, result.leftOut], [0, 0, 2]);
+		const over = mergeSnippets([stored('Foo')], [parsed('Foo', { sql: 'ONE' }), parsed('Foo', { sql: 'TWO' })], true);
+		assert.deepStrictEqual(over.snippets.map(s => [s.name, s.sql]), [['Foo', 'ONE']]);
+		assert.deepStrictEqual([over.added, over.overwritten, over.leftOut], [0, 1, 1]);
+	});
+
+	test('a name used by a built-in snippet is taken', () => {
+		const result = mergeSnippets([], [parsed('ssf')], false, ['ssf']);
+		assert.deepStrictEqual(result.snippets.map(s => s.name), ['ssf (2)']);
+	});
+
 	test('the result is sorted by name', () => {
 		const result = mergeSnippets([stored('b')], [parsed('c'), parsed('a')], false);
 		assert.deepStrictEqual(result.snippets.map(s => s.name), ['a', 'b', 'c']);
