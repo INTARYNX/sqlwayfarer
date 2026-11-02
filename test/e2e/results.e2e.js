@@ -155,6 +155,49 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.close();
 	});
 
+	test('syntax errors are underlined on the line the server reported, only when the setting is on', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		const checks = () => p.evaluate(() => window.__sent.filter(m => m.command === 'checkSyntax'));
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		await p.click('[data-tab=query]');
+		await p.click('.cm-content');
+		await p.keyboard.type('SELECT a,\nFROM t\nWHERE x = 1');
+		await p.waitForTimeout(1000);
+		check((await checks()).length === 0, 'with the setting off, the text is not sent anywhere');
+
+		await post({ command: 'diagnosticsSettings', syntax: true });
+		await p.waitForTimeout(1000);
+		const sent = await checks();
+		check(sent.length === 1 && sent[0].text === 'SELECT a,\nFROM t\nWHERE x = 1', 'switched on, the text is sent after the pause');
+
+		await post({ command: 'syntaxResult', requestId: sent[0].requestId + 99, diagnostics: [{ line: 1, message: 'for another text', near: '' }] });
+		check(await p.locator('.cm-lintRange-error').count() === 0, 'the answer to another request is ignored');
+		await post({ command: 'syntaxResult', requestId: sent[0].requestId, diagnostics: [{ line: 2, message: "Incorrect syntax near the keyword 'FROM'.", near: 'FROM' }] });
+		check(await p.locator('.cm-lintRange-error').count() === 1 && (await p.locator('.cm-lintRange-error').textContent()) === 'FROM', 'the word the server pointed at is underlined: ' + await p.locator('.cm-lintRange-error').allTextContents());
+		await p.locator('.cm-lintRange-error').hover();
+		await p.waitForTimeout(700);
+		check((await p.locator('.cm-tooltip-lint').textContent()).includes("Incorrect syntax near the keyword 'FROM'."), 'hovering shows the server message');
+
+		await post({ command: 'syntaxResult', requestId: sent[0].requestId, unavailable: true, diagnostics: [] });
+		check(await p.locator('.cm-lintRange-error').count() === 1, 'a check that could not run leaves what is shown');
+		await post({ command: 'syntaxResult', requestId: sent[0].requestId, diagnostics: [{ line: 3, message: 'second', near: '' }] });
+		check(await p.locator('.cm-lintRange-error').count() === 1 && (await p.locator('.cm-lintRange-error').textContent()).includes('WHERE'), 'without a known word, the line is underlined');
+
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.keyboard.press('Control+End');
+		await p.keyboard.type(' AND y = 2');
+		await p.waitForTimeout(1000);
+		check((await checks()).length === 1, 'an edit sends the new text again');
+		await post({ command: 'diagnosticsSettings', syntax: false });
+		check(await p.locator('.cm-lintRange-error').count() === 0, 'switching the setting off clears the underlines');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
 	test('the editor formats the query, and opens find / replace', async () => {
 		const check = checker();
 		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
