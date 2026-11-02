@@ -295,15 +295,32 @@ class QueryManager {
         this.autocomplete.onConnected();
     }
 
+    // The database the queries run on: the Explorer's, unless the schema is
+    // read from another connection (then the "Run on" one, see SchemaSourceManager).
+    targetDatabase() {
+        return window.schemaSourceManager ? window.schemaSourceManager.targetDatabase() : appState.currentDatabase;
+    }
+
+    runsOnOtherConnection() {
+        return !!(window.schemaSourceManager && window.schemaSourceManager.active);
+    }
+
+    // The target database changed: what can be run follows.
+    refreshRunState() {
+        this.setRunning(this.isRunning, this.cancelBtn.style.display !== 'none');
+        if (this.targetDatabase() && /database to run on/.test(this.status.textContent)) this.setStatus('', '');
+    }
+
     // Called by ExplorerManager whenever the shared database selector changes
     onDatabaseChanged(database) {
         this.autocomplete.reset();
-        this.runBtn.disabled = !database || this.isRunning;
-        this.estimatedPlanBtn.disabled = !database || this.isRunning;
-        this.includeActualPlanToggle.disabled = !database || this.isRunning;
+        const target = this.targetDatabase();
+        this.runBtn.disabled = !target || this.isRunning;
+        this.estimatedPlanBtn.disabled = !target || this.isRunning;
+        this.includeActualPlanToggle.disabled = !target || this.isRunning;
         if (this.queryGraphBtn) this.queryGraphBtn.disabled = !database;
         if (!this.isRunning) {
-            this.setStatus(database ? '' : 'Select a database above to run queries.', '');
+            this.setStatus(target ? '' : (this.runsOnOtherConnection() ? 'Choose the database to run on ("Run on").' : 'Select a database above to run queries.'), '');
         }
     }
 
@@ -376,12 +393,12 @@ class QueryManager {
     // extra plan recordset per statement) depends only on the toggle - same
     // model as SSMS's Ctrl+M, instead of a separate "run with plan" action.
     runQuery() {
-        const database = appState.currentDatabase;
+        const database = this.targetDatabase();
         const query = this.input.value.trim();
 
         if (this.isRunning) return;
         if (!database) {
-            this.setStatus('Select a database above first.', 'error');
+            this.setStatus(this.runsOnOtherConnection() ? 'Choose the database to run on first ("Run on").' : 'Select a database above first.', 'error');
             return;
         }
         if (!query) {
@@ -413,12 +430,12 @@ class QueryManager {
     // SET SHOWPLAN_XML ON never executes the query - just compiles and plans
     // it - so unlike the other two there's nothing to cancel here.
     runEstimatedPlan() {
-        const database = appState.currentDatabase;
+        const database = this.targetDatabase();
         const query = this.input.value.trim();
 
         if (this.isRunning) return;
         if (!database) {
-            this.setStatus('Select a database above first.', 'error');
+            this.setStatus(this.runsOnOtherConnection() ? 'Choose the database to run on first ("Run on").' : 'Select a database above first.', 'error');
             return;
         }
         if (!query) {
@@ -453,9 +470,10 @@ class QueryManager {
     // showCancel is false for the estimated plan, which has nothing to cancel.
     setRunning(running, showCancel = true) {
         this.isRunning = running;
-        this.runBtn.disabled = running || !appState.currentDatabase;
-        this.estimatedPlanBtn.disabled = running || !appState.currentDatabase;
-        this.includeActualPlanToggle.disabled = running || !appState.currentDatabase;
+        const target = this.targetDatabase();
+        this.runBtn.disabled = running || !target;
+        this.estimatedPlanBtn.disabled = running || !target;
+        this.includeActualPlanToggle.disabled = running || !target;
         this.cancelBtn.style.display = (running && showCancel) ? '' : 'none';
     }
 
