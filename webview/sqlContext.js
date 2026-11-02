@@ -260,6 +260,8 @@ class SqlContext {
                         const c = closeOf(k);
                         const first = tokens[k + 1];
                         if (!(first && first.t === 'w' && SqlContext.TABLE_HINTS.has(first.lc))) src.kind = 'function';
+                        // The arguments / hints are a group of their own: suggestions work inside them.
+                        scope.groups.push({ open: k, close: c, block });
                         k = c < to ? c + 1 : to;
                     } else if (parts[0].startsWith('#')) src.kind = 'temp';
                     else if (parts[0].startsWith('@')) src.kind = 'variable';
@@ -278,6 +280,7 @@ class SqlContext {
                 }
                 if (k < scope.end && SqlContext._isWord(tokens[k], 'with') && SqlContext._isPunct(tokens[k + 1], '(')) {
                     const c = closeOf(k + 1);
+                    scope.groups.push({ open: k + 1, close: c, block });
                     k = c < to ? c + 1 : to;
                 }
                 src.endIdx = k;
