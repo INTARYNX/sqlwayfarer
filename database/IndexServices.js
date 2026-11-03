@@ -247,8 +247,8 @@ class IndexService {
     async _runForceReindex(database, build) {
         const indexFile = this._getIndexFilePath(database, build.server);
         await this._ensureIndexDir(path.dirname(indexFile));
-        try { await fs.unlink(indexFile); } catch { /* file may not exist yet */ }
-        this._peeked.delete(indexFile);
+        // The index that exists stays until the new one replaces it: a build that
+        // is cancelled or fails must not leave the user without any.
 
         const stats = new IndexBuildStats('force', IndexService.CONCURRENT_BATCH_SIZE);
         const t0 = IndexBuildStats.now();
@@ -257,6 +257,7 @@ class IndexService {
         const index = await this._buildCompleteIndex(database, this._checksumFromObjects(liveObjects), liveObjects, build.server, stats);
         const saveStart = IndexBuildStats.now();
         await this._saveIndex(indexFile, index);
+        this._peeked.delete(indexFile);
         stats.phase('saveMs', IndexBuildStats.now() - saveStart);
         await this._recordStats(indexFile, stats, index, null);
         console.log(`Force reindex complete for ${database}`);

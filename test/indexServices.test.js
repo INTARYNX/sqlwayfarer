@@ -614,6 +614,38 @@ suite('IndexService never builds on its own', () => {
 		assert.deepStrictEqual(await service.getIndexStatus('Db'), { state: 'none' });
 	});
 
+	test('a force reindex that fails leaves the index that was there', async () => {
+		const service = makeService(objectsV1);
+		service._connectionManager.executeQueryInDatabase = async () => ({ recordset: objectsV1, recordsets: [[], []] });
+		await service.getIndex('Db');
+		const file = service._getIndexFilePath('Db', 'testserver');
+		const before = await fs.readFile(file, 'utf8');
+		service._connectionManager.executeQueryInDatabase = async () => { throw new Error('server gone'); };
+
+		await assert.rejects(service.forceReindex('Db'), /server gone/);
+
+		assert.strictEqual(await fs.readFile(file, 'utf8'), before);
+		assert.strictEqual((await service.peekIndex('Db')).totalObjects, 2);
+	});
+
+	test('a force reindex cancelled on the way leaves the index that was there', async () => {
+		let release;
+		const gate = new Promise(resolve => { release = resolve; });
+		const service = makeService(objectsV1);
+		service._connectionManager.executeQueryInDatabase = async () => ({ recordset: objectsV1, recordsets: [[], []] });
+		await service.getIndex('Db');
+		const file = service._getIndexFilePath('Db', 'testserver');
+		const before = await fs.readFile(file, 'utf8');
+		service._connectionManager.executeQueryInDatabase = async () => { await gate; return { recordset: objectsV1, recordsets: [[], []] }; };
+
+		const rebuild = service.forceReindex('Db');
+		service.requestCancel('Db');
+		release();
+
+		await assert.rejects(rebuild, error => error.code === 'INDEXING_CANCELLED');
+		assert.strictEqual(await fs.readFile(file, 'utf8'), before);
+	});
+
 	test('force reindex clears what peek had remembered', async () => {
 		const service = makeService(objectsV1);
 		service._connectionManager.executeQueryInDatabase = async () => ({ recordset: objectsV1, recordsets: [[], []] });
