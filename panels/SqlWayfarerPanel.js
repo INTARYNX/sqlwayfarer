@@ -359,7 +359,7 @@ class SqlWayfarerPanel {
         try {
             if (this._connectionManager.isConnected()) {
                 this._restorePanelState();
-                this.post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
+                this.post({ command: 'connectionStatus', success: true, message: 'Connected successfully!', production: this._isProduction() });
                 await this._restoreSchemaSource();
                 await this._db.handleGetDatabases();
                 return;
