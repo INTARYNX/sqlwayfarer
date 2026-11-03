@@ -306,3 +306,41 @@ suite('IndexService.getColumnUsage', () => {
 		assert.deepStrictEqual(await service.getColumnUsage('Db', 'dbo.T'), {});
 	});
 });
+
+suite('BabelfishSqlParser.analyzeDefinition: what is done to each table written', () => {
+	const ops = sql => makeParser().analyzeDefinition(sql).writeOps;
+
+	test('a statement of each kind', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(ops('DELETE FROM dbo.Task WHERE done = 1'), { 'dbo.task': ['delete'] });
+		assert.deepStrictEqual(ops('INSERT INTO dbo.Task (id) VALUES (1)'), { 'dbo.task': ['insert'] });
+		assert.deepStrictEqual(ops('UPDATE dbo.Task SET done = 1'), { 'dbo.task': ['update'] });
+	});
+
+	test('several statements on a table add up, and the other tables stay apart', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(
+			ops('INSERT INTO dbo.Task (id) VALUES (1); UPDATE dbo.Task SET done = 1; DELETE FROM dbo.Log;'),
+			{ 'dbo.log': ['delete'], 'dbo.task': ['insert', 'update'] });
+	});
+
+	test('a MERGE does what its WHEN clauses say', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(
+			ops('MERGE dbo.T AS t USING dbo.S AS s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.a = s.a WHEN NOT MATCHED THEN INSERT (id, a) VALUES (s.id, s.a);')['dbo.t'],
+			['insert', 'update']);
+		assert.deepStrictEqual(
+			ops('MERGE dbo.T AS t USING dbo.S AS s ON t.id = s.id WHEN NOT MATCHED BY SOURCE THEN DELETE;')['dbo.t'],
+			['delete']);
+	});
+
+	test('an OUTPUT INTO inserts into its target', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(ops('DELETE FROM dbo.Task OUTPUT deleted.id INTO dbo.TaskLog (id)'), { 'dbo.task': ['delete'], 'dbo.tasklog': ['insert'] });
+	});
+
+	test('a definition that writes nothing has no kinds', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(ops('SELECT 1 FROM dbo.T'), {});
+	});
+});

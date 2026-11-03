@@ -12,8 +12,9 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
 // table-level writes, 5 = parseErrors for the incomplete analyses, 6 = no false
 // ambiguous dependencies, 7 = checksums from the ISO date, not the text a Date
-// has in the local time zone); older cached files rebuild.
-const INDEX_FORMAT_VERSION = 7;
+// has in the local time zone, 8 = tableWriteOps: the kind of each table write);
+// older cached files rebuild.
+const INDEX_FORMAT_VERSION = 8;
 
 class IndexService {
     // How many objects' dependency queries run concurrently during a build.
@@ -508,7 +509,10 @@ class IndexService {
 
     _attachTableWrites(indexObjects, tableWritesByKey) {
         for (const [key, writes] of Object.entries(tableWritesByKey)) {
-            if (indexObjects[key]) indexObjects[key].tableWrites = writes;
+            if (!indexObjects[key]) continue;
+            indexObjects[key].tableWrites = writes.tables;
+            // What is done to each table (insert, update, delete): a trigger fires on one kind.
+            indexObjects[key].tableWriteOps = writes.ops;
         }
     }
 
@@ -669,7 +673,7 @@ class IndexService {
                 // The table-level writes travel with the column lineage: a
                 // DELETE or an INSERT without a column list writes a table
                 // without writing any named column.
-                if (writes.length > 0 && tableWritesOut) tableWritesOut[cleanQN] = writes;
+                if (writes.length > 0 && tableWritesOut) tableWritesOut[cleanQN] = { tables: writes, ops: analysis.writeOps || {} };
                 // The syntax errors make the analysis partial: the tree was
                 // still walked, but not everything in it could be understood.
                 if (errors.length > 0 && parseErrorsOut) parseErrorsOut[cleanQN] = errors;

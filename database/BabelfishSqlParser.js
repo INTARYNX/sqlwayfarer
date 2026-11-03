@@ -266,7 +266,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     constructor() {
         super();
         this._result = new Map(); // table -> Map(column -> { write, confident })
-        this._writes = new Set(); // tables written by the statement itself
+        this._writes = new Map(); // table -> Set of 'insert' | 'update' | 'delete' : tables written by the statement itself
         this._scope = null;
         this._ctes = new Set();
         this._triggerTable = null;
@@ -285,7 +285,15 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
 
     // Tables written by the definition, whatever the columns involved.
     getWrites() {
-        return [...this._writes].sort();
+        return [...this._writes.keys()].sort();
+    }
+
+    // What the definition does to each table it writes: { table: ['delete', 'insert', 'update'] }.
+    // A trigger fires on one kind of write, not on every one.
+    getWriteOps() {
+        const out = {};
+        for (const table of this.getWrites()) out[table] = [...this._writes.get(table)].sort();
+        return out;
     }
 
     _clean(name) {
@@ -316,10 +324,11 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     // column list writes unknown ones. The column lineage cannot express them,
     // and the write footprint needs to know the table is written to follow the
     // triggers that fire on it.
-    _recordWrite(table) {
+    _recordWrite(table, ...ops) {
         if (!table || table === DERIVED) return;
         if (this._ctes.has(table)) return;
-        this._writes.add(table);
+        if (!this._writes.has(table)) this._writes.set(table, new Set());
+        for (const op of ops) this._writes.get(table).add(op);
     }
 
     // inserted/deleted are NOT handled here: _record() remaps them, which also
@@ -412,7 +421,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
                 if (resolved && resolved !== DERIVED) {
                     this._scope.writeTarget = resolved;
                     this._scope.tables.add(resolved);
-                    this._recordWrite(resolved);
+                    this._recordWrite(resolved, 'update');
                 }
             }
             this.visitChildren(ctx);
@@ -427,7 +436,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
                 this._scope.writeTarget = target;
                 // The table is written even without a column list: the written
                 // columns are then unknown, but the write itself is certain.
-                this._recordWrite(target);
+                this._recordWrite(target, 'insert');
                 const list = this._first(ctx.insert_column_name_list ? ctx.insert_column_name_list() : null);
                 if (list) {
                     // Some grammar paths expose plain ids instead of insert_column_id
@@ -454,7 +463,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
                     this._scope.tables.add(resolved);
                     // A DELETE writes the table but no column value: only the
                     // table level can carry that.
-                    this._recordWrite(resolved);
+                    this._recordWrite(resolved, 'delete');
                 }
             }
             this.visitChildren(ctx);
@@ -468,7 +477,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         if (tableCtx) {
             const target = this._resolveQualifier(this._clean(tableCtx.getText()));
             if (target && target !== DERIVED) {
-                this._recordWrite(target);
+                this._recordWrite(target, 'insert');
                 const list = this._first(ctx.column_name_list ? ctx.column_name_list() : null);
                 if (list) {
                     for (const idNode of this._findAll(list, TSqlParser.RULE_id)) {
@@ -490,8 +499,11 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
                     this._scope.writeTarget = target;
                     this._scope.tables.add(target);
                     // A MERGE always writes its target (insert, update or
-                    // delete), even when the WHEN clauses name no column.
-                    this._recordWrite(target);
+                    // delete), even when the WHEN clauses name no column. The
+                    // clauses say which of the three it does.
+                    const clauses = ctx.getText().toUpperCase();
+                    const ops = ['INSERT', 'UPDATE', 'DELETE'].filter(op => clauses.includes(`THEN${op}`)).map(op => op.toLowerCase());
+                    this._recordWrite(target, ...(ops.length > 0 ? ops : ['insert', 'update', 'delete']));
                 }
             }
 
@@ -1060,6 +1072,7 @@ class BabelfishSqlParser {
             return {
                 columns: visitor.getResult(),
                 writes: visitor.getWrites(),
+                writeOps: visitor.getWriteOps(),
                 errors: errors || []
             };
         } catch (err) {

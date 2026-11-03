@@ -68,7 +68,10 @@ class WriteFootprintService {
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT SCHEMA_NAME(trObj.schema_id) + '.' + tr.name AS trigger_name,
                    SCHEMA_NAME(o.schema_id) + '.' + o.name AS parent_table,
-                   tr.is_disabled
+                   tr.is_disabled,
+                   -- The writes it fires on: 1 INSERT, 2 UPDATE, 3 DELETE.
+                   STUFF((SELECT ',' + CAST(te.type AS varchar(3)) FROM sys.trigger_events te
+                          WHERE te.object_id = tr.object_id FOR XML PATH('')), 1, 1, '') AS events
             FROM sys.triggers tr
             JOIN sys.objects o ON o.object_id = tr.parent_id
             -- The trigger's own schema can differ from its parent table's (a
@@ -81,7 +84,8 @@ class WriteFootprintService {
         return result.recordset.map(r => ({
             trigger: r.trigger_name,
             parentTable: r.parent_table,
-            disabled: !!r.is_disabled
+            disabled: !!r.is_disabled,
+            events: WriteFootprintService._eventsOf(r.events)
         }));
     }
 
@@ -89,6 +93,19 @@ class WriteFootprintService {
 
     static _clean(name) {
         return (name || '').replace(/\[|\]/g, '').toLowerCase();
+    }
+
+    // '1,2' (the type codes of sys.trigger_events) -> ['insert', 'update'].
+    static _eventsOf(codes) {
+        const names = { 1: 'insert', 2: 'update', 3: 'delete' };
+        return String(codes || '').split(',').map(code => names[code.trim()]).filter(Boolean);
+    }
+
+    // Whether a trigger fires on a write that does these kinds of things. What is not
+    // known (a trigger with no events read, a write of unknown kind) counts as firing.
+    static _firesOn(events, ops) {
+        if (!events || events.length === 0 || !ops || ops.length === 0) return true;
+        return ops.some(op => events.includes(op));
     }
 
     static _isCodeType(type) {
@@ -118,7 +135,8 @@ class WriteFootprintService {
             const p = WriteFootprintService._clean(t.parentTable);
             (trigByParent[p] = trigByParent[p] || []).push({
                 key: WriteFootprintService._clean(t.trigger),
-                disabled: !!t.disabled
+                disabled: !!t.disabled,
+                events: t.events || []
             });
         }
 
@@ -181,6 +199,7 @@ class WriteFootprintService {
             // writes that name no column - a DELETE, an INSERT without a
             // column list - which would otherwise never fire a trigger.
             const writtenTables = [];
+            const writeOps = entry.tableWriteOps || {};
             const columnRefs = entry.columnRefs || {};
             const writeKeys = new Set(entry.tableWrites || []);
             for (const tableKey of new Set([...Object.keys(columnRefs), ...writeKeys])) {
@@ -191,7 +210,7 @@ class WriteFootprintService {
                 if (!te || te.type !== 'U') { unresolved.add(WriteFootprintService._clean(tableKey)); continue; }
                 const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
                 recordTable(te, isWrite, cause);
-                if (isWrite) writtenTables.push(te);
+                if (isWrite) writtenTables.push({ table: te, ops: writeOps[tableKey] || [] });
             }
 
             // Referenced entities: recurse into code, add unclassified tables as reads.
@@ -216,10 +235,12 @@ class WriteFootprintService {
             // own footprint is tainted "via trigger" - attributed to this table
             // and this trigger specifically, even if we're already inside another
             // trigger's cascade (nested cascades blame the innermost cause).
-            for (const te of writtenTables) {
+            for (const { table: te, ops } of writtenTables) {
                 const trigs = trigByParent[WriteFootprintService._clean(te.qualifiedName)] || [];
                 for (const tg of trigs) {
                     if (tg.disabled) continue;
+                    // An AFTER INSERT trigger does not fire on a DELETE.
+                    if (!WriteFootprintService._firesOn(tg.events, ops)) continue;
                     const tgEntry = resolver.resolve(tg.key);
                     if (!tgEntry) { unresolved.add(tg.key); continue; }
                     triggersFired.add(tgEntry.qualifiedName);
