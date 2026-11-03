@@ -63,7 +63,7 @@ suite('dbSnapshots: can a snapshot be taken?', () => {
 		assert.ok(/snapshot already/.test(reason({ source_database_id: 9 })));
 		assert.ok(/offline/.test(reason({ state_desc: 'OFFLINE' })));
 		assert.ok(/FILESTREAM/.test(reason({ filestream_files: 1 })));
-		assert.ok(/Enterprise/.test(reason({ engine: 2, version: '12.0.6024.0' })));
+		assert.ok(/Enterprise, Developer or Evaluation/.test(reason({ engine: 2, version: '12.0.6024.0' })));
 		assert.ok(/does not exist/.test(evaluateSupport(undefined).reason));
 	});
 

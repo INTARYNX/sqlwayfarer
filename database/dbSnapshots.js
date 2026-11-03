@@ -53,7 +53,7 @@ function evaluateSupport(row) {
     if (Number(row.filestream_files) > 0) return { supported: false, reason: 'A database with FILESTREAM or memory-optimized data cannot have a snapshot.' };
     const major = parseInt(String(row.version).split('.')[0], 10);
     // Enterprise, Developer and Evaluation (engine 3) always; the other editions since SQL Server 2016 SP1.
-    if (row.engine !== 3 && major < 13) return { supported: false, reason: 'Before SQL Server 2016 SP1, snapshots need the Enterprise edition.' };
+    if (row.engine !== 3 && major < 13) return { supported: false, reason: 'Before SQL Server 2016 SP1, snapshots need the Enterprise, Developer or Evaluation edition.' };
     return { supported: true };
 }
 
