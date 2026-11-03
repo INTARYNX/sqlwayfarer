@@ -104,7 +104,8 @@ const checkMatch = check => (check.systemNamed ? `cc.definition = ${N(check.defi
 // Drops the constraint that is found by a condition, whatever its name is.
 function dropFound(schema, name, view, alias, parentColumn, condition) {
     return `DECLARE @n sysname = (SELECT TOP 1 ${alias}.name FROM ${view} ${alias} WHERE ${alias}.${parentColumn} = ${objectId(schema, name)} AND ${condition});\n`
-        + `IF @n IS NOT NULL EXEC (N'ALTER TABLE ${escapeLiteral(tableName(schema, name))} DROP CONSTRAINT ' + QUOTENAME(@n));`;
+        + `DECLARE @sql nvarchar(max) = N'ALTER TABLE ${escapeLiteral(tableName(schema, name))} DROP CONSTRAINT ' + QUOTENAME(@n);\n`
+        + 'IF @n IS NOT NULL EXEC (@sql);';
 }
 
 const defaultOnColumn = (schema, name, column) => `dc.parent_column_id = COLUMNPROPERTY(${objectId(schema, name)}, ${N(column)}, 'ColumnId')`;
@@ -192,8 +193,15 @@ function dropModule(module) {
     return batch(`IF ${moduleExists(module)}\n    DROP ${KIND_KEYWORD[module.type]} ${tableName(module.schema, module.name)};`);
 }
 
+// The SET options the module was made with, before it; "pre" batches check the
+// script is still running and note the time, the module is checked after.
 function setOptions(module) {
-    return batch(`SET ANSI_NULLS ${module.ansiNulls ? 'ON' : 'OFF'};\nSET QUOTED_IDENTIFIER ${module.quotedIdentifier ? 'ON' : 'OFF'};`);
+    return { sql: `SET ANSI_NULLS ${module.ansiNulls ? 'ON' : 'OFF'};\nSET QUOTED_IDENTIFIER ${module.quotedIdentifier ? 'ON' : 'OFF'};`, pre: true };
+}
+
+// Done when the module was written since the "pre" batch noted the time.
+function verified(module) {
+    return { verify: `IF EXISTS (SELECT 1 FROM sys.objects o CROSS JOIN #wf w WHERE o.object_id = OBJECT_ID(${N(tableName(module.schema, module.name))}) AND o.modify_date >= w.t)\n    UPDATE #wf SET n = {n};` };
 }
 
 // The definition with another header: CREATE OR ALTER, ALTER or CREATE.
@@ -209,16 +217,16 @@ function withHeader(definition, keyword) {
 // and created again.
 function moduleBatches(module, createOrAlter) {
     const text = createOrAlter ? withHeader(module.definition, 'CREATE OR ALTER') : null;
-    if (createOrAlter) return text ? [setOptions(module), { sql: text, first: true }] : null;
+    if (createOrAlter) return text ? [setOptions(module), { sql: text, first: true }, verified(module)] : null;
 
     if (module.type === 'procedure' || module.type === 'view') {
         const alter = withHeader(module.definition, 'ALTER');
         if (!alter) return null;
         const stub = module.type === 'procedure' ? 'CREATE PROCEDURE ' + tableName(module.schema, module.name) + ' AS RETURN 0' : 'CREATE VIEW ' + tableName(module.schema, module.name) + ' AS SELECT 1 AS stub';
-        return [setOptions(module), batch(`IF NOT ${moduleExists(module)}\n    EXEC (N'${escapeLiteral(stub)}');`), { sql: alter, first: true }];
+        return [setOptions(module), batch(`IF NOT ${moduleExists(module)}\n    EXEC (N'${escapeLiteral(stub)}');`), { sql: alter, first: true }, verified(module)];
     }
     const create = withHeader(module.definition, 'CREATE');
-    return create ? [setOptions(module), dropModule(module), { sql: create, first: true }] : null;
+    return create ? [setOptions(module), dropModule(module), { sql: create, first: true }, verified(module)] : null;
 }
 
 // What the code of a module mentions of the other modules that change in the
@@ -308,12 +316,21 @@ function buildMigrationScript(diff, options = {}) {
 
     steps.sort((a, b) => a.phase - b.phase);
 
-    // One batch per statement; the first of each begins by stopping the script after an error.
+    // One batch per statement. A batch runs only if the one before it finished
+    // (#wf holds the number of the last that did), so a batch that fails, at
+    // run time or already when it is compiled, stops the ones after it.
     const blocks = [];
     let lastLabel = null;
+    let done = 0;
+    const requires = n => `IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = ${n}) SET NOEXEC ON;`;
     for (const step of steps) {
         if (step.label !== lastLabel) { blocks.push(`-- ${step.label}${step.risk === 'caution' ? '   (caution: can fail on the data that is there)' : ''}`); lastLabel = step.label; }
-        for (const b of step.batches) blocks.push(b.first ? b.sql : `IF @@ERROR <> 0 SET NOEXEC ON;\n${b.sql}`);
+        for (const b of step.batches) {
+            if (b.first) blocks.push(b.sql);
+            else if (b.pre) blocks.push(`${requires(done)}\n${b.sql}\nUPDATE #wf SET t = GETDATE();`);
+            else if (b.verify) { done++; blocks.push(`${requires(done - 1)}\n${b.verify.replace('{n}', String(done))}`); }
+            else { done++; blocks.push(`${requires(done - 1)}\n${b.sql}\nIF @@ERROR = 0 UPDATE #wf SET n = ${done};`); }
+        }
     }
 
     const header = [
@@ -327,10 +344,12 @@ function buildMigrationScript(diff, options = {}) {
     const parts = [header.join('\n')];
     if (leftOut.length > 0) parts.push(leftOut.join('\n'));
     if (steps.length > 0) {
-        parts.push('SET NOEXEC OFF;\nSET NOCOUNT ON;');
+        parts.push('SET NOEXEC OFF;');
+        parts.push("SET NOCOUNT ON;\nIF OBJECT_ID(N'tempdb..#wf') IS NOT NULL DROP TABLE #wf;\nCREATE TABLE #wf (n int NOT NULL, t datetime NULL);\nINSERT #wf (n) VALUES (0);");
         parts.push(...blocks);
         // The session goes back to its defaults: a module can have been created with an option off.
-        parts.push('SET NOEXEC OFF;\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;');
+        parts.push('SET NOEXEC OFF;');
+        parts.push('IF OBJECT_ID(N\'tempdb..#wf\') IS NOT NULL DROP TABLE #wf;\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;');
     }
     return {
         script: `${parts.join('\nGO\n')}\n`,
