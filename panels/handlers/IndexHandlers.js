@@ -72,12 +72,8 @@ class IndexHandlers {
             const targetDatabase = database || this._getCurrentDatabase();
             console.log(`Canceling indexing operation for ${targetDatabase}`);
             if (targetDatabase) {
+                // The index already on disk stays: a build saves only when it is complete.
                 this._indexService.requestCancel(targetDatabase);
-                try {
-                    await this._indexService.clearIndex(targetDatabase);
-                } catch (clearError) {
-                    console.warn('Error clearing index during cancellation:', clearError);
-                }
             }
 
             this._post({ command: 'indexingCancelled', message: 'Indexing operation cancelled', success: true, database: targetDatabase });
