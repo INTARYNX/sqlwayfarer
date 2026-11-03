@@ -46,6 +46,15 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			await post({ ...details('Sales.Customers'), database: 'master', dependencies: [{ dependency: 'x' }] });
 			check(await p.evaluate(() => appState.currentDependencies.length) === 0, 'the details of another database are dropped too');
 
+			// ---- dependency tree: another database is a link, a name with & or < is escaped once
+			await post({ command: 'dependencyTreeResult', database: 'Sales', objectName: 'Sales.Customers', dependencyTree: { name: 'Sales.Customers', external: null, dependencies: [
+				{ name: 'OtherDb.dbo.Orders', external: { database: 'OtherDb', schema: 'dbo', object: 'Orders' }, dependencies: [] },
+				{ name: 'dbo.R&D <x>', external: null, dependencies: [] }
+			] } });
+			const tree = await p.evaluate(() => ({ text: document.getElementById('treeContainer').textContent, links: [...document.querySelectorAll('#treeContainer .dep-link')].map(b => [b.dataset.db, b.dataset.name, b.textContent]) }));
+			check(JSON.stringify(tree.links) === JSON.stringify([['OtherDb', 'Orders', 'OtherDb.dbo.Orders']]), 'a node of another database is a link: ' + JSON.stringify(tree.links));
+			check(tree.text.includes('dbo.R&D <x>') && !tree.text.includes('&amp;'), 'a name is escaped once: ' + JSON.stringify(tree.text));
+
 			// ---- focus frame colours
 			await p.click('.cm-content'); await p.keyboard.type('SELECT 1');
 			check((await state()) === 'draft' && /b180d7/i.test(await frame()), 'a query without a file has the purple frame (' + await frame() + ')');
