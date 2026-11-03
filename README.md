@@ -66,7 +66,7 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 ### Table Footprint
 *"Which tables does this procedure really touch — including through triggers?"*
 - A **Table Footprint** button on any procedure, function, or view opens an interactive graph of every table it reads and writes
-- Follows nested procedure/function/view calls **and the DML trigger cascades** that fire when a table is written — surfacing tables a procedure touches indirectly that you would never see by reading its code
+- Follows nested procedure/function/view calls **and the DML trigger cascades** that fire when a table is written (a trigger counts only for the kind of write it is declared for: an `AFTER INSERT` trigger is not fired by a `DELETE`) — surfacing tables a procedure touches indirectly that you would never see by reading its code
 - Every write counts, including the ones that name no column: a `DELETE` and an `INSERT` without a column list are detected as writes, so the triggers of a deleted table are followed too
 - A table mentioned without its schema is resolved the way SQL Server resolves it inside a module — against the schema of the module that mentions it
 - Tables are colour-coded by access: **written**, **read**, reached **only via a trigger**, or a low-confidence **possible** match found by scanning dynamic-SQL text for known object names
