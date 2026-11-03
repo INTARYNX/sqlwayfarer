@@ -1592,7 +1592,10 @@ body.vscode-high-contrast .qp-tt-header {
 .query-input-wrap {
     position: relative;
     flex-shrink: 0;
-    height: 140px;
+    /* Two thirds of the room of the Query tab, once the splitter (6px) and
+       the two gaps around it (12px each) are set aside; dragging the splitter
+       sets a height of its own. */
+    height: calc((100% - 30px) * 2 / 3);
     min-height: 80px;
     /* The colour of the focus frame tells what state the query is in. */
     --query-frame: var(--vscode-focusBorder, #007fd4);
