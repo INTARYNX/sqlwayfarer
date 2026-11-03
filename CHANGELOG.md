@@ -4,6 +4,49 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.13.0] - 2026-11-03
+
+Release candidate: the features of the first version are in, from here on only fixes.
+
+### Added
+
+- **Compare tab**: what changed in a database since a reference, and the script that repeats it elsewhere.
+  - The reference is a **SQL Server database snapshot** (taken from the tab, after the exact `CREATE DATABASE … AS SNAPSHOT OF` and its cost are shown; never taken on its own) or any other database of the instance. Not on Azure SQL Database; before SQL Server 2016 SP1 snapshots need Enterprise, Developer or Evaluation.
+  - The two catalogs are read in one round trip (about 2 s for 700 tables and 2 100 modules) and compared: schemas, tables (columns, identity, computed columns, defaults, collations, keys, indexes with INCLUDE and filter, foreign keys, checks), views, procedures, functions, triggers. Constraints the server named itself are matched by what they do; a definition is compared without line ends, trailing blanks, or CREATE / ALTER. What is not read is counted and said.
+  - Git-style view (added, modified, removed), a risk on every step (safe, caution, destructive, manual), a line diff for code.
+  - **The script is re-entrant**: every step tests the state it changes, one statement per batch, ordered, and it stops at the first error; run again, on a database that is up to date or half done, it does no harm. Destructive steps are left out unless asked for. `CREATE OR ALTER` from SQL Server 2016 SP1, a stand-in and `ALTER` before.
+  - **Apply…** runs it on another database of the connection or on another saved connection: where the target stands first (to do, already done, partly done or different), a confirmation naming the server and the database, a progress bar, Stop, then the target is read again.
+  - **Modified since…** lists what was created or altered in the last 15 minutes to 30 days from the dates the server keeps on its objects, without a snapshot, with their code. It does not see what was dropped nor what happened to the data.
+- **Open transactions**: a panel now runs its scripts on one connection of its own; a transaction a script leaves open is shown in the footer of the results with Commit and Roll back, and asked about when the panel closes. A `BEGIN TRAN` is no longer reported as error 266, and `#temp` tables survive from one run to the next.
+- **Instance tree** in the side panel (Files / Instance): databases, tables, views, procedures and functions read level by level; script, rename and delete from the context menu, with the exact SQL and what refers to the object shown before anything runs.
+- **Syntax check** by SQL Server itself (`sqlwayfarer.diagnostics.syntax`, off by default): errors underlined on their line.
+- **Result grid**: column resizing, vertical separators, a **#Temp** button that scripts a result set into a temp table, and a pop-up with the column names to copy.
+- **Import of servers** from a Central Management Server or a `.regsrvr` file, with connection groups; never a password.
+- **Schema source**: the Explorer, the index and the autocompletion can read the schema of another saved connection while the queries run on the tab's own.
+- **SQL Prompt snippets** (`.sqlpromptsnippet`) can be imported; snippets expand with Tab fields.
+- **Autocompletion**: table-valued functions, temp tables and table variables, `OUTPUT`, `MERGE`, data types, `ORDER BY` aliases, `JOIN … ON` key proposals, `USE other_db`.
+- **Format SQL** (`Shift+Alt+F`, GO-aware) and find and replace (`Ctrl+H`); more rows, JSON export and cell copy in the result grid.
+- **Index**: what every build costs is recorded, with a Stats tab; the Explorer lists the objects an update would re-analyze.
+- **Windows authentication** (current user) through a small helper; Microsoft Entra ID sign-in (beta).
+
+### Changed
+
+- The query editor takes two thirds of the Query tab by default.
+- The top bar stays on one line (800 px for a Query tab; the actions go to a second line below 1100 px when the schema comes from another connection).
+- **Indexing a database of the size of a real legacy one** (2 835 objects) takes 9 to 16 s instead of 488 s: the T-SQL parser predicts with SLL first and falls back to the full parse only when needed, and its workers are kept alive between batches.
+- Every connection has its own pool (the driver's global pool was shared by every tab).
+- **Index cache**: the index format is now 6: the first indexing after the update is a full rebuild.
+
+### Fixed
+
+- Server addresses with an instance, a port or a protocol; XML entities in imports decoded in one pass.
+- A group name with a `/` is not a level; named pipes are skipped and reported.
+
+### Known limits
+
+- Not tested in a real VS Code yet: the native dialogs of the new features, and the connection to another server for Apply. Windows and Entra sign-in have seen limited testing.
+- The comparison does not read permissions, user-defined types, synonyms, sequences, CLR, partitioning, columnstore or XML indexes, nor column properties such as sparse, masked or encrypted; temporal, memory-optimized, graph and file tables are left out. A rename is seen as a drop and an add.
+
 ## [0.12.12] - 2026-10-26
 
 ### Fixed
