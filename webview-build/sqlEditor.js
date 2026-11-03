@@ -376,4 +376,4 @@ function readOnlyView(container, doc, options = {}) {
     };
 }
 
-window.SqlCodeMirror = { attach, readOnlyView };
+window.SqlCodeMirror = { attach, readOnlyView, formatSql: formatSqlScript };
