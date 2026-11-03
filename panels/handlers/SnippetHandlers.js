@@ -53,7 +53,7 @@ class SnippetHandlers {
 
     // Adding a snippet with an existing name overwrites it, so re-saving a
     // tweaked version doesn't pile up duplicates.
-    async handleAddSnippet(name, sql, abbreviation = '') {
+    async handleAddSnippet(name, sql, abbreviation) {
         if (!name || !name.trim() || !sql || !sql.trim()) return;
         const all = this._getSnippets();
         const snippets = all.filter(s => s.name !== name.trim());
