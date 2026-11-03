@@ -14,6 +14,8 @@ class QueryFileHandlers {
         this._post = postMessage;
         this._workspaceState = workspaceState;
         this._getConnectionIdentity = getConnectionIdentity;
+        // Files chosen in the Save As dialog (resolved paths), outside the workspace or not.
+        this._savedAs = new Set();
     }
 
     // Scoped per connection so two tabs on different servers never share, or
@@ -37,6 +39,8 @@ class QueryFileHandlers {
     _isInsideWorkspace(filePath) {
         const folders = vscode.workspace.workspaceFolders || [];
         const resolved = path.resolve(filePath);
+        // A file the user picked in the Save As dialog is theirs, wherever it is.
+        if (this._savedAs.has(resolved)) return true;
         return folders.some(folder => {
             const root = path.resolve(folder.uri.fsPath);
             return resolved === root || resolved.startsWith(root + path.sep);
@@ -114,19 +118,22 @@ class QueryFileHandlers {
         }
     }
 
+    // The Save As dialog: resolves to the chosen uri, or undefined.
+    _pickSaveFile(defaultPath) {
+        return vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(defaultPath), filters: { SQL: ['sql'] } });
+    }
+
     async handleSaveSqlFileAs(content, suggestedName) {
         const root = this._workspaceRoot();
         const defaultDir = root || require('os').homedir();
         try {
-            const uri = await vscode.window.showSaveDialog({
-                defaultUri: vscode.Uri.file(path.join(defaultDir, suggestedName || 'query.sql')),
-                filters: { SQL: ['sql'] }
-            });
+            const uri = await this._pickSaveFile(path.join(defaultDir, suggestedName || 'query.sql'));
             if (!uri) {
                 this._post({ command: 'sqlFileSavedAs', cancelled: true });
                 return;
             }
             await fs.writeFile(uri.fsPath, content, 'utf8');
+            this._savedAs.add(path.resolve(uri.fsPath));
             this._post({ command: 'sqlFileSavedAs', path: uri.fsPath, name: path.basename(uri.fsPath), success: true });
         } catch (error) {
             this._post({ command: 'sqlFileSavedAs', success: false, message: error.message });
