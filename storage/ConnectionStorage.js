@@ -18,6 +18,12 @@ class ConnectionStorage {
 
             const isRename = !!originalName && originalName !== name;
 
+            // A name that is taken is not overwritten (with its password): neither by
+            // a new connection, nor by renaming another one onto it.
+            if (name !== originalName && this._savedConnections.has(name)) {
+                return { success: false, message: `A connection named '${name}' already exists.` };
+            }
+
             // On a rename without a newly typed password, carry over the existing secret
             // instead of leaving the new entry without one and the old secret orphaned.
             let secretToStore = password;
