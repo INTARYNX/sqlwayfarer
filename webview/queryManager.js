@@ -683,7 +683,7 @@ class QueryManager {
         this.activeResultIndex = 0;
         // Filter/sort are per-grid view state, not data - every fresh run
         // starts clean instead of carrying over the previous run's filter.
-        this._gridState = resultSets.map(() => ({ filterText: '', sortCol: null, sortDir: 1, limit: QueryManager.MAX_RENDERED_ROWS }));
+        this._gridState = resultSets.map(set => ({ filterText: '', sortCol: null, sortDir: 1, limit: QueryManager.MAX_RENDERED_ROWS, types: QueryManager.typesByColumn(set) }));
         const hasMessages = !!(timeline && timeline.some(entry => entry.type === 'message'));
         const hasPlan = planXmls && planXmls.length > 0;
 
@@ -819,9 +819,10 @@ class QueryManager {
         const drawn = rows.length > limit ? rows.slice(0, limit) : rows;
 
         // A column of numbers (and NULLs) reads better aligned to the right.
-        const numeric = new Set(columns.filter(col =>
-            drawn.some(row => typeof row[col] === 'number')
-            && drawn.every(row => row[col] === null || row[col] === undefined || typeof row[col] === 'number')));
+        const types = state.types || {};
+        const numeric = new Set(columns.filter(col => (types[col] && types[col].kind === 'number')
+            || (drawn.some(row => typeof row[col] === 'number')
+                && drawn.every(row => row[col] === null || row[col] === undefined || typeof row[col] === 'number'))));
 
         // Once a column was resized every column has a width and the table lays out by them.
         const widths = state.widths || null;
@@ -841,7 +842,7 @@ class QueryManager {
             columns.forEach(col => {
                 const isNull = row[col] === null || row[col] === undefined;
                 const classes = (numeric.has(col) ? 'rs-num' : '') + (isNull ? ' rs-null' : '');
-                html += `<td${classes.trim() ? ` class="${classes.trim()}"` : ''}>${this.escapeHtml(this.formatValue(row[col]))}</td>`;
+                html += `<td${classes.trim() ? ` class="${classes.trim()}"` : ''}>${this.escapeHtml(this.formatValue(row[col], types[col]))}</td>`;
             });
             html += (widths ? '<td class="rs-filler"></td>' : '') + '</tr>';
         });
@@ -981,7 +982,7 @@ class QueryManager {
         let rows = set.rows;
         if (state.filterText) {
             const needle = state.filterText.toLowerCase();
-            rows = rows.filter(row => set.columns.some(col => this.formatValue(row[col]).toLowerCase().includes(needle)));
+            rows = rows.filter(row => set.columns.some(col => this.formatValue(row[col], state.types && state.types[col]).toLowerCase().includes(needle)));
         }
         if (state.sortCol) {
             const col = state.sortCol;
@@ -992,7 +993,7 @@ class QueryManager {
                 if (av === bv) return 0;
                 if (av === null || av === undefined) return 1;
                 if (bv === null || bv === undefined) return -1;
-                return (av < bv ? -1 : 1) * dir;
+                return QueryManager.compareValues(av, bv, state.types && state.types[col]) * dir;
             });
         }
         return rows;
@@ -1261,9 +1262,10 @@ class QueryManager {
             return text;
         };
 
+        const types = QueryManager.typesByColumn(set);
         const lines = [set.columns.map(escapeField).join(separator)];
         for (const row of set.rows) {
-            lines.push(set.columns.map(col => escapeField(row[col])).join(separator));
+            lines.push(set.columns.map(col => escapeField(QueryManager.narrowTemporal(row[col], types[col]))).join(separator));
         }
         return lines.join('\r\n');
     }
@@ -1271,9 +1273,10 @@ class QueryManager {
     // The rows as a JSON array of objects, keys in column order (a Date becomes
     // its ISO string, as JSON.stringify does).
     static toJson(set) {
+        const types = QueryManager.typesByColumn(set);
         const rows = set.rows.map(row => {
             const out = {};
-            for (const col of set.columns) out[col] = row[col] === undefined ? null : row[col];
+            for (const col of set.columns) out[col] = row[col] === undefined ? null : QueryManager.narrowTemporal(row[col], types[col]);
             return out;
         });
         return JSON.stringify(rows, null, 2);
@@ -1294,8 +1297,45 @@ class QueryManager {
         return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
     }
 
-    formatValue(value) {
+    // { column: type } of a result set, the type being { sql, kind, nullable } as the host
+    // describes it (database/columnTypes.js).
+    static typesByColumn(set) {
+        const byColumn = {};
+        (set.columns || []).forEach((col, i) => { if (set.types && set.types[i]) byColumn[col] = set.types[i]; });
+        return byColumn;
+    }
+
+    // A date column arrives as a full datetime at midnight, a time column on 1970-01-01:
+    // keep what the column holds. The seconds of a time(n) follow its scale (3 at most).
+    static narrowTemporal(value, type) {
+        if (!type || typeof value !== 'string' || !QueryManager.JSON_DATE_RE.test(value)) return value;
+        if (type.kind === 'date') return value.slice(0, 10);
+        if (type.kind !== 'time') return value;
+        const scale = /\((\d)\)/.exec(type.sql || '');
+        const digits = scale ? Math.min(Number(scale[1]), 3) : 3;
+        return digits > 0 ? `${value.slice(11, 19)}.${value.slice(20, 20 + digits)}` : value.slice(11, 19);
+    }
+
+    // The order of two values of one column. A bigint (and any number the driver sends as
+    // text) is compared as a number, not as text: "9" before "10".
+    static compareValues(a, b, type) {
+        if (type && type.kind === 'number' && (typeof a === 'string' || typeof b === 'string')) {
+            const whole = /^-?\d+$/;
+            if (whole.test(String(a)) && whole.test(String(b))) {
+                const x = BigInt(a);
+                const y = BigInt(b);
+                return x === y ? 0 : (x < y ? -1 : 1);
+            }
+            const x = Number(a);
+            const y = Number(b);
+            if (!Number.isNaN(x) && !Number.isNaN(y)) return x === y ? 0 : (x < y ? -1 : 1);
+        }
+        return a < b ? -1 : 1;
+    }
+
+    formatValue(value, type) {
         if (value === null || value === undefined) return 'NULL';
+        value = QueryManager.narrowTemporal(value, type);
         // SSMS-style "2008-04-30 00:00:00.000" instead of ISO 8601's
         // "2008-04-30T00:00:00.000Z" - same UTC instant (tedious already
         // returns datetime/datetime2 values as the exact stored wall-clock

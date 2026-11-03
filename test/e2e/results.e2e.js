@@ -46,6 +46,28 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await p.close();
 	});
 
+	test('a date shows no time, a time no date, and a bigint sent as text is aligned and sorted as a number', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(150); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		const rows = [
+			{ big: '10', d: '2008-04-30T00:00:00.000Z', t: '1970-01-01T13:45:09.123Z' },
+			{ big: '9', d: '2009-01-02T00:00:00.000Z', t: '1970-01-01T08:00:00.000Z' }
+		];
+		const types = [{ sql: 'bigint', kind: 'number' }, { sql: 'date', kind: 'date' }, { sql: 'time(3)', kind: 'time' }];
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [{ columns: ['big', 'd', 't'], types, rows, totalRows: 2 }] });
+		const cells = () => p.evaluate(() => [...document.querySelectorAll('.result-set-pane tbody tr')].map(tr => [...tr.children].map(td => td.textContent)));
+		check(JSON.stringify(await cells()) === JSON.stringify([['10', '2008-04-30', '13:45:09.123'], ['9', '2009-01-02', '08:00:00.000']]), 'date and time show only what they hold: ' + JSON.stringify(await cells()));
+		check(await p.evaluate(() => document.querySelector('.result-set-pane th[data-sort-col="big"]').classList.contains('rs-num') && document.querySelector('.result-set-pane tbody td').classList.contains('rs-num')), 'a bigint column is aligned as numbers');
+		await p.click('th[data-sort-col="big"]', { position: { x: 8, y: 8 } });
+		check(JSON.stringify((await cells()).map(r => r[0])) === JSON.stringify(['9', '10']), 'and sorted as numbers (9 before 10)');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
 	test('a column is resized by dragging its header edge; sorting keeps the width, double-click resets', async () => {
 		const check = checker();
 		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
