@@ -184,9 +184,10 @@ class IndexHandlers {
 
     _getUserFriendlyIndexingError(error) {
         const msg = error.message || '';
-        if (msg.includes('timeout')) return 'The indexing operation timed out. The database may be too large or the connection is slow.';
-        if (msg.includes('permission') || msg.includes('denied')) return 'Permission denied. Ensure the user has VIEW DEFINITION rights.';
-        if (msg.includes('connection')) return 'Connection lost during indexing. Please reconnect and try again.';
+        const lower = msg.toLowerCase();
+        if (lower.includes('timeout') || lower.includes('timed out')) return 'The indexing operation timed out. The database may be too large or the connection is slow.';
+        if (lower.includes('permission') || lower.includes('denied')) return 'Permission denied. Ensure the user has VIEW DEFINITION rights.';
+        if (lower.includes('connection')) return 'Connection lost during indexing. Please reconnect and try again.';
         return msg;
     }
 }
