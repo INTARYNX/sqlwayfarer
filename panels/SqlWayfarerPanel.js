@@ -152,6 +152,13 @@ class SqlWayfarerPanel {
         this._instanceScript = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._targetDatabaseService));
         this._compare = new CompareHandlers(post, {
             connectionManager: this._connectionManager,
+            connectionStorage: this._connectionStorage,
+            getOwnName: () => this.connectionName,
+            createManager: () => new ConnectionManager(
+                this._connectionStorage,
+                createVsCodeTokenFetcher(vscode),
+                path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
+            ),
             confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action
         });
         this._instance = new InstanceHandlers(post, {
@@ -384,6 +391,7 @@ class SqlWayfarerPanel {
         await this._schemaSource.reset();
         await this._syntax.reset();
         await this._query.resetSession();
+        await this._compare.reset();
         await this._connect();
     }
 
@@ -484,6 +492,11 @@ class SqlWayfarerPanel {
             case 'buildCompareScript':           this._compare.handleBuildScript(message.ids, message.allowDestructive, message.legacy); break;
             case 'takeSnapshot':                 await this._compare.handleTakeSnapshot(message.database); break;
             case 'dropSnapshot':                 await this._compare.handleDropSnapshot(message.database, message.name); break;
+            case 'getCompareTargets':            this._compare.handleGetTargets(); break;
+            case 'getCompareTargetDatabases':    await this._compare.handleGetTargetDatabases(message.connection); break;
+            case 'getCompareTargetStatus':       await this._compare.handleTargetStatus(message.ids, message.allowDestructive, message.legacy, message.connection, message.database); break;
+            case 'applyCompare':                 await this._compare.handleApply(message.ids, message.allowDestructive, message.legacy, message.connection, message.database); break;
+            case 'cancelApplyCompare':           this._compare.handleCancelApply(); break;
             case 'getInstanceDatabases':         await this._instance.handleGetInstanceDatabases(); break;
             case 'getInstanceObjects':           await this._instance.handleGetInstanceObjects(message.database); break;
             case 'renameInstanceObject':         await this._instance.handleRename(message.database, message.schema, message.name, message.objectType); break;
@@ -645,6 +658,7 @@ class SqlWayfarerPanel {
         this._idx.cancel();
         this._schemaSource.dispose().catch(() => {});
         this._syntax.reset().catch(() => {});
+        this._compare.dispose().catch(() => {});
         // NB: do NOT clear the index here. It is a persistent, checksum-validated
         // on-disk cache keyed by server+database — deleting it when the panel
         // closes forces a full rebuild on every reopen (crippling on large

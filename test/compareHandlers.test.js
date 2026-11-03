@@ -9,18 +9,26 @@ const column = (name, extra) => Object.assign({
 }, extra);
 
 // A server with two databases whose tables are given: { Ref: ['id'], Db: ['id', 'extra'] }.
-function fakeManager(tables, { snapshots = [], version = '16.0.4305.5', failRead = null } = {}) {
+function fakeManager(tables, { snapshots = [], version = '16.0.4305.5', failRead = null, name = 'srv', onBatch = null } = {}) {
 	const log = [];
 	return {
 		log,
+		tables,
+		getServerName: () => name,
+		connectWithSaved: async () => {},
+		dispose: async () => { log.push('dispose'); },
 		acquireConnection: async () => {
 			let db = null;
 			return {
 				createRequest: () => ({
 					batch: async text => {
-						log.push(text);
+						log.push(`[${db}] ${text}`);
+						const switched = /^USE \[(.*?)\]/.exec(text);
+						if (switched) db = switched[1];
+						// What the script does to the database in use.
+						if (/ADD \[extra\] int NULL;/.test(text) && db && tables[db] && !tables[db].includes('extra')) tables[db].push('extra');
+						if (onBatch) onBatch(text);
 						const use = /^USE \[(.*?)\];/.exec(text);
-						if (use) db = use[1];
 						if (!use) return { recordsets: [[]] };
 						if (failRead === db) throw new Error(`cannot read ${db}`);
 						const columns = (tables[db] || []).map((name, i) => column(name, { column_id: i + 1, is_nullable: name === 'extra' ? 1 : 0 }));
@@ -47,12 +55,21 @@ function setup(options = {}, answers = {}) {
 	const posts = [];
 	const confirmed = [];
 	const manager = fakeManager(options.tables || { Ref: ['id'], Db: ['id', 'extra'] }, options);
+	const others = {};
 	const handlers = new CompareHandlers(m => posts.push(m), {
 		connectionManager: manager,
 		confirm: async (message, detail, action) => { confirmed.push({ message, detail, action }); return answers.confirm !== false; },
-		now: () => NOW
+		now: () => NOW,
+		connectionStorage: { getSavedConnections: () => [{ name: 'Me', server: 'srv' }, { name: 'Prod', server: 'prod-sql' }] },
+		getOwnName: () => 'Me',
+		createManager: () => {
+			const other = fakeManager(options.otherTables || { Live: ['id'] }, { name: 'prod-sql' });
+			if (options.connectFails) other.connectWithSaved = async () => { throw new Error('login failed'); };
+			others.last = other;
+			return other;
+		}
 	});
-	return { handlers, posts, confirmed, manager };
+	return { handlers, posts, confirmed, manager, others };
 }
 
 suite('CompareHandlers', () => {
@@ -163,5 +180,163 @@ suite('CompareHandlers', () => {
 		assert.strictEqual(confirmed[0].action, 'Drop snapshot');
 		assert.ok(manager.log.some(sql => sql === 'DROP DATABASE [Db_ref_1]'));
 		assert.deepStrictEqual(posts.map(p => p.command), ['compareSnapshotDone', 'compareSources']);
+	});
+	suite('applying', () => {
+		const IDS = ['table:dbo.T'];
+		const ran = manager => manager.log.filter(l => /ADD \[extra\] int NULL;/.test(l));
+
+		test('the connections to apply on: this one and the saved ones', () => {
+			const { handlers, posts } = setup();
+			handlers.handleGetTargets();
+			assert.deepStrictEqual(posts[0], { command: 'compareTargets', own: { name: 'Me', server: 'srv' }, connections: [{ name: 'Prod', server: 'prod-sql' }] });
+		});
+
+		test('the databases of this connection leave out the one the changes come from; another connection is opened on demand, once', async () => {
+			const { handlers, posts, others } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] }, otherTables: { Live: ['id'], Staging: ['id'] } });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			await handlers.handleGetTargetDatabases('Me');
+			assert.deepStrictEqual(posts[0].databases.sort(), ['Ref', 'T1']);
+			await handlers.handleGetTargetDatabases('Prod');
+			assert.deepStrictEqual(posts[1].databases.sort(), ['Live', 'Staging']);
+			const first = others.last;
+			await handlers.handleGetTargetDatabases('Prod');
+			assert.strictEqual(others.last, first, 'the connection is kept');
+		});
+
+		test('a connection that cannot be opened is said, with the reason', async () => {
+			const { handlers, posts } = setup({ connectFails: true });
+			await handlers.handleGetTargetDatabases('Prod');
+			assert.deepStrictEqual(posts[0].databases, []);
+			assert.ok(posts[0].message.includes("Could not connect to 'Prod': login failed"));
+		});
+
+		test('where the target stands: to do, already done, or different from the reference', async () => {
+			const tables = { Ref: ['id'], Db: ['id', 'extra'], Pending: ['id'], Done: ['id', 'extra'], Other: ['id', 'other'] };
+			const { handlers, posts } = setup({ tables });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			for (const target of ['Pending', 'Done', 'Other']) await handlers.handleTargetStatus(IDS, false, false, 'Me', target);
+			const [pending, done, other] = posts;
+			assert.deepStrictEqual([pending.counts, done.counts, other.counts], [{ done: 0, pending: 1, differs: 0 }, { done: 1, pending: 0, differs: 0 }, { done: 0, pending: 0, differs: 1 }]);
+			assert.deepStrictEqual(other.differs, ['table:dbo.T']);
+			assert.strictEqual(pending.steps, 1);
+			assert.strictEqual(pending.createOrAlter, true);
+		});
+
+		test('the script follows the version of the target, not of the source', async () => {
+			const { handlers, posts } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] } });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			await handlers.handleTargetStatus(IDS, false, false, 'Me', 'T1');
+			assert.strictEqual(posts[0].createOrAlter, true);
+			await handlers.handleTargetStatus(IDS, false, true, 'Me', 'T1');
+			assert.strictEqual(posts[1].createOrAlter, false);
+		});
+
+		test('applying runs the script on the target after a yes, and says what is left', async () => {
+			const { handlers, posts, confirmed, manager } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] } });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			await handlers.handleApply(IDS, false, false, 'Me', 'T1');
+			assert.strictEqual(confirmed.length, 1);
+			assert.strictEqual(confirmed[0].message, 'Apply 1 step(s) to T1 on srv (this connection)?');
+			assert.ok(confirmed[0].detail.startsWith('Target: T1 on srv (this connection)'));
+			assert.ok(confirmed[0].detail.includes('0 change(s) already as in Db · 1 to do · 0 partly done'));
+			assert.ok(confirmed[0].detail.includes('stops at the first error'));
+			assert.strictEqual(confirmed[0].action, 'Apply');
+			assert.strictEqual(ran(manager).length, 1);
+			assert.ok(manager.log.some(l => l === '[null] USE [T1]'));
+			assert.deepStrictEqual(manager.tables.T1, ['id', 'extra']);
+
+			const applied = posts.find(p => p.command === 'compareApplied');
+			assert.deepStrictEqual([applied.database, applied.errors, applied.stopped, applied.remaining], ['T1', [], false, []]);
+			assert.ok(posts.some(p => p.command === 'compareApplyProgress' && p.total > 0));
+		});
+
+		test('nothing is run when the user says no', async () => {
+			const { handlers, posts, manager } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] } }, { confirm: false });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			await handlers.handleApply(IDS, false, false, 'Me', 'T1');
+			assert.strictEqual(ran(manager).length, 0);
+			assert.deepStrictEqual(posts.map(p => p.command), ['compareApplyDeclined']);
+		});
+
+		test('on another connection: the confirmation names it, and the script runs there', async () => {
+			const { handlers, posts, confirmed, others, manager } = setup({ otherTables: { Live: ['id'] } });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			await handlers.handleApply(IDS, false, false, 'Prod', 'Live');
+			assert.strictEqual(confirmed[0].message, 'Apply 1 step(s) to Live on prod-sql (Prod)?');
+			assert.strictEqual(ran(others.last).length, 1);
+			assert.strictEqual(ran(manager).length, 0, 'not on this connection');
+		});
+
+		test('a change that is not applied is listed as what is left', async () => {
+			const { handlers, posts, manager } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] }, onBatch: null });
+			await handlers.handleCompare('Db', 'Ref');
+			// This server ignores the ALTER: the column is still missing afterwards.
+			const original = manager.acquireConnection;
+			manager.acquireConnection = async () => {
+				const conn = await original();
+				const create = conn.createRequest;
+				conn.createRequest = () => { const r = create(); const batch = r.batch; r.batch = async text => { if (/ADD \[extra\]/.test(text)) return { recordsets: [[]] }; return batch(text); }; return r; };
+				return conn;
+			};
+			posts.length = 0;
+			await handlers.handleApply(IDS, false, false, 'Me', 'T1');
+			const applied = posts.find(p => p.command === 'compareApplied');
+			assert.deepStrictEqual(applied.remaining, ['table:dbo.T']);
+		});
+
+		test('refused: no comparison, the database the changes come from, no database, nothing picked, two at once', async () => {
+			const { handlers, posts } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] } });
+			await handlers.handleApply(IDS, false, false, 'Me', 'T1');
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			await handlers.handleApply(IDS, false, false, 'Me', 'db');
+			await handlers.handleApply(IDS, false, false, 'Me', '');
+			await handlers.handleApply([], false, false, 'Me', 'T1');
+			assert.deepStrictEqual(posts.map(p => p.command), ['compareFailed', 'compareFailed', 'compareFailed']);
+			assert.ok(posts[0].message.includes('the changes come from'));
+			assert.ok(posts[2].message.includes('Nothing to apply'));
+
+			// The same database name on another connection is another database.
+			posts.length = 0;
+			await handlers.handleTargetStatus(IDS, false, false, 'Prod', 'Db');
+			assert.strictEqual(posts[0].command, 'compareTargetStatus');
+		});
+
+		test('while one is being applied, another is refused; it can be stopped between batches', async () => {
+			let release;
+			const gate = new Promise(resolve => { release = resolve; });
+			const posts = [];
+			const manager = fakeManager({ Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] });
+			let handlers;
+			const stopWhenRunning = text => { if (/ADD \[extra\]/.test(text)) handlers.handleCancelApply(); };
+			const guarded = fakeManager({ Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] }, { onBatch: stopWhenRunning });
+			handlers = new CompareHandlers(m => posts.push(m), { connectionManager: guarded, confirm: async () => { await gate; return true; }, now: () => NOW, getOwnName: () => 'Me' });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			const first = handlers.handleApply(IDS, false, false, 'Me', 'T1');
+			await new Promise(resolve => setTimeout(resolve, 20));
+			await handlers.handleApply(IDS, false, false, 'Me', 'T1');
+			assert.ok(posts.some(p => p.command === 'compareFailed' && p.message.includes('being applied')));
+			release();
+			await first;
+			const applied = posts.find(p => p.command === 'compareApplied');
+			assert.strictEqual(applied.stopped, true, 'stopped after the batch that asked for it');
+			assert.ok(manager);
+		});
+
+		test('a new connection of the tab ends the comparison, and closes the connections opened for targets', async () => {
+			const { handlers, others } = setup();
+			await handlers.handleCompare('Db', 'Ref');
+			await handlers.handleGetTargetDatabases('Prod');
+			await handlers.reset();
+			assert.ok(others.last.log.includes('dispose'));
+			handlers.handleBuildScript(['table:dbo.T'], false, false);
+		});
 	});
 });
