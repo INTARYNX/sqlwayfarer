@@ -58,6 +58,20 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			await p.evaluate(() => window.queryFileManager.addDraftTab());
 			check((await state()) === 'draft', 'a new draft is purple');
 
+			// ---- Run sends the selection when there is one
+			await p.evaluate(() => { window.queryManager.setQueryText('SELECT 1\n\nSELECT 2\nSELECT 3'); window.queryManager.input.setSelectionRange(10, 18); });
+			await clear(); await p.click('#runQueryBtn'); await p.waitForTimeout(100);
+			const ran = await last();
+			check(ran.command === 'executeQuery' && ran.query === 'SELECT 2', 'Run sends the selection only (' + JSON.stringify(ran.query) + ')');
+			check((await p.locator('#queryStatus').textContent()).includes('selection'), 'and says so');
+			await post({ command: 'queryError', message: 'Line 1: boom', durationMs: 5 });
+			const atLine = await p.evaluate(() => { window.queryManager.goToErrorLine(1); const i = window.queryManager.input; return i.value.slice(i.selectionStart, i.selectionEnd); });
+			check(atLine === 'SELECT 2', 'an error on line 1 of the selection goes to the matching line of the editor (selected ' + JSON.stringify(atLine) + ')');
+			await p.evaluate(() => { const i = window.queryManager.input; i.setSelectionRange(0, 0); });
+			await clear(); await p.click('#runQueryBtn'); await p.waitForTimeout(100);
+			check((await last()).query === 'SELECT 1\n\nSELECT 2\nSELECT 3', 'with no selection the whole editor is sent');
+			await post({ command: 'queryResult', resultSets: [], rowsAffected: [], timeline: [], durationMs: 1, maxRows: 1000 });
+
 			// ---- error line links
 			await p.evaluate(() => window.queryManager.setQueryText('\n\nSELECT 1\nFROM x\nWHERE y'));
 			await p.evaluate(() => window.queryFileManager.render());

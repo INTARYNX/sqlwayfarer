@@ -420,13 +420,24 @@ class QueryManager {
         this.scheduleSyntaxCheck();
     }
 
+    // What a run sends: the selected text when there is some, else the whole
+    // editor (as SSMS does). offset: the lines the server counts start after the
+    // lines above the text sent and the blank ones at its top.
+    runSource() {
+        const full = this.input.value || '';
+        const selected = this.getSelectedText();
+        if (selected === null) return { query: full.trim(), offset: QueryManager.leadingBlankLines(full), isSelection: false };
+        const linesAbove = (full.slice(0, this.input.selectionStart).match(/\n/g) || []).length;
+        return { query: selected.trim(), offset: linesAbove + QueryManager.leadingBlankLines(selected), isSelection: true };
+    }
+
     // The single entry point for the Run button, Ctrl+Enter and F5. Whether
     // this also captures the actual execution plan (SET STATISTICS XML, an
     // extra plan recordset per statement) depends only on the toggle - same
     // model as SSMS's Ctrl+M, instead of a separate "run with plan" action.
     runQuery() {
         const database = this.targetDatabase();
-        const query = this.input.value.trim();
+        const { query, offset, isSelection } = this.runSource();
 
         if (this.isRunning) return;
         if (!database) {
@@ -438,9 +449,9 @@ class QueryManager {
             return;
         }
 
-        this._runLineOffset = QueryManager.leadingBlankLines(this.input.value);
+        this._runLineOffset = offset;
         this.setRunning(true);
-        this.setStatus(this.includeActualPlan ? 'Running with actual execution plan...' : 'Running...', '');
+        this.setStatus((this.includeActualPlan ? 'Running with actual execution plan' : 'Running') + (isSelection ? ' (selection)...' : '...'), '');
         this.setResultsHtml('<p class="placeholder-text">Running query...</p>');
 
         vscode.postMessage({
@@ -463,7 +474,7 @@ class QueryManager {
     // it - so unlike the other two there's nothing to cancel here.
     runEstimatedPlan() {
         const database = this.targetDatabase();
-        const query = this.input.value.trim();
+        const { query, offset } = this.runSource();
 
         if (this.isRunning) return;
         if (!database) {
@@ -475,7 +486,7 @@ class QueryManager {
             return;
         }
 
-        this._runLineOffset = QueryManager.leadingBlankLines(this.input.value);
+        this._runLineOffset = offset;
         this.setRunning(true, false);
         this.setStatus('Generating estimated plan...', '');
         this.setResultsHtml('<p class="placeholder-text">Generating estimated plan...</p>');

@@ -109,6 +109,7 @@ Around that: a full SQL Server and Azure SQL workspace inside VS Code — schema
 - **Go to definition**: `Ctrl+Click` (`Cmd+Click` on macOS) or double-click an object name — aliases and cross-database references included — to jump to it in the Explorer
 - **Destructive statement guardrails**: `UPDATE`/`DELETE` without a `WHERE` clause (detected by a real T-SQL parser, so batches and subqueries are analyzed correctly), `TRUNCATE TABLE`, and `DROP` require explicit confirmation before running
 - **Copy / CSV export** on every result set: tab-separated copy that pastes straight into Excel, and CSV export with RFC 4180 escaping and a UTF-8 BOM so accents survive Excel (JSON too, see below)
+- **Run** (`F5` / `Ctrl+Enter`): the selected text when there is some, the whole editor otherwise, as SSMS does; an error's line number is the one of the editor in both cases
 - **Format SQL** (`Shift+Alt+F`, or the toolbar button): the selection, or the whole script; `GO` lines are kept and each batch is formatted on its own. A script that cannot be parsed is left untouched
 - **Find and replace** in the editor with `Ctrl+H`
 - **Large results**: the grid draws 2 000 rows at a time with **Show more** / **Show all**; Copy and the exports always include every row. Double-click a cell to copy it
