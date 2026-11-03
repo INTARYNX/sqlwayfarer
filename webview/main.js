@@ -1488,7 +1488,10 @@ class ExplorerManager {
         appState.foreignKeys = foreignKeys || [];
     }
 
-    onObjectsLoaded(objects) {
+    // The answer to a request for another database than the one now selected
+    // (the user switched meanwhile) is dropped. A message with no database is not judged.
+    onObjectsLoaded(objects, database) {
+        if (database && database !== appState.currentDatabase) return;
         appState.allObjects = objects;
         appState.filteredObjects = objects;
         // Stats for the new database arrive in a separate follow-up message
@@ -1939,7 +1942,18 @@ class ExplorerManager {
         return grouped;
     }
 
-    onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies, stats) {
+    // Whether the details that arrive are the ones the panel waits for: the
+    // object selected, in its database - or an object whose dependencies were
+    // asked for to be drawn. The user may have clicked another object since.
+    _isAwaitedDetails(database, name) {
+        if (database && database !== (this._currentDetailsDatabase || appState.currentDatabase)) return false;
+        if (appState.pendingVisualization) return true;
+        const selected = appState.selectedObject;
+        return !selected || !name || name === this._getQualifiedName(selected);
+    }
+
+    onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies, stats, database) {
+        if (!this._isAwaitedDetails(database, tableName)) return;
         console.log(`Table details loaded for: ${tableName}`);
 
         appState.currentDependencies = dependencies;
@@ -1974,7 +1988,8 @@ class ExplorerManager {
         this.checkPendingVisualization(tableName, dependencies);
     }
 
-    onObjectDetailsLoaded(objectName, objectType, dependencies, definition) {
+    onObjectDetailsLoaded(objectName, objectType, dependencies, definition, database) {
+        if (!this._isAwaitedDetails(database, objectName)) return;
         console.log(`Object details loaded for: ${objectName} (${objectType})`);
 
         appState.currentDependencies = dependencies;
@@ -2614,7 +2629,7 @@ class MessageHandler {
                 break;
 
             case 'objectsLoaded':
-                this.explorerManager.onObjectsLoaded(message.objects);
+                this.explorerManager.onObjectsLoaded(message.objects, message.database);
                 break;
 
             case 'autocompleteSettings':
@@ -2674,7 +2689,8 @@ class MessageHandler {
                     message.indexes,
                     message.foreignKeys,
                     message.dependencies,
-                    message.stats
+                    message.stats,
+                    message.database
                 );
                 break;
 
@@ -2695,7 +2711,8 @@ class MessageHandler {
                     message.objectName,
                     message.objectType,
                     message.dependencies,
-                    message.definition
+                    message.definition,
+                    message.database
                 );
                 break;
 
@@ -2786,7 +2803,7 @@ class MessageHandler {
                 break;
 
             case 'dependencyTreeResult':
-                this.explorerManager.displayDependencyTree(message.dependencyTree);
+                if (this.explorerManager._isAwaitedDetails(message.database, message.objectName)) this.explorerManager.displayDependencyTree(message.dependencyTree);
                 break;
 
             case 'queryResult':

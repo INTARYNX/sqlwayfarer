@@ -31,7 +31,20 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			check(await p.locator('#productionBanner').isHidden(), 'the banner goes away with the mark');
 			await post({ command: 'databasesLoaded', databases: ['master', 'Sales'], currentDatabase: 'Sales' });
 			const objects = [['HR','Employees','Table'],['Sales','Customers','Table'],['Sales','Orders','Table'],['Sales','usp_Close','Procedure'],['Sales','vTotals','View']].map(([s, n, t]) => ({ name: `${s}.${n}`, object_name: n, schema_name: s, qualified_name: `${s}.${n}`, object_type: t }));
-			await post({ command: 'objectsLoaded', objects });
+			await post({ command: 'objectsLoaded', database: 'Sales', objects });
+
+			// ---- an answer for another database, or another object, than the one now shown is dropped
+			await post({ command: 'objectsLoaded', database: 'master', objects: [objects[0]] });
+			check(await p.evaluate(() => appState.allObjects.length) === 5, 'the objects of another database do not replace the list');
+			await p.evaluate(() => { appState.selectedObject = appState.allObjects.find(o => o.qualified_name === 'Sales.Customers'); });
+			const details = name => ({ command: 'tableDetailsLoaded', database: 'Sales', tableName: name, columns: [], indexes: [], foreignKeys: [], dependencies: [], stats: null });
+			const shown = () => p.locator('#detailsContent').textContent();
+			await post(details('Sales.Orders'));
+			check(!(await shown()).includes('Sales.Orders'), 'the details of an object no longer selected are dropped');
+			await post(details('Sales.Customers'));
+			check((await shown()).includes('Sales.Customers'), 'the details of the selected object are shown');
+			await post({ ...details('Sales.Customers'), database: 'master', dependencies: [{ dependency: 'x' }] });
+			check(await p.evaluate(() => appState.currentDependencies.length) === 0, 'the details of another database are dropped too');
 
 			// ---- focus frame colours
 			await p.click('.cm-content'); await p.keyboard.type('SELECT 1');

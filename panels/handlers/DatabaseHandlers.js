@@ -31,7 +31,7 @@ class DatabaseHandlers {
         try {
             console.log(`Getting objects for database: ${database}`);
             const objects = await this._databaseService.getObjects(database);
-            this._post({ command: 'objectsLoaded', objects });
+            this._post({ command: 'objectsLoaded', database, objects });
             console.log(`Loaded ${objects.length} objects for database: ${database}`);
 
             // Best-effort follow-up: sys.dm_db_partition_stats needs VIEW
@@ -126,6 +126,7 @@ class DatabaseHandlers {
 
             this._post({
                 command: 'tableDetailsLoaded',
+                database,
                 tableName,
                 columns: tableDetails.columns,
                 indexes: tableDetails.indexes,
@@ -146,7 +147,7 @@ class DatabaseHandlers {
             if (objectType !== 'Table') {
                 definition = await this._databaseService.getObjectDefinition(database, objectName);
             }
-            this._post({ command: 'objectDetailsLoaded', objectName, objectType, objectInfo, dependencies, definition });
+            this._post({ command: 'objectDetailsLoaded', database, objectName, objectType, objectInfo, dependencies, definition });
         } catch (error) {
             this._post({ command: 'error', message: `Failed to get object details: ${error.message}` });
         }
@@ -216,7 +217,7 @@ class DatabaseHandlers {
     async handleGetDependencyTree(database, objectName, maxDepth = 3) {
         try {
             const dependencyTree = await this._dependencyService.getDependencyTree(database, objectName, maxDepth);
-            this._post({ command: 'dependencyTreeResult', objectName, dependencyTree });
+            this._post({ command: 'dependencyTreeResult', database, objectName, dependencyTree });
         } catch (error) {
             this._post({ command: 'error', message: `Failed to get dependency tree: ${error.message}` });
         }
