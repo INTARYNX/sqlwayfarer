@@ -120,3 +120,36 @@ suite('parseSqlPromptSnippetFiles', () => {
 		assert.deepStrictEqual(skipped.map(s => s.path), ['b.txt']);
 	});
 });
+
+// A file is read whatever it holds (up to 1,000,000 characters): nothing in it may take long.
+suite('sqlPromptSnippet: files made to be slow', () => {
+	const within = (ms, text) => {
+		const started = Date.now();
+		const result = parseSqlPromptSnippetFile(text);
+		assert.ok(Date.now() - started < ms, `took ${Date.now() - started} ms`);
+		return result;
+	};
+	const wrap = inner => `<CodeSnippet><Title>t</Title>${inner}<Code>SELECT 1</Code></CodeSnippet>`;
+
+	test('thousands of declarations that are never closed', () => {
+		const result = within(1500, wrap('<Declarations>' + '<Literal><ID>x</ID>'.repeat(30000) + '</Declarations>'));
+		assert.strictEqual(result.snippets.length, 1);
+	});
+
+	test('thousands of CodeSnippet, Title, Code or Declarations tags that are never closed', () => {
+		within(1500, '<CodeSnippet>'.repeat(70000));
+		within(1500, '<CodeSnippet>' + '<Title>'.repeat(100000) + '</CodeSnippet>');
+		within(1500, '<CodeSnippet><Title>t</Title>' + '<Code>'.repeat(100000) + '</CodeSnippet>');
+		within(1500, '<CodeSnippet><Title>t</Title><Code>x</Code>' + '<Declarations>'.repeat(60000) + '</CodeSnippet>');
+	});
+
+	test('a self-closing tag with attributes is empty, not stretched to the next closing tag', () => {
+		const result = within(500, '<CodeSnippet><Title a="1"/><Shortcut>zz</Shortcut><Code>SELECT 1</Code></CodeSnippet>');
+		assert.strictEqual(result.snippets[0].name, 'zz', 'no title: the shortcut names it');
+	});
+
+	test('a declaration that is never closed is left out, the others stay', () => {
+		const result = within(500, wrap('<Declarations><Literal><ID>a</ID><Default>1</Default></Literal><Literal><ID>b</ID></Declarations>'));
+		assert.deepStrictEqual(result.snippets[0].placeholders.map(p => p.id), ['a']);
+	});
+});

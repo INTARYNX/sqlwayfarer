@@ -48,39 +48,73 @@ function contentText(raw) {
     return out;
 }
 
+// === Finding elements without backtracking ===
+//
+// A file is read by whoever hands it over, up to MAX_FILE_CHARS: a pattern that
+// looks for "<tag> ... </tag>" lazily goes through the rest of the text for
+// every <tag> that is never closed, and a file made of such tags takes minutes.
+// Here an element is an opening tag, then the first closing tag after it (found
+// with indexOf); when there is none, no later element of that name has one.
+
+// The elements named `tag` in xml, in order: { inner, selfClosing }. An opening
+// tag that is never closed ends the search.
+function elementsNamed(xml, tag, { first = false } = {}) {
+    const out = [];
+    const open = new RegExp(`<${tag}(?:\\s[^>]*?)?(/?)>`, 'g');
+    const closing = `</${tag}>`;
+    let match;
+    while ((match = open.exec(xml))) {
+        if (match[1] === '/') {
+            out.push({ inner: '', selfClosing: true });
+        } else {
+            const end = xml.indexOf(closing, open.lastIndex);
+            if (end === -1) break;
+            out.push({ inner: xml.slice(open.lastIndex, end), selfClosing: false });
+            open.lastIndex = end + closing.length;
+        }
+        if (first) break;
+    }
+    return out;
+}
+
 // The content of the first <tag ...>...</tag> in xml; '' for <tag /> or when absent.
 function elementText(xml, tag) {
-    const re = new RegExp(`<${tag}(?:\\s[^>]*)?(?:/>|>([\\s\\S]*?)</${tag}>)`);
-    const match = re.exec(xml);
-    return match && match[1] !== undefined ? contentText(match[1]) : '';
+    const [element] = elementsNamed(xml, tag, { first: true });
+    return element && !element.selfClosing ? contentText(element.inner) : '';
 }
 
 function allElements(xml, tag) {
-    const out = [];
-    const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, 'g');
-    let match;
-    while ((match = re.exec(xml))) out.push(match[1]);
-    return out;
+    return elementsNamed(xml, tag).filter(element => !element.selfClosing).map(element => element.inner);
 }
 
 // The code of a snippet: <Code ...>CDATA</Code>. Line endings are normalized.
 function codeOf(snippetXml) {
-    const match = /<Code(?:\s[^>]*)?>([\s\S]*?)<\/Code>/.exec(snippetXml);
-    return match ? contentText(match[1]).replace(/\r\n?/g, '\n') : null;
+    const [element] = elementsNamed(snippetXml, 'Code', { first: true });
+    return element && !element.selfClosing ? contentText(element.inner).replace(/\r\n?/g, '\n') : null;
 }
 
 function placeholdersOf(snippetXml) {
-    const declarations = /<Declarations(?:\s[^>]*)?>([\s\S]*?)<\/Declarations>/.exec(snippetXml);
-    if (!declarations) return [];
+    const [declarations] = elementsNamed(snippetXml, 'Declarations', { first: true });
+    if (!declarations || declarations.selfClosing) return [];
     const out = [];
     // Literal is what the format uses; any other kind of declaration that
-    // carries an ID is kept the same way (its default is just text).
-    const re = /<(\w+)(?:\s[^>]*)?>((?:(?!<\/\1>)[\s\S])*?<ID>[\s\S]*?)<\/\1>/g;
+    // carries an ID is kept the same way (its default is just text). Walks the
+    // opening tags: the first element with an <ID> inside is one declaration.
+    const body = declarations.inner;
+    const open = /<(\w+)(?:\s[^>]*?)?>/g;
+    const unclosed = new Set();
     let match;
-    while ((match = re.exec(declarations[1]))) {
-        const id = elementText(match[2], 'ID').trim();
+    while ((match = open.exec(body))) {
+        const tag = match[1];
+        if (match[0].endsWith('/>') || unclosed.has(tag)) continue;
+        const closing = `</${tag}>`;
+        const end = body.indexOf(closing, open.lastIndex);
+        if (end === -1) { unclosed.add(tag); continue; }
+        const inner = body.slice(open.lastIndex, end);
+        const id = elementText(inner, 'ID').trim();
         if (!id) continue;
-        out.push({ id, tooltip: elementText(match[2], 'ToolTip').trim(), default: elementText(match[2], 'Default') });
+        out.push({ id, tooltip: elementText(inner, 'ToolTip').trim(), default: elementText(inner, 'Default') });
+        open.lastIndex = end + closing.length;
     }
     return out;
 }
