@@ -56,6 +56,7 @@ export default [{
             QueryFileManager: "readonly",
             InstanceTree: "readonly",
             CompareManager: "readonly",
+            RecentChanges: "readonly",
             LineDiff: "readonly",
             FootprintManager: "readonly",
             IndexStatsView: "readonly",

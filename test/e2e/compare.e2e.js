@@ -254,4 +254,81 @@ suite('e2e: the Compare tab', function () {
 		}
 		check.done();
 	});
+	test('modified since: the objects touched lately, newest first, with their code, no snapshot needed', async () => {
+		const check = checker();
+		for (const theme of ['dark', 'light']) {
+			const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', theme, { width: 1100, height: 720 });
+			const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+			const sent = () => p.evaluate(() => window.__sent.slice());
+			const clear = () => p.evaluate(() => { window.__sent.length = 0; });
+			await post({ command: 'connectionStatus', success: true, message: 'ok' });
+			await post({ command: 'databasesLoaded', databases: ['Sales'], currentDatabase: 'Sales' });
+			await p.click('[data-tab=compare]');
+			check(await p.isVisible('#compareRefView') && !(await p.isVisible('#compareRecentView')), `${theme}: the tab opens on the comparison with a reference`);
+
+			await clear();
+			await p.click('#compareModeRecent');
+			check(await p.isVisible('#compareRecentView') && !(await p.isVisible('#compareRefView')), `${theme}: the other view shows`);
+			const asked = (await sent()).find(m => m.command === 'getRecentChanges');
+			check(asked && asked.database === 'Sales' && asked.minutes === 180, `${theme}: it reads the last 3 hours straight away (${JSON.stringify(asked)})`);
+			check((await p.textContent('#recentEmpty')).includes('does not see what was dropped'), `${theme}: and says what it cannot see`);
+
+			const items = [
+				{ kind: 'procedure', schema: 'dbo', name: 'usp_Load', status: 'altered', created: '2026-11-01 09:00:00', modified: '2026-11-03 10:55:00', createdAge: 180000, modifiedAge: 300, createdInPeriod: false, parent: null },
+				{ kind: 'table', schema: 'Sales', name: 'Order', status: 'altered', created: '2026-11-03 09:00:00', modified: '2026-11-03 10:10:00', createdAge: 7200, modifiedAge: 2700, createdInPeriod: true, parent: null },
+				{ kind: 'constraint', schema: 'Sales', name: 'CK_Order_total', status: 'new', created: '2026-11-03 10:10:00', modified: '2026-11-03 10:10:00', createdAge: 2700, modifiedAge: 2700, createdInPeriod: true, parent: 'Sales.Order' },
+				{ kind: 'view', schema: 'dbo', name: 'vNew', status: 'new', created: '2026-11-03 09:30:00', modified: '2026-11-03 09:30:00', createdAge: 5400, modifiedAge: 5400, createdInPeriod: true, parent: null }
+			];
+			await post({ command: 'recentChanges', database: 'Sales', minutes: 180, serverTime: '2026-11-03 11:00:00', items, truncated: false });
+			const rows = await p.$$eval('.recent-row', els => els.map(e => e.querySelector('.compare-name').textContent.replace(/\s+/g, ' ')));
+			check(rows.join('|') === 'dbo.usp_Load|Sales.Order|CK_Order_total · Sales.Order|dbo.vNew', `${theme}: the objects, newest first (${rows.join('|')})`);
+			check((await p.$$eval('.recent-badge', els => els.map(e => e.textContent))).join() === 'altered,altered,new,new', `${theme}: new or altered`);
+			check((await p.$$eval('.recent-age', els => els.map(e => e.textContent))).join() === '5 min ago,45 min ago,45 min ago,1 h ago', `${theme}: with how long ago`);
+			check((await p.textContent('#recentSummary')).includes('4 object(s) in the last 3 hours') && (await p.textContent('#recentSummary')).includes('1 table · 1 view · 1 procedure · 1 constraint'), `${theme}: the summary`);
+			check((await p.textContent('#recentNote')).includes('Server time 2026-11-03 11:00:00'), `${theme}: the server time is shown`);
+
+			// The first is a procedure: its code is asked for, and shown.
+			check((await sent()).some(m => m.command === 'getRecentDefinition' && m.schema === 'dbo' && m.name === 'usp_Load'), `${theme}: the code of the selected procedure is asked for`);
+			check((await p.textContent('#recentDetail')).includes('Loading the code'), `${theme}: and said to be loading`);
+			await post({ command: 'recentDefinition', database: 'Sales', schema: 'dbo', name: 'usp_Load', definition: 'CREATE PROC dbo.usp_Load AS\n    SELECT 1' });
+			const code = await p.$$eval('.compare-line-text', els => els.map(e => e.textContent));
+			check(code.join('|') === 'CREATE PROC dbo.usp_Load AS|    SELECT 1', `${theme}: the code is shown (${code.join('|')})`);
+			check((await p.textContent('#recentDetail')).includes('Created') && (await p.textContent('#recentDetail')).includes('2026-11-03 10:55:00'), `${theme}: with its dates`);
+
+			// A table that was created and altered in the period, and a constraint.
+			await clear();
+			await p.click('.recent-row[data-key="table:Sales.Order"]');
+			check((await p.textContent('#recentDetail')).includes('Created and altered in this period'), `${theme}: a table created and altered in the period says so`);
+			check(!(await sent()).some(m => m.command === 'getRecentDefinition'), `${theme}: no code is asked for a table`);
+			await p.click('.recent-row[data-key="constraint:Sales.CK_Order_total"]');
+			check((await p.textContent('#recentDetail')).includes('Sales.Order') && (await p.textContent('.recent-reveal')).includes('its table'), `${theme}: a constraint points to its table`);
+			await clear();
+			await p.click('.recent-reveal');
+			check((await sent()).some(m => m.command === 'getObjectDetailsAuto' && m.objectName === 'Sales.Order'), `${theme}: and opens it in the Explorer`);
+			await p.click('[data-tab=compare]');
+
+			// Filter, period, refresh.
+			await p.fill('#recentFilter', 'new');
+			check((await p.$$eval('.recent-row', els => els.length)) === 2, `${theme}: the filter keeps what is new`);
+			await p.fill('#recentFilter', '');
+			await clear();
+			await p.selectOption('#recentPeriod', '1440');
+			check((await sent()).some(m => m.command === 'getRecentChanges' && m.minutes === 1440), `${theme}: another period reads again`);
+			await clear();
+			await p.click('#recentRefreshBtn');
+			check((await sent()).some(m => m.command === 'getRecentChanges'), `${theme}: Refresh reads again`);
+
+			await post({ command: 'recentChanges', database: 'Sales', minutes: 15, serverTime: 'x', items: [], truncated: false });
+			check((await p.textContent('#recentEmpty')).includes('Nothing was created or altered in this period') && !(await p.isVisible('#recentResult')), `${theme}: an empty period says so`);
+			await post({ command: 'recentFailed', message: 'The period is not valid.' });
+			check((await p.getAttribute('#recentNote', 'class')).includes('error'), `${theme}: a failure is shown`);
+
+			// Back to the comparison: nothing of it was lost.
+			await p.click('#compareModeRef');
+			check(await p.isVisible('#compareRefView') && !(await p.isVisible('#compareRecentView')), `${theme}: back to the comparison`);
+			check(p.errors.length === 0, `${theme}: no page error: ` + p.errors.join(' | '));
+			await p.close();
+		}
+		check.done();
+	});
 });
