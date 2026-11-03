@@ -176,7 +176,7 @@ suite('DatabaseService: columns and parameters for the autocompletion', () => {
 			{ name: 'Name', type: 'nvarchar(50)', nullable: true, isIdentity: false, isPrimaryKey: false },
 			{ name: 'Total', type: 'decimal(18,2)', nullable: true, isIdentity: false, isPrimaryKey: false }
 		]);
-		assert.deepStrictEqual(queries[0].params, { objectName: 'dbo.Employees' });
+		assert.deepStrictEqual(queries[0].params, { schema: 'dbo', objectName: 'Employees' });
 		assert.ok(/ORDER BY c\.column_id/.test(queries[0].sql), 'columns keep the table order');
 	});
 
