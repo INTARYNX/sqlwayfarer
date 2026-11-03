@@ -67,7 +67,7 @@ suite('connection import into the real storage', () => {
 			ui: { pickSource: async () => 'file', pickFile: async () => fixture, pickEntries: async plan => plan.filter(p => p.config.name === 'ERP'), info() {}, error(m) { throw new Error(m); } }
 		});
 		await handlers.handleImportConnections();
-		await storage.saveConnection(Object.assign(storage.getConnection('ERP'), { password: 'typed-later' }));
+		await storage.saveConnection(Object.assign(storage.getConnection('ERP'), { password: 'typed-later' }), 'ERP');
 		await handlers.handleImportConnections();
 		assert.strictEqual(storage.getSavedConnections().length, 1);
 		assert.strictEqual(await storage.getConnectionPassword('ERP'), 'typed-later');
