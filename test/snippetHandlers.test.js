@@ -110,6 +110,14 @@ suite('SnippetHandlers: import and edit', () => {
 		assert.strictEqual('abbreviation' in state.get(KEY)[0], false);
 	});
 
+	test('saving again without an abbreviation (from the Query tab) keeps the one it has', async () => {
+		const { handlers, state } = setup([{ name: 'mine', sql: 'OLD', createdAt: 1, abbreviation: 'mm' }], {});
+		await handlers.handleAddSnippet('mine', 'NEW');
+		assert.strictEqual(state.get(KEY)[0].abbreviation, 'mm');
+		await handlers.handleAddSnippet('mine', 'NEWER', '');
+		assert.strictEqual('abbreviation' in state.get(KEY)[0], false, 'an empty one, from the form, removes it');
+	});
+
 	test('saving again under an imported name keeps its fields', async () => {
 		const { handlers, state } = setup([{ name: 'H1', sql: 'OLD', createdAt: 1, source: 'SQL Prompt', description: 'about', placeholders: [{ id: 'S', default: '' }] }], {});
 		await handlers.handleAddSnippet('H1', 'NEW');
