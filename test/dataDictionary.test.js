@@ -210,3 +210,26 @@ suite('DataDictionaryService helpers', () => {
 		assert.strictEqual(DataDictionaryService.anchor('Schema: sales'), 'schema-sales');
 	});
 });
+
+suite('DataDictionaryService.cleanDefault', () => {
+	const clean = definition => DataDictionaryService.cleanDefault(definition);
+
+	test('the parentheses SQL Server wraps around a default come off', () => {
+		assert.strictEqual(clean('((0))'), '0');
+		assert.strictEqual(clean('(getdate())'), 'getdate()');
+		assert.strictEqual(clean('(N\'x\')'), "N'x'");
+		assert.strictEqual(clean(''), '');
+		assert.strictEqual(clean(null), '');
+	});
+
+	test('two parenthesized parts are one expression, not a pair to take off', () => {
+		assert.strictEqual(clean('((1)+(2))'), '(1)+(2)');
+		assert.strictEqual(clean('(1)+(2)'), '(1)+(2)');
+		assert.strictEqual(clean('((a)+(b)*(c))'), '(a)+(b)*(c)');
+	});
+
+	test('a parenthesis in a string does not count', () => {
+		assert.strictEqual(clean("('a)(b')"), "'a)(b'");
+		assert.strictEqual(clean("(('(')+(')'))"), "('(')+(')')");
+	});
+});
