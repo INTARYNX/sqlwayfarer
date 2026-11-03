@@ -279,13 +279,14 @@ class QueryFileManager {
         if (willShow) this.loadFilesTree();
     }
 
-    // The button is a chevron, not a folder: the panel holds the files and the
-    // instance, and the chevron says what a click does (open / close it).
+    // The button is VS Code's own side bar icon (filled while the panel is
+    // open, outlined while it is closed), not a folder: the panel holds the
+    // files and the instance.
     _setFilesPanel(visible) {
         this.filesPanel.classList.toggle('visible', visible);
         const icon = this.folderBtn.querySelector('.codicon');
-        icon.classList.toggle('codicon-chevron-right', !visible);
-        icon.classList.toggle('codicon-chevron-left', visible);
+        icon.classList.toggle('codicon-layout-sidebar-left-off', !visible);
+        icon.classList.toggle('codicon-layout-sidebar-left', visible);
         this.folderBtn.setAttribute('aria-expanded', String(visible));
         this.folderBtn.title = visible ? 'Hide the side panel (files and instance)' : 'Show the side panel: the .sql files of the workspace and the databases of the instance';
     }
