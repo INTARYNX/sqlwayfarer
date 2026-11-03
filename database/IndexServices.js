@@ -8,9 +8,9 @@ const ParserWorkerPool = require('./ParserWorkerPool');
 const { IndexBuildStats, addRun } = require('./IndexStats');
 
 // Bumped when the index entry shape changes (2 = columnRefs for column lineage,
-    // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
-    // table-level writes, 5 = parseErrors for the incomplete analyses);
-    // older cached files rebuild.
+// 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
+// table-level writes, 5 = parseErrors for the incomplete analyses, 6 = no false
+// ambiguous dependencies); older cached files rebuild.
 const INDEX_FORMAT_VERSION = 6;
 
 class IndexService {
