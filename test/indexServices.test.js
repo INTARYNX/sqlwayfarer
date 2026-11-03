@@ -124,7 +124,7 @@ suite('IndexService dependency analysis', () => {
 		const tableWrites = {};
 		await service._analyzeDependencies('Db', [makeObject('dbo', 'P1', 'P')], columnRefs, null, null, tableWrites);
 
-		assert.deepStrictEqual(tableWrites['dbo.P1'], ['dbo.t1'], 'the deleted table is written');
+		assert.deepStrictEqual(tableWrites['dbo.P1'].tables, ['dbo.t1'], 'the deleted table is written');
 		assert.strictEqual(
 			columnRefs['dbo.P1']['dbo.t1'].id.write, false,
 			'a DELETE writes the table but no column value'
@@ -142,7 +142,7 @@ suite('IndexService dependency analysis', () => {
 		const tableWrites = {};
 		await service._analyzeDependencies('Db', [makeObject('dbo', 'P1', 'P')], columnRefs, null, null, tableWrites);
 
-		assert.deepStrictEqual(tableWrites['dbo.P1'], ['dbo.t1']);
+		assert.deepStrictEqual(tableWrites['dbo.P1'].tables, ['dbo.t1']);
 		assert.strictEqual(columnRefs['dbo.P1'], undefined, 'no column is named at all');
 	});
 

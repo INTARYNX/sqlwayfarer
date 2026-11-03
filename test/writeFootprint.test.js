@@ -337,3 +337,45 @@ suite('WriteFootprintService.foreignKeysAmong', () => {
         assert.strictEqual(edges.filter(e => e.fkName === 'FK_Multi').length, 1);
     });
 });
+
+// A trigger fires on one kind of write: an AFTER INSERT trigger does not fire when a procedure only deletes.
+suite('WriteFootprintService: the kind of write decides which triggers fire', () => {
+    function scenario({ writeOps, events, tableWrites = ['app.T'] }) {
+        const objects = {};
+        const add = e => { objects[e.qualifiedName] = e; };
+        add(Object.assign(obj('app.P', 'P', { columnRefs: {}, dependencies: ['app.T'], tableWrites }), { tableWriteOps: writeOps }));
+        add(obj('app.trg', 'TR', { columnRefs: { 'app.Audit': { c: { write: true } } }, dependencies: ['app.Audit'], tableWrites: ['app.Audit'] }));
+        add(obj('app.T', 'U'));
+        add(obj('app.Audit', 'U'));
+        const triggers = [{ trigger: 'app.trg', parentTable: 'app.T', disabled: false, events }];
+        return WriteFootprintService.analyzeFootprint({ index: { objects }, triggers, target: 'app.P' });
+    }
+
+    test('a DELETE does not fire an AFTER INSERT trigger, an INSERT does', () => {
+        const deleted = scenario({ writeOps: { 'app.T': ['delete'] }, events: ['insert'] });
+        assert.deepStrictEqual(deleted.triggersFired, []);
+        assert.ok(!deleted.tables.some(t => t.qualifiedName === 'app.Audit'));
+
+        const inserted = scenario({ writeOps: { 'app.T': ['insert'] }, events: ['insert'] });
+        assert.deepStrictEqual(inserted.triggersFired, ['app.trg']);
+        assert.ok(inserted.tables.find(t => t.qualifiedName === 'app.Audit').viaTriggerOnly);
+    });
+
+    test('a trigger on several events fires on any of them, and a write of several kinds on any of those', () => {
+        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['update'] }, events: ['insert', 'update'] }).triggersFired, ['app.trg']);
+        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete', 'insert'] }, events: ['insert'] }).triggersFired, ['app.trg']);
+    });
+
+    test('what is not known counts as firing: an index without the kinds, a trigger without events', () => {
+        assert.deepStrictEqual(scenario({ writeOps: undefined, events: ['insert'] }).triggersFired, ['app.trg']);
+        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete'] }, events: [] }).triggersFired, ['app.trg']);
+        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete'] }, events: undefined }).triggersFired, ['app.trg']);
+    });
+
+    test('the event codes of sys.trigger_events', () => {
+        assert.deepStrictEqual(WriteFootprintService._eventsOf('1,2,3'), ['insert', 'update', 'delete']);
+        assert.deepStrictEqual(WriteFootprintService._eventsOf('1'), ['insert']);
+        assert.deepStrictEqual(WriteFootprintService._eventsOf(null), []);
+        assert.deepStrictEqual(WriteFootprintService._eventsOf('9,x'), []);
+    });
+});
