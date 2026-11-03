@@ -57,6 +57,13 @@ class CompareManager {
         };
         this.applying = false;
         this.targetReady = false;
+        this.mode = 'ref';
+        this.modeRef = document.getElementById('compareModeRef');
+        this.modeRecent = document.getElementById('compareModeRecent');
+        this.refView = document.getElementById('compareRefView');
+        this.recentView = document.getElementById('compareRecentView');
+        this.modeRef.addEventListener('click', () => this.setMode('ref'));
+        this.modeRecent.addEventListener('click', () => this.setMode('recent'));
         this.database = null;     // the database the sources were listed for
         this.sources = null;
         this.result = null;       // { database, reference, diff, ... }
@@ -93,6 +100,18 @@ class CompareManager {
         this.el.applyDatabase.addEventListener('change', () => this.requestTargetStatus());
         this.el.applyRun.addEventListener('click', () => this.runApply());
         this.el.applyStop.addEventListener('click', () => vscode.postMessage({ command: 'cancelApplyCompare' }));
+    }
+
+    // The tab shows one of two views: the comparison with a reference, or what was modified lately.
+    setMode(mode) {
+        this.mode = mode;
+        this.modeRef.classList.toggle('active', mode === 'ref');
+        this.modeRef.setAttribute('aria-selected', String(mode === 'ref'));
+        this.modeRecent.classList.toggle('active', mode === 'recent');
+        this.modeRecent.setAttribute('aria-selected', String(mode === 'recent'));
+        this.refView.hidden = mode !== 'ref';
+        this.recentView.hidden = mode !== 'recent';
+        if (mode === 'recent' && window.recentChanges) window.recentChanges.onActivated(this.database);
     }
 
     // === Pure helpers (also used by the tests) ==============================
@@ -208,6 +227,7 @@ class CompareManager {
             this.setNote('');
         }
         vscode.postMessage({ command: 'getCompareSources', database: database || null });
+        if (this.mode === 'recent' && window.recentChanges) window.recentChanges.onActivated(database);
     }
 
     // The database of the tab changed while the Compare tab is showing: what it lists is for the other one.

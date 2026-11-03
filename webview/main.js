@@ -2545,6 +2545,7 @@ class MessageHandler {
                 if (message.success && window.schemaSourceManager) window.schemaSourceManager.request();
                 if (message.success && window.instanceTree) window.instanceTree.reset();
                 if (message.success && window.compareManager) window.compareManager.reset();
+                if (message.success && window.recentChanges) window.recentChanges.reset();
                 if (this.connectionStatus.onConnectionStatus(message)) {
                     // Land directly on Query after every successful connection -
                     // Explorer (and its indexing) is opt-in, see TabManager.
@@ -2799,6 +2800,18 @@ class MessageHandler {
                 }
                 break;
 
+            case 'recentChanges':
+                if (window.recentChanges) window.recentChanges.onChanges(message);
+                break;
+
+            case 'recentFailed':
+                if (window.recentChanges) window.recentChanges.onFailed(message);
+                break;
+
+            case 'recentDefinition':
+                if (window.recentChanges) window.recentChanges.onDefinition(message);
+                break;
+
             case 'compareSources':
                 if (window.compareManager) window.compareManager.onSources(message);
                 break;
@@ -2978,6 +2991,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const schemaSourceManager = new SchemaSourceManager();
     const instanceTree = new InstanceTree();
     const compareManager = new CompareManager();
+    const recentChanges = new RecentChanges();
 
     const messageHandler = new MessageHandler(
         connectionStatus,
@@ -3003,6 +3017,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.queryFileManager = queryFileManager;
     window.instanceTree = instanceTree;
     window.compareManager = compareManager;
+    window.recentChanges = recentChanges;
     window.tabManager = tabManager;
     window.connectionStatus = connectionStatus;
     window.footprintManager = footprintManager;

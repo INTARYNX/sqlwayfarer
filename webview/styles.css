@@ -3680,3 +3680,31 @@ table.fp-cols .fp-center { text-align: center; }
 @media (max-width: 760px) {
     .compare-result { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 40%) 1fr; }
 }
+
+/* "Modified since" of the Compare tab */
+.compare-modes { flex-shrink: 0; display: flex; gap: 4px; border-bottom: 1px solid var(--vscode-input-border); }
+.compare-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.compare-view[hidden] { display: none; }
+
+.recent-row { display: flex; align-items: center; gap: 8px; padding: 3px 10px; font-size: 12px; cursor: pointer; min-width: 0; }
+.recent-row:hover { background: var(--vscode-list-hoverBackground); }
+.recent-row.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.recent-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.recent-icon { flex: 0 0 auto; display: inline-flex; }
+.recent-age { flex: 0 0 auto; min-width: 64px; text-align: right; font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+.recent-row.active .recent-age { color: inherit; }
+
+.recent-badge {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 16px;
+    border: 1px solid currentColor;
+}
+.recent-badge.new { color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b); }
+.recent-badge.altered { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); }
+
+.recent-facts { display: flex; flex-direction: column; gap: 2px; font-size: 12px; margin-bottom: 10px; }
+.recent-fact-label { display: inline-block; min-width: 72px; color: var(--vscode-descriptionForeground); }
+.recent-reveal { align-self: flex-start; margin-bottom: 6px; }
