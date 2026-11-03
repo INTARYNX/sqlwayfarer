@@ -132,3 +132,46 @@ suite('QueryManager.columnNames', () => {
 		assert.strictEqual(QueryManager.columnNames(['a', '(No column name)', '(No column name) (2)'], true), '[a],\n[Column2],\n[Column3]');
 	});
 });
+
+suite('QueryManager date and time columns, and numbers sent as text', () => {
+	const format = (value, type) => QueryManager.prototype.formatValue.call({}, value, type);
+	const date = { sql: 'date', kind: 'date' };
+	const time = (sql = 'time(7)') => ({ sql, kind: 'time' });
+
+	test('a date column shows the date only, a time column the time only', () => {
+		assert.strictEqual(format('2008-04-30T00:00:00.000Z', date), '2008-04-30');
+		assert.strictEqual(format('1970-01-01T13:45:09.123Z', time()), '13:45:09.123');
+		assert.strictEqual(format('1970-01-01T13:45:09.123Z', time('time(2)')), '13:45:09.12');
+		assert.strictEqual(format('1970-01-01T13:45:09.000Z', time('time(0)')), '13:45:09');
+		assert.strictEqual(format('1970-01-01T13:45:09.123Z', time('time')), '13:45:09.123');
+	});
+
+	test('a datetime column, and a value with no known type, are as before', () => {
+		assert.strictEqual(format('2008-04-30T10:20:30.123Z', { sql: 'datetime', kind: 'datetime' }), '2008-04-30 10:20:30.123');
+		assert.strictEqual(format('2008-04-30T00:00:00.000Z'), '2008-04-30 00:00:00.000');
+		assert.strictEqual(format(null, date), 'NULL');
+	});
+
+	test('the exports carry the same narrow date and time, and keep the datetimes whole', () => {
+		const set = {
+			columns: ['d', 't', 'dt'],
+			types: [date, time('time(3)'), { sql: 'datetime', kind: 'datetime' }],
+			rows: [{ d: '2008-04-30T00:00:00.000Z', t: '1970-01-01T08:00:00.500Z', dt: '2008-04-30T10:20:30.000Z' }]
+		};
+		assert.strictEqual(QueryManager.toDelimited(set, ','), 'd,t,dt\r\n2008-04-30,08:00:00.500,2008-04-30T10:20:30.000Z');
+		assert.deepStrictEqual(JSON.parse(QueryManager.toJson(set))[0], { d: '2008-04-30', t: '08:00:00.500', dt: '2008-04-30T10:20:30.000Z' });
+	});
+
+	test('a number that comes as text sorts as a number', () => {
+		const number = { sql: 'bigint', kind: 'number' };
+		const sorted = ['10', '9', '100', '-5', '9007199254740993', '9007199254740992'].sort((a, b) => QueryManager.compareValues(a, b, number));
+		assert.deepStrictEqual(sorted, ['-5', '9', '10', '100', '9007199254740992', '9007199254740993']);
+		assert.deepStrictEqual(['b', 'a'].sort((a, b) => QueryManager.compareValues(a, b, { sql: 'varchar(5)', kind: 'string' })), ['a', 'b']);
+		assert.strictEqual(QueryManager.compareValues(1.5, 10, number), -1);
+	});
+
+	test('the types of a result set go by column', () => {
+		assert.deepStrictEqual(QueryManager.typesByColumn({ columns: ['a', 'b'], types: [date] }), { a: date });
+		assert.deepStrictEqual(QueryManager.typesByColumn({ columns: ['a'] }), {});
+	});
+});
