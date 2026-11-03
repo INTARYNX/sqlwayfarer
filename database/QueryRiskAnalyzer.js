@@ -128,7 +128,10 @@ class QueryRiskAnalyzer {
         const risks = [];
         const cleaned = stripCommentsAndStrings(sql);
 
-        const parsed = this._sqlParser ? this._sqlParser.analyzeRisks(sql) : null;
+        // The parser only has a say on UPDATE and DELETE, and it takes from a tenth of a
+        // second to several (it runs in the host, before the query): no need for a SELECT.
+        const mayWrite = /\b(?:update|delete)\b/i.test(cleaned);
+        const parsed = this._sqlParser && mayWrite ? this._sqlParser.analyzeRisks(sql) : null;
         if (parsed) {
             // The parser gives no table for a table variable: count, per verb, the
             // statements the text shows aimed at a temporary table or a variable.
