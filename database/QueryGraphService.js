@@ -87,7 +87,9 @@ class QueryGraphService {
         const resolver = new IndexResolver(objects, type => QueryGraphService._isDataType(type));
         const resolve = name => resolver.resolve(name);
 
-        const unresolved = new Set();
+        // A temporary table or a table variable is not in the index, and is not a name to report.
+        const unresolvedNames = new Set();
+        const unresolved = { add: name => { if (!/^[#@]/.test(name)) unresolvedNames.add(name); } };
         const nodes = new Map();   // qn -> { entry, access, via }
         const queue = [];
 
@@ -193,7 +195,7 @@ class QueryGraphService {
             via: n.via
         })).sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName));
 
-        return { tables, joins, relationships: [], unresolved: [...unresolved].sort(), truncated };
+        return { tables, joins, relationships: [], unresolved: [...unresolvedNames].sort(), truncated };
     }
 }
 

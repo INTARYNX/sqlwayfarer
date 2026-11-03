@@ -384,3 +384,28 @@ suite('QueryGraphHandlers.handleGetQueryGraph', () => {
 		assert.strictEqual(posts[0].message, 'index unavailable');
 	});
 });
+
+suite('Query graph: EXEC of a procedure, and the names that are not tables', () => {
+	test('the procedure an EXEC runs is among the code the query calls', () => {
+		assert.deepStrictEqual(parseJoins('EXEC dbo.uspGetOrders @a = 1').functions, ['dbo.uspgetorders']);
+		assert.deepStrictEqual(parseJoins('EXECUTE uspGetOrders 1, 2').functions, ['uspgetorders'], 'a bare name is a procedure here');
+		assert.deepStrictEqual(parseJoins('DECLARE @r int; EXEC @r = dbo.uspGetOrders').functions, ['dbo.uspgetorders']);
+	});
+
+	test('a system procedure is not', () => {
+		assert.deepStrictEqual(parseJoins('EXEC sp_help').functions, []);
+		assert.deepStrictEqual(parseJoins("EXEC xp_cmdshell 'dir'").functions, []);
+		assert.deepStrictEqual(parseJoins("EXEC sp_executesql N'SELECT 1'").functions, []);
+	});
+
+	test('EXEC of a procedure reaches the tables behind it', () => {
+		const graph = QueryGraphService.buildGraph({ index: INDEX, parsed: parseJoins('EXEC dbo.uspGetOrders') });
+		assert.deepStrictEqual(graph.tables.map(t => t.qualifiedName), ['dbo.Customers', 'dbo.Orders']);
+		assert.ok(graph.tables.every(t => t.access === 'via-code' && t.via[0] === 'dbo.uspGetOrders'));
+	});
+
+	test('a temporary table or a table variable is not reported as unresolved, a real unknown one is', () => {
+		const graph = QueryGraphService.buildGraph({ index: INDEX, parsed: parseJoins('SELECT * FROM #t t JOIN dbo.Orders o ON o.Id = t.Id JOIN dbo.Nope n ON n.Id = o.Id') });
+		assert.deepStrictEqual(graph.unresolved, ['dbo.nope']);
+	});
+});
