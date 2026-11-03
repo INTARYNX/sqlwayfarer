@@ -2252,6 +2252,35 @@ th.rs-sortable.sorted {
 }
 
 /* === STATIC MODALS (Objects / Indexing) === */
+/* Compare: apply the script */
+.modal-overlay.compare-apply-overlay { display: none; }
+.modal-overlay.compare-apply-overlay.visible { display: flex; }
+
+.modal-dialog.modal-dialog-compare-apply {
+    width: 560px;
+    max-width: 94vw;
+}
+
+.compare-apply-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.compare-apply-field { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 12px; font-weight: normal; }
+.compare-apply-field span { color: var(--vscode-descriptionForeground); }
+.compare-apply-field select { width: 100%; }
+
+.compare-apply-status { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.4; color: var(--vscode-descriptionForeground); }
+.compare-apply-status.error { color: var(--vscode-errorForeground); }
+
+.compare-apply-progress { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.compare-apply-progress[hidden] { display: none; }
+.compare-apply-progress progress { flex: 1; height: 8px; }
+
+.compare-apply-result { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.compare-apply-result[hidden] { display: none; }
+.compare-apply-line.success { color: var(--vscode-testing-iconPassed, #2e9e44); }
+.compare-apply-line.error { color: var(--vscode-errorForeground); overflow-wrap: anywhere; }
+.compare-apply-line.warn { color: var(--vscode-editorWarning-foreground, #cca700); }
+
+.compare-apply-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
+
 /* Higher specificity than the plain .modal-overlay rule in comments.css,
    which sets display:flex unconditionally and would otherwise win. */
 .modal-overlay.objects-modal-overlay,

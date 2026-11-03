@@ -327,6 +327,7 @@
                         <label class="compare-option" title="CREATE OR ALTER exists from SQL Server 2016 SP1; before, the code is written with a stand-in and ALTER."><span>Script for</span>
                             <select id="compareTarget"><option value="modern">SQL Server 2016 SP1 and later</option><option value="legacy">Older versions</option></select>
                         </label>
+                        <button id="compareApplyBtn" disabled title="Apply the script to another database, after a look at where it stands"><i class="codicon codicon-play"></i> Apply…</button>
                         <button id="compareScriptBtn" class="primary" disabled title="Write the script in a new query, to read before it is run"><i class="codicon codicon-file-code"></i> Script to editor</button>
                     </div>
                 </div>
@@ -429,6 +430,32 @@
                     <button id="columnUsageCopyBtn" class="column-usage-copy-btn" title="Copy the listed objects to the clipboard (one per line)"><i class="codicon codicon-copy"></i> Copy</button>
                 </div>
                 <div id="columnUsageList" class="column-usage-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compare: apply the script to a database, on this connection or another saved one -->
+    <div id="compareApplyOverlay" class="modal-overlay compare-apply-overlay">
+        <div class="modal-dialog modal-dialog-compare-apply" role="dialog" aria-modal="true" aria-labelledby="compareApplyTitle">
+            <div class="modal-header">
+                <h3 id="compareApplyTitle">Apply the script</h3>
+                <button id="compareApplyCloseBtn" class="modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="compare-apply-fields">
+                    <label class="compare-apply-field"><span>Connection</span><select id="compareApplyConnection"></select></label>
+                    <label class="compare-apply-field"><span>Database</span><select id="compareApplyDatabase"><option value="">Pick a database</option></select></label>
+                </div>
+                <div id="compareApplyStatus" class="compare-apply-status" role="status"></div>
+                <div id="compareApplyProgress" class="compare-apply-progress" hidden>
+                    <progress id="compareApplyBar" max="1" value="0"></progress>
+                    <span id="compareApplyProgressText"></span>
+                </div>
+                <div id="compareApplyResult" class="compare-apply-result" hidden></div>
+                <div class="compare-apply-actions">
+                    <button id="compareApplyStopBtn" hidden title="Stop after the batch that is running">Stop</button>
+                    <button id="compareApplyRunBtn" class="primary" disabled><i class="codicon codicon-play"></i> Apply</button>
+                </div>
             </div>
         </div>
     </div>

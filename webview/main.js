@@ -2813,6 +2813,30 @@ class MessageHandler {
                 if (window.compareManager) window.compareManager.onScript(message);
                 break;
 
+            case 'compareTargets':
+                if (window.compareManager) window.compareManager.onTargets(message);
+                break;
+
+            case 'compareTargetDatabases':
+                if (window.compareManager) window.compareManager.onTargetDatabases(message);
+                break;
+
+            case 'compareTargetStatus':
+                if (window.compareManager) window.compareManager.onTargetStatus(message);
+                break;
+
+            case 'compareApplyProgress':
+                if (window.compareManager) window.compareManager.onApplyProgress(message);
+                break;
+
+            case 'compareApplied':
+                if (window.compareManager) window.compareManager.onApplied(message);
+                break;
+
+            case 'compareApplyDeclined':
+                if (window.compareManager) window.compareManager.onApplyDeclined();
+                break;
+
             case 'compareSnapshotDone':
                 if (window.compareManager) window.compareManager.onSnapshotDone(message);
                 break;
