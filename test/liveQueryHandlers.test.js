@@ -66,6 +66,31 @@ suite('live SQL Server: running a query from the editor', function () {
 		assert.strictEqual((await run('SELECT OBJECT_ID(\'dbo.p\') AS id')).resultSets[0].totalRows, 1);
 	});
 
+	test('a result set with no column name, or a name twice, keeps every value', async () => {
+		const result = await run('SELECT COUNT(*), MAX(5), 1 AS id, 2 AS id FROM (VALUES (1), (2)) AS v(x)');
+		assert.strictEqual(result.command, 'queryResult', result.message);
+		const set = result.resultSets[0];
+		assert.deepStrictEqual(set.columns, ['(No column name)', '(No column name) (2)', 'id', 'id (2)']);
+		assert.deepStrictEqual(set.rows[0], { '(No column name)': 2, '(No column name) (2)': 5, id: 1, 'id (2)': 2 });
+	});
+
+	test('the types and the values of an ordinary result set are unchanged', async () => {
+		const result = await run("SELECT CAST(1 AS int) AS n, N'x' AS s, CAST('2020-01-02' AS datetime) AS d, NULL AS z");
+		const set = result.resultSets[0];
+		assert.deepStrictEqual(set.columns, ['n', 's', 'd', 'z']);
+		assert.deepStrictEqual(set.types.slice(0, 2).map(t => t.sql), ['int', 'nvarchar(1)']);
+		assert.strictEqual(set.rows[0].n, 1);
+		assert.strictEqual(set.rows[0].z, null);
+	});
+
+	test('the actual plan still comes back beside the results', async () => {
+		const result = await run('SELECT name FROM sys.objects WHERE object_id = 3', true);
+		assert.strictEqual(result.command, 'queryResult', result.message);
+		assert.strictEqual(result.resultSets.length, 1);
+		assert.strictEqual(result.planXmls.length, 1);
+		assert.ok(result.planXmls[0].includes('ShowPlanXML'));
+	});
+
 	test('the query runs in the database chosen, and a missing one is an error without a line', async () => {
 		assert.strictEqual((await run('SELECT DB_NAME() AS db')).resultSets[0].rows[0].db, DB);
 		posts.length = 0;
