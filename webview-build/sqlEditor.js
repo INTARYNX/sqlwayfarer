@@ -144,11 +144,11 @@ const vsCodeTheme = EditorView.theme({
 // panel, since the editor keeps its own SqlAutocomplete dropdown and its own
 // Ctrl+Space/Ctrl+Enter/F5 handling (queryManager.js) - a second completion
 // engine would just fight the first one over the same keys.
-function baseExtensions(options) {
+function baseExtensions(options, historyBox) {
     return [
         placeholder(options.placeholder || ''),
         lineNumbers(),
-        history(),
+        historyBox.of(history()),
         drawSelection(),
         dropCursor(),
         bracketMatching(),
@@ -180,12 +180,14 @@ function baseExtensions(options) {
 // bubble up from CodeMirror's contentDOM to it with no extra wiring needed.
 function attach(container, options = {}) {
     const onUserInput = () => container.dispatchEvent(new Event('input'));
+    // The undo history sits in a compartment so it can be emptied (resetHistory).
+    const historyBox = new Compartment();
 
     const view = new EditorView({
         parent: container,
         doc: options.initialDoc || '',
         extensions: [
-            ...baseExtensions(options),
+            ...baseExtensions(options, historyBox),
             keymap.of([{ key: 'Shift-Alt-f', run: () => { container.dispatchEvent(new Event('sw-format')); return true; }, preventDefault: true }]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged && update.transactions.some(tr => tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('undo') || tr.isUserEvent('redo'))) {
@@ -196,6 +198,13 @@ function attach(container, options = {}) {
     });
 
     container.cmView = view;
+
+    // Forgets what can be undone. For a text that replaces the whole content (a
+    // query tab opened): going back with Ctrl+Z would give the text of another tab.
+    container.resetHistory = () => {
+        view.dispatch({ effects: historyBox.reconfigure([]) });
+        view.dispatch({ effects: historyBox.reconfigure(history()) });
+    };
 
     // Inserts a snippet over from..to (the selection when called without a
     // range): its placeholders become fields to Tab through, $CURSOR$ the
