@@ -113,12 +113,23 @@ async function createSnapshot(connectionManager, plan) {
 async function dropSnapshot(connectionManager, name) {
     const found = (await listSnapshots(connectionManager)).find(s => s.name.toLowerCase() === String(name).toLowerCase());
     if (!found) throw new Error(`${name} is not a database snapshot, it is not dropped.`);
+    const drop = () => connectionManager.executeQueryInDatabase('master', `DROP DATABASE ${bracketIdentifier(found.name)}`);
     try {
-        await connectionManager.executeQueryInDatabase('master', `DROP DATABASE ${bracketIdentifier(found.name)}`);
+        await drop();
     } catch (error) {
-        // 3702: a session is still in it.
-        if (error && error.number === 3702) throw new Error(`${found.name} is in use by a connection; close it, then drop the snapshot again.`);
-        throw error;
+        // 3702: a session is still in it. Those of our own pool are the likeliest (the
+        // snapshot was browsed): they go back to master, and the drop is tried again.
+        if (!error || error.number !== 3702) throw error;
+        try {
+            if (typeof connectionManager.resetPoolContext === 'function') {
+                await connectionManager.resetPoolContext();
+                await drop();
+                return;
+            }
+        } catch (again) {
+            if (!again || again.number !== 3702) throw again;
+        }
+        throw new Error(`${found.name} is in use by a connection; close it, then drop the snapshot again.`);
     }
 }
 

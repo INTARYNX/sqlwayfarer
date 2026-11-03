@@ -221,6 +221,24 @@ class ConnectionManager {
         };
     }
 
+    // Puts the idle connections of the pool back in master. A pooled connection
+    // that answered a query in a database stays in it, and a session in a database
+    // is enough to keep it from being dropped (a snapshot that was browsed, say).
+    async resetPoolContext() {
+        const pool = this._activeConnection;
+        if (!pool) return;
+        const idle = pool instanceof SspiPool ? pool.idleCount() : pool.available;
+        const taken = [];
+        try {
+            for (let i = 0; i < idle; i++) taken.push(await this.acquireConnection());
+            for (const connection of taken) {
+                try { await connection.createRequest().batch('USE [master]'); } catch { /* the connection is gone, or USE is not allowed here */ }
+            }
+        } finally {
+            for (const connection of taken) connection.release();
+        }
+    }
+
     async executeQuery(query, params = null) {
         if (!this._activeConnection) throw new Error('No active connection');
         const request = this._activeConnection.request();
