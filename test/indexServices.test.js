@@ -682,3 +682,31 @@ suite('IndexService.diffAgainstSchema', () => {
 		assert.deepStrictEqual(service.diffAgainstSchema({ 'dbo.A': cachedFor(a) }, [a]), { modified: [], added: [], removed: [] });
 	});
 });
+
+suite('IndexService checksums do not depend on the time zone', () => {
+	const service = new IndexService({ getServerName: () => 'testserver' }, {});
+	const object = modifyDate => ({ object_id: 1, qualified_name: 'dbo.T', type: 'U', modify_date: modifyDate });
+	const inZone = (zone, fn) => {
+		const before = process.env.TZ;
+		process.env.TZ = zone;
+		try { return fn(); } finally { if (before === undefined) delete process.env.TZ; else process.env.TZ = before; }
+	};
+
+	test('the same date gives the same checksums in Paris and in UTC', () => {
+		const date = new Date('2026-11-03T10:20:30.123Z');
+		const paris = inZone('Europe/Paris', () => [service._checksumFromObjects([object(date)]), service._entryChecksum(object(date))]);
+		const utc = inZone('UTC', () => [service._checksumFromObjects([object(date)]), service._entryChecksum(object(date))]);
+		assert.deepStrictEqual(paris, utc);
+	});
+
+	test('two modifications within one second are told apart', () => {
+		const a = service._entryChecksum(object(new Date('2026-11-03T10:20:30.100Z')));
+		const b = service._entryChecksum(object(new Date('2026-11-03T10:20:30.900Z')));
+		assert.notStrictEqual(a, b);
+	});
+
+	test('a date given as text is used as it is', () => {
+		assert.strictEqual(service._entryChecksum(object('1')), service._entryChecksum(object('1')));
+		assert.notStrictEqual(service._entryChecksum(object('1')), service._entryChecksum(object('2')));
+	});
+});
