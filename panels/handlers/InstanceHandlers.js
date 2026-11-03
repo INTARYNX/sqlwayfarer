@@ -1,6 +1,5 @@
 'use strict';
 
-const parseObjectName = require('../../database/parseObjectName');
 const { isActionableType, buildDrop, buildRename, validateNewName, getDependents } = require('../../database/instanceActions');
 
 const MAX_LISTED = 12;
@@ -39,9 +38,10 @@ class InstanceHandlers {
         }
     }
 
-    _target(database, objectName, objectType) {
-        if (!database || !objectName || !isActionableType(objectType)) return null;
-        const { schema, objectName: name } = parseObjectName(objectName);
+    // The schema and the name come separately, as the server reports them: a
+    // name that contains a dot must not be read as another schema's object.
+    _target(database, schema, name, objectType) {
+        if (!database || !schema || !name || !isActionableType(objectType)) return null;
         return { schema, name };
     }
 
@@ -57,8 +57,8 @@ class InstanceHandlers {
         }
     }
 
-    async handleRename(database, objectName, objectType) {
-        const target = this._target(database, objectName, objectType);
+    async handleRename(database, schema, name, objectType) {
+        const target = this._target(database, schema, name, objectType);
         if (!target) return;
         const newName = await this._ask(`New name of ${target.schema}.${target.name}`, target.name, value => validateNewName(value, target.name));
         if (newName === undefined) return;
@@ -71,8 +71,8 @@ class InstanceHandlers {
         await this._run(database, sqlText);
     }
 
-    async handleDrop(database, objectName, objectType) {
-        const target = this._target(database, objectName, objectType);
+    async handleDrop(database, schema, name, objectType) {
+        const target = this._target(database, schema, name, objectType);
         if (!target) return;
         const sqlText = buildDrop(objectType, target.schema, target.name);
         const detail = `${sqlText}\n\n${await this._impact(database, target)}`;

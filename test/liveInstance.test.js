@@ -52,6 +52,9 @@ suite('live SQL Server: instance tree actions', function () {
 		confirmed.length = 0;
 		await manager.executeQuery(`USE [${DB}];
 			IF OBJECT_ID('dbo.Child') IS NOT NULL DROP TABLE dbo.Child;
+			IF OBJECT_ID('a.b') IS NOT NULL DROP TABLE a.b;
+			IF SCHEMA_ID('a') IS NOT NULL DROP SCHEMA a;
+			IF OBJECT_ID(N'dbo.[a.b]') IS NOT NULL DROP TABLE dbo.[a.b];
 			IF OBJECT_ID('dbo.vUses') IS NOT NULL DROP VIEW dbo.vUses;
 			IF OBJECT_ID('dbo.Renamed') IS NOT NULL DROP TABLE dbo.Renamed;
 			IF OBJECT_ID('dbo.Victim') IS NOT NULL DROP TABLE dbo.Victim;
@@ -80,7 +83,7 @@ suite('live SQL Server: instance tree actions', function () {
 	});
 
 	test('rename: the table has the new name, and the confirmation had listed the view that refers to it', async () => {
-		await handlers.handleRename(DB, 'dbo.Victim', 'Table');
+		await handlers.handleRename(DB, 'dbo', 'Victim', 'Table');
 		assert.ok(confirmed[0].includes('dbo.vUses'));
 		assert.strictEqual(await exists('dbo.Victim'), false);
 		assert.strictEqual(await exists('dbo.Renamed'), true);
@@ -88,21 +91,29 @@ suite('live SQL Server: instance tree actions', function () {
 	});
 
 	test('delete: the table is gone', async () => {
-		await handlers.handleDrop(DB, 'dbo.vUses', 'View');
+		await handlers.handleDrop(DB, 'dbo', 'vUses', 'View');
 		assert.strictEqual(await exists('dbo.vUses'), false);
 		assert.strictEqual(await exists('dbo.Victim'), true);
 	});
 
 	test('delete of a table a foreign key points to is refused by the server, and reported', async () => {
 		await manager.executeQuery(`USE [${DB}]; EXEC('CREATE TABLE dbo.Child (id int, v int REFERENCES dbo.Victim(id))')`);
-		await handlers.handleDrop(DB, 'dbo.Victim', 'Table');
+		await handlers.handleDrop(DB, 'dbo', 'Victim', 'Table');
 		assert.strictEqual(posts[0].command, 'error');
 		assert.strictEqual(await exists('dbo.Victim'), true);
 	});
 
 	test('a name with brackets and quotes is dealt with', async () => {
 		await manager.executeQuery(`USE [${DB}]; EXEC('CREATE TABLE dbo.[we]]ird''name] (id int)')`);
-		await handlers.handleDrop(DB, "dbo.we]ird'name", 'Table');
+		await handlers.handleDrop(DB, 'dbo', "we]ird'name", 'Table');
 		assert.strictEqual(await exists("dbo.[we]]ird''name]"), false);
+	});
+
+	test('a table named with a dot is dropped, and the one it looks like is left', async () => {
+		await manager.executeQuery(`USE [${DB}]; EXEC('CREATE SCHEMA a'); EXEC('CREATE TABLE a.b (id int)'); EXEC('CREATE TABLE dbo.[a.b] (id int)')`);
+		await handlers.handleDrop(DB, 'dbo', 'a.b', 'Table');
+		assert.strictEqual(await exists('dbo.[a.b]'), false);
+		assert.strictEqual(await exists('a.b'), true);
+		await manager.executeQuery(`USE [${DB}]; DROP TABLE a.b; DROP SCHEMA a`);
 	});
 });

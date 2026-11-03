@@ -39,7 +39,7 @@ suite('InstanceHandlers', () => {
 
 	test('rename shows the exact SQL and what refers to the object, then runs it and reports the change', async () => {
 		const { handlers, posts, ran, confirmed } = setup({ dependents: ['dbo.usp_A', 'dbo.vB'] });
-		await handlers.handleRename('Db', 'dbo.Orders', 'Table');
+		await handlers.handleRename('Db', 'dbo', 'Orders', 'Table');
 		assert.strictEqual(confirmed.length, 1);
 		assert.ok(confirmed[0].detail.includes("EXEC sp_rename N'[dbo].[Orders]', N'NewName', N'OBJECT';"));
 		assert.ok(confirmed[0].detail.includes('2 object(s) refer to it'));
@@ -50,20 +50,20 @@ suite('InstanceHandlers', () => {
 
 	test('nothing runs when the user says no, or gives no name', async () => {
 		const no = setup({ confirm: false });
-		await no.handlers.handleRename('Db', 'dbo.Orders', 'Table');
-		await no.handlers.handleDrop('Db', 'dbo.Orders', 'Table');
+		await no.handlers.handleRename('Db', 'dbo', 'Orders', 'Table');
+		await no.handlers.handleDrop('Db', 'dbo', 'Orders', 'Table');
 		assert.deepStrictEqual(no.ran, []);
 		assert.deepStrictEqual(no.posts, []);
 
 		const none = setup({ dismissed: true });
-		await none.handlers.handleRename('Db', 'dbo.Orders', 'Table');
+		await none.handlers.handleRename('Db', 'dbo', 'Orders', 'Table');
 		assert.strictEqual(none.confirmed.length, 0);
 		assert.deepStrictEqual(none.ran, []);
 	});
 
 	test('a bad name is refused before anything is asked or run', async () => {
 		const { handlers, ran, confirmed, posts } = setup({ answer: 'a.b' });
-		await handlers.handleRename('Db', 'dbo.Orders', 'Table');
+		await handlers.handleRename('Db', 'dbo', 'Orders', 'Table');
 		assert.strictEqual(confirmed.length, 0);
 		assert.deepStrictEqual(ran, []);
 		assert.strictEqual(posts[0].command, 'error');
@@ -72,7 +72,7 @@ suite('InstanceHandlers', () => {
 	test('delete shows the DROP, lists at most a dozen dependents, then runs', async () => {
 		const many = Array.from({ length: 20 }, (_, i) => `dbo.p${i}`);
 		const { handlers, ran, confirmed } = setup({ dependents: many });
-		await handlers.handleDrop('Db', 'Sales.vOrders', 'View');
+		await handlers.handleDrop('Db', 'Sales', 'vOrders', 'View');
 		assert.ok(confirmed[0].detail.startsWith('DROP VIEW [Sales].[vOrders];'));
 		assert.ok(confirmed[0].detail.includes('20 object(s) refer to it'));
 		assert.ok(confirmed[0].detail.includes('and 8 more'));
@@ -82,22 +82,28 @@ suite('InstanceHandlers', () => {
 
 	test('an object with no dependents says so', async () => {
 		const { handlers, confirmed } = setup();
-		await handlers.handleDrop('Db', 'dbo.T', 'Table');
+		await handlers.handleDrop('Db', 'dbo', 'T', 'Table');
 		assert.ok(confirmed[0].detail.includes('Nothing in this database refers to it.'));
 	});
 
 	test('a server error is reported and nothing is announced as changed', async () => {
 		const { handlers, posts } = setup({ runError: 'Cannot drop, it is referenced by a foreign key.' });
-		await handlers.handleDrop('Db', 'dbo.T', 'Table');
+		await handlers.handleDrop('Db', 'dbo', 'T', 'Table');
 		assert.deepStrictEqual(posts.map(p => p.command), ['error']);
 		assert.ok(posts[0].message.includes('foreign key'));
 	});
 
+	test('a name with a dot is the object of that name, never another schema\'s', async () => {
+		const { handlers, ran } = setup();
+		await handlers.handleDrop('Db', 'dbo', 'a.b', 'Table');
+		assert.deepStrictEqual(ran, [['Db', 'DROP TABLE [dbo].[a.b];']]);
+	});
+
 	test('what is not a table, view, procedure or function is ignored', async () => {
 		const { handlers, ran, confirmed, posts } = setup();
-		await handlers.handleDrop('Db', 'dbo.T', 'Trigger');
-		await handlers.handleRename('Db', 'dbo.T', 'Database');
-		await handlers.handleDrop('', 'dbo.T', 'Table');
+		await handlers.handleDrop('Db', 'dbo', 'T', 'Trigger');
+		await handlers.handleRename('Db', 'dbo', 'T', 'Database');
+		await handlers.handleDrop('', 'dbo', 'T', 'Table');
 		assert.deepStrictEqual([ran, confirmed, posts], [[], [], []]);
 	});
 });

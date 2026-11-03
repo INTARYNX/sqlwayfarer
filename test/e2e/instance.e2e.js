@@ -53,7 +53,7 @@ suite('e2e: the instance tree', function () {
 			await p.evaluate(() => { window.__sent.length = 0; });
 			await p.click('.script-menu-item:has-text("Delete…")');
 			const del = (await sent()).find(m => m.command === 'dropInstanceObject');
-			check(del && del.database === 'AppDb' && del.objectName === 'dbo.Orders' && del.objectType === 'Table', `${theme}: Delete asks the extension, which confirms`);
+			check(del && del.database === 'AppDb' && del.schema === 'dbo' && del.name === 'Orders' && del.objectType === 'Table', `${theme}: Delete asks the extension, which confirms`);
 
 			await p.click('.instance-row[data-name="dbo.Orders"]', { button: 'right' });
 			await p.evaluate(() => { window.__sent.length = 0; });

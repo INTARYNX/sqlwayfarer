@@ -599,9 +599,26 @@ suite('QueryHandlers.splitTopLevelStatements', () => {
 				await handlers.handleExecuteQuery('MyDb', 'BEGIN TRAN', 10);
 				assert.strictEqual(await handlers.openTransactions(), 1);
 				await handlers.closeSession(action);
-				assert.ok(log.includes(action) || action === 'commit' && log.includes('commit'));
+				assert.ok(log.includes(action));
 				assert.strictEqual(log[log.length - 1], 'release');
 			}
+		});
+
+		test('a query still running when the panel closes is cancelled before the session is asked anything', async () => {
+			const log = [];
+			let request;
+			const connection = {
+				createRequest: () => { request = new FakeRequest(() => {}); request.query = () => new Promise(resolve => { request.cancel = () => { log.push('cancel'); resolve(); }; }); return request; },
+				transactionCount: async () => { log.push('count'); return 0; },
+				endTransaction: async () => {},
+				release: () => {}
+			};
+			const handlers = new QueryHandlers(() => {}, { acquireConnection: async () => connection }, makeState());
+			const running = handlers.handleExecuteQuery('MyDb', 'WAITFOR DELAY \'00:10\'', 10);
+			await new Promise(resolve => setTimeout(resolve, 30));
+			await handlers.openTransactions();
+			await running;
+			assert.ok(log.indexOf('cancel') !== -1 && log.indexOf('cancel') < log.indexOf('count'), log.join());
 		});
 
 		test('a new connection after a reconnect reports no transaction', async () => {
