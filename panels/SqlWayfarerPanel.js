@@ -476,8 +476,8 @@ class SqlWayfarerPanel {
             case 'endTransaction':               await this._query.handleEndTransaction(message.action); break;
             case 'getInstanceDatabases':         await this._instance.handleGetInstanceDatabases(); break;
             case 'getInstanceObjects':           await this._instance.handleGetInstanceObjects(message.database); break;
-            case 'renameInstanceObject':         await this._instance.handleRename(message.database, message.objectName, message.objectType); break;
-            case 'dropInstanceObject':           await this._instance.handleDrop(message.database, message.objectName, message.objectType); break;
+            case 'renameInstanceObject':         await this._instance.handleRename(message.database, message.schema, message.name, message.objectType); break;
+            case 'dropInstanceObject':           await this._instance.handleDrop(message.database, message.schema, message.name, message.objectType); break;
             case 'generateInstanceScript':       await this._instanceScript.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType, false, true); break;
             case 'checkSyntax':                  await this._syntax.handleCheckSyntax(message.requestId, message.text); break;
             case 'getAutocompleteObjects':       await d.handleGetAutocompleteObjects(message.database); break;
@@ -603,14 +603,17 @@ class SqlWayfarerPanel {
     }
 
     // A transaction a script left open is never ended silently: the user
-    // chooses, and closing the question rolls it back (what the server does
-    // anyway when the connection goes away).
+    // chooses, and dismissing the question rolls it back (what the server does
+    // anyway when the connection goes away). The question is modal: a
+    // notification left unanswered would keep the locks for as long as it sits
+    // in the notification center.
     async _closeQuerySession() {
         let action = 'rollback';
         try {
             if (await this._query.openTransactions() > 0) {
                 const answer = await vscode.window.showWarningMessage(
-                    `A transaction is still open on ${this._connectionManager.getServerName ? this._connectionManager.getServerName() : 'the server'}. It is rolled back unless you commit it.`,
+                    `A transaction is still open on ${this._connectionManager.getServerName ? this._connectionManager.getServerName() : 'the server'}.`,
+                    { modal: true, detail: 'It is rolled back unless you commit it.' },
                     'Commit', 'Roll back'
                 );
                 if (answer === 'Commit') action = 'commit';

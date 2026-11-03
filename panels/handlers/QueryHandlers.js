@@ -517,8 +517,18 @@ class QueryHandlers {
         await this._postTransactionState(error);
     }
 
+    // A query still running when the panel closes is cancelled first: the
+    // connection answers one request at a time, and asking it about its
+    // transaction in the middle of a run would break that run.
+    async _settle() {
+        if (!this._executing) return;
+        this.handleCancelQuery();
+        for (let i = 0; i < 100 && this._executing; i++) await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
     // Number of open transactions, for the confirmation when the panel closes.
-    openTransactions() {
+    async openTransactions() {
+        await this._settle();
         return this._session.transactionCount();
     }
 
@@ -531,6 +541,7 @@ class QueryHandlers {
 
     // Commits or rolls back what is open, then closes the session.
     async closeSession(action) {
+        await this._settle();
         if (action === 'commit') {
             try { await this._session.end('commit'); } catch { /* the rollback of dispose() follows */ }
         }

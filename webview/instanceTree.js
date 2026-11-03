@@ -149,12 +149,12 @@ class InstanceTree {
         vscode.postMessage({ command: 'getInstanceObjects', database });
     }
 
-    // Collapse everything; again: open every database.
+    // Collapse everything; again: open the databases that are already read
+    // (opening all of them would read every database of the instance).
     toggleCollapseAll() {
         const anyOpen = this.expanded.size > 0;
         this.expanded = new Set();
-        if (!anyOpen) for (const db of this.databases || []) this.expanded.add(InstanceTree.dbKey(db));
-        this.expanded.forEach(key => this._ensureLoaded(key));
+        if (!anyOpen) for (const [db, entry] of this.objects) if (Array.isArray(entry)) this.expanded.add(InstanceTree.dbKey(db));
         this.render();
     }
 
@@ -266,6 +266,8 @@ class InstanceTree {
         else {
             name.textContent = row.object.name;
             el.dataset.name = row.object.qualified_name;
+            el.dataset.schema = row.object.schema_name;
+            el.dataset.object = row.object.object_name;
             el.dataset.type = row.object.object_type;
             el.title = `${row.object.object_type} ${row.database}.${row.object.qualified_name}`;
         }
@@ -301,14 +303,15 @@ class InstanceTree {
             const object = this._objectOf(row);
             if (!object) return;
             const post = (command, extra) => vscode.postMessage(Object.assign({ command, database, objectName: object.qualified_name, objectType: object.object_type }, extra));
+            const act = command => vscode.postMessage({ command, database, schema: object.schema_name, name: object.object_name, objectType: object.object_type });
             items.push({ label: 'Show details', onClick: () => this.showDetails(row) });
             window.explorerManager._getScriptOptions(object.object_type).forEach((opt, i) => items.push({
                 label: `Script as ${opt.label}`,
                 separatorBefore: i === 0,
                 onClick: () => post('generateInstanceScript', { scriptType: opt.type })
             }));
-            items.push({ label: 'Rename…', separatorBefore: true, onClick: () => post('renameInstanceObject') });
-            items.push({ label: 'Delete…', onClick: () => post('dropInstanceObject') });
+            items.push({ label: 'Rename…', separatorBefore: true, onClick: () => act('renameInstanceObject') });
+            items.push({ label: 'Delete…', onClick: () => act('dropInstanceObject') });
             items.push({ label: 'Copy name', separatorBefore: true, onClick: () => navigator.clipboard.writeText(object.qualified_name).catch(() => {}) });
         } else {
             items.push({ label: 'Refresh', onClick: () => this.refreshDatabase(database) });
@@ -359,15 +362,19 @@ class InstanceTree {
                 break;
             }
             case 'F2':
-                if (isObject) vscode.postMessage({ command: 'renameInstanceObject', database: row.dataset.database, objectName: row.dataset.name, objectType: row.dataset.type });
+                if (isObject) this._act('renameInstanceObject', row);
                 break;
             case 'Delete':
-                if (isObject) vscode.postMessage({ command: 'dropInstanceObject', database: row.dataset.database, objectName: row.dataset.name, objectType: row.dataset.type });
+                if (isObject) this._act('dropInstanceObject', row);
                 break;
             default: return;
         }
         event.preventDefault();
         if (target) { this.select(target.dataset.key); target.focus(); target.scrollIntoView({ block: 'nearest' }); }
+    }
+
+    _act(command, row) {
+        vscode.postMessage({ command, database: row.dataset.database, schema: row.dataset.schema, name: row.dataset.object, objectType: row.dataset.type });
     }
 
     _parentRow(row, rows, index) {
