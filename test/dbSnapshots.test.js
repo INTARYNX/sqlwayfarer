@@ -122,6 +122,22 @@ suite('dbSnapshots: plan, create, list, drop', () => {
 		assert.ok(!log.some(l => l.sql === 'DROP DATABASE [Sales]'));
 	});
 
+	test('a session of our own pool in the snapshot is moved to master, and the drop tried again', async () => {
+		const busy = Object.assign(new Error('in use'), { number: 3702 });
+		const log = [];
+		let attempts = 0;
+		const manager = fakeManager({ 'source_database_id IS NOT NULL': [{ name: 'S_ref', source: 'S', create_date: new Date(), state_desc: 'ONLINE' }] }, log);
+		const original = manager.executeQueryInDatabase;
+		manager.executeQueryInDatabase = async (db, sql, params) => {
+			if (sql.startsWith('DROP DATABASE') && attempts++ === 0) throw busy;
+			return original(db, sql, params);
+		};
+		manager.resetPoolContext = async () => { log.push({ sql: 'reset' }); };
+		await dropSnapshot(manager, 'S_ref');
+		assert.strictEqual(attempts, 2);
+		assert.ok(log.some(l => l.sql === 'reset'));
+	});
+
 	test('a snapshot that a session is in says so', async () => {
 		const busy = Object.assign(new Error('in use'), { number: 3702 });
 		const manager = fakeManager({ 'source_database_id IS NOT NULL': [{ name: 'S_ref', source: 'S', create_date: new Date(), state_desc: 'ONLINE' }], 'DROP DATABASE': busy });

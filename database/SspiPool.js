@@ -379,6 +379,11 @@ class SspiPool {
         else entry.busy = false;
     }
 
+    // How many sessions are idle right now.
+    idleCount() {
+        return this._sessions.filter(s => !s.busy).length;
+    }
+
     // pool.request(): every query takes a session for its own duration.
     request() {
         const pool = this;

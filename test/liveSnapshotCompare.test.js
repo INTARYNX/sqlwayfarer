@@ -110,6 +110,10 @@ suite('live SQL Server: snapshots and the comparison', function () {
 
 	test('the snapshot is dropped, a database that is not one is refused', async () => {
 		await assert.rejects(dropSnapshot(manager, DB), /not a database snapshot/);
+		// Browsed like the Explorer does: the connection of the pool stays in the snapshot.
+		await manager.executeQueryInDatabase(snapshot, 'SELECT COUNT(*) AS n FROM sys.tables');
+		const inside = (await manager.executeQuery('SELECT COUNT(*) AS n FROM sys.dm_exec_sessions WHERE database_id = DB_ID(@name)', { name: snapshot })).recordset[0].n;
+		assert.ok(inside > 0, 'a connection is in the snapshot');
 		await dropSnapshot(manager, snapshot);
 		assert.deepStrictEqual(await listSnapshots(manager, DB), []);
 		const exists = (await manager.executeQueryInDatabase('master', 'SELECT DB_ID(@name) AS id', { name: DB })).recordset[0].id;
