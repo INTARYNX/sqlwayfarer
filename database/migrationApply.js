@@ -55,8 +55,12 @@ async function applyScript(connectionManager, database, script, { onProgress = (
             onProgress(ran, batches.length);
         }
     } finally {
-        // The script may have stopped itself with NOEXEC on: it must not stay on in a pooled connection.
-        try { await conn.createRequest().batch('SET NOEXEC OFF; USE [master]'); } catch { /* the connection is gone */ }
+        // A pooled connection keeps what the script left: NOEXEC when it stopped itself, its
+        // marker table and the SET options of the last module when it was stopped half way.
+        try {
+            await conn.createRequest().batch('SET NOEXEC OFF');
+            await conn.createRequest().batch("IF OBJECT_ID(N'tempdb..#wf') IS NOT NULL DROP TABLE #wf;\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;\nUSE [master];");
+        } catch { /* the connection is gone */ }
         conn.release();
     }
     return { batches: batches.length, ran, errors, stopped, durationMs: Date.now() - startedAt };

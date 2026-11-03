@@ -230,7 +230,10 @@ class ConnectionManager {
         const idle = pool instanceof SspiPool ? pool.idleCount() : pool.available;
         const taken = [];
         try {
-            for (let i = 0; i < idle; i++) taken.push(await this.acquireConnection());
+            // (A connection that cannot be had now, with the pool full, is not waited for.)
+            for (let i = 0; i < idle; i++) {
+                try { taken.push(await this.acquireConnection()); } catch { break; }
+            }
             for (const connection of taken) {
                 try { await connection.createRequest().batch('USE [master]'); } catch { /* the connection is gone, or USE is not allowed here */ }
             }

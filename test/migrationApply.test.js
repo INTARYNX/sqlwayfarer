@@ -37,7 +37,11 @@ suite('migrationApply.applyScript', () => {
 		const log = [];
 		const progress = [];
 		const result = await applyScript(manager(log), 'My]Db', SCRIPT, { onProgress: (done, total) => progress.push(`${done}/${total}`) });
-		assert.deepStrictEqual(log, ['USE [My]]Db]', 'SELECT 1;\n', 'SELECT 2;\n', 'SELECT 3;', 'SET NOEXEC OFF; USE [master]', 'release']);
+		assert.deepStrictEqual(log.slice(0, 4), ['USE [My]]Db]', 'SELECT 1;\n', 'SELECT 2;\n', 'SELECT 3;']);
+		// What the script may have left in the pooled connection is cleared, and it goes back to master.
+		assert.strictEqual(log[4], 'SET NOEXEC OFF');
+		assert.ok(log[5].includes('DROP TABLE #wf') && log[5].includes('SET QUOTED_IDENTIFIER ON') && log[5].includes('USE [master]'));
+		assert.strictEqual(log[6], 'release');
 		assert.deepStrictEqual(progress, ['1/3', '2/3', '3/3']);
 		assert.deepStrictEqual([result.batches, result.ran, result.errors, result.stopped], [3, 3, [], false]);
 	});
@@ -55,7 +59,7 @@ suite('migrationApply.applyScript', () => {
 		let asked = 0;
 		const result = await applyScript(manager(log), 'Db', SCRIPT, { shouldStop: () => asked++ >= 1 });
 		assert.deepStrictEqual([result.ran, result.stopped], [1, true]);
-		assert.ok(log.includes('SET NOEXEC OFF; USE [master]') && log.includes('release'));
+		assert.ok(log.includes('SET NOEXEC OFF') && log.some(l => l.includes('USE [master]')) && log.includes('release'));
 	});
 
 	test('a connection that is gone does not hide the result', async () => {

@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { readSchemaModel, buildModel, formatColumnType, majorVersion, versionedNotCompared, FORMAT_VERSION } = require('../database/schemaCatalog');
+const { readSchemaModel, buildModel, formatColumnType, majorVersion, versionedNotCompared, versionedSpecialTables, FORMAT_VERSION } = require('../database/schemaCatalog');
 
 const col = (extra) => Object.assign({
 	schema_name: 'dbo', table_name: 'T', column_name: 'id', type_name: 'int', is_user_defined: 0, type_schema: 'sys',
@@ -8,7 +8,7 @@ const col = (extra) => Object.assign({
 	default_name: null, default_definition: null, default_system_named: null
 }, extra);
 const INFO = { version: '16.0.4305.5', collation: 'SQL_Latin1_General_CP1_CI_AS' };
-const model = (parts = {}) => buildModel('Db', INFO, parts.schemas || [], parts.columns || [], parts.indexes || [], parts.foreignKeys || [], parts.checks || [], parts.modules || [], parts.notCompared || []);
+const model = (parts = {}) => buildModel('Db', INFO, parts.schemas || [], parts.columns || [], parts.indexes || [], parts.foreignKeys || [], parts.checks || [], parts.modules || [], parts.notCompared || [], parts.special || []);
 
 suite('schemaCatalog.formatColumnType', () => {
 	const t = (type_name, extra = {}) => formatColumnType(Object.assign({ type_name, is_user_defined: 0, max_length: 4, precision: 0, scale: 0 }, extra));
@@ -134,6 +134,26 @@ suite('schemaCatalog.buildModel', () => {
 	});
 });
 
+suite('schemaCatalog: tables that are not rebuilt', () => {
+	test('a temporal, memory-optimized, graph or file table is not in the model, nor what hangs on it; it is counted', () => {
+		const ix = (table) => ({ schema_name: 'dbo', table_name: table, index_id: 1, index_name: 'PK', type_desc: 'CLUSTERED', is_unique: 1, is_primary_key: 1, is_unique_constraint: 0, has_filter: 0, is_disabled: 0, is_included_column: 0, is_descending_key: 0, column_name: 'id', key_ordinal: 1 });
+		const m = model({
+			columns: [col({ table_name: 'Audit' }), col({ table_name: 'AuditHistory' }), col({ table_name: 'Normal' })],
+			indexes: [ix('Audit'), ix('Normal')],
+			checks: [{ schema_name: 'dbo', table_name: 'Audit', check_name: 'CK', definition: '(1=1)', is_system_named: 0, is_disabled: 0 }],
+			modules: [
+				{ schema_name: 'dbo', object_name: 'trg_audit', type_code: 'TR', definition: 'x', uses_ansi_nulls: 1, uses_quoted_identifier: 1, parent_schema: 'dbo', parent_name: 'Audit', is_disabled: 0 },
+				{ schema_name: 'dbo', object_name: 'trg_normal', type_code: 'TR', definition: 'x', uses_ansi_nulls: 1, uses_quoted_identifier: 1, parent_schema: 'dbo', parent_name: 'Normal', is_disabled: 0 }
+			],
+			special: [{ kind: 'temporalTables', schema_name: 'dbo', table_name: 'Audit' }, { kind: 'temporalTables', schema_name: 'dbo', table_name: 'AuditHistory' }, { kind: 'graphTables', schema_name: 'dbo', table_name: 'Node' }],
+			notCompared: [{ kind: 'synonyms', n: 1 }]
+		});
+		assert.deepStrictEqual(Object.keys(m.tables), ['dbo.Normal']);
+		assert.deepStrictEqual(Object.keys(m.modules), ['dbo.trg_normal']);
+		assert.deepStrictEqual(m.notCompared, { synonyms: 1, temporalTables: 2, graphTables: 1 });
+	});
+});
+
 suite('schemaCatalog.readSchemaModel', () => {
 	const EMPTY = [[{ version: '16.0.1', collation: 'C' }], [], [], [], [], [], [], []];
 	function connection(answers, log) {
@@ -166,18 +186,20 @@ suite('schemaCatalog.readSchemaModel', () => {
 	test('what only exists on a recent server is asked only there', () => {
 		assert.strictEqual(versionedNotCompared(10), '');
 		assert.ok(versionedNotCompared(11).includes('sys.sequences'));
-		assert.ok(!versionedNotCompared(11).includes('temporal_type'));
-		assert.ok(versionedNotCompared(12).includes('is_memory_optimized'));
-		assert.ok(versionedNotCompared(16).includes('temporal_type'));
+		assert.strictEqual(versionedSpecialTables(10), '');
+		assert.ok(versionedSpecialTables(11).includes('is_filetable') && !versionedSpecialTables(11).includes('is_memory_optimized'));
+		assert.ok(versionedSpecialTables(12).includes('is_memory_optimized') && !versionedSpecialTables(12).includes('temporal_type'));
+		assert.ok(versionedSpecialTables(13).includes('temporal_type') && !versionedSpecialTables(13).includes('is_node'));
+		assert.ok(versionedSpecialTables(16).includes('is_node'));
 		assert.strictEqual(majorVersion('16.0.4305.5'), 16);
 		assert.strictEqual(majorVersion('10.50.6000'), 10);
 		assert.strictEqual(majorVersion(undefined), 0);
 	});
 
-	test('the counts of the recent server are added to the others', async () => {
+	test('the counts of the recent server are added to the others, and its special tables are left out', async () => {
 		const log = [];
-		const answers = [EMPTY.map((x, i) => i === 7 ? [{ kind: 'synonyms', n: 1 }] : x), [[{ kind: 'sequences', n: 3 }]]];
+		const answers = [EMPTY.map((x, i) => i === 7 ? [{ kind: 'synonyms', n: 1 }] : x), [[{ kind: 'sequences', n: 3 }], [{ kind: 'temporalTables', schema_name: 'dbo', table_name: 'Audit' }]]];
 		const m = await readSchemaModel({ acquireConnection: async () => connection(answers.concat([undefined]), log) }, 'Db');
-		assert.deepStrictEqual(m.notCompared, { synonyms: 1, sequences: 3 });
+		assert.deepStrictEqual(m.notCompared, { synonyms: 1, sequences: 3, temporalTables: 1 });
 	});
 });

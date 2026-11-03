@@ -304,8 +304,28 @@ suite('CompareHandlers', () => {
 
 			// The same database name on another connection is another database.
 			posts.length = 0;
-			await handlers.handleTargetStatus(IDS, false, false, 'Prod', 'Db');
+			await handlers.handleTargetStatus(IDS, false, false, 'Prod', 'Live');
 			assert.strictEqual(posts[0].command, 'compareTargetStatus');
+		});
+
+		test('only a database that is offered can be a target: not a system database, not a snapshot, not an unknown name', async () => {
+			const { handlers, posts, manager } = setup({ tables: { Ref: ['id'], Db: ['id', 'extra'], T1: ['id'] } });
+			await handlers.handleCompare('Db', 'Ref');
+			posts.length = 0;
+			for (const name of ['master', 'tempdb', 'Db_ref_1', 'NoSuch']) await handlers.handleApply(IDS, false, false, 'Me', name);
+			await handlers.handleTargetStatus(IDS, false, false, 'Me', 'master');
+			assert.deepStrictEqual(posts.map(p => p.command), ['compareFailed', 'compareFailed', 'compareFailed', 'compareFailed', 'compareFailed']);
+			assert.ok(posts[0].message.includes('not a database a script can be applied on'));
+			assert.strictEqual(ran(manager).length, 0);
+		});
+
+		test('Azure SQL Database, which has no USE, is told in words', async () => {
+			const { handlers, posts } = setup({ failRead: 'Ref' });
+			const original = handlers._connectionManager.acquireConnection;
+			handlers._connectionManager.acquireConnection = async () => { throw Object.assign(new Error('The USE statement is not supported to switch between databases.'), { number: 40508 }); };
+			await handlers.handleCompare('Db', 'Ref');
+			assert.ok(/Azure SQL Database/.test(posts[0].message));
+			handlers._connectionManager.acquireConnection = original;
 		});
 
 		test('while one is being applied, another is refused; it can be stopped between batches', async () => {

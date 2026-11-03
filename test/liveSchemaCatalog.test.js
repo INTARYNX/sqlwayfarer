@@ -84,8 +84,9 @@ suite('live SQL Server: schema catalog', function () {
 		assert.strictEqual(model.modules['dbo.fnDouble'].quotedIdentifier, true);
 	});
 
-	test('what is not read is counted: the user-defined type', () => {
-		assert.deepStrictEqual(model.notCompared, { userTypes: 1 });
+	test('what is not read is counted: the user-defined type, and the temporal table with its history, which are not in the model', () => {
+		assert.deepStrictEqual(model.notCompared, { userTypes: 1, temporalTables: 2 });
+		assert.ok(!model.tables['dbo.Audit'] && !model.tables['dbo.AuditHistory']);
 	});
 
 	test('reading twice gives the same model, byte for byte', async () => {

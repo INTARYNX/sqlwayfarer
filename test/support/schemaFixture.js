@@ -35,6 +35,13 @@ CREATE TABLE Sales.[Order] (
 GO
 CREATE TABLE dbo.Log (id int NOT NULL, msg varchar(max) NULL);
 GO
+CREATE TABLE dbo.Audit (
+	id int NOT NULL PRIMARY KEY CLUSTERED, v nvarchar(20) NULL,
+	ValidFrom datetime2 GENERATED ALWAYS AS ROW START HIDDEN NOT NULL,
+	ValidTo datetime2 GENERATED ALWAYS AS ROW END HIDDEN NOT NULL,
+	PERIOD FOR SYSTEM_TIME (ValidFrom, ValidTo)
+) WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.AuditHistory));
+GO
 CREATE VIEW Sales.vCustomer AS SELECT id, name FROM Sales.Customer;
 GO
 CREATE PROCEDURE Sales.usp_AddCustomer @name nvarchar(100)

@@ -210,6 +210,11 @@ class CompareManager {
         vscode.postMessage({ command: 'getCompareSources', database: database || null });
     }
 
+    // The database of the tab changed while the Compare tab is showing: what it lists is for the other one.
+    onDatabaseChanged() {
+        if (appState.activeTab === 'compare' && !this.applying) this.onActivated();
+    }
+
     // A new connection: what was listed belongs to the previous one.
     reset() {
         this.database = null;

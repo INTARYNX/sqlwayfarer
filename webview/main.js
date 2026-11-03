@@ -1317,6 +1317,7 @@ class ExplorerManager {
             if (window.queryManager) {
                 window.queryManager.onDatabaseChanged(database);
             }
+            if (window.compareManager) window.compareManager.onDatabaseChanged();
 
             vscode.postMessage({
                 command: 'getObjects',
@@ -1341,6 +1342,7 @@ class ExplorerManager {
             if (window.queryManager) {
                 window.queryManager.onDatabaseChanged(null);
             }
+            if (window.compareManager) window.compareManager.onDatabaseChanged();
         }
     }
 

@@ -105,13 +105,22 @@ UNION ALL SELECT 'userTypes', COUNT(*) FROM sys.types WHERE is_user_defined = 1
 UNION ALL SELECT 'otherIndexes', COUNT(*) FROM sys.indexes i JOIN sys.tables t ON t.object_id = i.object_id WHERE t.is_ms_shipped = 0 AND i.type NOT IN (0, 1, 2)
 UNION ALL SELECT 'partitionedTables', COUNT(DISTINCT p.object_id) FROM sys.partitions p JOIN sys.tables t ON t.object_id = p.object_id WHERE t.is_ms_shipped = 0 AND p.index_id IN (0, 1) AND p.partition_number > 1`;
 
-// Columns that only exist from a given version: asked only where they exist,
-// so the reader works on the old servers as well.
+// What only exists from a given version is asked only where it exists, so the
+// reader works on the old servers as well.
 function versionedNotCompared(major) {
+    return major >= 11 ? "SELECT 'sequences' AS kind, COUNT(*) AS n FROM sys.sequences" : '';
+}
+
+// The tables a CREATE TABLE written from the catalog would not rebuild (the
+// period of a temporal table, memory-optimized storage, a graph or file table):
+// they are left out of the model, and counted.
+function versionedSpecialTables(major) {
+    const from = 'FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE';
     const parts = [];
-    if (major >= 11) parts.push("SELECT 'sequences' AS kind, COUNT(*) AS n FROM sys.sequences");
-    if (major >= 12) parts.push("SELECT 'memoryOptimizedTables' AS kind, COUNT(*) AS n FROM sys.tables WHERE is_memory_optimized = 1");
-    if (major >= 13) parts.push("SELECT 'temporalTables' AS kind, COUNT(*) AS n FROM sys.tables WHERE temporal_type <> 0");
+    if (major >= 11) parts.push(`SELECT 'fileTables' AS kind, s.name AS schema_name, t.name AS table_name ${from} t.is_filetable = 1`);
+    if (major >= 12) parts.push(`SELECT 'memoryOptimizedTables', s.name, t.name ${from} t.is_memory_optimized = 1`);
+    if (major >= 13) parts.push(`SELECT 'temporalTables', s.name, t.name ${from} t.temporal_type <> 0`);
+    if (major >= 14) parts.push(`SELECT 'graphTables', s.name, t.name ${from} (t.is_node = 1 OR t.is_edge = 1)`);
     return parts.join('\nUNION ALL ');
 }
 
@@ -264,8 +273,21 @@ function buildNotCompared(rows) {
     return counts;
 }
 
-// The model, from the answers of the queries above (in that order).
-function buildModel(database, info, schemas, columns, indexes, foreignKeys, checks, modules, notCompared) {
+// The model, from the answers of the queries above (in that order); special
+// are the tables left out (see versionedSpecialTables), as { kind, schema_name, table_name }.
+function buildModel(database, info, schemas, columns, indexes, foreignKeys, checks, modules, notCompared, special = []) {
+    if (special.length > 0) {
+        const left = new Set(special.map(r => tableKey(r.schema_name, r.table_name)));
+        const own = row => left.has(tableKey(row.schema_name, row.table_name));
+        columns = columns.filter(r => !own(r));
+        indexes = indexes.filter(r => !own(r));
+        foreignKeys = foreignKeys.filter(r => !own(r));
+        checks = checks.filter(r => !own(r));
+        modules = modules.filter(r => !(r.parent_name && left.has(tableKey(r.parent_schema, r.parent_name))));
+        const counts = {};
+        for (const row of special) counts[row.kind] = (counts[row.kind] || 0) + 1;
+        notCompared = notCompared.concat(Object.entries(counts).map(([kind, n]) => ({ kind, n })));
+    }
     return {
         formatVersion: FORMAT_VERSION,
         database,
@@ -295,13 +317,16 @@ async function readSchemaModel(connectionManager, database) {
         ].join(';\n')}`);
         const [info, schemas, columns, indexes, foreignKeys, checks, modules, notCompared] = sets;
 
-        const extra = versionedNotCompared(majorVersion(info[0].version));
-        const counts = extra ? (await run(extra))[0] : [];
-        return buildModel(database, info[0], schemas, columns, indexes, foreignKeys, checks, modules, notCompared.concat(counts));
+        const major = majorVersion(info[0].version);
+        const wanted = [versionedNotCompared(major), versionedSpecialTables(major)];
+        const answers = wanted.some(Boolean) ? await run(wanted.filter(Boolean).join(';\n')) : [];
+        const counts = wanted[0] ? answers.shift() : [];
+        const special = wanted[1] ? answers.shift() : [];
+        return buildModel(database, info[0], schemas, columns, indexes, foreignKeys, checks, modules, notCompared.concat(counts), special);
     } finally {
         try { await conn.createRequest().batch('USE [master]'); } catch { /* the connection is gone, or USE is not allowed there */ }
         conn.release();
     }
 }
 
-module.exports = { FORMAT_VERSION, readSchemaModel, buildModel, formatColumnType, majorVersion, versionedNotCompared };
+module.exports = { FORMAT_VERSION, readSchemaModel, buildModel, formatColumnType, majorVersion, versionedNotCompared, versionedSpecialTables };
