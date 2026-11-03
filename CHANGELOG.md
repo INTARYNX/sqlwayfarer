@@ -4,6 +4,50 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.13.1] - 2026-11-03
+
+Release candidate, fixes only on the features of 0.13.0, plus the guards around running queries.
+
+### Added
+
+- **Production connections**: tick *Production connection* when you edit a saved connection. The list shows a `PROD` badge, the tab a `PRODUCTION` banner, and every statement that changes data or schema (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`) asks for a confirmation, whatever its `WHERE`.
+- **Run sends the selection** when there is one (F5, Ctrl+Enter, the Run button), as SSMS does; the line of an error is still the one of the editor.
+- **Code tab**: Format uses the real formatter of the editor, and is a way of looking: the code of the server is kept, Copy copies what is shown, pressed again the button gives the code back.
+- **Query graph** follows the procedures a query `EXEC`s.
+
+### Changed
+
+- **Destructive statement guardrails** are wider: a `WHERE` that is always true (`1=1`), `ALTER TABLE … DROP COLUMN` / `ALTER COLUMN`, every kind of `DROP` (schema, synonym, user, login, role, type, sequence, assembly…), `MERGE … THEN DELETE`, `ALTER DATABASE … SET SINGLE_USER/OFFLINE/EMERGENCY`, `xp_cmdshell`, and a statement written as a literal inside `EXEC('…')` or `sp_executesql`. Temporary tables and table variables no longer ask. The T-SQL parser is only asked about a query that has an `UPDATE` or a `DELETE` (it took 0.1 to 0.5 s of the host on each run).
+- **Write footprint**: a trigger is followed only for the kind of write it is declared for (an `AFTER INSERT` trigger is not fired by a `DELETE`).
+- **Index cache**: the index format is now 8 (the kind of each table write, and checksums that no longer depend on the time zone): the first indexing after the update is a full rebuild.
+- **Result grid**: a `date` column shows no time, a `time` column no date (grid, CSV and JSON); a `bigint` sent as text is aligned and sorted as a number; a column with no name is called `(No column name)`, and a name returned twice gets a suffix (`id`, `id (2)`) instead of folding into one.
+- Closing a draft that holds text asks for a confirmation.
+- The progress messages of the extension host print only with the `SQLWAYFARER_DEBUG` environment variable; the Marketplace keywords are cut to the 30 it reads.
+
+### Fixed
+
+- **A `CREATE` or `ALTER` of a procedure, view, function or trigger failed** ("must be the first statement in a query batch"): the `USE` and the plan setting now go as batches of their own.
+- **A column with no name, or a name twice, lost a value** in the results (`SELECT COUNT(*), MAX(x)`, `a.id, b.id`).
+- **Cancelling an indexing, or a failed force reindex, deleted the index that was there.**
+- **Ctrl+Z brought back the text of the query tab that was open before.**
+- **Save As outside the workspace**, then Save, was refused.
+- **Explorer**: an answer for another database, or another object, than the one now shown no longer replaces what is on screen.
+- **Dependency tree**: a node of another database is a link (the flag was lost), and a name with `&` or `<` was escaped twice.
+- A change made by the code (history, a script, a snippet) now counts as an edit: the Save button, the drafts and the syntax check know it.
+- An error raised inside a procedure names it (`In dbo.proc, line 4`) instead of giving a line of the script.
+- **Saved connections**: a name that is taken is not overwritten with its password, and two windows of VS Code no longer overwrite one another's connections (they are read before each write, and a change made by another window is picked up).
+- `.`, `(local)` and a bracketed IPv6 address, as SSMS lists them, now reach the SQL login driver as real host names.
+- **A SQL Prompt snippet file made of tags that are never closed froze the extension host** for minutes.
+- Names with a dot or a bracket in them work for the columns, the parameters, the stats and the scripts of an object; a bare name finds its schema instead of trying a list of AdventureWorks ones; the row count uses `COUNT_BIG`.
+- The Code tab complexity counts T-SQL (joins, subqueries, CTEs, `CASE`, `EXISTS`, `UNION`, loops, cursors), not `WITH (NOLOCK)` nor words that are not T-SQL.
+- A default of two parenthesized parts keeps its parentheses in the data dictionary; saving a snippet again from the Query tab keeps its abbreviation; the friendly message of an indexing error no longer depends on the case of the driver text.
+- `package-lock.json` is tracked, which the CI (`npm ci`) needs.
+
+### Known limits
+
+- SQL built in a variable (`EXEC(@sql)`) and a procedure that deletes by its own logic are not seen by the guardrails; the footprint and the query graph do not follow dynamic SQL.
+- Not tested in a real VS Code yet (native dialogs), nor on Azure SQL; Windows and Entra sign-in have seen limited testing.
+
 ## [0.13.0] - 2026-11-03
 
 Release candidate: the features of the first version are in, from here on only fixes.
