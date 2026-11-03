@@ -273,7 +273,6 @@ class QueryManager {
     // double-click resets to the default height. Resizes the wrapper, not the
     // editor itself - CodeMirror fills it via height:100% on its own.
     initSplitter() {
-        const DEFAULT_HEIGHT = 140;
         const MIN_HEIGHT = 80;
         const wrap = this.input.parentElement;
 
@@ -302,7 +301,7 @@ class QueryManager {
         });
 
         this.splitter.addEventListener('dblclick', () => {
-            wrap.style.height = `${DEFAULT_HEIGHT}px`;
+            wrap.style.height = ''; // back to the stylesheet's two thirds
         });
     }
 
