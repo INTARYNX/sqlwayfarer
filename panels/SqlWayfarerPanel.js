@@ -38,6 +38,7 @@ const SchemaSourceHandlers = require('./handlers/SchemaSourceHandlers');
 const ConnectionRouter = require('../database/ConnectionRouter');
 const QueryHandlers = require('./handlers/QueryHandlers');
 const InstanceHandlers = require('./handlers/InstanceHandlers');
+const CompareHandlers = require('./handlers/CompareHandlers');
 const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
@@ -149,6 +150,10 @@ class SqlWayfarerPanel {
         // The instance tree is always the connection the queries run on - never a schema source -
         // since what it deletes or renames is done there.
         this._instanceScript = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._targetDatabaseService));
+        this._compare = new CompareHandlers(post, {
+            connectionManager: this._connectionManager,
+            confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action
+        });
         this._instance = new InstanceHandlers(post, {
             databaseService: this._targetDatabaseService,
             connectionManager: this._connectionManager,
@@ -474,6 +479,11 @@ class SqlWayfarerPanel {
             case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
             case 'getAutocompleteSettings':      this._postAutocompleteSettings(); this._postDiagnosticsSettings(); break;
             case 'endTransaction':               await this._query.handleEndTransaction(message.action); break;
+            case 'getCompareSources':            await this._compare.handleGetSources(message.database); break;
+            case 'runCompare':                   await this._compare.handleCompare(message.database, message.reference); break;
+            case 'buildCompareScript':           this._compare.handleBuildScript(message.ids, message.allowDestructive, message.legacy); break;
+            case 'takeSnapshot':                 await this._compare.handleTakeSnapshot(message.database); break;
+            case 'dropSnapshot':                 await this._compare.handleDropSnapshot(message.database, message.name); break;
             case 'getInstanceDatabases':         await this._instance.handleGetInstanceDatabases(); break;
             case 'getInstanceObjects':           await this._instance.handleGetInstanceObjects(message.database); break;
             case 'renameInstanceObject':         await this._instance.handleRename(message.database, message.schema, message.name, message.objectType); break;
@@ -588,6 +598,8 @@ class SqlWayfarerPanel {
         html = html.replace('{{FILE_TREE_URI}}',            u('webview', 'fileTree.js'));
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
         html = html.replace('{{INSTANCE_TREE_URI}}',        u('webview', 'instanceTree.js'));
+        html = html.replace('{{LINE_DIFF_URI}}',            u('webview', 'lineDiff.js'));
+        html = html.replace('{{COMPARE_MANAGER_URI}}',      u('webview', 'compareManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));

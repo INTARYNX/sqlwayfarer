@@ -79,6 +79,15 @@ async function listSnapshots(connectionManager, sourceDatabase = null) {
     return result.recordset.map(r => ({ name: r.name, source: r.source, createDate: r.create_date, state: r.state_desc }));
 }
 
+// The databases a comparison can take as its reference: the user databases that are not snapshots.
+async function listComparableDatabases(connectionManager, exclude = null) {
+    const result = await connectionManager.executeQueryInDatabase('master', `
+        SELECT name FROM sys.databases
+        WHERE database_id > ${SYSTEM_DATABASE_MAX_ID} AND source_database_id IS NULL AND state_desc = 'ONLINE' AND (@exclude IS NULL OR name <> @exclude)
+        ORDER BY name`, { exclude });
+    return result.recordset.map(r => r.name);
+}
+
 // What taking a snapshot would run: its name, its files, the statement.
 async function planSnapshot(connectionManager, database, now = new Date()) {
     const support = await getSnapshotSupport(connectionManager, database);
@@ -113,4 +122,4 @@ async function dropSnapshot(connectionManager, name) {
     }
 }
 
-module.exports = { snapshotName, sparsePath, buildCreateSnapshot, evaluateSupport, getSnapshotSupport, listSnapshots, planSnapshot, createSnapshot, dropSnapshot };
+module.exports = { listComparableDatabases, snapshotName, sparsePath, buildCreateSnapshot, evaluateSupport, getSnapshotSupport, listSnapshots, planSnapshot, createSnapshot, dropSnapshot };
