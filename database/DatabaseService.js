@@ -481,9 +481,10 @@ class DatabaseService {
         const { schema, objectName } = this._parseObjectName(tableName);
         const bracketed = `${bracketIdentifier(schema)}.${bracketIdentifier(objectName)}`;
         const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT COUNT(*) as row_count FROM ${bracketed}
+            SELECT COUNT_BIG(*) as row_count FROM ${bracketed}
         `);
-        return result.recordset[0]?.row_count || 0;
+        // COUNT(*) fails past 2^31 rows; COUNT_BIG comes as text from the driver.
+        return Number(result.recordset[0]?.row_count) || 0;
     }
 
     async getTableSampleData(database, tableName, limit = 100) {
