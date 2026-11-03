@@ -58,6 +58,25 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			await p.evaluate(() => window.queryFileManager.addDraftTab());
 			check((await state()) === 'draft', 'a new draft is purple');
 
+			// ---- closing a draft that holds text asks first; a blank one does not
+			await p.evaluate(() => window.queryFileManager.addDraftTab());
+			const blankId = await p.evaluate(() => window.queryFileManager.activeTabId);
+			await clear();
+			await p.evaluate(id => window.queryFileManager.closeTab(id), blankId);
+			check(!(await sent()).some(m => m.command === 'confirmDiscardChanges') && await p.evaluate(id => !window.queryFileManager.tabs.some(t => t.id === id), blankId), 'a blank draft closes without asking');
+			await p.evaluate(() => window.queryFileManager.addDraftTab());
+			await p.click('.cm-content'); await p.keyboard.type('SELECT 99');
+			const filledId = await p.evaluate(() => window.queryFileManager.activeTabId);
+			await clear();
+			await p.evaluate(id => window.queryFileManager.closeTab(id), filledId);
+			const asked = (await sent()).find(m => m.command === 'confirmDiscardChanges');
+			check(asked && /^Draft \d+$/.test(asked.name) && await p.evaluate(id => window.queryFileManager.tabs.some(t => t.id === id), filledId), 'a draft with text asks first, and stays open meanwhile');
+			await post({ command: 'discardConfirmed', discard: false });
+			check(await p.evaluate(id => window.queryFileManager.tabs.some(t => t.id === id), filledId), 'refusing keeps it');
+			await p.evaluate(id => window.queryFileManager.closeTab(id), filledId);
+			await post({ command: 'discardConfirmed', discard: true });
+			check(await p.evaluate(id => !window.queryFileManager.tabs.some(t => t.id === id), filledId), 'confirming closes it');
+
 			// ---- Run sends the selection when there is one
 			await p.evaluate(() => { window.queryManager.setQueryText('SELECT 1\n\nSELECT 2\nSELECT 3'); window.queryManager.input.setSelectionRange(10, 18); });
 			await clear(); await p.click('#runQueryBtn'); await p.waitForTimeout(100);

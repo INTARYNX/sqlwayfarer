@@ -225,10 +225,11 @@ class QueryFileManager {
         if (!tab) return;
         if (id === this.activeTabId) tab.content = this.queryManager.getEditorContent();
 
-        const dirty = tab.fileName && tab.content !== tab.savedContent;
+        // A file with changes, or a draft with something in it: closing loses text.
+        const dirty = tab.fileName ? tab.content !== tab.savedContent : !!(tab.content || '').trim();
         if (dirty) {
             this._pendingCloseTabId = id;
-            vscode.postMessage({ command: 'confirmDiscardChanges', name: tab.fileName });
+            vscode.postMessage({ command: 'confirmDiscardChanges', name: tab.fileName || tab.draftLabel });
             return;
         }
         this._removeTab(id);
