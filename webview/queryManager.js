@@ -402,6 +402,8 @@ class QueryManager {
     // focus/caret/status side effects, unlike setQueryText below.
     loadEditorContent(text) {
         this.input.value = text;
+        // Ctrl+Z must not bring back the text of the tab that was open before.
+        if (typeof this.input.resetHistory === 'function') this.input.resetHistory();
         // Another text: what was underlined belongs to the previous one.
         if (typeof this.input.setDiagnostics === 'function') this.input.setDiagnostics([]);
         this._syntaxText = null;

@@ -145,6 +145,19 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			for (let i = 0; i < tabsInfo.n; i++) await p.keyboard.press('Control+Alt+PageDown');
 			check((await activeId()) === before, 'the cycle wraps around');
 			check(await p.evaluate(() => !!document.activeElement.closest('.cm-editor')), 'and the focus stays in the editor');
+
+			// Ctrl+Z must not bring back the text of the query that was open before.
+			const text = () => p.evaluate(() => document.getElementById('queryInput').value);
+			await p.evaluate(() => window.queryFileManager.addDraftTab());
+			await p.click('.cm-content'); await p.keyboard.type('SELECT 1 AS a');
+			await p.evaluate(() => window.queryFileManager.addDraftTab());
+			await p.click('.cm-content'); await p.keyboard.type('SELECT 2 AS b');
+			await p.keyboard.press('Control+z');
+			check((await text()) === '', 'undo works inside the query being typed (' + JSON.stringify(await text()) + ')');
+			await p.keyboard.press('Control+Alt+PageUp');
+			check((await text()) === 'SELECT 1 AS a', 'back on the first of the two');
+			await p.keyboard.press('Control+z');
+			check((await text()) === 'SELECT 1 AS a', 'Ctrl+Z right after a switch does not bring back the text of the other query (' + JSON.stringify(await text()) + ')');
 			const bar = await p.evaluate(() => document.querySelector('.app-toolbar').getBoundingClientRect().height);
 			check(bar < 60, 'the toolbar is one row (' + Math.round(bar) + 'px)');
 			const order = await p.evaluate(() => { const db = document.getElementById('databaseSelect').getBoundingClientRect().left; const run = document.getElementById('runQueryBtn').getBoundingClientRect().left; return db < run; });
