@@ -121,7 +121,7 @@ class QueryFileManager {
         this.folderBtn.addEventListener('click', () => this.toggleFilesPanel());
         this.filesRefreshBtn.addEventListener('click', () => (window.instanceTree && window.instanceTree.active ? window.instanceTree.refresh() : this.loadFilesTree()));
         this.filesCollapseAllBtn.addEventListener('click', () => (window.instanceTree && window.instanceTree.active ? window.instanceTree.toggleCollapseAll() : this.toggleCollapseAllDirs()));
-        this.filesHideBtn.addEventListener('click', () => this.filesPanel.classList.remove('visible'));
+        this.filesHideBtn.addEventListener('click', () => this._setFilesPanel(false));
         this.filesFilterInput.addEventListener('input', () => {
             this._filterText = this.filesFilterInput.value.trim().toLowerCase();
             this.renderFilesTree();
@@ -269,14 +269,25 @@ class QueryFileManager {
     toggleFilesPanel() {
         if (appState.activeTab !== 'query') {
             if (window.tabManager) window.tabManager.switchTab('query');
-            this.filesPanel.classList.add('visible');
+            this._setFilesPanel(true);
             this.loadFilesTree();
             return;
         }
 
         const willShow = !this.filesPanel.classList.contains('visible');
-        this.filesPanel.classList.toggle('visible', willShow);
+        this._setFilesPanel(willShow);
         if (willShow) this.loadFilesTree();
+    }
+
+    // The button is a chevron, not a folder: the panel holds the files and the
+    // instance, and the chevron says what a click does (open / close it).
+    _setFilesPanel(visible) {
+        this.filesPanel.classList.toggle('visible', visible);
+        const icon = this.folderBtn.querySelector('.codicon');
+        icon.classList.toggle('codicon-chevron-right', !visible);
+        icon.classList.toggle('codicon-chevron-left', visible);
+        this.folderBtn.setAttribute('aria-expanded', String(visible));
+        this.folderBtn.title = visible ? 'Hide the side panel (files and instance)' : 'Show the side panel: the .sql files of the workspace and the databases of the instance';
     }
 
     loadFilesTree() {
