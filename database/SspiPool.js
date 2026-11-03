@@ -49,14 +49,21 @@ function encodeParam(name, value) {
 
 // The helper sends dates as ISO strings and binaries as base64, and tells
 // which columns are which in the 'recordset' event.
+function decodeValues(raw, columns) {
+    return columns.map((column, i) => {
+        const value = raw[i];
+        if (value === null) return value;
+        if (column.kind === 'date') return new Date(value);
+        if (column.kind === 'binary') return Buffer.from(value, 'base64');
+        return value;
+    });
+}
+
 function decodeRow(raw, columns) {
     const row = {};
+    const values = decodeValues(raw, columns);
     for (let i = 0; i < columns.length; i++) {
-        let value = raw[i];
-        if (value !== null) {
-            if (columns[i].kind === 'date') value = new Date(value);
-            else if (columns[i].kind === 'binary') value = Buffer.from(value, 'base64');
-        }
+        const value = values[i];
         const name = columns[i].name;
         // mssql turns a column name returned several times into an array.
         if (Object.prototype.hasOwnProperty.call(row, name)) {
@@ -67,6 +74,11 @@ function decodeRow(raw, columns) {
         }
     }
     return row;
+}
+
+// What the driver gives in arrayRowMode: one entry per column, in order.
+function columnsArray(columns) {
+    return columns.map((c, index) => ({ index, name: c.name, type: c.type, nullable: true }));
 }
 
 function columnsObject(columns) {
@@ -177,6 +189,7 @@ class SspiRequest extends EventEmitter {
     constructor(runner, requestTimeout) {
         super();
         this.stream = false;
+        this.arrayRowMode = false;
         this._runner = runner;
         this._requestTimeout = requestTimeout;
         this._params = [];
@@ -235,7 +248,7 @@ function execute(helper, sessionId, request, sql) {
                 columns = event.columns;
                 const meta = columnsObject(columns);
                 if (request.stream) {
-                    request.emit('recordset', meta);
+                    request.emit('recordset', request.arrayRowMode ? columnsArray(columns) : meta);
                 } else {
                     current = [];
                     current.columns = meta;
@@ -245,9 +258,8 @@ function execute(helper, sessionId, request, sql) {
             }
             case 'rows':
                 for (const raw of event.rows) {
-                    const row = decodeRow(raw, columns);
-                    if (request.stream) request.emit('row', row);
-                    else current.push(row);
+                    if (request.stream) request.emit('row', request.arrayRowMode ? decodeValues(raw, columns) : decodeRow(raw, columns));
+                    else current.push(decodeRow(raw, columns));
                 }
                 break;
             case 'info':

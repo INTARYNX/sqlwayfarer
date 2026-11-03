@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const { bracketIdentifier } = require('../../database/sqlIdentifier');
 const { describeColumn } = require('../../database/columnTypes');
+const { uniqueColumnKeys } = require('../../database/resultColumns');
 const { splitBatches } = require('../../database/sqlBatches');
 const { QuerySession } = require('../../database/QuerySession');
 
@@ -360,13 +361,17 @@ class QueryHandlers {
         // Streaming keeps memory bounded: rows beyond the cap are counted but
         // discarded instead of accumulating in the extension host.
         request.stream = true;
+        // Rows by position: by name, the driver folds the columns of one name
+        // into one, and has no key at all for a column with no name.
+        request.arrayRowMode = true;
 
         const errors = [];
         let currentSet = null;
         let currentIsPlan = false;
+        let keys = [];
 
         request.on('recordset', columns => {
-            const keys = Object.keys(columns);
+            keys = uniqueColumnKeys(columns);
             // SQL Server names this recordset's single column "Microsoft SQL
             // Server 2005 XML Showplan" (a fixed legacy name, unrelated to
             // the actual server version) and reports it as NVarChar, not Xml.
@@ -375,19 +380,22 @@ class QueryHandlers {
                 currentSet = null;
                 return;
             }
-            currentSet = { columns: keys, types: keys.map(key => describeColumn(columns[key])), rows: [], totalRows: 0 };
+            currentSet = { columns: keys, types: columns.map(describeColumn), rows: [], totalRows: 0 };
             timeline.push({ type: 'resultSet', index: resultSets.length });
             resultSets.push(currentSet);
         });
         request.on('row', row => {
             if (currentIsPlan) {
-                const xml = Object.values(row)[0];
-                if (xml) planXmls.push(sanitizePlanXml(xml));
+                if (row[0]) planXmls.push(sanitizePlanXml(row[0]));
                 return;
             }
             if (!currentSet) return;
             currentSet.totalRows++;
-            if (currentSet.rows.length < rowCap) currentSet.rows.push(row);
+            if (currentSet.rows.length < rowCap) {
+                const byKey = {};
+                keys.forEach((key, i) => { byKey[key] = row[i]; });
+                currentSet.rows.push(byKey);
+            }
         });
         request.on('info', info => {
             if (info && info.message) timeline.push({ type: 'message', text: info.message });

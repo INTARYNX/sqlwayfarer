@@ -63,6 +63,20 @@ suite('SspiPool', () => {
 		]);
 	});
 
+	test('stream mode by position gives one column entry per column, and the values in order, decoded', async () => {
+		pool = await connectedPool();
+		const request = pool.request();
+		request.stream = true;
+		request.arrayRowMode = true;
+		const seen = [];
+		request.on('recordset', columns => seen.push(['recordset', columns.map(c => c.name), columns.map(c => c.index)]));
+		request.on('row', row => seen.push(['row', Array.isArray(row), row[0], row[1] instanceof Date || row[1]]));
+		await request.query('SELECT');
+		assert.deepStrictEqual(seen.slice(0, 3), [
+			['recordset', ['a', 'd', 'b'], [0, 1, 2]], ['row', true, 1, true], ['row', true, 2, null]
+		]);
+	});
+
 	test('a SQL error rejects with its number and line', async () => {
 		pool = await connectedPool();
 		await assert.rejects(pool.request().query('ERROR'),

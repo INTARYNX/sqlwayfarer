@@ -68,12 +68,12 @@ suite('QueryHandlers', () => {
 	test('streams multiple result sets and applies the row cap', async () => {
 		const posts = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => {
-			req.emit('recordset', { id: {}, name: {} });
-			req.emit('row', { id: 1, name: 'a' });
-			req.emit('row', { id: 2, name: 'b' });
+			req.emit('recordset', [{ name: 'id' }, { name: 'name' }]);
+			req.emit('row', [1, 'a']);
+			req.emit('row', [2, 'b']);
 			req.emit('rowsaffected', 2);
-			req.emit('recordset', { x: {} });
-			for (let i = 0; i < 10; i++) req.emit('row', { x: i });
+			req.emit('recordset', [{ name: 'x' }]);
+			for (let i = 0; i < 10; i++) req.emit('row', [i]);
 			req.emit('rowsaffected', 10);
 			req.emit('info', { message: 'hello from PRINT' });
 		})), makeState());
@@ -104,11 +104,11 @@ suite('QueryHandlers', () => {
 		// single column is literally named "Microsoft SQL Server 2005 XML
 		// Showplan" (a fixed legacy name) and reported as NVarChar, not Xml.
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => {
-			req.emit('recordset', { id: { type: function Int() {} } });
-			req.emit('row', { id: 1 });
+			req.emit('recordset', [{ name: 'id', type: function Int() {} }]);
+			req.emit('row', [1]);
 			req.emit('rowsaffected', 1);
-			req.emit('recordset', { 'Microsoft SQL Server 2005 XML Showplan': { type: function NVarChar() {} } });
-			req.emit('row', { 'Microsoft SQL Server 2005 XML Showplan': '<ShowPlanXML>plan</ShowPlanXML>' });
+			req.emit('recordset', [{ name: 'Microsoft SQL Server 2005 XML Showplan', type: function NVarChar() {} }]);
+			req.emit('row', ['<ShowPlanXML>plan</ShowPlanXML>']);
 		})), makeState());
 
 		await handlers.handleGetActualPlan('MyDb', 'SELECT 1 AS id', 1000);
@@ -123,10 +123,10 @@ suite('QueryHandlers', () => {
 	test('labels each result set with the statement that produced it when counts line up', async () => {
 		const posts = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => {
-			req.emit('recordset', { id: {} });
-			req.emit('row', { id: 1 });
-			req.emit('recordset', { name: {} });
-			req.emit('row', { name: 'a' });
+			req.emit('recordset', [{ name: 'id' }]);
+			req.emit('row', [1]);
+			req.emit('recordset', [{ name: 'name' }]);
+			req.emit('row', ['a']);
 		})), makeState());
 
 		await handlers.handleExecuteQuery('MyDb', 'SELECT 1 AS id;\nSELECT 2 AS name;', 1000);
@@ -139,10 +139,10 @@ suite('QueryHandlers', () => {
 	test('does not guess a sourceStatement when the statement count does not match', async () => {
 		const posts = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => {
-			req.emit('recordset', { id: {} });
-			req.emit('row', { id: 1 });
-			req.emit('recordset', { name: {} });
-			req.emit('row', { name: 'a' });
+			req.emit('recordset', [{ name: 'id' }]);
+			req.emit('row', [1]);
+			req.emit('recordset', [{ name: 'name' }]);
+			req.emit('row', ['a']);
 		})), makeState());
 
 		// One EXEC statement yields two recordsets - counts don't line up, so no guess is made.
@@ -337,6 +337,26 @@ suite('QueryHandlers', () => {
 		assert.deepStrictEqual(asked, [true], 'only the production query prompts, and says so');
 	});
 
+	test('asks the driver for the rows by position, and keeps every column of a result set with no or repeated names', async () => {
+		const posts = [];
+		let request;
+		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => {
+			request = new FakeRequest(req => {
+				req.emit('recordset', [{ name: '' }, { name: 'id' }, { name: 'id' }, { name: '' }]);
+				req.emit('row', [10, 1, 2, 20]);
+			});
+			return request;
+		}), makeState());
+
+		await handlers.handleExecuteQuery('MyDb', 'SELECT COUNT(*), a.id, b.id, MAX(x) FROM a, b', 1000);
+
+		assert.strictEqual(request.arrayRowMode, true);
+		const set = posts.find(p => p.command === 'queryResult').resultSets[0];
+		assert.deepStrictEqual(set.columns, ['(No column name)', 'id', 'id (2)', '(No column name) (2)']);
+		assert.deepStrictEqual(set.rows, [{ '(No column name)': 10, id: 1, 'id (2)': 2, '(No column name) (2)': 20 }]);
+		assert.strictEqual(set.types.length, 4);
+	});
+
 	test('rejects a second query while one is still running', async () => {
 		const posts = [];
 		let release;
@@ -387,8 +407,8 @@ suite('QueryHandlers', () => {
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => {
 			const req = new FakeRequest(r => {
 				const n = batchSqls.length - 1; // this batch's own number, before it's recorded below; the USE comes first
-				r.emit('recordset', { x: {} });
-				r.emit('row', { x: n });
+				r.emit('recordset', [{ name: 'x' }]);
+				r.emit('row', [n]);
 				r.emit('rowsaffected', 1);
 			});
 			const originalQuery = req.query.bind(req);
