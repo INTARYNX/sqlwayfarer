@@ -55,6 +55,9 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			check((await state()) === 'modified' && /d18616/i.test(await frame()), 'a file with unsaved changes has the orange frame (' + await frame() + ')');
 			await p.click('#saveQueryFileBtn'); await post({ command: 'sqlFileSaved', success: true, path: '/w/a.sql' });
 			check((await state()) === 'saved', 'saving brings the normal colour back');
+			await p.evaluate(() => window.queryManager.setQueryText('SELECT 43'));
+			check((await state()) === 'modified' && await p.locator('#saveQueryFileBtn').isEnabled(), 'a change made by the code (a script, a history entry) counts as an edit of the file');
+			await p.click('#saveQueryFileBtn'); await post({ command: 'sqlFileSaved', success: true, path: '/w/a.sql' });
 			await p.evaluate(() => window.queryFileManager.addDraftTab());
 			check((await state()) === 'draft', 'a new draft is purple');
 

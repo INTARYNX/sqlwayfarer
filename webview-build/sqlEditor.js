@@ -190,9 +190,10 @@ function attach(container, options = {}) {
             ...baseExtensions(options, historyBox),
             keymap.of([{ key: 'Shift-Alt-f', run: () => { container.dispatchEvent(new Event('sw-format')); return true; }, preventDefault: true }]),
             EditorView.updateListener.of((update) => {
-                if (update.docChanged && update.transactions.some(tr => tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('undo') || tr.isUserEvent('redo'))) {
-                    onUserInput();
-                }
+                // Any change of the text, typed or made by the code (a history entry, a
+                // script, a snippet): what listens to the 'input' event (the Save
+                // button, the drafts, the syntax check) must know.
+                if (update.docChanged) onUserInput();
             })
         ]
     });
