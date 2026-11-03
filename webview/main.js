@@ -2190,8 +2190,8 @@ class ExplorerManager {
             return result;
         }
 
-        const treeText = buildTree(treeData);
-        container.innerHTML = `<pre>${this.escapeHtml(treeText)}</pre>`;
+        // The names are escaped by renderName, the rest is the branches of the drawing.
+        container.innerHTML = `<pre>${buildTree(treeData)}</pre>`;
     }
 
     // Row count and disk usage summary line shown under the table header.

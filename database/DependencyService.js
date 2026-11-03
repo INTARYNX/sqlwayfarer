@@ -268,22 +268,21 @@ class DependencyService {
             const visited = new Set();
 
             const buildTree = (objName, level) => {
-                if (level >= maxDepth || visited.has(objName)) return { name: objName, dependencies: [] };
+                // A node living in another database is flagged so the UI can
+                // turn it into a link (the tree carries no type information) -
+                // also when the index holds nothing about it, which is the rule
+                // for an object of another database.
+                const target = DependencyService.externalTarget(objName, database);
+                const external = target ? { database: target.database, schema: target.schema, object: target.object } : null;
+                if (level >= maxDepth || visited.has(objName)) return { name: objName, dependencies: [], external };
                 visited.add(objName);
 
                 const data = index.objects[objName.replace(/[\[\]]/g, '')];
-                if (!data?.dependencies) { visited.delete(objName); return { name: objName, dependencies: [] }; }
+                if (!data?.dependencies) { visited.delete(objName); return { name: objName, dependencies: [], external }; }
 
                 const children = data.dependencies.map(dep => buildTree(dep, level + 1));
                 visited.delete(objName);
-                // A node living in another database is flagged so the UI can
-                // turn it into a link (the tree carries no type information).
-                const external = DependencyService.externalTarget(objName, database);
-                return {
-                    name: objName,
-                    dependencies: children,
-                    external: external ? { database: external.database, schema: external.schema, object: external.object } : null
-                };
+                return { name: objName, dependencies: children, external };
             };
 
             return buildTree(objectName, 0);

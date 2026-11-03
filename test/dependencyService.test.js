@@ -212,3 +212,31 @@ suite('DependencyService._resolveExternalTypes', () => {
 		assert.strictEqual(entries[0].referenced_object_type, 'Object');
 	});
 });
+
+suite('DependencyService.getDependencyTree', () => {
+	const service = new DependencyService();
+	service.setIndexService({
+		peekIndex: async () => ({
+			objects: {
+				'dbo.vTotals': { dependencies: ['dbo.Orders', 'OtherDb.dbo.Orders', 'mydb.dbo.Local'] },
+				'dbo.Orders': { dependencies: [] },
+				'dbo.Local': { dependencies: [] }
+			}
+		})
+	});
+
+	test('a node of another database is flagged external, though the index knows nothing of it', async () => {
+		const tree = await service.getDependencyTree('MyDb', 'dbo.vTotals');
+		const byName = Object.fromEntries(tree.dependencies.map(node => [node.name, node]));
+
+		assert.deepStrictEqual(byName['OtherDb.dbo.Orders'].external, { database: 'OtherDb', schema: 'dbo', object: 'Orders' });
+		assert.strictEqual(byName['dbo.Orders'].external, null);
+		assert.strictEqual(byName['mydb.dbo.Local'].external, null, 'the same database, written in full, is local');
+		assert.strictEqual(tree.external, null);
+	});
+
+	test('the depth limit does not hide that a node is external', async () => {
+		const tree = await service.getDependencyTree('MyDb', 'dbo.vTotals', 1);
+		assert.ok(tree.dependencies.find(node => node.name === 'OtherDb.dbo.Orders').external);
+	});
+});
