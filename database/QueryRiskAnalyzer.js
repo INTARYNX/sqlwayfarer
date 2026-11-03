@@ -77,6 +77,19 @@ function dmlTarget(statement) {
 
 const isScratchTarget = name => !!name && /^[#@]/.test(name.replace(/^\[/, ''));
 
+// The verbs of the statements that change data or schema, in the order of
+// appearance and without repeats; a statement aimed at a temporary table or a
+// table variable does not count.
+function productionWrites(cleaned) {
+    const verbs = [];
+    for (const m of cleaned.matchAll(/(?:^|;)[ \t]*(insert|update|delete|merge|create|alter|drop|truncate)\b([^\n;]*)/gim)) {
+        if (/^\s*(?:(?:into|from|table|unique|clustered|nonclustered)\s+)*[#@]/i.test(m[2])) continue;
+        const verb = m[1].toUpperCase();
+        if (!verbs.includes(verb)) verbs.push(verb);
+    }
+    return verbs;
+}
+
 // Object kinds a DROP is flagged for.
 const DROP_KINDS = 'table|view|procedure|proc|function|trigger|index|database|schema|synonym|user|login|role|type|sequence|assembly';
 
@@ -93,13 +106,24 @@ const MAX_DYNAMIC_DEPTH = 2;
 //   THEN DELETE, ALTER DATABASE ... SET SINGLE_USER/OFFLINE/EMERGENCY and
 //   xp_cmdshell (regex: keywords are unambiguous)
 // - the same checks inside a dynamic statement written as a literal
+// - on a production connection (options.production), every statement that
+//   changes data or schema, whatever its WHERE
 // Returns human-readable risk descriptions; an empty array means "safe to run".
 class QueryRiskAnalyzer {
     constructor(sqlParser = null) {
         this._sqlParser = sqlParser;
     }
 
-    analyze(sql, depth = 0) {
+    analyze(sql, { production = false } = {}) {
+        const risks = this._analyze(sql, 0);
+        if (production) {
+            const writes = productionWrites(stripCommentsAndStrings(sql || ''));
+            if (writes.length > 0) risks.push(`Changes data or schema (${writes.join(', ')}) on a production connection`);
+        }
+        return risks;
+    }
+
+    _analyze(sql, depth) {
         if (!sql) return [];
         const risks = [];
         const cleaned = stripCommentsAndStrings(sql);
@@ -138,10 +162,11 @@ class QueryRiskAnalyzer {
         }
 
         for (const truncate of cleaned.match(/\btruncate\s+table\s+[^\s;]+/gi) || []) {
-            risks.push(truncate.replace(/\s+/g, ' ').trim());
+            const flagged = truncate.replace(/\s+/g, ' ').trim();
+            if (!isScratchTarget(flagged.split(' ').pop())) risks.push(flagged);
         }
         const drop = new RegExp(`\\bdrop\\s+(${DROP_KINDS})\\s+(?:if\\s+exists\\s+)?([^\\s;]+)`, 'gi');
-        for (const m of cleaned.matchAll(drop)) risks.push(`DROP ${m[1].toUpperCase()} ${m[2]}`);
+        for (const m of cleaned.matchAll(drop)) if (!isScratchTarget(m[2])) risks.push(`DROP ${m[1].toUpperCase()} ${m[2]}`);
         for (const m of cleaned.matchAll(/\balter\s+table\s+([^\s;]+)\s+(drop\s+column|alter\s+column)\b/gi)) {
             risks.push(`ALTER TABLE ${m[1]} ${m[2].replace(/\s+/g, ' ').toUpperCase()}`);
         }
@@ -154,7 +179,7 @@ class QueryRiskAnalyzer {
         if (depth < MAX_DYNAMIC_DEPTH) {
             const withLiterals = stripCommentsAndStrings(sql, true);
             for (const m of withLiterals.matchAll(DYNAMIC_LITERAL)) {
-                for (const risk of this.analyze(m[1].replace(/''/g, "'"), depth + 1)) risks.push(`In dynamic SQL: ${risk}`);
+                for (const risk of this._analyze(m[1].replace(/''/g, "'"), depth + 1)) risks.push(`In dynamic SQL: ${risk}`);
             }
         }
 

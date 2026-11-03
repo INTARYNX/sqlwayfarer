@@ -55,7 +55,7 @@ class ConnectionHandlers {
             // Remember for the "open the last connection" shortcut.
             await this._connectionStorage.setLastConnectionName(connectionName);
             this._panelController.onConnectionChanged(identity, connectionName);
-            this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!' });
+            this._post({ command: 'connectionStatus', success: true, message: 'Connected successfully!', production: !!(saved && saved.production) });
             return true;
         } catch (error) {
             this._post({ command: 'connectionStatus', success: false, message: `Failed to connect: ${error.message}` });

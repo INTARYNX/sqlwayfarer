@@ -81,6 +81,11 @@
         <button id="appLoadingRetryBtn" style="display: none;">Retry</button>
     </div>
     <div class="container">
+        <!-- Shown for a connection marked as production, see ConnectionStatus. -->
+        <div id="productionBanner" class="production-banner" role="status" hidden>
+            <i class="codicon codicon-warning"></i>
+            <span>PRODUCTION - statements that change data or schema ask for a confirmation</span>
+        </div>
         <!-- Shown when the connection to the server is lost, see ConnectionStatus. -->
         <div id="connectionBanner" class="connection-banner" role="alert" hidden>
             <i class="codicon codicon-debug-disconnect"></i>

@@ -58,6 +58,7 @@ class SidebarConnections {
             windowsAuthHint: byId('windowsAuthHint'),
             usernameInput: byId('usernameInput'),
             passwordInput: byId('passwordInput'),
+            productionCheckbox: byId('productionCheckbox'),
             encryptCheckbox: byId('encryptCheckbox'),
             trustCertCheckbox: byId('trustCertCheckbox')
         };
@@ -205,7 +206,8 @@ class SidebarConnections {
         const auth = AUTH_ICONS[connection.authType] || AUTH_ICONS.sql;
         const target = connection.server + (connection.port ? `:${connection.port}` : '')
             + (connection.database ? ` / ${connection.database}` : '');
-        const flags = (isLast ? '<i class="codicon codicon-history sb-last-used" title="Last used"></i>' : '')
+        const flags = (connection.production ? '<span class="sb-prod-badge" title="Production connection">PROD</span>' : '')
+            + (isLast ? '<i class="codicon codicon-history sb-last-used" title="Last used"></i>' : '')
             + (isOpen ? '<span class="sb-open-dot" title="Open in a tab"></span>' : '');
         return `<div class="sb-row clickable" role="button" tabindex="0" data-connection-name="${this.escapeHtml(connection.name)}" title="${isOpen ? 'Show its tab' : 'Open in a tab'}">
             <i class="codicon codicon-${auth.icon} sb-row-icon" title="${auth.label}"></i>
@@ -256,6 +258,7 @@ class SidebarConnections {
         // The password is never sent back to the view.
         e.passwordInput.value = '';
         e.passwordInput.placeholder = connection ? 'Leave empty to use the saved password' : 'Password';
+        e.productionCheckbox.checked = connection ? !!connection.production : false;
         e.encryptCheckbox.checked = connection ? !!connection.encrypt : false;
         e.trustCertCheckbox.checked = connection ? connection.trustServerCertificate !== false : true;
     }
@@ -282,6 +285,7 @@ class SidebarConnections {
             database: e.databaseInput.value.trim(),
             username: e.usernameInput.value.trim(),
             password: e.passwordInput.value,
+            production: e.productionCheckbox.checked,
             encrypt: e.encryptCheckbox.checked,
             trustServerCertificate: e.trustCertCheckbox.checked
         };

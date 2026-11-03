@@ -2542,6 +2542,7 @@ class MessageHandler {
 
         switch (message.command) {
             case 'connectionStatus':
+                if (message.success) document.getElementById('productionBanner').hidden = !message.production;
                 if (message.success && window.schemaSourceManager) window.schemaSourceManager.request();
                 if (message.success && window.instanceTree) window.instanceTree.reset();
                 if (message.success && window.compareManager) window.compareManager.reset();

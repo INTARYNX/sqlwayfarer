@@ -24,6 +24,11 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			const state = () => p.evaluate(() => document.querySelector('.query-input-wrap').dataset.queryState);
 
 			await post({ command: 'connectionStatus', success: true, message: 'ok' });
+			check(await p.locator('#productionBanner').isHidden(), 'no production banner on an ordinary connection');
+			await post({ command: 'connectionStatus', success: true, message: 'ok', production: true });
+			check(await p.locator('#productionBanner').isVisible() && (await p.locator('#productionBanner').textContent()).includes('PRODUCTION'), 'a production connection shows its banner');
+			await post({ command: 'connectionStatus', success: true, message: 'ok' });
+			check(await p.locator('#productionBanner').isHidden(), 'the banner goes away with the mark');
 			await post({ command: 'databasesLoaded', databases: ['master', 'Sales'], currentDatabase: 'Sales' });
 			const objects = [['HR','Employees','Table'],['Sales','Customers','Table'],['Sales','Orders','Table'],['Sales','usp_Close','Procedure'],['Sales','vTotals','View']].map(([s, n, t]) => ({ name: `${s}.${n}`, object_name: n, schema_name: s, qualified_name: `${s}.${n}`, object_type: t }));
 			await post({ command: 'objectsLoaded', objects });

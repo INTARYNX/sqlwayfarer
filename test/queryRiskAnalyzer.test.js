@@ -154,10 +154,55 @@ suite('QueryRiskAnalyzer TRUNCATE/DROP scan ignores comments and string literals
 			assert.deepStrictEqual(analyzer.analyze('DELETE FROM #tmp'), []);
 			assert.deepStrictEqual(analyzer.analyze('UPDATE @rows SET a = 1'), []);
 			assert.deepStrictEqual(analyzer.analyze('DELETE #tmp WHERE 1=1'), []);
+			assert.deepStrictEqual(analyzer.analyze('TRUNCATE TABLE #tmp; DROP TABLE #tmp'), []);
 		});
 
 		test('a real table still is', () => {
 			flagged('DELETE FROM dbo.T', /DELETE without WHERE/);
+		});
+	});
+});
+
+// On a production connection, a statement that changes data or schema asks for
+// a confirmation whatever its WHERE.
+[['with the T-SQL parser', true], ['regex fallback', false]].forEach(([label, withParser]) => {
+	suite(`QueryRiskAnalyzer on a production connection (${label})`, () => {
+		const parser = new BabelfishSqlParser();
+		parser.setEnabled(true);
+		const analyzer = new QueryRiskAnalyzer(withParser ? parser : null);
+		const prod = sql => analyzer.analyze(sql, { production: true });
+
+		test('a SELECT is not flagged', () => {
+			assert.deepStrictEqual(prod('SELECT * FROM dbo.T WHERE id = 1'), []);
+			assert.deepStrictEqual(prod('EXEC sp_help'), []);
+		});
+
+		test('an UPDATE with a WHERE is flagged, and listed once with the other verbs', () => {
+			const risks = prod('UPDATE dbo.T SET a = 1 WHERE id = 3;\nINSERT INTO dbo.T (a) VALUES (1);\nUPDATE dbo.T SET a = 2 WHERE id = 4');
+			assert.deepStrictEqual(risks, ['Changes data or schema (UPDATE, INSERT) on a production connection']);
+		});
+
+		test('DDL and a statement without a semicolon are flagged', () => {
+			assert.ok(prod('CREATE TABLE dbo.X (a int)').length === 1);
+			assert.ok(prod('SELECT 1\nALTER TABLE dbo.X ADD b int').some(r => /ALTER/.test(r)));
+		});
+
+		test('adds to the usual risks instead of replacing them', () => {
+			const risks = prod('DELETE FROM dbo.T');
+			assert.ok(risks.some(r => /DELETE without WHERE/.test(r)) && risks.some(r => /on a production connection/.test(r)), risks.join(' | '));
+		});
+
+		test('a temporary table or a table variable is not a change to production', () => {
+			assert.deepStrictEqual(prod('CREATE TABLE #t (a int); INSERT INTO #t VALUES (1); UPDATE #t SET a = 2 WHERE a = 1; DROP TABLE #t'), []);
+			assert.deepStrictEqual(prod('DECLARE @r TABLE (a int); INSERT @r VALUES (1)'), []);
+		});
+
+		test('a keyword in a comment or a string is not flagged', () => {
+			assert.deepStrictEqual(prod("-- update later\nSELECT 'delete me'"), []);
+		});
+
+		test('without the option nothing is added', () => {
+			assert.deepStrictEqual(analyzer.analyze('UPDATE dbo.T SET a = 1 WHERE id = 3'), []);
 		});
 	});
 });

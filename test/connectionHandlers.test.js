@@ -56,6 +56,17 @@ suite('ConnectionHandlers - no two tabs on the same connection', () => {
 		assert.strictEqual(posts.pop().success, true);
 	});
 
+	test('the connection status says whether the connection is marked as production', async () => {
+		const posts = [];
+		const storage = fakeStorage({ Prod: { server: 'srv', production: true }, Dev: { server: 'dev' } });
+		const handlers = new ConnectionHandlers(m => posts.push(m), fakeConnectionManager(), storage);
+
+		await handlers.handleConnectWithSaved('Prod');
+		await handlers.handleConnectWithSaved('Dev');
+
+		assert.deepStrictEqual(posts.map(p => p.production), [true, false]);
+	});
+
 	test('handleConnectWithSaved remembers the connection as the last one used', async () => {
 		const storage = fakeStorage({ Prod: { server: 'srv', port: 1433, username: 'sa' } });
 		const handlers = new ConnectionHandlers(() => {}, fakeConnectionManager(), storage);
