@@ -25,9 +25,9 @@ suite('e2e: the instance tree', function () {
 			await post({ command: 'databasesLoaded', databases: ['AppDb'], currentDatabase: 'AppDb' });
 
 			const chevron = () => p.$eval('#queryFilesBtn .codicon', e => e.className.replace('codicon ', ''));
-			check(await chevron() === 'codicon-chevron-right', `${theme}: closed, the button is a chevron pointing in`);
+			check(await chevron() === 'codicon-layout-sidebar-left-off', `${theme}: closed, the button is the outlined side bar icon`);
 			await p.click('#queryFilesBtn');
-			check(await chevron() === 'codicon-chevron-left' && await p.getAttribute('#queryFilesBtn', 'aria-expanded') === 'true', `${theme}: open, the chevron flips`);
+			check(await chevron() === 'codicon-layout-sidebar-left' && await p.getAttribute('#queryFilesBtn', 'aria-expanded') === 'true', `${theme}: open, the icon fills in`);
 			check(await p.isVisible('#sqlFilesView') && !(await p.isVisible('#instanceView')), `${theme}: the panel opens on Files`);
 			await p.evaluate(() => { window.__sent.length = 0; });
 			await p.click('#panelTabInstance');
@@ -88,7 +88,7 @@ suite('e2e: the instance tree', function () {
 			check((await sent()).some(m => m.command === 'getInstanceDatabases'), `${theme}: the header refresh reloads the instance`);
 
 			await p.click('#sqlFilesHideBtn');
-			check(await chevron() === 'codicon-chevron-right' && !(await p.isVisible('#sqlFilesPanel')), `${theme}: hiding the panel flips it back`);
+			check(await chevron() === 'codicon-layout-sidebar-left-off' && !(await p.isVisible('#sqlFilesPanel')), `${theme}: hiding the panel flips it back`);
 			await p.click('#queryFilesBtn');
 			// Back to Files.
 			await p.click('#panelTabFiles');
