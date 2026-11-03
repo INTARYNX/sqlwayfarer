@@ -154,6 +154,34 @@ suite('QueryFileHandlers', () => {
 		}
 	});
 
+	test('a file chosen in Save As can be saved again, even outside the workspace; another path still cannot', async () => {
+		const chosen = path.join(tmpDir, 'chosen.sql');
+		const other = path.join(tmpDir, 'other.sql');
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		handlers._pickSaveFile = async () => ({ fsPath: chosen });
+
+		await handlers.handleSaveSqlFileAs('SELECT 1;', 'chosen.sql');
+		assert.strictEqual(posts.pop().success, true);
+
+		await handlers.handleSaveSqlFile(chosen, 'SELECT 2;');
+		assert.strictEqual(posts.pop().success, true, 'Save after Save As');
+		assert.strictEqual(await fs.readFile(chosen, 'utf8'), 'SELECT 2;');
+
+		await handlers.handleSaveSqlFile(other, 'SELECT 3;');
+		assert.strictEqual(posts.pop().success, false, 'a path the user never chose stays refused');
+		await assert.rejects(fs.readFile(other, 'utf8'));
+	});
+
+	test('a cancelled Save As allows nothing', async () => {
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		handlers._pickSaveFile = async () => undefined;
+		await handlers.handleSaveSqlFileAs('SELECT 1;', 'x.sql');
+		assert.strictEqual(posts.pop().cancelled, true);
+		assert.strictEqual(handlers._savedAs.size, 0);
+	});
+
 	test('round-trips the unsaved-drafts recovery snapshot through workspaceState', async () => {
 		const posts = [];
 		const state = makeState();
