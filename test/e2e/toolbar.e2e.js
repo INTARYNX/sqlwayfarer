@@ -13,7 +13,7 @@ suite('e2e: the top bar stays on one line', function () {
 
 	const WIDTHS = [800, 900, 1000, 1100, 1280, 1440, 1920];
 	// From this width on the bar is one line; under it, the actions may go to a second line, whole.
-	const SINGLE_LINE_FROM = { 'Query tab': 800, 'Query tab, schema from another connection': 1000, 'Explorer tab': 800 };
+	const SINGLE_LINE_FROM = { 'Query tab': 800, 'Query tab, schema from another connection': 1100, 'Explorer tab': 800 };
 
 	// What the bar holds, per situation: the Query tab, the Query tab with the schema read from
 	// another connection (two more selects), and the Explorer tab.

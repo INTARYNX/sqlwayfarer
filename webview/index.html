@@ -102,6 +102,7 @@
                     <div id="queryTabsDropdown" class="query-tabs-dropdown" role="menu"></div>
                 </span>
                 <button class="tab-button" data-tab="explorer">Explorer</button>
+                <button class="tab-button" data-tab="compare" title="What changed in this database since a snapshot, and the script to repeat it elsewhere">Compare</button>
             </div>
             <div class="header-actions">
                 <!-- Where the Explorer and the autocompletion read the schema from; queries always run on this tab's connection. -->
@@ -292,6 +293,41 @@
                             </div>
                             <div id="dependencyGraph" class="dependency-graph"></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compare Tab -->
+            <div id="compareTab" class="tab-content">
+                <div class="compare-body">
+                    <div class="compare-toolbar">
+                        <label class="compare-field"><span class="compare-label">Compare with</span>
+                            <select id="compareReference" aria-label="Reference: a snapshot of this database, or another database"><option value="">Select a database first</option></select>
+                        </label>
+                        <button id="compareRunBtn" class="primary" disabled title="Compare this database with the reference"><i class="codicon codicon-git-compare"></i> Compare</button>
+                        <button id="compareSnapshotBtn" disabled title="Take a snapshot of this database now, to compare with it later"><i class="codicon codicon-device-camera"></i> Take snapshot…</button>
+                        <button id="compareDropSnapshotBtn" class="icon-btn" hidden title="Drop this snapshot"><i class="codicon codicon-trash"></i></button>
+                        <span id="compareNote" class="compare-note" role="status"></span>
+                    </div>
+                    <div id="compareEmpty" class="compare-empty">
+                        <p>See what changed in this database since a reference, and get the script that repeats it on another database.</p>
+                        <p>Take a <strong>snapshot</strong> before you work: a read-only copy of the database as it is now. Later, pick it above and compare. The script is written to be run again whatever state the target is in; nothing is run from here.</p>
+                    </div>
+                    <div id="compareResult" class="compare-result" hidden>
+                        <div class="compare-list-pane">
+                            <div id="compareSummary" class="compare-summary"></div>
+                            <input type="text" id="compareFilter" class="sql-files-filter" placeholder="Filter the changes…" spellcheck="false">
+                            <div id="compareList" class="compare-list" tabindex="0" role="tree" aria-label="Changes"></div>
+                        </div>
+                        <div id="compareDetail" class="compare-detail-pane"></div>
+                    </div>
+                    <div id="compareFooter" class="compare-footer" hidden>
+                        <span id="compareSelected" class="compare-selected"></span>
+                        <label class="compare-option" title="Drop columns and tables, narrow a type: what loses data. Off, they are left out and named in the script."><input type="checkbox" id="compareDestructive"> Include destructive changes</label>
+                        <label class="compare-option" title="CREATE OR ALTER exists from SQL Server 2016 SP1; before, the code is written with a stand-in and ALTER."><span>Script for</span>
+                            <select id="compareTarget"><option value="modern">SQL Server 2016 SP1 and later</option><option value="legacy">Older versions</option></select>
+                        </label>
+                        <button id="compareScriptBtn" class="primary" disabled title="Write the script in a new query, to read before it is run"><i class="codicon codicon-file-code"></i> Script to editor</button>
                     </div>
                 </div>
             </div>
@@ -514,6 +550,8 @@
     <script src="{{FILE_TREE_URI}}"></script>
     <script src="{{QUERY_FILE_MANAGER_URI}}"></script>
     <script src="{{INSTANCE_TREE_URI}}"></script>
+    <script src="{{LINE_DIFF_URI}}"></script>
+    <script src="{{COMPARE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
     <script src="{{INDEX_STATS_VIEW_URI}}"></script>
     <script src="{{SCHEMA_SOURCE_MANAGER_URI}}"></script>

@@ -55,6 +55,8 @@ export default [{
             SnippetManager: "readonly",
             QueryFileManager: "readonly",
             InstanceTree: "readonly",
+            CompareManager: "readonly",
+            LineDiff: "readonly",
             FootprintManager: "readonly",
             IndexStatsView: "readonly",
             TempTableScript: "readonly",
