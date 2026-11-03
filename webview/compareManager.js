@@ -41,8 +41,22 @@ class CompareManager {
             destructive: document.getElementById('compareDestructive'),
             target: document.getElementById('compareTarget'),
             selected: document.getElementById('compareSelected'),
-            script: document.getElementById('compareScriptBtn')
+            script: document.getElementById('compareScriptBtn'),
+            apply: document.getElementById('compareApplyBtn'),
+            overlay: document.getElementById('compareApplyOverlay'),
+            applyConnection: document.getElementById('compareApplyConnection'),
+            applyDatabase: document.getElementById('compareApplyDatabase'),
+            applyStatus: document.getElementById('compareApplyStatus'),
+            applyProgress: document.getElementById('compareApplyProgress'),
+            applyBar: document.getElementById('compareApplyBar'),
+            applyProgressText: document.getElementById('compareApplyProgressText'),
+            applyResult: document.getElementById('compareApplyResult'),
+            applyStop: document.getElementById('compareApplyStopBtn'),
+            applyRun: document.getElementById('compareApplyRunBtn'),
+            applyClose: document.getElementById('compareApplyCloseBtn')
         };
+        this.applying = false;
+        this.targetReady = false;
         this.database = null;     // the database the sources were listed for
         this.sources = null;
         this.result = null;       // { database, reference, diff, ... }
@@ -70,6 +84,15 @@ class CompareManager {
             this.show(row.dataset.id);
         });
         this.el.list.addEventListener('keydown', (e) => this.onListKey(e));
+
+        this.el.apply.addEventListener('click', () => this.openApply());
+        this.el.applyClose.addEventListener('click', () => this.closeApply());
+        this.el.overlay.addEventListener('click', (e) => { if (e.target === this.el.overlay) this.closeApply(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.el.overlay.classList.contains('visible')) this.closeApply(); });
+        this.el.applyConnection.addEventListener('change', () => this.requestTargetDatabases());
+        this.el.applyDatabase.addEventListener('change', () => this.requestTargetStatus());
+        this.el.applyRun.addEventListener('click', () => this.runApply());
+        this.el.applyStop.addEventListener('click', () => vscode.postMessage({ command: 'cancelApplyCompare' }));
     }
 
     // === Pure helpers (also used by the tests) ==============================
@@ -268,6 +291,13 @@ class CompareManager {
         this.running = false;
         this.updateButtons();
         this.setNote(message.message, 'error');
+        // A failure while the apply dialog is open belongs to it too.
+        if (this.el.overlay.classList.contains('visible')) {
+            this.applying = false;
+            this.el.applyProgress.hidden = true;
+            this.setApplyStatus(message.message, 'error');
+            this.updateApplyButtons();
+        }
     }
 
     onResult(message) {
@@ -534,15 +564,170 @@ class CompareManager {
         if (manual > 0) parts.push(`${manual} to do by hand`);
         this.el.selected.textContent = parts.join(' · ');
         this.el.script.disabled = picked.length === 0;
+        this.el.apply.disabled = picked.length === 0;
+    }
+
+    // What the footer says is wanted: the changes picked, and how to write them.
+    choice() {
+        return { ids: [...this.selected], allowDestructive: this.el.destructive.checked, legacy: this.el.target.value === 'legacy' };
     }
 
     buildScript() {
-        vscode.postMessage({
-            command: 'buildCompareScript',
-            ids: [...this.selected],
-            allowDestructive: this.el.destructive.checked,
-            legacy: this.el.target.value === 'legacy'
-        });
+        vscode.postMessage({ command: 'buildCompareScript', ...this.choice() });
+    }
+
+    // === Applying ===========================================================
+
+    openApply() {
+        if (!this.result) return;
+        this.el.overlay.classList.add('visible');
+        this.applying = false;
+        this.targetReady = false;
+        this.el.applyResult.hidden = true;
+        this.el.applyResult.textContent = '';
+        this.el.applyProgress.hidden = true;
+        this.setApplyStatus('Pick where to apply the script. Nothing is run before you confirm.');
+        this.updateApplyButtons();
+        vscode.postMessage({ command: 'getCompareTargets' });
+        this.requestTargetDatabases();
+    }
+
+    closeApply() {
+        if (this.applying) return;
+        this.el.overlay.classList.remove('visible');
+    }
+
+    setApplyStatus(text, kind = '') {
+        this.el.applyStatus.textContent = text;
+        this.el.applyStatus.className = `compare-apply-status${kind ? ` ${kind}` : ''}`;
+    }
+
+    updateApplyButtons() {
+        this.el.applyConnection.disabled = this.applying;
+        this.el.applyDatabase.disabled = this.applying;
+        this.el.applyRun.disabled = this.applying || !this.targetReady;
+        this.el.applyStop.hidden = !this.applying;
+        this.el.applyClose.disabled = this.applying;
+    }
+
+    onTargets(message) {
+        const select = this.el.applyConnection;
+        const kept = select.value;
+        select.textContent = '';
+        const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; select.appendChild(o); };
+        add('', `This connection (${message.own.server})`);
+        message.connections.forEach(c => add(c.name, `${c.name} (${c.server})`));
+        if ([...select.options].some(o => o.value === kept)) select.value = kept;
+    }
+
+    requestTargetDatabases() {
+        this.targetReady = false;
+        this.el.applyDatabase.textContent = '';
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = 'Loading…';
+        this.el.applyDatabase.appendChild(o);
+        this.setApplyStatus(this.el.applyConnection.value ? `Connecting to ${this.el.applyConnection.value}…` : 'Listing the databases…');
+        this.updateApplyButtons();
+        vscode.postMessage({ command: 'getCompareTargetDatabases', connection: this.el.applyConnection.value || null });
+    }
+
+    onTargetDatabases(message) {
+        if ((message.connection || '') !== this.el.applyConnection.value) return;
+        const select = this.el.applyDatabase;
+        select.textContent = '';
+        const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; select.appendChild(o); };
+        add('', message.databases.length > 0 ? 'Pick a database' : 'No database');
+        message.databases.forEach(name => add(name, name));
+        this.setApplyStatus(message.message || (message.databases.length > 0 ? 'Pick the database to apply the script on.' : 'There is no database to apply it on.'), message.message ? 'error' : '');
+    }
+
+    requestTargetStatus() {
+        this.targetReady = false;
+        this.updateApplyButtons();
+        const database = this.el.applyDatabase.value;
+        if (!database) { this.setApplyStatus('Pick the database to apply the script on.'); return; }
+        this.setApplyStatus('Reading the database…');
+        vscode.postMessage({ command: 'getCompareTargetStatus', ...this.choice(), connection: this.el.applyConnection.value || null, database });
+    }
+
+    // Where the target stands against the changes, in a few lines.
+    static statusLines(message) {
+        const { counts } = message;
+        const lines = [`${counts.pending} to do · ${counts.done} already as in the current database · ${counts.differs} partly done or different from the reference`];
+        if (counts.differs > 0) lines.push(`Partly done or different: ${message.differs.join(', ')}${counts.differs > message.differs.length ? ', …' : ''}. The script finishes what is half done, and overwrites what is different.`);
+        lines.push(`${message.steps} step(s) for SQL Server ${message.serverVersion}${message.createOrAlter ? '' : ' (before 2016 SP1: no CREATE OR ALTER)'}.`);
+        if (message.skipped > 0) lines.push(`${message.skipped} step(s) left out: ${message.skippedReason}`);
+        message.warnings.forEach(w => lines.push(w));
+        return lines;
+    }
+
+    onTargetStatus(message) {
+        if ((message.connection || '') !== this.el.applyConnection.value || message.database !== this.el.applyDatabase.value) return;
+        this.el.applyStatus.textContent = '';
+        this.el.applyStatus.className = 'compare-apply-status';
+        for (const line of CompareManager.statusLines(message)) {
+            const p = document.createElement('div');
+            p.textContent = line;
+            this.el.applyStatus.appendChild(p);
+        }
+        this.targetReady = message.steps > 0;
+        if (message.steps === 0) this.setApplyStatus('Nothing to apply for the changes that are picked.', 'error');
+        this.updateApplyButtons();
+    }
+
+    runApply() {
+        this.applying = true;
+        this.el.applyResult.hidden = true;
+        this.el.applyProgress.hidden = false;
+        this.el.applyBar.removeAttribute('value');
+        this.el.applyProgressText.textContent = 'Waiting for your confirmation…';
+        this.updateApplyButtons();
+        vscode.postMessage({ command: 'applyCompare', ...this.choice(), connection: this.el.applyConnection.value || null, database: this.el.applyDatabase.value });
+    }
+
+    onApplyDeclined() {
+        this.applying = false;
+        this.el.applyProgress.hidden = true;
+        this.updateApplyButtons();
+    }
+
+    onApplyProgress(message) {
+        if (!message.total) return;
+        this.el.applyBar.max = message.total;
+        this.el.applyBar.value = message.done;
+        this.el.applyProgressText.textContent = `${message.done} of ${message.total} batches`;
+    }
+
+    // What came of it: what ran, the errors, and what still differs on the target.
+    static resultLines(message) {
+        const lines = [];
+        const seconds = (message.durationMs / 1000).toFixed(1);
+        if (message.errors.length === 0 && !message.stopped) lines.push({ kind: 'success', text: `Applied ${message.steps} step(s) in ${seconds} s.` });
+        else if (message.stopped) lines.push({ kind: 'error', text: `Stopped after ${message.ran} of ${message.batches} batches. Apply again to finish: the script picks up where it is.` });
+        else lines.push({ kind: 'error', text: `The script stopped on an error (${message.ran} of ${message.batches} batches ran). Fix it, then apply again.` });
+        message.errors.forEach(e => lines.push({ kind: 'error', text: `Batch ${e.batch}, line ${e.line}: ${e.message}` }));
+        if (message.errors.length === 0 && !message.stopped) {
+            lines.push(message.remainingCount === 0
+                ? { kind: 'success', text: 'The database now is as the current one for the changes that were picked.' }
+                : { kind: 'warn', text: `Still different on the database: ${message.remaining.join(', ')}${message.remainingCount > message.remaining.length ? ', …' : ''}${message.leftOut > 0 ? ' (the steps that were left out are among them)' : ''}.` });
+        }
+        return lines;
+    }
+
+    onApplied(message) {
+        this.applying = false;
+        this.targetReady = false;
+        this.el.applyProgress.hidden = true;
+        this.el.applyResult.hidden = false;
+        this.el.applyResult.textContent = '';
+        for (const line of CompareManager.resultLines(message)) {
+            const el = document.createElement('div');
+            el.className = `compare-apply-line ${line.kind}`;
+            el.textContent = line.text;
+            this.el.applyResult.appendChild(el);
+        }
+        this.updateApplyButtons();
     }
 
     onScript(message) {

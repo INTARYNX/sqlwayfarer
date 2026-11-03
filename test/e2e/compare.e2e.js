@@ -166,4 +166,92 @@ suite('e2e: the Compare tab', function () {
 		check.done();
 		await p.close();
 	});
+	test('applying: pick the target, see where it stands, confirm on the extension side, follow it, read the result', async () => {
+		const check = checker();
+		for (const theme of ['dark', 'light']) {
+			const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', theme, { width: 1100, height: 760 });
+			const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+			const sent = () => p.evaluate(() => window.__sent.slice());
+			const clear = () => p.evaluate(() => { window.__sent.length = 0; });
+			await post({ command: 'connectionStatus', success: true, message: 'ok' });
+			await post({ command: 'databasesLoaded', databases: ['Sales'], currentDatabase: 'Sales' });
+			await p.click('[data-tab=compare]');
+			check(await p.isDisabled('#compareApplyBtn'), `${theme}: Apply waits for a comparison`);
+			await post({ command: 'compareResult', database: 'Sales', reference: 'R', diff: DIFF, createOrAlter: true, durationMs: 100 });
+			check(!(await p.isDisabled('#compareApplyBtn')), `${theme}: and is there once there is one`);
+
+			await clear();
+			await p.click('#compareApplyBtn');
+			check(await p.isVisible('#compareApplyOverlay'), `${theme}: the dialog opens`);
+			const asked = await sent();
+			check(asked.some(m => m.command === 'getCompareTargets') && asked.some(m => m.command === 'getCompareTargetDatabases' && m.connection === null), `${theme}: the connections and the databases are asked for`);
+			check(await p.isDisabled('#compareApplyRunBtn'), `${theme}: nothing can be applied before a database is picked`);
+
+			await post({ command: 'compareTargets', own: { name: 'Me', server: 'dev-sql' }, connections: [{ name: 'Prod', server: 'prod-sql' }] });
+			check((await p.$$eval('#compareApplyConnection option', os => os.map(o => o.textContent))).join('|') === 'This connection (dev-sql)|Prod (prod-sql)', `${theme}: this connection first, then the saved ones`);
+			await post({ command: 'compareTargetDatabases', connection: null, databases: ['SalesCopy', 'Staging'] });
+			check((await p.$$eval('#compareApplyDatabase option', os => os.map(o => o.value))).join() === ',SalesCopy,Staging', `${theme}: the databases of this connection`);
+
+			await clear();
+			await p.selectOption('#compareApplyDatabase', 'Staging');
+			const status = (await sent()).find(m => m.command === 'getCompareTargetStatus');
+			check(status && status.database === 'Staging' && status.connection === null && status.ids.length === 4 && status.allowDestructive === false, `${theme}: picking a database asks where it stands (${JSON.stringify(status && { c: status.connection, d: status.database })})`);
+			await post({ command: 'compareTargetStatus', connection: null, database: 'Staging', serverVersion: '15.0.4000', createOrAlter: true, counts: { done: 1, pending: 2, differs: 1 }, differs: ['table:dbo.Customers'], steps: 7, skipped: 2, skippedReason: 'It loses data, and destructive changes were not asked for.', warnings: ['dbo.Customers.tier: NOT NULL without a default fails when the table has rows.'] });
+			const text = await p.textContent('#compareApplyStatus');
+			check(text.includes('2 to do · 1 already as in the current database · 1 partly done') && text.includes('table:dbo.Customers') && text.includes('7 step(s) for SQL Server 15.0.4000') && text.includes('2 step(s) left out') && text.includes('NOT NULL without a default'), `${theme}: where the target stands, in words (${text.slice(0, 80)}…)`);
+			check(!(await p.isDisabled('#compareApplyRunBtn')), `${theme}: Apply is available`);
+
+			// Another connection: its databases replace the list, an answer for the previous one is ignored.
+			await clear();
+			await p.selectOption('#compareApplyConnection', 'Prod');
+			check((await sent()).some(m => m.command === 'getCompareTargetDatabases' && m.connection === 'Prod'), `${theme}: another connection asks for its databases`);
+			check(await p.isDisabled('#compareApplyRunBtn'), `${theme}: and Apply waits again`);
+			await post({ command: 'compareTargetDatabases', connection: null, databases: ['Stale'] });
+			await post({ command: 'compareTargetDatabases', connection: 'Prod', databases: ['Live'] });
+			check((await p.$$eval('#compareApplyDatabase option', os => os.map(o => o.value))).join() === ',Live', `${theme}: the answer of another connection is ignored`);
+			await p.selectOption('#compareApplyDatabase', 'Live');
+			await post({ command: 'compareTargetStatus', connection: 'Staging', database: 'Live', counts: { done: 0, pending: 0, differs: 0 }, differs: [], steps: 1, skipped: 0, warnings: [], serverVersion: '16' });
+			check(await p.isDisabled('#compareApplyRunBtn'), `${theme}: a status for something else is ignored`);
+			await post({ command: 'compareTargetStatus', connection: 'Prod', database: 'Live', serverVersion: '12.0.6024', createOrAlter: false, counts: { done: 0, pending: 4, differs: 0 }, differs: [], steps: 5, skipped: 0, skippedReason: '', warnings: [] });
+			check((await p.textContent('#compareApplyStatus')).includes('before 2016 SP1'), `${theme}: an old server is told it gets no CREATE OR ALTER`);
+
+			// Apply: declined, then confirmed.
+			await clear();
+			await p.click('#compareApplyRunBtn');
+			const apply = (await sent()).find(m => m.command === 'applyCompare');
+			check(apply && apply.connection === 'Prod' && apply.database === 'Live' && apply.ids.length === 4, `${theme}: Apply sends the target and the changes`);
+			check(await p.isDisabled('#compareApplyDatabase') && await p.isVisible('#compareApplyProgress') && await p.isVisible('#compareApplyStopBtn'), `${theme}: the dialog is locked while it waits`);
+			await p.keyboard.press('Escape');
+			check(await p.isVisible('#compareApplyOverlay'), `${theme}: it cannot be closed while applying`);
+			await post({ command: 'compareApplyDeclined' });
+			check(!(await p.isDisabled('#compareApplyDatabase')) && !(await p.isVisible('#compareApplyProgress')), `${theme}: declined, the dialog is free again`);
+
+			await p.click('#compareApplyRunBtn');
+			await post({ command: 'compareApplyProgress', done: 3, total: 12 });
+			check((await p.textContent('#compareApplyProgressText')) === '3 of 12 batches' && await p.$eval('#compareApplyBar', e => e.max === 12 && e.value === 3), `${theme}: the progress follows`);
+			await clear();
+			await p.click('#compareApplyStopBtn');
+			check((await sent()).some(m => m.command === 'cancelApplyCompare'), `${theme}: Stop is sent`);
+
+			await post({ command: 'compareApplied', connection: 'Prod', database: 'Live', steps: 5, ran: 6, batches: 12, errors: [{ batch: 6, line: 40, message: 'ALTER TABLE only allows columns to be added that can contain nulls' }], stopped: false, durationMs: 2300, remaining: ['table:dbo.Customers'], remainingCount: 1, leftOut: 0 });
+			const failed = await p.textContent('#compareApplyResult');
+			check(failed.includes('stopped on an error (6 of 12 batches ran)') && failed.includes('Batch 6, line 40') && !failed.includes('Still different'), `${theme}: an error is shown with its batch and line (${failed.slice(0, 60)}…)`);
+			check(!(await p.isDisabled('#compareApplyDatabase')) && await p.isDisabled('#compareApplyRunBtn'), `${theme}: and the dialog is free; Apply waits for a new look at the target`);
+
+			await post({ command: 'compareApplied', connection: 'Prod', database: 'Live', steps: 5, ran: 12, batches: 12, errors: [], stopped: false, durationMs: 2300, remaining: [], remainingCount: 0, leftOut: 0 });
+			check((await p.textContent('#compareApplyResult')).includes('Applied 5 step(s) in 2.3 s.') && (await p.textContent('#compareApplyResult')).includes('now is as the current one'), `${theme}: a clean run says so, and that the target now matches`);
+			await post({ command: 'compareApplied', connection: 'Prod', database: 'Live', steps: 5, ran: 12, batches: 12, errors: [], stopped: false, durationMs: 1000, remaining: ['table:dbo.Log'], remainingCount: 1, leftOut: 2 });
+			check((await p.textContent('#compareApplyResult')).includes('Still different on the database: table:dbo.Log') && (await p.textContent('#compareApplyResult')).includes('left out'), `${theme}: what still differs is listed`);
+			await post({ command: 'compareApplied', connection: 'Prod', database: 'Live', steps: 5, ran: 4, batches: 12, errors: [], stopped: true, durationMs: 1000, remaining: [], remainingCount: 3, leftOut: 0 });
+			check((await p.textContent('#compareApplyResult')).includes('Stopped after 4 of 12 batches'), `${theme}: a stopped run says where`);
+
+			await post({ command: 'compareFailed', message: 'Could not connect to Prod: login failed' });
+			check((await p.textContent('#compareApplyStatus')).includes('login failed'), `${theme}: a failure is shown in the dialog`);
+			await p.keyboard.press('Escape');
+			check(!(await p.isVisible('#compareApplyOverlay')), `${theme}: Escape closes it`);
+			check(p.errors.length === 0, `${theme}: no page error: ` + p.errors.join(' | '));
+			await p.close();
+		}
+		check.done();
+	});
 });
