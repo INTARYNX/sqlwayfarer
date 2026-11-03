@@ -2541,6 +2541,7 @@ class MessageHandler {
         switch (message.command) {
             case 'connectionStatus':
                 if (message.success && window.schemaSourceManager) window.schemaSourceManager.request();
+                if (message.success && window.instanceTree) window.instanceTree.reset();
                 if (this.connectionStatus.onConnectionStatus(message)) {
                     // Land directly on Query after every successful connection -
                     // Explorer (and its indexing) is opt-in, see TabManager.
@@ -2650,7 +2651,10 @@ class MessageHandler {
                     this.explorerManager.onScriptGenerated(message.objectName, message.script);
                 } else if (this.queryManager) {
                     this.tabManager.switchTab('query');
-                    this.queryManager.setQueryText(message.script);
+                    // From the instance tree, on a database that is not the one the editor runs on.
+                    const runsOn = this.queryManager.targetDatabase();
+                    const useLine = message.database && message.database !== runsOn ? `USE [${message.database.replace(/]/g, ']]')}]\nGO\n\n` : '';
+                    this.queryManager.setQueryText(useLine + message.script);
                 }
                 break;
 
@@ -2792,6 +2796,22 @@ class MessageHandler {
                 }
                 break;
 
+            case 'instanceDatabases':
+                if (window.instanceTree) window.instanceTree.onDatabases(message);
+                break;
+
+            case 'instanceObjects':
+                if (window.instanceTree) window.instanceTree.onObjects(message);
+                break;
+
+            case 'instanceObjectsError':
+                if (window.instanceTree) window.instanceTree.onObjectsError(message);
+                break;
+
+            case 'instanceChanged':
+                if (window.instanceTree) window.instanceTree.onChanged(message);
+                break;
+
             case 'planResult':
                 if (this.queryManager) {
                     this.queryManager.onPlanResult(message);
@@ -2909,6 +2929,7 @@ document.addEventListener('DOMContentLoaded', function () {
     queryManager.openScriptInNewTab = text => queryFileManager.addDraftTabWithContent(text);
     const footprintManager = new FootprintManager();
     const schemaSourceManager = new SchemaSourceManager();
+    const instanceTree = new InstanceTree();
 
     const messageHandler = new MessageHandler(
         connectionStatus,
@@ -2932,6 +2953,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.queryManager = queryManager;
     window.schemaSourceManager = schemaSourceManager;
     window.queryFileManager = queryFileManager;
+    window.instanceTree = instanceTree;
     window.tabManager = tabManager;
     window.connectionStatus = connectionStatus;
     window.footprintManager = footprintManager;

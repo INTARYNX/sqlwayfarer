@@ -302,19 +302,27 @@
                     <!-- Left panel: workspace .sql files (including subfolders), toggled by the folder icon in the tab bar -->
                     <div id="sqlFilesPanel" class="sql-files-panel">
                         <div class="sql-files-panel-header">
-                            <span class="sql-files-panel-title">
-                                <i class="codicon codicon-folder-opened"></i> SQL Files
-                                <span id="sqlFilesTotal" class="sql-files-total"></span>
+                            <span class="sql-files-panel-title panel-tabs" role="tablist" aria-label="Files or instance">
+                                <button id="panelTabFiles" class="panel-tab active" role="tab" aria-selected="true" aria-controls="sqlFilesView" title="The .sql files of the workspace"><i class="codicon codicon-folder-opened"></i> Files<span id="sqlFilesTotal" class="sql-files-total"></span></button>
+                                <button id="panelTabInstance" class="panel-tab" role="tab" aria-selected="false" aria-controls="instanceView" title="The databases and objects of the instance this tab is connected to"><i class="codicon codicon-server"></i> Instance</button>
                             </span>
                             <span class="sql-files-panel-actions">
-                                <button id="sqlFilesCollapseAllBtn" class="icon-btn" title="Collapse all folders (click again to expand them)"><i class="codicon codicon-collapse-all"></i></button>
+                                <button id="sqlFilesCollapseAllBtn" class="icon-btn" title="Collapse all (click again to expand them)"><i class="codicon codicon-collapse-all"></i></button>
                                 <button id="sqlFilesRefreshBtn" class="icon-btn" title="Refresh"><i class="codicon codicon-refresh"></i></button>
                                 <button id="sqlFilesHideBtn" class="icon-btn" title="Hide this panel"><i class="codicon codicon-chevron-left"></i></button>
                             </span>
                         </div>
-                        <input type="text" id="sqlFilesFilterInput" class="sql-files-filter" placeholder="Filter files…" spellcheck="false">
-                        <div id="sqlFilesTree" class="sql-files-tree">
-                            <p class="placeholder-text">Loading…</p>
+                        <div id="sqlFilesView" class="panel-view" role="tabpanel" aria-labelledby="panelTabFiles">
+                            <input type="text" id="sqlFilesFilterInput" class="sql-files-filter" placeholder="Filter files…" spellcheck="false">
+                            <div id="sqlFilesTree" class="sql-files-tree">
+                                <p class="placeholder-text">Loading…</p>
+                            </div>
+                        </div>
+                        <div id="instanceView" class="panel-view" role="tabpanel" aria-labelledby="panelTabInstance" hidden>
+                            <input type="text" id="instanceFilterInput" class="sql-files-filter" placeholder="Filter databases and objects…" spellcheck="false">
+                            <div id="instanceTree" class="sql-files-tree" tabindex="0" role="tree" aria-label="Databases and objects of the instance">
+                                <p class="placeholder-text">Loading…</p>
+                            </div>
                         </div>
                     </div>
                     <div id="sqlFilesSplitter" class="sql-files-splitter" title="Drag to resize — double-click to reset"></div>
@@ -505,6 +513,7 @@
     <script src="{{QUERY_MANAGER_URI}}"></script>
     <script src="{{FILE_TREE_URI}}"></script>
     <script src="{{QUERY_FILE_MANAGER_URI}}"></script>
+    <script src="{{INSTANCE_TREE_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
     <script src="{{INDEX_STATS_VIEW_URI}}"></script>
     <script src="{{SCHEMA_SOURCE_MANAGER_URI}}"></script>

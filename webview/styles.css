@@ -1888,6 +1888,50 @@ body.vscode-high-contrast .qp-tt-header {
     border-bottom: 1px solid var(--vscode-input-border);
 }
 
+.panel-view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-view[hidden] {
+    display: none;
+}
+
+.panel-tabs {
+    gap: 2px;
+}
+
+.panel-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px;
+    font: inherit;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.panel-tab:hover {
+    color: var(--vscode-foreground);
+}
+
+.panel-tab.active {
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder, #007ACC);
+}
+
+.panel-tab:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
 .sql-files-panel-title {
     display: flex;
     align-items: center;
@@ -3354,4 +3398,61 @@ table.fp-cols .fp-center { text-align: center; }
     .app-toolbar:has(.schema-source-inline:not([hidden])) {
         flex-wrap: wrap;
     }
+}
+
+/* === INSTANCE TREE === */
+.instance-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-sizing: border-box;
+    padding: 3px 8px 3px calc(6px + var(--depth, 0) * 14px);
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.instance-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.instance-row:focus-visible,
+.instance-row.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    outline: none;
+}
+
+.instance-row .instance-chevron {
+    flex: 0 0 16px;
+    width: 16px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.instance-row .instance-chevron.leaf {
+    visibility: hidden;
+}
+
+.instance-row .instance-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.instance-row .instance-count {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.instance-note {
+    padding: 3px 8px 3px calc(26px + var(--depth, 0) * 14px);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.instance-note.error {
+    color: var(--vscode-errorForeground);
 }
