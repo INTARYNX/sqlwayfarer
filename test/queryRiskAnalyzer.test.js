@@ -206,3 +206,30 @@ suite('QueryRiskAnalyzer TRUNCATE/DROP scan ignores comments and string literals
 		});
 	});
 });
+
+suite('QueryRiskAnalyzer only parses what may write', () => {
+	const counting = () => {
+		const parser = { calls: 0, analyzeRisks() { this.calls++; return []; } };
+		return { parser, analyzer: new QueryRiskAnalyzer(parser) };
+	};
+
+	test('a query with no UPDATE or DELETE is not parsed', () => {
+		const { parser, analyzer } = counting();
+		assert.deepStrictEqual(analyzer.analyze('SELECT a, b FROM dbo.T t JOIN dbo.U u ON u.id = t.id'), []);
+		assert.deepStrictEqual(analyzer.analyze("SELECT 'update me' AS s -- delete"), []);
+		assert.strictEqual(parser.calls, 0);
+	});
+
+	test('a query with an UPDATE or a DELETE is', () => {
+		const { parser, analyzer } = counting();
+		analyzer.analyze('UPDATE dbo.T SET a = 1');
+		analyzer.analyze('WITH c AS (SELECT 1 AS x) DELETE FROM dbo.T');
+		assert.strictEqual(parser.calls, 2);
+	});
+
+	test('the other risks do not need the parser', () => {
+		const { parser, analyzer } = counting();
+		assert.deepStrictEqual(analyzer.analyze('DROP TABLE dbo.T; TRUNCATE TABLE dbo.U').sort(), ['DROP TABLE dbo.T', 'TRUNCATE TABLE dbo.U']);
+		assert.strictEqual(parser.calls, 0);
+	});
+});
