@@ -1012,12 +1012,27 @@ class DataDictionaryService {
         return t;
     }
 
-    // SQL Server wraps defaults in parens, often twice: ((0)) -> 0
+    // SQL Server wraps defaults in parens, often twice: ((0)) -> 0. A pair is taken off
+    // only when it is one pair around everything: ((1)+(2)) -> (1)+(2), not 1)+(2.
     static cleanDefault(definition) {
         if (!definition) return '';
         let d = definition;
-        while (d.startsWith('(') && d.endsWith(')')) d = d.slice(1, -1);
+        while (DataDictionaryService.isWrappedInParens(d)) d = d.slice(1, -1);
         return d;
+    }
+
+    // True when the first '(' closes at the very end. Quoted text is not looked into.
+    static isWrappedInParens(text) {
+        if (!text.startsWith('(') || !text.endsWith(')')) return false;
+        let depth = 0;
+        let quoted = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === "'") quoted = !quoted;
+            else if (!quoted && ch === '(') depth++;
+            else if (!quoted && ch === ')' && --depth === 0 && i < text.length - 1) return false;
+        }
+        return depth === 0;
     }
 
     // GitHub-style heading anchor: lowercase, drop punctuation, spaces to dashes
