@@ -167,6 +167,22 @@ suite('QueryHandlers', () => {
 		assert.ok(errMsg.message.includes('Line 3:'), errMsg.message);
 	});
 
+	test('an error raised in a procedure names it, and is not given a line of the script', async () => {
+		const posts = [];
+		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => {
+			const err = new Error('Divide by zero error encountered.');
+			err.lineNumber = 4;
+			err.procName = 'dbo.zz_err';
+			req.emit('error', err);
+		})), makeState());
+
+		await handlers.handleExecuteQuery('MyDb', 'EXEC dbo.zz_err', 1000);
+
+		const message = posts.find(p => p.command === 'queryError').message;
+		assert.strictEqual(message, 'In dbo.zz_err, line 4: Divide by zero error encountered.');
+		assert.ok(!/\bLine \d+:/.test(message), 'nothing for the error link to take');
+	});
+
 	test('cancel aborts the running request and reports it as cancelled', async () => {
 		const posts = [];
 		let fakeReq;
