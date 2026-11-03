@@ -103,3 +103,61 @@ suite('QueryRiskAnalyzer TRUNCATE/DROP scan ignores comments and string literals
 		assert.ok(/truncate table dbo.Staging/i.test(risks[0]), risks[0]);
 	});
 });
+
+// The checks beyond DML without WHERE: they must give the same answer with
+// the T-SQL parser and without it.
+[['with the T-SQL parser', true], ['regex fallback', false]].forEach(([label, withParser]) => {
+	suite(`QueryRiskAnalyzer, wider destructive statements (${label})`, () => {
+		const parser = new BabelfishSqlParser();
+		parser.setEnabled(true);
+		const analyzer = new QueryRiskAnalyzer(withParser ? parser : null);
+		const flagged = (sql, pattern) => {
+			const risks = analyzer.analyze(sql);
+			assert.ok(risks.some(r => pattern.test(r)), `${sql} -> ${risks.join(' | ') || 'nothing'}`);
+		};
+
+		test('flags DROP COLUMN and ALTER COLUMN', () => {
+			flagged('ALTER TABLE dbo.T DROP COLUMN a', /ALTER TABLE dbo\.T DROP COLUMN/);
+			flagged('ALTER TABLE dbo.T ALTER COLUMN a varchar(1) NULL', /ALTER TABLE dbo\.T ALTER COLUMN/);
+		});
+
+		test('flags the other DROP kinds, and names the object after IF EXISTS', () => {
+			for (const kind of ['SCHEMA', 'SYNONYM', 'USER', 'LOGIN', 'ROLE', 'TYPE', 'SEQUENCE', 'ASSEMBLY']) {
+				flagged(`DROP ${kind} x`, new RegExp(`DROP ${kind} x`));
+			}
+			flagged('DROP TABLE IF EXISTS dbo.T', /^DROP TABLE dbo\.T$/);
+		});
+
+		test('flags a WHERE that is always true', () => {
+			flagged('UPDATE dbo.T SET a = 1 WHERE 1=1', /UPDATE with an always-true WHERE/);
+			flagged('DELETE FROM dbo.T WHERE (0 = 0)', /DELETE with an always-true WHERE/);
+			assert.deepStrictEqual(analyzer.analyze('UPDATE dbo.T SET a = 1 WHERE 1 = 1 AND id = 3'), []);
+		});
+
+		test('flags MERGE ... THEN DELETE, ALTER DATABASE SET SINGLE_USER and xp_cmdshell', () => {
+			flagged('MERGE dbo.T USING dbo.S ON 1=1 WHEN NOT MATCHED BY SOURCE THEN DELETE;', /MERGE deleting rows/);
+			flagged('ALTER DATABASE d SET SINGLE_USER WITH ROLLBACK IMMEDIATE', /ALTER DATABASE d SET SINGLE_USER/);
+			flagged("EXEC xp_cmdshell 'dir'", /xp_cmdshell/);
+		});
+
+		test('looks inside a dynamic statement written as a literal', () => {
+			flagged("EXEC('DELETE FROM dbo.T')", /^In dynamic SQL: DELETE without WHERE/);
+			flagged("EXEC sp_executesql N'DROP TABLE dbo.T'", /^In dynamic SQL: DROP TABLE dbo\.T/);
+			flagged("EXEC sp_executesql N'SELECT ''x''; TRUNCATE TABLE dbo.T'", /In dynamic SQL: TRUNCATE TABLE dbo\.T/);
+		});
+
+		test('a harmless dynamic statement is not flagged', () => {
+			assert.deepStrictEqual(analyzer.analyze("EXEC sp_executesql N'SELECT * FROM dbo.T WHERE id = @id', N'@id int', @id = 3"), []);
+		});
+
+		test('a temporary table or a table variable is not flagged', () => {
+			assert.deepStrictEqual(analyzer.analyze('DELETE FROM #tmp'), []);
+			assert.deepStrictEqual(analyzer.analyze('UPDATE @rows SET a = 1'), []);
+			assert.deepStrictEqual(analyzer.analyze('DELETE #tmp WHERE 1=1'), []);
+		});
+
+		test('a real table still is', () => {
+			flagged('DELETE FROM dbo.T', /DELETE without WHERE/);
+		});
+	});
+});
