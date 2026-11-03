@@ -10,9 +10,6 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 
 ### Changed
 
-- **Run** (F5, Ctrl+Enter, the Run button) sends the selection when there is one, as SSMS does; the line of an error is still the one of the editor.
-- **Code tab**: Format uses the real formatter of the editor and is a way of looking: the code of the server is kept, Copy copies what is shown, pressed again the button gives the code back.
-- **Query graph** follows the procedures a query `EXEC`s, as the README said it did.
 - **Destructive statement guardrails** are wider: a `WHERE` that is always true (`1=1`), `ALTER TABLE … DROP COLUMN` / `ALTER COLUMN`, every kind of `DROP` (schema, synonym, user, login, role, type, sequence, assembly…), `MERGE … THEN DELETE`, `ALTER DATABASE … SET SINGLE_USER/OFFLINE/EMERGENCY`, `xp_cmdshell`, and a statement written as a literal inside `EXEC('…')` or `sp_executesql`. Temporary tables and table variables no longer ask. The T-SQL parser is only asked about a query that has an `UPDATE` or a `DELETE` (it took 0.1 to 0.5 s of the host on each run).
 - **Write footprint**: a trigger is followed only for the kind of write it is declared for (an `AFTER INSERT` trigger is not fired by a `DELETE`).
 - **Index cache**: the index format is now 8 (the kind of each table write, and checksums that no longer depend on the time zone): the first indexing after the update is a full rebuild.
@@ -22,6 +19,9 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 
 ### Fixed
 
+- **Run sent the whole editor even with a selection** (F5, Ctrl+Enter, the Run button). It now sends the selection when there is one, as SSMS does; the line of an error is still the one of the editor.
+- **Code tab: Format cut string literals and comments, and replaced the code** (Copy then copied the changed text). It now uses the real formatter of the editor and is a way of looking: the code of the server is kept, Copy copies what is shown, pressed again the button gives the code back.
+- **The query graph did not follow `EXEC`**, though the README says it follows the procedures a query calls: the procedure an `EXEC` runs, and the tables behind it, are now in the graph.
 - **A production server was run like a test one**: nothing told them apart, and the confirmation before a destructive statement was the same on both. A saved connection can now be marked *Production* (a checkbox when you edit it): the list shows a `PROD` badge, the tab a `PRODUCTION` banner, and every statement that changes data or schema (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`) asks for a confirmation, whatever its `WHERE`.
 - **A `CREATE` or `ALTER` of a procedure, view, function or trigger failed** ("must be the first statement in a query batch"): the `USE` and the plan setting now go as batches of their own.
 - **A column with no name, or a name twice, lost a value** in the results (`SELECT COUNT(*), MAX(x)`, `a.id, b.id`).
