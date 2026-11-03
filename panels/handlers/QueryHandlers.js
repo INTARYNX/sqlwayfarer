@@ -480,6 +480,20 @@ class QueryHandlers {
         }
     }
 
+    // One statement the user has confirmed (Rename, Delete of the instance
+    // tree), on the panel's session, in the database it concerns.
+    async runStatement(database, sqlText) {
+        if (this._executing) throw new Error('A query is running. Cancel it first.');
+        this._executing = true;
+        try {
+            const conn = await this._session.get();
+            await conn.createRequest().batch(`USE ${bracketIdentifier(database)};\n${sqlText}`);
+        } finally {
+            this._executing = false;
+        }
+        await this._postTransactionState();
+    }
+
     // The transactions the panel's session has open, shown by the editor so
     // that one left open by a script is never forgotten.
     async _postTransactionState(error) {

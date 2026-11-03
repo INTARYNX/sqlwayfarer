@@ -37,6 +37,7 @@ const IndexHandlers = require('./handlers/IndexHandlers');
 const SchemaSourceHandlers = require('./handlers/SchemaSourceHandlers');
 const ConnectionRouter = require('../database/ConnectionRouter');
 const QueryHandlers = require('./handlers/QueryHandlers');
+const InstanceHandlers = require('./handlers/InstanceHandlers');
 const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
@@ -145,6 +146,16 @@ class SqlWayfarerPanel {
         this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._schemaRouter, this._databaseService));
+        // The instance tree is always the connection the queries run on - never a schema source -
+        // since what it deletes or renames is done there.
+        this._instanceScript = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._targetDatabaseService));
+        this._instance = new InstanceHandlers(post, {
+            databaseService: this._targetDatabaseService,
+            connectionManager: this._connectionManager,
+            query: this._query,
+            ask: async (prompt, value, validateInput) => vscode.window.showInputBox({ prompt, value, validateInput }),
+            confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action
+        });
         this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
         this._queryGraph = new QueryGraphHandlers(post, this._queryGraphService, getDb);
         this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
@@ -463,6 +474,11 @@ class SqlWayfarerPanel {
             case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
             case 'getAutocompleteSettings':      this._postAutocompleteSettings(); this._postDiagnosticsSettings(); break;
             case 'endTransaction':               await this._query.handleEndTransaction(message.action); break;
+            case 'getInstanceDatabases':         await this._instance.handleGetInstanceDatabases(); break;
+            case 'getInstanceObjects':           await this._instance.handleGetInstanceObjects(message.database); break;
+            case 'renameInstanceObject':         await this._instance.handleRename(message.database, message.objectName, message.objectType); break;
+            case 'dropInstanceObject':           await this._instance.handleDrop(message.database, message.objectName, message.objectType); break;
+            case 'generateInstanceScript':       await this._instanceScript.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType, false, true); break;
             case 'checkSyntax':                  await this._syntax.handleCheckSyntax(message.requestId, message.text); break;
             case 'getAutocompleteObjects':       await d.handleGetAutocompleteObjects(message.database); break;
             case 'getForeignKeys':               await d.handleGetForeignKeys(message.database); break;
@@ -571,6 +587,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{FILE_TREE_URI}}',            u('webview', 'fileTree.js'));
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
+        html = html.replace('{{INSTANCE_TREE_URI}}',        u('webview', 'instanceTree.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));

@@ -119,8 +119,8 @@ class QueryFileManager {
         });
 
         this.folderBtn.addEventListener('click', () => this.toggleFilesPanel());
-        this.filesRefreshBtn.addEventListener('click', () => this.loadFilesTree());
-        this.filesCollapseAllBtn.addEventListener('click', () => this.toggleCollapseAllDirs());
+        this.filesRefreshBtn.addEventListener('click', () => (window.instanceTree && window.instanceTree.active ? window.instanceTree.refresh() : this.loadFilesTree()));
+        this.filesCollapseAllBtn.addEventListener('click', () => (window.instanceTree && window.instanceTree.active ? window.instanceTree.toggleCollapseAll() : this.toggleCollapseAllDirs()));
         this.filesHideBtn.addEventListener('click', () => this.filesPanel.classList.remove('visible'));
         this.filesFilterInput.addEventListener('input', () => {
             this._filterText = this.filesFilterInput.value.trim().toLowerCase();

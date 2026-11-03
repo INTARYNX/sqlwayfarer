@@ -54,6 +54,7 @@ export default [{
             TabManager: "readonly",
             SnippetManager: "readonly",
             QueryFileManager: "readonly",
+            InstanceTree: "readonly",
             FootprintManager: "readonly",
             IndexStatsView: "readonly",
             TempTableScript: "readonly",
