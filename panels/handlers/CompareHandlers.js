@@ -47,6 +47,8 @@ class CompareHandlers {
     }
 
     _fail(message) {
+        // Azure SQL Database has no USE: two databases cannot be read from one connection.
+        if (/USE statement is not supported/i.test(String(message))) message = 'Compare reads two databases of the same instance, which Azure SQL Database does not allow (it has no USE).';
         this._post({ command: 'compareFailed', message });
     }
 
@@ -181,6 +183,11 @@ Object.assign(CompareHandlers.prototype, {
     async _plan(ids, allowDestructive, legacy, connection, database) {
         const last = this._last;
         const manager = await this._managerFor(connection);
+        // Only what the dialog offers: never a system database, a snapshot, or what is not online.
+        const allowed = await listComparableDatabases(manager, null);
+        if (!allowed.some(name => name.toLowerCase() === String(database).toLowerCase())) {
+            throw new Error(`${database} is not a database a script can be applied on (a system database, a snapshot, or not online).`);
+        }
         const target = await readSchemaModel(manager, database);
         const picked = Array.isArray(ids) ? ids : [];
         const standing = classifyTarget(picked, diffModels(last.referenceModel, target), diffModels(target, last.currentModel));

@@ -95,6 +95,21 @@ suite('migrationScript: order', () => {
 		assert.deepStrictEqual(orderModules([other, prefix]).map(m => m.name), ['v', 'orders']);
 	});
 
+	test('a database of the size of a real legacy one is ordered in no time', () => {
+		const modules = Array.from({ length: 2000 }, (_, i) => mod('procedure', `usp_${i}`, `CREATE PROC dbo.usp_${i} AS\nSELECT * FROM dbo.T${i % 700}\nEXEC dbo.usp_${(i * 7) % 2000}\n-- ${'x'.repeat(1500)}`));
+		const started = Date.now();
+		const ordered = orderModules(modules);
+		assert.ok(Date.now() - started < 500, `${Date.now() - started} ms`);
+		assert.strictEqual(new Set(ordered).size, 2000);
+	});
+
+	test('a module is after what it calls, through a chain of any length', () => {
+		const modules = Array.from({ length: 300 }, (_, i) => mod('procedure', `p${i}`, `CREATE PROC dbo.p${i} AS ${i < 299 ? `EXEC dbo.p${i + 1}` : 'SELECT 1'}`));
+		const names = orderModules(modules).map(m => m.name);
+		assert.strictEqual(names[0], 'p299');
+		assert.strictEqual(names[299], 'p0');
+	});
+
 	test('a table is created before the foreign keys that point at it, and dropped last', () => {
 		const result = script({ tables: [table('Old')] }, { tables: [table('New', { foreignKeys: [fk('FK_n', ['id'], 'Other', ['id'])] }), table('Other', { primaryKey: pk('PK_O', ['id']) })] }, { allowDestructive: true });
 		assert.ok(at(result, 'CREATE TABLE [dbo].[Other]') < at(result, 'FOREIGN KEY'));
@@ -138,6 +153,16 @@ suite('migrationScript: what is left out, and said', () => {
 		assert.ok(result.warnings.some(w => w.includes('dbo.T.a')));
 		assert.ok(result.script.includes('ADD [a] int NOT NULL;'));
 		assert.ok(result.script.includes('caution'));
+	});
+
+	test('a user-defined type is a warning: it has to exist on the target', () => {
+		const udt = column('code', { type: '[dbo].[Code]' });
+		const created = script({}, { tables: [table('T', { columns: [column('id'), udt] })] });
+		assert.ok(created.warnings.some(w => w.includes('dbo.T.code') && w.includes('[dbo].[Code]') && w.includes('has to exist on the target')));
+		const added = script({ tables: [table('T')] }, { tables: [table('T', { columns: [column('id'), udt] })] });
+		assert.strictEqual(added.warnings.filter(w => w.includes('has to exist on the target')).length, 1);
+		const plain = script({ tables: [table('T')] }, { tables: [table('T', { columns: [column('id'), column('n', { type: 'nvarchar(10)', nullable: true })] })] });
+		assert.deepStrictEqual(plain.warnings, []);
 	});
 
 	test('only the changes that were picked are written', () => {

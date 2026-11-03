@@ -230,21 +230,43 @@ function moduleBatches(module, createOrAlter) {
 }
 
 // What the code of a module mentions of the other modules that change in the
-// same script, so that a view is created after the views it reads.
+// same script, so that a view is created after the views it reads. The words of
+// each definition are looked up in an index of the names: one pass over the
+// text, not one search per pair of modules.
 function orderModules(modules) {
-    const names = modules.map(m => m.name.toLowerCase());
-    const mentions = (module, other) => {
-        const pattern = new RegExp(`(^|[^\\w@#$])(\\[?${other.schema.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]?\\.)?\\[?${other.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]?(?![\\w@#$])`);
-        return pattern.test(String(module.definition || '').toLowerCase());
-    };
-    const waiting = modules.map((module, i) => ({ module, needs: modules.filter((other, j) => j !== i && names[j] !== names[i] && mentions(module, other)) }));
-    const done = new Set();
+    const byName = new Map();
+    modules.forEach((module, i) => {
+        const key = module.name.toLowerCase();
+        if (!byName.has(key)) byName.set(key, []);
+        byName.get(key).push(i);
+    });
+    const waitingFor = modules.map((module, i) => {
+        const found = new Set();
+        for (const word of String(module.definition || '').toLowerCase().match(/[\w@#$]+/g) || []) {
+            const hits = byName.get(word);
+            if (hits) for (const j of hits) if (j !== i) found.add(j);
+        }
+        return found;
+    });
+    const dependents = modules.map(() => []);
+    waitingFor.forEach((set, i) => set.forEach(j => dependents[j].push(i)));
+    const missing = waitingFor.map(set => set.size);
+
     const ordered = [];
-    while (ordered.length < modules.length) {
-        const ready = waiting.filter(w => !done.has(w.module) && w.needs.every(n => done.has(n)));
-        // A cycle: whatever is left goes in name order.
-        const next = ready.length > 0 ? ready : waiting.filter(w => !done.has(w.module));
-        for (const w of next) { done.add(w.module); ordered.push(w.module); }
+    const queued = new Array(modules.length).fill(false);
+    const queue = [];
+    const push = i => { queued[i] = true; queue.push(i); };
+    missing.forEach((count, i) => { if (count === 0) push(i); });
+    for (let head = 0; ordered.length < modules.length;) {
+        if (head >= queue.length) {
+            // A cycle: the first of what is left goes, in the order it came.
+            push(queued.indexOf(false));
+        }
+        const i = queue[head++];
+        ordered.push(modules[i]);
+        for (const dependent of dependents[i]) {
+            if (!queued[dependent] && --missing[dependent] === 0) push(dependent);
+        }
     }
     return ordered;
 }
@@ -262,6 +284,18 @@ function buildMigrationScript(diff, options = {}) {
     const skipped = [];
     const warnings = [];
     const included = [];
+
+    // A column of a user-defined type needs the type on the target: types are not part of the comparison.
+    const warnedTypes = new Set();
+    const noteTypes = (columns, owner) => {
+        for (const column of columns) {
+            if (column.computed || !String(column.type).startsWith('[')) continue;
+            const key = `${owner}.${column.name}`;
+            if (warnedTypes.has(key)) continue;
+            warnedTypes.add(key);
+            warnings.push(`${key}: the type ${column.type} has to exist on the target (user-defined types are not part of the comparison).`);
+        }
+    };
 
     const add = (phase, change, op, batches, label) => {
         for (const item of [op.foreignKey, op.check, op.to, op.index]) {
@@ -281,7 +315,7 @@ function buildMigrationScript(diff, options = {}) {
             if (change.status === 'added') add(PHASE.SCHEMA, change, change.ops[0], sql.createSchema(change.name), `create schema ${change.name}`);
             else add(PHASE.DROP_SCHEMA, change, change.ops[0], sql.dropSchema(change.name), `drop schema ${change.name}`);
         } else if (change.kind === 'table') {
-            tableSteps(change, add, warnings);
+            tableSteps(change, add, warnings, noteTypes);
         } else {
             moduleChanges.push(change);
         }
@@ -290,7 +324,9 @@ function buildMigrationScript(diff, options = {}) {
     // Code: views, then functions, then procedures, then triggers, each group after what it reads.
     const rewritten = moduleChanges.filter(c => c.status === 'added' || (c.status === 'modified' && c.ops[0].what.some(w => w !== 'disabled')));
     for (const kind of ['view', 'function', 'procedure', 'trigger']) {
-        const ordered = orderModules(rewritten.filter(c => c.kind === kind).map(c => c.current)).map(m => rewritten.find(c => c.current === m));
+        const ofKind = rewritten.filter(c => c.kind === kind);
+        const changeOf = new Map(ofKind.map(c => [c.current, c]));
+        const ordered = orderModules(ofKind.map(c => c.current)).map(m => changeOf.get(m));
         for (const change of ordered) {
             const op = change.ops[0];
             const batches = moduleBatches(change.current, createOrAlter);
@@ -361,10 +397,11 @@ function buildMigrationScript(diff, options = {}) {
 }
 
 // The steps of the operations of one table.
-function tableSteps(change, add, warnings) {
+function tableSteps(change, add, warnings, noteTypes) {
     const label = `table ${change.name}`;
     if (change.status === 'added') {
         const table = change.current;
+        noteTypes(table.columns, change.name);
         add(PHASE.TABLE, change, change.ops[0], sql.createTable(table), `create ${label}`);
         for (const ix of table.indexes) add(PHASE.INDEX, change, { op: 'addIndex', risk: 'safe' }, sql.addIndex(table.schema, table.name, ix), `create index ${ix.name} on ${change.name}`);
         for (const ck of table.checks) add(PHASE.CHECK, change, { op: 'addCheck', risk: 'safe' }, sql.addCheck(table.schema, table.name, ck), `add check on ${change.name}`);
@@ -384,6 +421,7 @@ function tableSteps(change, add, warnings) {
                 break;
             case 'addColumn':
                 if (op.needsDefault) warnings.push(`${change.name}.${op.column.name}: NOT NULL without a default fails when the table has rows.`);
+                noteTypes([op.column], change.name);
                 add(PHASE.TABLE, change, op, sql.addColumn(schema, name, op.column), `add column ${op.column.name} to ${change.name}`);
                 break;
             case 'alterColumn': {
@@ -393,6 +431,7 @@ function tableSteps(change, add, warnings) {
                     break;
                 }
                 const steps = [];
+                noteTypes([op.to], change.name);
                 // A default has to be out of the way for the type to change, then comes back.
                 if (op.to.default && op.changes.includes('type')) steps.push(sql.dropDefault(schema, name, op.name));
                 steps.push(sql.alterColumn(schema, name, op.to));
