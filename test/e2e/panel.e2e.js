@@ -55,6 +55,26 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 			check(JSON.stringify(tree.links) === JSON.stringify([['OtherDb', 'Orders', 'OtherDb.dbo.Orders']]), 'a node of another database is a link: ' + JSON.stringify(tree.links));
 			check(tree.text.includes('dbo.R&D <x>') && !tree.text.includes('&amp;'), 'a name is escaped once: ' + JSON.stringify(tree.text));
 
+			// ---- Code tab: Format is a way of looking, the code of the server stays
+			const codeText = () => p.evaluate(() => [...document.querySelectorAll('#codeContainer .cm-line')].map(l => l.textContent).join('\n'));
+			const press = action => p.evaluate(a => document.querySelector(`#codeContainer [data-action=${a}]`).click(), action);
+			await p.evaluate(() => { window.__copied = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async t => { window.__copied = t; } }, configurable: true }); });
+			const original = "create view dbo.v as select a, b from dbo.t where a = 1 and b = 'x -- not a comment'";
+			await p.evaluate(def => window.codeViewManager.loadCodeForObject('Sales', 'Sales.vTotals', 'View', def), original);
+			check((await codeText()) === original, 'the code is shown as the server has it');
+			await press('formatCode');
+			const pretty = await codeText();
+			check(pretty.split('\n').length > 3 && /SELECT/.test(pretty) && pretty.includes("'x -- not a comment'"), 'Format lays it out with a real formatter, strings untouched: ' + JSON.stringify(pretty));
+			check(await p.evaluate(() => window.codeViewManager.currentDefinition) === original && await p.locator('#codeContainer .format-btn.active').count() === 1, 'the code of the server is kept, and the button shows it is on');
+			await press('copyCode'); await p.waitForTimeout(100);
+			check((await p.evaluate(() => window.__copied)) === pretty, 'Copy copies what is shown');
+			await press('formatCode');
+			check((await codeText()) === original && await p.locator('#codeContainer .format-btn.active').count() === 0, 'pressed again, Format gives the code back as it was');
+			await p.evaluate(() => window.codeViewManager.loadCodeForObject('Sales', 'Sales.vBad', 'View', 'select from from ((('));
+			await press('formatCode');
+			check((await codeText()) === 'select from from (((' && await p.evaluate(() => window.codeViewManager._isFormatted) === false, 'code that cannot be parsed is left as it is');
+			await p.evaluate(() => window.codeViewManager.showPlaceholder());
+
 			// ---- focus frame colours
 			await p.click('.cm-content'); await p.keyboard.type('SELECT 1');
 			check((await state()) === 'draft' && /b180d7/i.test(await frame()), 'a query without a file has the purple frame (' + await frame() + ')');

@@ -13,7 +13,9 @@ class CodeViewManager {
         this.currentDatabase = null;
         this.currentObject = null;
         this.currentObjectType = null;
+        // The code as the server has it, and whether what is shown is its formatted form.
         this.currentDefinition = null;
+        this._isFormatted = false;
         this.showLineNumbers = false;
         // The read-only CodeMirror view of the definition on screen, if any.
         this._view = null;
@@ -62,8 +64,9 @@ class CodeViewManager {
         }
     }
 
-    // Display code definition
-    displayCode(definition) {
+    // Display code definition. `formatted`: it is the formatted form of
+    // currentDefinition, which stays what the server sent.
+    displayCode(definition, { formatted = false } = {}) {
         if (!definition || definition.trim() === '') {
             this.displayNoCodeMessage();
             return;
@@ -71,6 +74,9 @@ class CodeViewManager {
 
         const container = document.getElementById('codeContainer');
         if (!container) return;
+        this._isFormatted = formatted;
+        if (!formatted) this.currentDefinition = definition;
+        this._shownText = definition;
 
         const objectTypeClass = this.getObjectTypeClass(this.currentObjectType);
         const objectIcon = this.getObjectTypeIcon(this.currentObjectType);
@@ -91,7 +97,7 @@ class CodeViewManager {
                         <button class="code-action-btn copy-btn" data-action="copyCode" title="Copy code">
                             Copy
                         </button>
-                        <button class="code-action-btn format-btn" data-action="formatCode" title="Format SQL">
+                        <button class="code-action-btn format-btn${formatted ? ' active' : ''}" data-action="formatCode" aria-pressed="${formatted}" title="${formatted ? 'Back to the code as it is on the server' : 'Format SQL (the code on the server is not changed)'}">
                             Format
                         </button>
                         <button class="code-action-btn${this.showLineNumbers ? ' active' : ''}" data-action="toggleLineNumbers" aria-pressed="${this.showLineNumbers}" title="Show or hide the line numbers">
@@ -121,7 +127,6 @@ class CodeViewManager {
         `;
 
         container.innerHTML = html;
-        this.currentDefinition = definition;
 
         const host = container.querySelector('.code-cm');
         if (window.SqlCodeMirror && window.SqlCodeMirror.readOnlyView) {
@@ -192,7 +197,8 @@ class CodeViewManager {
             return;
         }
 
-        navigator.clipboard.writeText(this.currentDefinition).then(() => {
+        // What is on screen: the formatted code when it is formatted.
+        navigator.clipboard.writeText(this._shownText || this.currentDefinition).then(() => {
             this.showStatus('Code copied to clipboard!', 'success');
         }).catch(err => {
             console.error('Failed to copy code:', err);
@@ -200,15 +206,25 @@ class CodeViewManager {
         });
     }
 
+    // Format is a way of looking: the code of the server stays in currentDefinition,
+    // and the button, pressed again, shows it back.
     formatCode() {
         if (!this.currentDefinition) {
             this.showStatus('No code to format', 'error');
             return;
         }
-
-        // Basic SQL formatting
-        const formatted = this.basicSQLFormat(this.currentDefinition);
-        this.displayCode(formatted);
+        if (this._isFormatted) {
+            this.displayCode(this.currentDefinition);
+            this.showStatus('Code as it is on the server', 'success');
+            return;
+        }
+        const format = window.SqlCodeMirror && window.SqlCodeMirror.formatSql;
+        const formatted = format ? format(this.currentDefinition) : null;
+        if (formatted === null) {
+            this.showStatus('This code cannot be parsed, so it is shown as it is', 'error');
+            return;
+        }
+        this.displayCode(formatted, { formatted: true });
         this.showStatus('Code formatted', 'success');
     }
 
@@ -220,30 +236,6 @@ class CodeViewManager {
             button.classList.toggle('active', this.showLineNumbers);
             button.setAttribute('aria-pressed', String(this.showLineNumbers));
         }
-    }
-
-    // Basic SQL formatting
-    basicSQLFormat(sql) {
-        if (!sql) return sql;
-
-        let formatted = sql
-            // Add line breaks after major keywords
-            .replace(/\bSELECT\b/gi, '\nSELECT')
-            .replace(/\bFROM\b/gi, '\nFROM')
-            .replace(/\bWHERE\b/gi, '\nWHERE')
-            .replace(/\bGROUP BY\b/gi, '\nGROUP BY')
-            .replace(/\bORDER BY\b/gi, '\nORDER BY')
-            .replace(/\bHAVING\b/gi, '\nHAVING')
-            .replace(/\bINNER JOIN\b/gi, '\n    INNER JOIN')
-            .replace(/\bLEFT JOIN\b/gi, '\n    LEFT JOIN')
-            .replace(/\bRIGHT JOIN\b/gi, '\n    RIGHT JOIN')
-            .replace(/\bFULL JOIN\b/gi, '\n    FULL JOIN')
-            // Clean up extra whitespace
-            .replace(/\n\s*\n/g, '\n')
-            .replace(/^\n+/, '')
-            .trim();
-
-        return formatted;
     }
 
     // Utility methods
@@ -273,19 +265,25 @@ class CodeViewManager {
     }
 
     estimateComplexity(sql) {
+        return CodeViewManager.estimateComplexity(sql);
+    }
+
+    // Low, Medium or High from what makes T-SQL code harder to read: joins, subqueries,
+    // CTEs, CASE, EXISTS, UNION, loops and cursors. Comments and strings do not count,
+    // and neither does WITH (NOLOCK) or another table hint.
+    static estimateComplexity(sql) {
         if (!sql) return 'Low';
-        
-        const complexityIndicators = [
-            /\bJOIN\b/gi, /\bSUBQUERY\b/gi, /\bEXISTS\b/gi, /\bCASE\b/gi,
-            /\bCTE\b/gi, /\bWITH\b/gi, /\bRECURSIVE\b/gi, /\bCURSOR\b/gi
+        const code = sql
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/--.*$/gm, ' ')
+            .replace(/'(?:[^']|'')*'/g, "''");
+        const indicators = [
+            /\bJOIN\b/gi, /\(\s*SELECT\b/gi, /\bEXISTS\b/gi, /\bCASE\b/gi, /\bUNION\b/gi,
+            /\bWHILE\b/gi, /\bCURSOR\b/gi,
+            // A CTE: WITH name [(columns)] AS (
+            /\bWITH\s+[\w[\]]+\s*(?:\([^)]*\)\s*)?AS\s*\(/gi
         ];
-        
-        let complexity = 0;
-        complexityIndicators.forEach(pattern => {
-            const matches = sql.match(pattern);
-            if (matches) complexity += matches.length;
-        });
-        
+        const complexity = indicators.reduce((sum, pattern) => sum + (code.match(pattern) || []).length, 0);
         if (complexity === 0) return 'Low';
         if (complexity <= 3) return 'Medium';
         return 'High';
@@ -348,4 +346,9 @@ class CodeViewManager {
             }
         }
     }
+}
+
+// Allow unit tests to require() this file; in the webview `module` is undefined.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = CodeViewManager;
 }
