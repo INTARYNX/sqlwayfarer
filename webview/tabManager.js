@@ -29,7 +29,7 @@ class TabManager {
 
     switchTab(tabName) {
         // Check if user can access tabs that require connection
-        if ((tabName === 'explorer' || tabName === 'query') && !appState.isConnected) {
+        if ((tabName === 'explorer' || tabName === 'query' || tabName === 'compare') && !appState.isConnected) {
             this.showStatus('Please connect to a database first before using this feature.', 'error');
             return;
         }
@@ -55,6 +55,9 @@ class TabManager {
         // Specific actions when changing tabs
         if (tabName === 'explorer') {
             this.onExplorerTabActivated();
+        }
+        if (tabName === 'compare' && window.compareManager) {
+            window.compareManager.onActivated();
         }
     }
 

@@ -2542,6 +2542,7 @@ class MessageHandler {
             case 'connectionStatus':
                 if (message.success && window.schemaSourceManager) window.schemaSourceManager.request();
                 if (message.success && window.instanceTree) window.instanceTree.reset();
+                if (message.success && window.compareManager) window.compareManager.reset();
                 if (this.connectionStatus.onConnectionStatus(message)) {
                     // Land directly on Query after every successful connection -
                     // Explorer (and its indexing) is opt-in, see TabManager.
@@ -2796,6 +2797,26 @@ class MessageHandler {
                 }
                 break;
 
+            case 'compareSources':
+                if (window.compareManager) window.compareManager.onSources(message);
+                break;
+
+            case 'compareResult':
+                if (window.compareManager) window.compareManager.onResult(message);
+                break;
+
+            case 'compareFailed':
+                if (window.compareManager) window.compareManager.onFailed(message);
+                break;
+
+            case 'compareScript':
+                if (window.compareManager) window.compareManager.onScript(message);
+                break;
+
+            case 'compareSnapshotDone':
+                if (window.compareManager) window.compareManager.onSnapshotDone(message);
+                break;
+
             case 'instanceDatabases':
                 if (window.instanceTree) window.instanceTree.onDatabases(message);
                 break;
@@ -2930,6 +2951,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const footprintManager = new FootprintManager();
     const schemaSourceManager = new SchemaSourceManager();
     const instanceTree = new InstanceTree();
+    const compareManager = new CompareManager();
 
     const messageHandler = new MessageHandler(
         connectionStatus,
@@ -2954,6 +2976,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.schemaSourceManager = schemaSourceManager;
     window.queryFileManager = queryFileManager;
     window.instanceTree = instanceTree;
+    window.compareManager = compareManager;
     window.tabManager = tabManager;
     window.connectionStatus = connectionStatus;
     window.footprintManager = footprintManager;

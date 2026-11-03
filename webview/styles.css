@@ -3272,7 +3272,7 @@ table.fp-cols .fp-center { text-align: center; }
 /* === ONE-LINE TOOLBAR ===
    The bar (tabs, database, actions) stays on one line: the selects give way
    first, then the labels and the gaps. A Query tab on its own fits from 800px,
-   with the schema read from another connection (two more selects) from 1000px;
+   with the schema read from another connection (two more selects) from 1100px;
    under those widths the actions go to a second line, whole, instead of
    covering the tabs. Under 769px the responsive rule above stacks the bar. */
 @media (min-width: 769px) {
@@ -3394,9 +3394,16 @@ table.fp-cols .fp-center { text-align: center; }
     }
 }
 
-@media (min-width: 769px) and (max-width: 999px) {
+@media (min-width: 769px) and (max-width: 1099px) {
     .app-toolbar:has(.schema-source-inline:not([hidden])) {
         flex-wrap: wrap;
+    }
+}
+
+/* The four tabs and the two more selects: the selects can go down to 64px up to here. */
+@media (min-width: 1100px) and (max-width: 1340px) {
+    .app-toolbar:has(.schema-source-inline:not([hidden])) {
+        --select-min: 64px;
     }
 }
 
@@ -3455,4 +3462,192 @@ table.fp-cols .fp-center { text-align: center; }
 
 .instance-note.error {
     color: var(--vscode-errorForeground);
+}
+
+/* === COMPARE TAB === */
+.compare-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.compare-toolbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.compare-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: normal;
+}
+
+.compare-label { color: var(--vscode-descriptionForeground); white-space: nowrap; }
+
+.compare-toolbar select {
+    min-width: 220px;
+    max-width: 420px;
+}
+
+.compare-note {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compare-note.error { color: var(--vscode-errorForeground); }
+.compare-note.success { color: var(--vscode-testing-iconPassed, #2e9e44); }
+
+.compare-empty {
+    max-width: 620px;
+    padding: 24px 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--vscode-descriptionForeground);
+}
+
+.compare-empty[hidden] { display: none; }
+
+.compare-result {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(240px, 360px) 1fr;
+    gap: 10px;
+}
+
+.compare-result[hidden] { display: none; }
+
+.compare-list-pane,
+.compare-detail-pane {
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    background: var(--vscode-editor-background);
+    overflow: hidden;
+}
+
+.compare-detail-pane {
+    overflow: auto;
+    padding: 10px 12px;
+}
+
+.compare-summary {
+    flex-shrink: 0;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--vscode-input-border);
+    font-size: 12px;
+}
+
+.compare-heading { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compare-counts { margin-top: 2px; color: var(--vscode-descriptionForeground); }
+.compare-skipped { margin-top: 2px; color: var(--vscode-editorWarning-foreground, #cca700); }
+
+.compare-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 6px;
+}
+
+.compare-group {
+    padding: 6px 10px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vscode-descriptionForeground);
+}
+
+.compare-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.compare-row input[type="checkbox"] { width: auto; margin: 0; flex: 0 0 auto; }
+.compare-row:hover { background: var(--vscode-list-hoverBackground); }
+.compare-row.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.compare-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+.compare-name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.compare-status { flex: 0 0 auto; font-size: 14px; }
+.compare-status.added { color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b); }
+.compare-status.modified { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); }
+.compare-status.removed { color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39); }
+
+.compare-risk {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 16px;
+    border: 1px solid currentColor;
+}
+
+.compare-risk.caution { color: var(--vscode-editorWarning-foreground, #cca700); }
+.compare-risk.destructive,
+.compare-risk.manual { color: var(--vscode-errorForeground, #f14c4c); }
+
+.compare-detail-title { font-weight: 600; margin-bottom: 8px; }
+
+.compare-ops { display: flex; flex-direction: column; gap: 2px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; }
+
+.compare-op,
+.compare-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 1px 6px;
+    border-radius: 2px;
+}
+
+.compare-op.add, .compare-line.add { background: var(--vscode-diffEditor-insertedLineBackground, rgba(155, 185, 85, 0.2)); }
+.compare-op.del, .compare-line.del { background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.2)); }
+.compare-op.mod { background: var(--vscode-diffEditor-diagonalFill, transparent); }
+
+.compare-sign { flex: 0 0 12px; text-align: center; font-weight: 700; }
+.compare-op-text { min-width: 0; overflow-wrap: anywhere; }
+.compare-op-note { margin-left: auto; font-family: var(--vscode-font-family); font-size: 11px; color: var(--vscode-editorWarning-foreground, #cca700); }
+
+.compare-code { margin-top: 10px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; overflow-x: auto; }
+.compare-line { white-space: pre; }
+.compare-lineno { flex: 0 0 40px; text-align: right; color: var(--vscode-editorLineNumber-foreground); user-select: none; }
+.compare-gap { padding: 2px 6px 2px 60px; color: var(--vscode-descriptionForeground); font-style: italic; }
+
+.compare-footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 2px;
+}
+
+.compare-footer[hidden] { display: none; }
+.compare-selected { flex: 1 1 auto; font-size: 12px; color: var(--vscode-descriptionForeground); }
+.compare-option { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: normal; white-space: nowrap; }
+.compare-option input[type="checkbox"] { width: auto; margin: 0; }
+
+@media (max-width: 760px) {
+    .compare-result { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 40%) 1fr; }
 }
