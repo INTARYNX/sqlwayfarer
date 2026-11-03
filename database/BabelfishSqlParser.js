@@ -620,8 +620,9 @@ function collectDerivedSources(node, scope, ctes) {
  * Result: { tables, functions, joins }
  *  - `tables`: the physical tables read by the text (lowercase, schema kept
  *    when the SQL spells it out)
- *  - `functions`: the schema-qualified functions called by the text - they
- *    are code objects, not tables: their own tables are followed elsewhere
+ *  - `functions`: the schema-qualified functions called by the text, and the
+ *    procedures it EXECs - they are code objects, not tables: their own tables
+ *    are followed elsewhere
  *  - `joins`: [{ from, to, condition, columns, confident, kind }]
  *    `columns` maps each side of the join to the columns its condition uses
  *    `confident` is false when the condition does not qualify its columns:
@@ -665,6 +666,8 @@ class JoinGraphVisitor {
     _walk(node, scopes, ctes) {
         if (!node || node.symbol !== undefined) return;
 
+        if (node.ruleIndex === TSqlParser.RULE_execute_body) this._collectExecuted(node);
+
         if (this._isStatement(node.ruleIndex)) {
             const scope = { aliases: new Map(), tables: new Set(), derived: new Map() };
             collectStatementScope(node, scope, ctes);
@@ -692,6 +695,14 @@ class JoinGraphVisitor {
             const name = this._functionName(fc);
             if (name && name.includes('.')) this._functions.add(name);
         }
+    }
+
+    // The procedure an EXEC runs. Unlike a function call, a bare name is a procedure
+    // (EXEC uspClose); the system ones (sp_help, xp_cmdshell) are left out.
+    _collectExecuted(body) {
+        const nameCtx = firstCtx(body.func_proc_name_server_database_schema ? body.func_proc_name_server_database_schema() : null);
+        const name = nameCtx ? cleanTableKey(nameCtx.getText()) : null;
+        if (name && (name.includes('.') || !/^(?:sp|xp)_/i.test(name))) this._functions.add(name);
     }
 
     _functionName(fc) {
