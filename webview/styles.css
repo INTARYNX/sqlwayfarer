@@ -1504,12 +1504,55 @@ body.vscode-high-contrast .qp-tt-header {
 
 .query-result-footer {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 4px 10px;
     border-top: 1px solid var(--vscode-input-border);
     background: var(--vscode-textCodeBlock-background);
     overflow: hidden;
     white-space: nowrap;
+}
+
+.query-result-footer .query-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Only there while a script has left a transaction open. */
+.query-transaction {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.query-transaction[hidden] {
+    display: none;
+}
+
+.query-transaction-btn {
+    padding: 0 8px;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--vscode-button-secondaryForeground);
+    background: var(--vscode-button-secondaryBackground);
+    border: 1px solid transparent;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.query-transaction-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.query-transaction-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
 }
 
 .search-scope {

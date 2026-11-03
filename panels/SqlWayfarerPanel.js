@@ -367,6 +367,7 @@ class SqlWayfarerPanel {
         try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error closing the lost connection:', error); }
         await this._schemaSource.reset();
         await this._syntax.reset();
+        await this._query.resetSession();
         await this._connect();
     }
 
@@ -461,6 +462,7 @@ class SqlWayfarerPanel {
             case 'getObjectColumns':            await d.handleGetObjectColumns(message.database, message.objectName); break;
             case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
             case 'getAutocompleteSettings':      this._postAutocompleteSettings(); this._postDiagnosticsSettings(); break;
+            case 'endTransaction':               await this._query.handleEndTransaction(message.action); break;
             case 'checkSyntax':                  await this._syntax.handleCheckSyntax(message.requestId, message.text); break;
             case 'getAutocompleteObjects':       await d.handleGetAutocompleteObjects(message.database); break;
             case 'getForeignKeys':               await d.handleGetForeignKeys(message.database); break;
@@ -583,6 +585,25 @@ class SqlWayfarerPanel {
         return html;
     }
 
+    // A transaction a script left open is never ended silently: the user
+    // chooses, and closing the question rolls it back (what the server does
+    // anyway when the connection goes away).
+    async _closeQuerySession() {
+        let action = 'rollback';
+        try {
+            if (await this._query.openTransactions() > 0) {
+                const answer = await vscode.window.showWarningMessage(
+                    `A transaction is still open on ${this._connectionManager.getServerName ? this._connectionManager.getServerName() : 'the server'}. It is rolled back unless you commit it.`,
+                    'Commit', 'Roll back'
+                );
+                if (answer === 'Commit') action = 'commit';
+            }
+        } catch (error) {
+            console.warn('Error checking the open transaction:', error);
+        }
+        try { await this._query.closeSession(action); } catch (error) { console.warn('Error closing the query session:', error); }
+    }
+
     async dispose() {
         this._disposed = true;
         this._panelRegistry.unregister(this);
@@ -600,6 +621,9 @@ class SqlWayfarerPanel {
         if (this._indexService) {
             try { await this._indexService.dispose(); } catch (error) { console.warn('Error disposing index service:', error); }
         }
+
+        // After the other cleanups, which must not wait for the user's answer.
+        await this._closeQuerySession();
 
         if (this._connectionManager) {
             try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error disposing connection manager:', error); }

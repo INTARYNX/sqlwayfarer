@@ -403,8 +403,13 @@ class SspiPool {
         const runner = {
             run: (request, sql) => execute(entry.helper, entry.id, request, sql)
         };
+        const batch = text => new SspiRequest(runner, pool.config.requestTimeout).batch(text);
         return {
             createRequest: () => new SspiRequest(runner, pool.config.requestTimeout),
+            transactionCount: async () => (await batch('SELECT @@TRANCOUNT AS n')).recordset[0].n,
+            endTransaction: action => batch(action === 'commit'
+                ? 'WHILE @@TRANCOUNT > 0 COMMIT TRANSACTION'
+                : 'IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION'),
             release: () => pool._release(entry)
         };
     }

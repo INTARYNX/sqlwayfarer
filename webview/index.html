@@ -331,6 +331,12 @@
                             </div>
                             <div class="query-result-footer">
                                 <span id="queryStatus" class="query-status">Select a database above to run queries.</span>
+                                <span id="queryTransaction" class="query-transaction" hidden role="status" title="A script left a transaction open on this tab's connection: its locks are held until it is committed or rolled back.">
+                                    <i class="codicon codicon-warning"></i>
+                                    <span id="queryTransactionText"></span>
+                                    <button id="queryCommitBtn" class="query-transaction-btn" type="button">Commit</button>
+                                    <button id="queryRollbackBtn" class="query-transaction-btn" type="button">Roll back</button>
+                                </span>
                             </div>
                         </div>
                     </div>

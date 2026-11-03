@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const { bracketIdentifier } = require('../../database/sqlIdentifier');
 const { describeColumn } = require('../../database/columnTypes');
 const { splitBatches } = require('../../database/sqlBatches');
+const { QuerySession } = require('../../database/QuerySession');
 
 const HISTORY_KEY = 'sqlwayfarer.queryHistory';
 const HISTORY_LIMIT = 50;
@@ -128,6 +129,9 @@ class QueryHandlers {
         this._getConnectionIdentity = getConnectionIdentity;
         // Notified after every successful query (used to ask for a rating).
         this._onQuerySucceeded = onQuerySucceeded;
+        // One connection for the whole panel: a transaction a script opens
+        // stays on it until it is committed or rolled back (see QuerySession).
+        this._session = new QuerySession(connectionManager);
         this._currentRequest = null;
         this._cancelReason = null;
         // Set synchronously before the (now async) connection acquire, so a
@@ -218,7 +222,7 @@ class QueryHandlers {
 
         let conn;
         try {
-            conn = await this._connectionManager.acquireConnection();
+            conn = await this._session.get();
         } catch (error) {
             this._executing = false;
             this._post({ command: 'queryError', message: error.message });
@@ -262,8 +266,8 @@ class QueryHandlers {
         } finally {
             this._currentRequest = null;
             this._executing = false;
-            conn.release();
         }
+        await this._postTransactionState();
 
         const durationMs = Date.now() - startedAt;
 
@@ -373,7 +377,7 @@ class QueryHandlers {
             const sent = actualPlan
                 ? `SET STATISTICS XML ON;\n${usePrefix}${batchSql}\nSET STATISTICS XML OFF;`
                 : `${usePrefix}${batchSql}`;
-            await request.query(sent);
+            await request.batch(sent);
         } catch (error) {
             errors.push(error);
         } finally {
@@ -417,10 +421,16 @@ class QueryHandlers {
             return;
         }
 
+        if (this._executing) {
+            this._post({ command: 'queryError', message: 'A query is already running. Cancel it first.' });
+            return;
+        }
+        this._executing = true;
         let conn;
         try {
-            conn = await this._connectionManager.acquireConnection();
+            conn = await this._session.get();
         } catch (error) {
+            this._executing = false;
             this._post({ command: 'queryError', message: error.message });
             return;
         }
@@ -466,8 +476,51 @@ class QueryHandlers {
         } catch (error) {
             this._post({ command: 'queryError', message: `Failed to get estimated plan: ${this._formatSqlError(error)}` });
         } finally {
-            conn.release();
+            this._executing = false;
         }
+    }
+
+    // The transactions the panel's session has open, shown by the editor so
+    // that one left open by a script is never forgotten.
+    async _postTransactionState(error) {
+        const count = await this._session.transactionCount();
+        this._post({ command: 'transactionState', count, error });
+        return count;
+    }
+
+    async handleEndTransaction(action) {
+        if (action !== 'commit' && action !== 'rollback') return;
+        if (this._executing) {
+            this._post({ command: 'transactionState', count: await this._session.transactionCount(), error: 'A query is running. Cancel it first.' });
+            return;
+        }
+        let error;
+        try {
+            await this._session.end(action);
+        } catch (err) {
+            error = err.message;
+        }
+        await this._postTransactionState(error);
+    }
+
+    // Number of open transactions, for the confirmation when the panel closes.
+    openTransactions() {
+        return this._session.transactionCount();
+    }
+
+    // The connection was replaced (reconnect): whatever was open on the old
+    // one is gone with it.
+    async resetSession() {
+        this._session.invalidate();
+        await this._postTransactionState();
+    }
+
+    // Commits or rolls back what is open, then closes the session.
+    async closeSession(action) {
+        if (action === 'commit') {
+            try { await this._session.end('commit'); } catch { /* the rollback of dispose() follows */ }
+        }
+        await this._session.dispose();
     }
 
     handleCancelQuery() {
