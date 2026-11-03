@@ -91,6 +91,12 @@ suite('live SQL Server: running a query from the editor', function () {
 		assert.ok(result.planXmls[0].includes('ShowPlanXML'));
 	});
 
+	test('an error inside a procedure says which, an error of the script says its line', async () => {
+		await run('CREATE OR ALTER PROCEDURE dbo.boom AS\nBEGIN\n SELECT 1;\n SELECT 1/0;\nEND');
+		assert.strictEqual((await run('EXEC dbo.boom')).message, 'In dbo.boom, line 4: Divide by zero error encountered.');
+		assert.strictEqual((await run('SELECT 1\n\nSELECT 1/0')).message, 'Line 3: Divide by zero error encountered.');
+	});
+
 	test('the query runs in the database chosen, and a missing one is an error without a line', async () => {
 		assert.strictEqual((await run('SELECT DB_NAME() AS db')).resultSets[0].rows[0].db, DB);
 		posts.length = 0;

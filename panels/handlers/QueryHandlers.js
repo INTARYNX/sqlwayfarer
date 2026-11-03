@@ -618,8 +618,13 @@ class QueryHandlers {
     // line number back to the line the user actually sees in the editor - the
     // same correction SSMS itself makes for a multi-batch script.
     _formatSqlError(error, batchStartLine = 1) {
-        const line = error.lineNumber || (error.originalError && error.originalError.info && error.originalError.info.lineNumber);
+        const info = (error.originalError && error.originalError.info) || {};
+        const line = error.lineNumber || info.lineNumber;
         if (!(line > 0)) return error.message;
+        // An error raised inside a procedure, a function or a trigger counts its lines in
+        // that object, not in the script: no "Line N" (it would link to the wrong line).
+        const procName = error.procName || info.procName;
+        if (procName) return `In ${procName}, line ${line}: ${error.message}`;
         return `Line ${batchStartLine + line - 1}: ${error.message}`;
     }
 
