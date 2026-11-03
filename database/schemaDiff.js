@@ -279,4 +279,4 @@ function diffModels(reference, current) {
     };
 }
 
-module.exports = { diffModels, normalizeExpression, typeChangeRisk, RISK };
+module.exports = { diffModels, normalizeExpression, typeChangeRisk, parseType, RISK };
