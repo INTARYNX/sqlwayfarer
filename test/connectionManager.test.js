@@ -19,6 +19,20 @@ suite('ConnectionManager.buildConnectionConfig', () => {
 		assert.strictEqual(config.domain, undefined);
 	});
 
+	test('the SSMS forms of the local machine, and a bracketed IPv6, become what the Node driver resolves', async () => {
+		const server = async address => (await manager().buildConnectionConfig({ server: address, username: 'sa', password: 'pw' })).server;
+		assert.strictEqual(await server('.'), 'localhost');
+		assert.strictEqual(await server('(local)'), 'localhost');
+		assert.strictEqual(await server('.\\SQLEXPRESS'), 'localhost\\SQLEXPRESS');
+		assert.strictEqual(await server('[::1]'), '::1');
+		assert.strictEqual(await server('prod-sql'), 'prod-sql');
+	});
+
+	test('with the Windows helper the address is left as written (SqlClient understands it)', async () => {
+		const config = await manager().buildConnectionConfig({ server: '(local)', authType: 'windows' });
+		assert.strictEqual(config.server, '(local)');
+	});
+
 	test('Windows login: DOMAIN\\user is split so tedious uses NTLM', async () => {
 		const config = await manager().buildConnectionConfig({
 			server: 'srv', username: 'CONTOSO\\nicolas', password: 'pw'
