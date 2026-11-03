@@ -11,9 +11,11 @@ class FakeRequest extends EventEmitter {
 	}
 	query(sql) {
 		this.sql = sql;
+		// The USE and the plan settings are batches of their own, with no result.
+		const setup = /^(USE \[|SET STATISTICS XML|SET SHOWPLAN_XML)/.test(sql);
 		return new Promise(resolve => {
 			setImmediate(() => {
-				this.script(this);
+				if (!setup) this.script(this);
 				resolve();
 			});
 		});
@@ -24,6 +26,22 @@ class FakeRequest extends EventEmitter {
 	cancel() {
 		this.cancelled = true;
 	}
+}
+
+// A request that never finishes by itself, like WAITFOR: only a cancel ends it.
+// The USE batch in front of it does finish.
+function hangUntilCancelled() {
+	const req = new FakeRequest(() => {});
+	const finish = req.query.bind(req);
+	req.query = sql => /^USE \[/.test(sql) ? finish(sql) : new Promise(resolve => {
+		req.sql = sql;
+		req.cancel = () => {
+			req.cancelled = true;
+			req.emit('error', Object.assign(new Error('Canceled.'), { code: 'ECANCEL' }));
+			resolve();
+		};
+	});
+	return req;
 }
 
 // What the real connections add for the session: the transaction probes.
@@ -135,7 +153,7 @@ suite('QueryHandlers', () => {
 		assert.strictEqual(result.resultSets[1].sourceStatement, undefined);
 	});
 
-	test('shifts SQL error line numbers to compensate for the injected USE statement', async () => {
+	test('reports a SQL error with its line in the script', async () => {
 		const posts = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => {
 			const err = new Error('Invalid object name toto.');
@@ -146,18 +164,14 @@ suite('QueryHandlers', () => {
 		await handlers.handleExecuteQuery('MyDb', 'bad sql', 1000);
 
 		const errMsg = posts.find(p => p.command === 'queryError');
-		assert.ok(errMsg.message.includes('Line 2:'), errMsg.message);
+		assert.ok(errMsg.message.includes('Line 3:'), errMsg.message);
 	});
 
 	test('cancel aborts the running request and reports it as cancelled', async () => {
 		const posts = [];
 		let fakeReq;
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => {
-			fakeReq = new FakeRequest(req => {
-				if (req.cancelled) {
-					req.emit('error', Object.assign(new Error('Canceled.'), { code: 'ECANCEL' }));
-				}
-			});
+			fakeReq = hangUntilCancelled();
 			return fakeReq;
 		}), makeState());
 
@@ -166,7 +180,7 @@ suite('QueryHandlers', () => {
 		// exists - let that microtask chain (and entering the request's own
 		// query()) settle so _currentRequest is actually set before
 		// cancelling it, same as a real in-flight query would be.
-		await new Promise(resolve => setImmediate(resolve));
+		await new Promise(resolve => setTimeout(resolve, 20));
 		handlers.handleCancelQuery();
 		await running;
 
@@ -245,28 +259,46 @@ suite('QueryHandlers', () => {
 		assert.strictEqual(server1Hist.history[0].query, 'UPDATE t SET x=1');
 	});
 
-	test('prefixes the query with USE [database]', async () => {
-		let captured;
+	test('selects the database with a USE batch of its own, before the query', async () => {
+		const sent = [];
 		const handlers = new QueryHandlers(() => {}, connMock(() => {
-			captured = new FakeRequest(() => {});
-			return captured;
+			const req = new FakeRequest(() => {});
+			sent.push(req);
+			return req;
 		}), makeState());
 
 		await handlers.handleExecuteQuery('My Db', 'SELECT 1', 1000);
-		assert.ok(captured.sql.startsWith('USE [My Db];\n'), captured.sql);
+		assert.deepStrictEqual(sent.map(r => r.sql), ['USE [My Db];', 'SELECT 1']);
+	});
+
+	test('a CREATE PROCEDURE starts its own batch, so SQL Server takes it as the first statement', async () => {
+		const sent = [];
+		const handlers = new QueryHandlers(() => {}, connMock(() => {
+			const req = new FakeRequest(() => {});
+			sent.push(req);
+			return req;
+		}), makeState());
+
+		await handlers.handleExecuteQuery('Db', 'CREATE PROCEDURE dbo.p AS SELECT 1', 1000);
+		assert.deepStrictEqual(sent.map(r => r.sql), ['USE [Db];', 'CREATE PROCEDURE dbo.p AS SELECT 1']);
+		sent.length = 0;
+		await handlers.handleGetActualPlan('Db', 'CREATE PROCEDURE dbo.p AS SELECT 1', 1000);
+		assert.deepStrictEqual(sent.map(r => r.sql), ['USE [Db];', 'SET STATISTICS XML ON', 'CREATE PROCEDURE dbo.p AS SELECT 1', 'SET STATISTICS XML OFF']);
 	});
 
 	// S3: a database name containing ']' used to break out of the bracketed
 	// identifier and let the rest run as a separate statement.
 	test('a database name containing "]" is escaped, not left to break out of the USE statement', async () => {
-		let captured;
+		let used;
 		const handlers = new QueryHandlers(() => {}, connMock(() => {
-			captured = new FakeRequest(() => {});
-			return captured;
+			const req = new FakeRequest(() => {});
+			if (!used) used = req;
+			return req;
 		}), makeState());
 
 		await handlers.handleExecuteQuery("x]; DROP DATABASE foo;--", 'SELECT 1', 1000);
-		assert.ok(captured.sql.startsWith('USE [x]]; DROP DATABASE foo;--];\n'), captured.sql);
+		used = used.sql;
+		assert.strictEqual(used, 'USE [x]]; DROP DATABASE foo;--];');
 	});
 
 	test('destructive queries are cancelled when the user refuses confirmation', async () => {
@@ -354,7 +386,7 @@ suite('QueryHandlers', () => {
 		const batchSqls = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => {
 			const req = new FakeRequest(r => {
-				const n = batchSqls.length; // this batch's own number, before it's recorded below
+				const n = batchSqls.length - 1; // this batch's own number, before it's recorded below; the USE comes first
 				r.emit('recordset', { x: {} });
 				r.emit('row', { x: n });
 				r.emit('rowsaffected', 1);
@@ -366,12 +398,12 @@ suite('QueryHandlers', () => {
 
 		await handlers.handleExecuteQuery('MyDb', 'CREATE TABLE T (x int)\nGO\nSELECT * FROM T', 1000);
 
-		assert.strictEqual(batchSqls.length, 2, 'two GO-separated batches must be sent as two separate requests');
-		assert.ok(batchSqls[0].includes('CREATE TABLE T (x int)'));
-		assert.ok(!batchSqls[0].includes('SELECT * FROM T'), 'the second batch must not leak into the first');
-		assert.ok(batchSqls[1].includes('SELECT * FROM T'));
-		assert.ok(batchSqls[0].startsWith('USE [MyDb];\n'), 'only the first batch gets the USE prefix');
-		assert.ok(!batchSqls[1].includes('USE ['), 'a later batch must not re-force the dropdown database - the connection keeps whatever context the script itself set');
+		assert.strictEqual(batchSqls.length, 3, 'a USE, then two GO-separated batches as two separate requests');
+		assert.strictEqual(batchSqls[0], 'USE [MyDb];', 'only the start of the script selects the dropdown database');
+		assert.ok(batchSqls[1].includes('CREATE TABLE T (x int)'));
+		assert.ok(!batchSqls[1].includes('SELECT * FROM T'), 'the second batch must not leak into the first');
+		assert.ok(batchSqls[2].includes('SELECT * FROM T'));
+		assert.ok(!batchSqls[2].includes('USE ['), 'a later batch must not re-force the dropdown database - the connection keeps whatever context the script itself set');
 
 		const result = posts.find(p => p.command === 'queryResult');
 		assert.ok(result, 'queryResult should be posted');
@@ -400,7 +432,7 @@ suite('QueryHandlers', () => {
 		}), makeState());
 
 		await handlers.handleExecuteQuery('MyDb', "SELECT 'GO' AS [GO], 1 -- GO\n/* GO */ SELECT [a GO b]", 1000);
-		assert.strictEqual(batchCount, 1, 'none of these should be mistaken for a batch separator');
+		assert.strictEqual(batchCount, 2, 'the USE, then one batch: none of these should be mistaken for a batch separator');
 	});
 
 	test('a batch error does not stop later GO-separated batches, and reports the correct original line', async () => {
@@ -408,10 +440,10 @@ suite('QueryHandlers', () => {
 		let call = 0;
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => {
 			call++;
-			if (call === 2) {
+			if (call === 3) { // 1: the USE, 2: the first batch, 3: the second
 				return new FakeRequest(req => {
 					const err = new Error('Invalid object name missing.');
-					err.lineNumber = 1; // line 1 of THIS batch's own sent text - no USE prefix on a non-first batch
+					err.lineNumber = 1; // line 1 of THIS batch's own sent text
 					req.emit('error', err);
 				});
 			}
@@ -421,7 +453,7 @@ suite('QueryHandlers', () => {
 		// Batch 1 spans lines 1-2, GO is line 3, batch 2 (failing) starts at line 4.
 		await handlers.handleExecuteQuery('MyDb', 'SELECT 1\nSELECT 2\nGO\nSELECT * FROM missing\nGO\nSELECT 3', 1000);
 
-		assert.strictEqual(call, 3, 'the 3rd batch must still run after the 2nd one failed');
+		assert.strictEqual(call, 4, 'the 3rd batch must still run after the 2nd one failed');
 		const err = posts.find(p => p.command === 'queryError');
 		assert.ok(err, 'a failing batch surfaces as queryError even though later batches ran');
 		// Batch 2's own line 1 ("SELECT * FROM missing") is line 4 of the original script.
@@ -431,25 +463,21 @@ suite('QueryHandlers', () => {
 
 	test('cancelling mid-script stops subsequent GO-separated batches', async () => {
 		const posts = [];
-		let call = 0;
-		let fakeReq;
+		const sent = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => {
-			call++;
-			fakeReq = new FakeRequest(req => {
-				if (req.cancelled) req.emit('error', Object.assign(new Error('Canceled.'), { code: 'ECANCEL' }));
-				else req.emit('rowsaffected', 1);
-			});
-			return fakeReq;
+			const req = hangUntilCancelled();
+			sent.push(req);
+			return req;
 		}), makeState());
 
 		const running = handlers.handleExecuteQuery('MyDb', "WAITFOR DELAY '00:10:00'\nGO\nSELECT 1", 1000);
 		// Let the first batch actually start (see the timing note on the
 		// single-batch cancel test above) before cancelling it.
-		await new Promise(resolve => setImmediate(resolve));
+		await new Promise(resolve => setTimeout(resolve, 20));
 		handlers.handleCancelQuery();
 		await running;
 
-		assert.strictEqual(call, 1, 'the second batch must never start once cancelled');
+		assert.strictEqual(sent.length, 2, 'the USE and the first batch: the second batch must never start once cancelled');
 		const cancelMsg = posts.find(m => m.command === 'queryError');
 		assert.strictEqual(cancelMsg.cancelled, true);
 	});
@@ -624,7 +652,13 @@ suite('QueryHandlers.splitTopLevelStatements', () => {
 			const log = [];
 			let request;
 			const connection = {
-				createRequest: () => { request = new FakeRequest(() => {}); request.query = () => new Promise(resolve => { request.cancel = () => { log.push('cancel'); resolve(); }; }); return request; },
+				createRequest: () => {
+					request = new FakeRequest(() => {});
+					const finish = request.query.bind(request);
+					const own = request;
+					own.query = sql => /^USE \[/.test(sql) ? finish(sql) : new Promise(resolve => { own.cancel = () => { log.push('cancel'); resolve(); }; });
+					return own;
+				},
 				transactionCount: async () => { log.push('count'); return 0; },
 				endTransaction: async () => {},
 				release: () => {}

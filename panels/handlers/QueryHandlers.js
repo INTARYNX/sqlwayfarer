@@ -249,12 +249,11 @@ class QueryHandlers {
                 // of silently ignoring it (see handleCancelQuery).
                 if (this._cancelReason) break batchLoop;
                 for (let rep = 0; rep < batch.repeat; rep++) {
-                    // The USE prefix only needs to run once, to establish the
+                    // The USE only needs to run once, to establish the
                     // database selected in the dropdown as the starting
                     // context - after that, the connection's own context
                     // (whatever the script itself has done since) carries
                     // forward untouched, same as SSMS.
-                    const prefixLines = (isFirstBatch ? 1 : 0) + (actualPlan ? 1 : 0);
                     const errors = await this._executeOneBatch(
                         conn, database, batch.sql, isFirstBatch, actualPlan, rowCap,
                         resultSets, timeline, rowsAffected, planXmls
@@ -262,7 +261,7 @@ class QueryHandlers {
                     isFirstBatch = false;
                     if (this._cancelReason) break batchLoop;
                     for (const err of errors) {
-                        formattedErrors.push(this._formatSqlError(err, prefixLines, batch.startLine));
+                        formattedErrors.push(this._formatSqlError(err, batch.startLine));
                     }
                     // SSMS doesn't stop a script after one batch fails - the next
                     // GO-separated batch (or repetition) still runs.
@@ -330,6 +329,32 @@ class QueryHandlers {
     // UI. Returns the batch's raw (unformatted) errors, if any - formatting
     // needs batch.startLine, which only the caller knows.
     async _executeOneBatch(conn, database, batchSql, applyUsePrefix, actualPlan, rowCap, resultSets, timeline, rowsAffected, planXmls) {
+        // The USE and the plan setting go as batches of their own: a batch
+        // that starts with CREATE/ALTER PROCEDURE, VIEW, FUNCTION or TRIGGER
+        // must be the first statement of its batch.
+        const errors = [];
+        let planOn = false;
+        try {
+            if (applyUsePrefix) await this._useDatabase(conn, database);
+            if (actualPlan) {
+                planOn = true;
+                await conn.createRequest().batch('SET STATISTICS XML ON');
+            }
+            // A cancel that came in meanwhile: the script never starts.
+            if (!this._cancelReason) errors.push(...await this._streamBatch(conn, batchSql, actualPlan, rowCap, resultSets, timeline, rowsAffected, planXmls));
+        } catch (error) {
+            errors.push(error);
+        } finally {
+            if (planOn) {
+                // Back off even after a failure or a cancel: the connection goes back to the session.
+                try { await conn.createRequest().batch('SET STATISTICS XML OFF'); } catch { /* the connection is gone */ }
+            }
+        }
+        return errors;
+    }
+
+    // Streams one batch into the accumulators; returns its raw errors.
+    async _streamBatch(conn, batchSql, actualPlan, rowCap, resultSets, timeline, rowsAffected, planXmls) {
         const request = conn.createRequest();
         this._currentRequest = request;
         // Streaming keeps memory bounded: rows beyond the cap are counted but
@@ -378,11 +403,7 @@ class QueryHandlers {
         try {
             // In stream mode data arrives through events; the promise only signals
             // completion. Errors may surface here, as 'error' events, or both.
-            const usePrefix = applyUsePrefix ? `USE ${bracketIdentifier(database)};\n` : '';
-            const sent = actualPlan
-                ? `SET STATISTICS XML ON;\n${usePrefix}${batchSql}\nSET STATISTICS XML OFF;`
-                : `${usePrefix}${batchSql}`;
-            await request.batch(sent);
+            await request.batch(batchSql);
         } catch (error) {
             errors.push(error);
         } finally {
@@ -447,8 +468,8 @@ class QueryHandlers {
 
             for (const batch of batches) {
                 for (let rep = 0; rep < batch.repeat; rep++) {
-                    const prefixLines = isFirstBatch ? 1 : 0;
-                    const usePrefix = isFirstBatch ? `USE ${bracketIdentifier(database)};\n` : '';
+                    // Before SHOWPLAN goes on: with it on, a USE is planned, not run.
+                    if (isFirstBatch) await this._useDatabase(conn, database);
                     isFirstBatch = false;
                     // .batch() is required here, not .query(): mssql's .query() sends
                     // the SQL via tedious's execSql (an RPC call wrapping it, in
@@ -458,13 +479,13 @@ class QueryHandlers {
                     // sends it as a plain SQL batch, which showplan mode does respect.
                     await conn.createRequest().batch('SET SHOWPLAN_XML ON');
                     try {
-                        const result = await conn.createRequest().batch(`${usePrefix}${batch.sql}`);
+                        const result = await conn.createRequest().batch(batch.sql);
                         const row = result.recordset && result.recordset[0];
                         const xml = row && Object.values(row)[0];
                         if (xml) planXmls.push(sanitizePlanXml(xml));
                         else planErrors.push(`Line ${batch.startLine}: no execution plan was returned for this batch.`);
                     } catch (error) {
-                        planErrors.push(this._formatSqlError(error, prefixLines, batch.startLine));
+                        planErrors.push(this._formatSqlError(error, batch.startLine));
                     } finally {
                         // Always turn it back off, even on failure, so this connection
                         // isn't left stuck in plan-only mode once it's released to the pool.
@@ -574,18 +595,24 @@ class QueryHandlers {
         this._post({ command: 'queryHistoryLoaded', history: [] });
     }
 
-    // prefixLines is 1 for a plain batch (USE [db];) or 2 for an actualPlan
-    // batch (SET STATISTICS XML ON; + USE [db];) - whatever was prefixed
-    // onto THIS specific batch's own text before sending it. batchStartLine
-    // is that batch's 1-indexed line in the ORIGINAL script (1 when there's
-    // no GO at all), translating the server's batch-relative line number
-    // back to the line the user actually sees in the editor - the same
-    // correction SSMS itself makes for a multi-batch script.
-    _formatSqlError(error, prefixLines = 1, batchStartLine = 1) {
+    // Makes `database` the context of the session. A batch of its own, and
+    // an error without a line number: it belongs to no line of the script.
+    async _useDatabase(conn, database) {
+        try {
+            await conn.createRequest().batch(`USE ${bracketIdentifier(database)};`);
+        } catch (error) {
+            throw new Error(error.message);
+        }
+    }
+
+    // batchStartLine is the 1-indexed line of the batch in the ORIGINAL script
+    // (1 when there's no GO at all), translating the server's batch-relative
+    // line number back to the line the user actually sees in the editor - the
+    // same correction SSMS itself makes for a multi-batch script.
+    _formatSqlError(error, batchStartLine = 1) {
         const line = error.lineNumber || (error.originalError && error.originalError.info && error.originalError.info.lineNumber);
-        if (!(line > prefixLines)) return error.message;
-        const originalLine = batchStartLine + (line - prefixLines) - 1;
-        return `Line ${originalLine}: ${error.message}`;
+        if (!(line > 0)) return error.message;
+        return `Line ${batchStartLine + line - 1}: ${error.message}`;
     }
 
     // Scoped per connection (server+login) so two tabs on different servers
