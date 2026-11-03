@@ -29,4 +29,16 @@ function parseServerAddress(text) {
     return { server: value, port };
 }
 
-module.exports = { parseServerAddress };
+// What the Node driver can resolve. SSMS writes the local machine as "." or
+// "(local)" ("." + "\\SQLEXPRESS" for an instance), and an IPv6 address in
+// brackets; the driver looks them up as host names and fails.
+function serverForDriver(server) {
+    const text = String(server || '').trim();
+    const local = /^(?:\.|\(local\))(\\.*)?$/i.exec(text);
+    if (local) return `localhost${local[1] || ''}`;
+    const ipv6 = /^\[([^\]]+)\](.*)$/.exec(text);
+    if (ipv6) return `${ipv6[1]}${ipv6[2]}`;
+    return text;
+}
+
+module.exports = { parseServerAddress, serverForDriver };

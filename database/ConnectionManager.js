@@ -4,6 +4,7 @@ const sql = require('mssql');
 const { bracketIdentifier } = require('./sqlIdentifier');
 const { EntraTokenSource } = require('./entraToken');
 const { SspiPool } = require('./SspiPool');
+const { serverForDriver } = require('./serverAddress');
 
 class ConnectionManager {
     // tokenFetcher: see entraToken.js. Without one, Entra ID connections are
@@ -50,6 +51,8 @@ class ConnectionManager {
         // cancellation in QueryHandlers, Cancel button of the indexing) remain
         // the real safeguards.
         const config = { server: connectionConfig.server, options, requestTimeout: 300000 };
+        // The Windows helper (SqlClient) takes SSMS's own forms of the address; the Node driver needs real host names.
+        if (connectionConfig.authType !== 'windows') config.server = serverForDriver(connectionConfig.server);
         if (connectionConfig.port) config.port = Number(connectionConfig.port);
         if (connectionConfig.database) config.database = connectionConfig.database;
         if (isEntra) {
