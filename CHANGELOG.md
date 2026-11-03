@@ -10,7 +10,6 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 
 ### Changed
 
-- **Production connections**: a saved connection can be marked *Production* (a checkbox when you edit it). The list shows a `PROD` badge, the tab a `PRODUCTION` banner, and every statement that changes data or schema (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`) asks for a confirmation, whatever its `WHERE`. It extends the confirmation that already existed.
 - **Run** (F5, Ctrl+Enter, the Run button) sends the selection when there is one, as SSMS does; the line of an error is still the one of the editor.
 - **Code tab**: Format uses the real formatter of the editor and is a way of looking: the code of the server is kept, Copy copies what is shown, pressed again the button gives the code back.
 - **Query graph** follows the procedures a query `EXEC`s, as the README said it did.
@@ -23,6 +22,7 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 
 ### Fixed
 
+- **A production server was run like a test one**: nothing told them apart, and the confirmation before a destructive statement was the same on both. A saved connection can now be marked *Production* (a checkbox when you edit it): the list shows a `PROD` badge, the tab a `PRODUCTION` banner, and every statement that changes data or schema (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`) asks for a confirmation, whatever its `WHERE`.
 - **A `CREATE` or `ALTER` of a procedure, view, function or trigger failed** ("must be the first statement in a query batch"): the `USE` and the plan setting now go as batches of their own.
 - **A column with no name, or a name twice, lost a value** in the results (`SELECT COUNT(*), MAX(x)`, `a.id, b.id`).
 - **Cancelling an indexing, or a failed force reindex, deleted the index that was there.**
