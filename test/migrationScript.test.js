@@ -32,15 +32,20 @@ suite('migrationScript: shape of the script', () => {
 		assert.ok(result.script.includes('Re-entrant'));
 		const parts = batches(result);
 		assert.ok(parts[1].startsWith('SET NOEXEC OFF;'));
-		assert.ok(parts[parts.length - 1].includes('SET NOEXEC OFF;') && parts[parts.length - 1].includes('SET QUOTED_IDENTIFIER ON;'));
+		assert.ok(parts[2].includes('CREATE TABLE #wf'));
+		assert.ok(parts[parts.length - 2].startsWith('SET NOEXEC OFF;'));
+		assert.ok(parts[parts.length - 1].includes('DROP TABLE #wf') && parts[parts.length - 1].includes('SET QUOTED_IDENTIFIER ON;'));
 		assert.ok(parts.some(p => p.includes('ALTER TABLE [dbo].[T] ADD [a] int NULL;')));
 	});
 
-	test('a batch that fails stops the ones after it', () => {
+	test('a batch runs only if the one before it finished, and says so when it does', () => {
 		const result = script({ tables: [table('T')] }, { tables: [table('T', { columns: [column('id'), column('a', { nullable: true }), column('b', { nullable: true })] })] });
 		const steps = batches(result).filter(p => p.includes('ADD ['));
 		assert.strictEqual(steps.length, 2);
-		assert.ok(steps.every(p => p.startsWith('IF @@ERROR <> 0 SET NOEXEC ON;\n')));
+		assert.ok(steps[0].startsWith('IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = 0) SET NOEXEC ON;\n'));
+		assert.ok(steps[0].endsWith('IF @@ERROR = 0 UPDATE #wf SET n = 1;'));
+		assert.ok(steps[1].startsWith('IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = 1) SET NOEXEC ON;\n'));
+		assert.ok(steps[1].endsWith('IF @@ERROR = 0 UPDATE #wf SET n = 2;'));
 	});
 
 	test('a column is added only if it is not there: the state is tested, not a version', () => {
@@ -157,7 +162,8 @@ suite('migrationScript: constraints and keys', () => {
 		const dropped = script({ tables: [table('T', { foreignKeys: [sysFk] })] }, { tables: [table('T')] });
 		assert.ok(!dropped.script.includes('FK__T__1'));
 		assert.ok(dropped.script.includes("pc.name = N'p' AND rc.name = N'id'"));
-		assert.ok(dropped.script.includes("EXEC (N'ALTER TABLE [dbo].[T] DROP CONSTRAINT ' + QUOTENAME(@n))"));
+		assert.ok(dropped.script.includes("DECLARE @sql nvarchar(max) = N'ALTER TABLE [dbo].[T] DROP CONSTRAINT ' + QUOTENAME(@n);"));
+		assert.ok(dropped.script.includes('IF @n IS NOT NULL EXEC (@sql);'));
 	});
 
 	test('a unique constraint, an index with INCLUDE and a filter, a foreign key with its actions', () => {
@@ -213,8 +219,10 @@ suite('migrationScript: code objects', () => {
 		const create = parts.findIndex(p => p.startsWith('CREATE OR ALTER PROC dbo.p'));
 		assert.ok(create > 1, parts.join('|'));
 		assert.ok(parts[create - 1].includes('SET ANSI_NULLS OFF;') && parts[create - 1].includes('SET QUOTED_IDENTIFIER OFF;'));
-		assert.ok(parts[create - 1].startsWith('IF @@ERROR <> 0 SET NOEXEC ON;'));
-		assert.ok(!parts[create].startsWith('IF @@ERROR'));
+		assert.ok(parts[create - 1].startsWith('IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = 0) SET NOEXEC ON;'));
+		assert.ok(parts[create - 1].endsWith('UPDATE #wf SET t = GETDATE();'));
+		assert.ok(!parts[create].includes('#wf'));
+		assert.ok(parts[create + 1].includes('o.modify_date >= w.t') && parts[create + 1].endsWith('UPDATE #wf SET n = 1;'));
 		assert.ok(parts[parts.length - 1].includes('SET QUOTED_IDENTIFIER ON;'));
 	});
 

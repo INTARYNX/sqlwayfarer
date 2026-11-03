@@ -62,12 +62,13 @@ function parseHeader(text) {
 }
 
 // The text of a definition as it is compared: one kind of line ending, no
-// trailing blanks, and CREATE / ALTER / CREATE OR ALTER read as the same word.
+// trailing blanks, and CREATE / ALTER / CREATE OR ALTER read as the same word
+// (the server keeps the blanks of "CREATE OR ALTER": "CREATE   PROCEDURE").
 function normalizeDefinition(text) {
     if (typeof text !== 'string') return null;
     let out = text.replace(/\r\n?/g, '\n');
     const header = parseHeader(out);
-    if (header) out = `${out.slice(0, header.start)}CREATE${out.slice(header.end)}`;
+    if (header) out = `${out.slice(0, header.start)}CREATE${out.slice(header.end).replace(/^[ \t]+/, ' ')}`;
     return out.replace(/[ \t]+$/gm, '').trim();
 }
 

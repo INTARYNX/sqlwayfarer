@@ -45,6 +45,11 @@ suite('sqlHeader', () => {
 		assert.strictEqual(normalizeDefinition(a), normalizeDefinition(c));
 	});
 
+	test('the blanks the server leaves where OR ALTER was are not a change', () => {
+		assert.strictEqual(normalizeDefinition('\tCREATE   PROCEDURE dbo.p AS SELECT 1\n\n'), normalizeDefinition('\tCREATE PROCEDURE dbo.p AS SELECT 1\n'));
+		assert.strictEqual(normalizeDefinition('CREATE OR ALTER PROC p AS SELECT 1'), 'CREATE PROC p AS SELECT 1');
+	});
+
 	test('a real change is still one: the body, the name, a comment', () => {
 		const base = normalizeDefinition('CREATE PROC dbo.p AS SELECT 1 -- x');
 		assert.notStrictEqual(base, normalizeDefinition('CREATE PROC dbo.p AS SELECT 2 -- x'));
