@@ -6,7 +6,7 @@
 // Replaces each stripped span with spaces rather than deleting it, so every
 // remaining character's offset is unchanged - not load-bearing today, but
 // cheap insurance against a future caller that wants positions back.
-function stripCommentsAndStrings(sql) {
+function stripCommentsAndStrings(sql, keepStrings = false) {
     let result = '';
     let i = 0;
     const n = sql.length;
@@ -35,7 +35,7 @@ function stripCommentsAndStrings(sql) {
                 }
                 j++;
             }
-            result += ' '.repeat(j - i);
+            result += keepStrings ? sql.slice(i, j) : ' '.repeat(j - i);
             i = j;
             continue;
         }
@@ -68,23 +68,54 @@ function leadingDmlVerb(statement) {
     return null;
 }
 
+// The target of an UPDATE / DELETE, to tell a temporary table or a table
+// variable (nothing to lose) from a real table.
+function dmlTarget(statement) {
+    const m = statement.replace(/^\s+/, '').match(/^(?:update|delete)\s+(?:top\s*\([^)]*\)\s*(?:percent\s+)?)?(?:from\s+)?([^\s(;]+)/i);
+    return m ? m[1] : null;
+}
+
+const isScratchTarget = name => !!name && /^[#@]/.test(name.replace(/^\[/, ''));
+
+// Object kinds a DROP is flagged for.
+const DROP_KINDS = 'table|view|procedure|proc|function|trigger|index|database|schema|synonym|user|login|role|type|sequence|assembly';
+
+// A dynamic statement is only checked when it is written as a literal
+// (EXEC('...') / sp_executesql N'...'); one built in a variable is not visible.
+const DYNAMIC_LITERAL = /\b(?:exec(?:ute)?\s*\(\s*|sp_executesql\s+)N?'((?:[^']|'')*)'/gi;
+const MAX_DYNAMIC_DEPTH = 2;
+
 // Flags destructive statements in a query before execution:
-// - UPDATE / DELETE without WHERE (via the T-SQL parser; regex heuristic as fallback)
-// - TRUNCATE TABLE and DROP <object> (regex: keywords are unambiguous)
+// - UPDATE / DELETE without WHERE, or with a WHERE that is always true
+//   (via the T-SQL parser; regex heuristic as fallback). A temporary table or
+//   a table variable is not flagged.
+// - TRUNCATE TABLE, DROP <object>, ALTER TABLE ... DROP/ALTER COLUMN, MERGE ...
+//   THEN DELETE, ALTER DATABASE ... SET SINGLE_USER/OFFLINE/EMERGENCY and
+//   xp_cmdshell (regex: keywords are unambiguous)
+// - the same checks inside a dynamic statement written as a literal
 // Returns human-readable risk descriptions; an empty array means "safe to run".
 class QueryRiskAnalyzer {
     constructor(sqlParser = null) {
         this._sqlParser = sqlParser;
     }
 
-    analyze(sql) {
+    analyze(sql, depth = 0) {
         if (!sql) return [];
         const risks = [];
         const cleaned = stripCommentsAndStrings(sql);
 
         const parsed = this._sqlParser ? this._sqlParser.analyzeRisks(sql) : null;
         if (parsed) {
+            // The parser gives no table for a table variable: count, per verb, the
+            // statements the text shows aimed at a temporary table or a variable.
+            const scratch = { UPDATE: 0, DELETE: 0 };
+            for (const statement of cleaned.split(/;|^\s*GO\s*$/im)) {
+                const verb = leadingDmlVerb(statement);
+                if (verb && !/\bwhere\b/i.test(statement) && isScratchTarget(dmlTarget(statement))) scratch[verb.toUpperCase()]++;
+            }
             for (const risk of parsed) {
+                if (isScratchTarget(risk.table)) continue;
+                if (!risk.table && scratch[risk.type] > 0) { scratch[risk.type]--; continue; }
                 risks.push(risk.table
                     ? `${risk.type} without WHERE on ${risk.table}`
                     : `${risk.type} without WHERE`);
@@ -93,17 +124,38 @@ class QueryRiskAnalyzer {
             // Parser unavailable or SQL unparseable: coarse per-statement heuristic.
             for (const statement of cleaned.split(/;|^\s*GO\s*$/im)) {
                 const verb = leadingDmlVerb(statement);
-                if (verb && !/\bwhere\b/i.test(statement)) {
+                if (verb && !/\bwhere\b/i.test(statement) && !isScratchTarget(dmlTarget(statement))) {
                     risks.push(`${verb.toUpperCase()} without WHERE`);
                 }
+            }
+        }
+
+        for (const statement of cleaned.split(/;|^\s*GO\s*$/im)) {
+            const verb = leadingDmlVerb(statement);
+            if (verb && /\bwhere\s+\(*\s*(\d+)\s*=\s*\1\s*\)*\s*$/i.test(statement) && !isScratchTarget(dmlTarget(statement))) {
+                risks.push(`${verb.toUpperCase()} with an always-true WHERE`);
             }
         }
 
         for (const truncate of cleaned.match(/\btruncate\s+table\s+[^\s;]+/gi) || []) {
             risks.push(truncate.replace(/\s+/g, ' ').trim());
         }
-        for (const drop of cleaned.match(/\bdrop\s+(?:table|view|procedure|proc|function|trigger|index|database)\s+[^\s;]+/gi) || []) {
-            risks.push(drop.replace(/\s+/g, ' ').trim());
+        const drop = new RegExp(`\\bdrop\\s+(${DROP_KINDS})\\s+(?:if\\s+exists\\s+)?([^\\s;]+)`, 'gi');
+        for (const m of cleaned.matchAll(drop)) risks.push(`DROP ${m[1].toUpperCase()} ${m[2]}`);
+        for (const m of cleaned.matchAll(/\balter\s+table\s+([^\s;]+)\s+(drop\s+column|alter\s+column)\b/gi)) {
+            risks.push(`ALTER TABLE ${m[1]} ${m[2].replace(/\s+/g, ' ').toUpperCase()}`);
+        }
+        for (const m of cleaned.matchAll(/\balter\s+database\s+([^\s;]+)\s+set\s+(single_user|offline|emergency)\b/gi)) {
+            risks.push(`ALTER DATABASE ${m[1]} SET ${m[2].toUpperCase()}`);
+        }
+        if (/\bthen\s+delete\b/i.test(cleaned)) risks.push('MERGE deleting rows');
+        if (/\bxp_cmdshell\b/i.test(cleaned)) risks.push('xp_cmdshell (runs a command on the server)');
+
+        if (depth < MAX_DYNAMIC_DEPTH) {
+            const withLiterals = stripCommentsAndStrings(sql, true);
+            for (const m of withLiterals.matchAll(DYNAMIC_LITERAL)) {
+                for (const risk of this.analyze(m[1].replace(/''/g, "'"), depth + 1)) risks.push(`In dynamic SQL: ${risk}`);
+            }
         }
 
         return risks;
