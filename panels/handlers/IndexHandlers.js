@@ -1,6 +1,7 @@
 'use strict';
 
 const vscode = require('vscode');
+const debug = require('../../database/debugLog');
 const { toMarkdown } = require('../../database/IndexStats');
 
 class IndexHandlers {
@@ -41,7 +42,7 @@ class IndexHandlers {
                 return;
             }
 
-            console.log(`Force reindexing database: ${database}`);
+            debug(`Force reindexing database: ${database}`);
             this._post({ command: 'indexingStarted', database, forced: true });
 
             const progressCallback = (progress) => {
@@ -51,11 +52,11 @@ class IndexHandlers {
             const index = await this._indexService.forceReindex(database, progressCallback);
             this._post({ command: 'indexResult', indexData: index, database });
             this._post({ command: 'indexingCompleted', database, success: true, forced: true, message: 'Force reindex completed successfully' });
-            console.log(`Force reindex completed for database: ${database}`);
+            debug(`Force reindex completed for database: ${database}`);
 
         } catch (error) {
             if (error.code === 'INDEXING_CANCELLED') {
-                console.log(`Force reindex cancelled for database: ${database}`);
+                debug(`Force reindex cancelled for database: ${database}`);
                 return;
             }
             console.error('Error force reindexing:', error);
@@ -70,7 +71,7 @@ class IndexHandlers {
     async handleCancelIndexing(database) {
         try {
             const targetDatabase = database || this._getCurrentDatabase();
-            console.log(`Canceling indexing operation for ${targetDatabase}`);
+            debug(`Canceling indexing operation for ${targetDatabase}`);
             if (targetDatabase) {
                 // The index already on disk stays: a build saves only when it is complete.
                 this._indexService.requestCancel(targetDatabase);
@@ -161,7 +162,7 @@ class IndexHandlers {
 
             const index = await this._indexService.getIndex(database, progressCallback);
             this._post({ command: 'indexResult', indexData: index, database });
-            console.log(`Index retrieved for database: ${database}`);
+            debug(`Index retrieved for database: ${database}`);
 
         } catch (error) {
             if (error.code === 'INDEXING_CANCELLED') {

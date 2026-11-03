@@ -1,5 +1,7 @@
 'use strict';
 
+const debug = require('../../database/debugLog');
+
 class DatabaseHandlers {
     constructor(postMessage, databaseService, dependencyService, indexService, getCurrentDatabase) {
         this._post = postMessage;
@@ -29,10 +31,10 @@ class DatabaseHandlers {
 
     async handleGetObjects(database) {
         try {
-            console.log(`Getting objects for database: ${database}`);
+            debug(`Getting objects for database: ${database}`);
             const objects = await this._databaseService.getObjects(database);
             this._post({ command: 'objectsLoaded', database, objects });
-            console.log(`Loaded ${objects.length} objects for database: ${database}`);
+            debug(`Loaded ${objects.length} objects for database: ${database}`);
 
             // Best-effort follow-up: sys.dm_db_partition_stats needs VIEW
             // DATABASE STATE - without it the list simply shows no badges.
