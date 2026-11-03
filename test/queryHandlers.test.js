@@ -18,17 +18,23 @@ class FakeRequest extends EventEmitter {
 			});
 		});
 	}
+	batch(sql) {
+		return this.query(sql);
+	}
 	cancel() {
 		this.cancelled = true;
 	}
 }
+
+// What the real connections add for the session: the transaction probes.
+const NO_TRANSACTION = { transactionCount: async () => 0, endTransaction: async () => {} };
 
 // Minimal ConnectionManager stand-in: acquireConnection() pins one connection
 // for the whole script (all GO-separated batches share it), same contract as
 // the real ConnectionManager.acquireConnection(). createRequestFn is called
 // once per batch/repetition, same as conn.createRequest() in the real code.
 function connMock(createRequestFn) {
-	return { acquireConnection: async () => ({ createRequest: createRequestFn, release: () => {} }) };
+	return { acquireConnection: async () => ({ ...NO_TRANSACTION, createRequest: createRequestFn, release: () => {} }) };
 }
 
 // Minimal Memento stand-in for workspaceState.
@@ -182,7 +188,7 @@ suite('QueryHandlers', () => {
 			acquireConnection: async () => {
 				await acquireGate;
 				return {
-					createRequest: () => { batchStarted = true; return new FakeRequest(req => req.emit('rowsaffected', 1)); },
+					...NO_TRANSACTION, createRequest: () => { batchStarted = true; return new FakeRequest(req => req.emit('rowsaffected', 1)); },
 					release: () => {}
 				};
 			}
@@ -313,7 +319,7 @@ suite('QueryHandlers', () => {
 		const handlers = new QueryHandlers(m => posts.push(m), {
 			acquireConnection: async () => {
 				await acquireGate;
-				return { createRequest: () => new FakeRequest(req => req.emit('rowsaffected', 1)), release: () => {} };
+				return { ...NO_TRANSACTION, createRequest: () => new FakeRequest(req => req.emit('rowsaffected', 1)), release: () => {} };
 			}
 		}, makeState());
 
@@ -338,7 +344,7 @@ suite('QueryHandlers', () => {
 				r.emit('rowsaffected', 1);
 			});
 			const originalQuery = req.query.bind(req);
-			req.query = (text) => { batchSqls.push(text); return originalQuery(text); };
+			req.batch = (text) => { batchSqls.push(text); return originalQuery(text); };
 			return req;
 		}), makeState());
 
@@ -545,5 +551,67 @@ suite('QueryHandlers.splitTopLevelStatements', () => {
 			'EXEC dbo.uspFoo\nINSERT INTO t VALUES (1)\nUPDATE t SET x = 1\nDELETE FROM t\nWITH cte AS (SELECT 1 AS x) SELECT * FROM cte'
 		);
 		assert.strictEqual(statements.length, 5);
+	});
+	suite('transactions', () => {
+		// A connection whose transaction count follows what the scripts do.
+		function txManager(log) {
+			const state = { count: 0 };
+			const connection = {
+				createRequest: () => new FakeRequest(req => { state.count = 1; req.emit('rowsaffected', 1); }),
+				transactionCount: async () => state.count,
+				endTransaction: async action => { log.push(action); state.count = 0; },
+				release: () => log.push('release')
+			};
+			return { manager: { acquireConnection: async () => { log.push('acquire'); return connection; } }, state };
+		}
+
+		test('the session is kept between two runs, and the open transaction is reported after each', async () => {
+			const log = [];
+			const posts = [];
+			const { manager } = txManager(log);
+			const handlers = new QueryHandlers(m => posts.push(m), manager, makeState());
+			await handlers.handleExecuteQuery('MyDb', 'BEGIN TRAN', 10);
+			await handlers.handleExecuteQuery('MyDb', 'SELECT 1', 10);
+			assert.strictEqual(log.filter(x => x === 'acquire').length, 1);
+			assert.ok(!log.includes('release'), 'the connection is not given back after a run');
+			const states = posts.filter(p => p.command === 'transactionState');
+			assert.deepStrictEqual(states.map(p => p.count), [1, 1]);
+		});
+
+		test('commit and roll back end the transaction and report it', async () => {
+			const log = [];
+			const posts = [];
+			const { manager } = txManager(log);
+			const handlers = new QueryHandlers(m => posts.push(m), manager, makeState());
+			await handlers.handleExecuteQuery('MyDb', 'BEGIN TRAN', 10);
+			await handlers.handleEndTransaction('rollback');
+			assert.ok(log.includes('rollback'));
+			assert.strictEqual(posts.filter(p => p.command === 'transactionState').pop().count, 0);
+			await handlers.handleEndTransaction('whatever'); // unknown actions are ignored
+			assert.ok(!log.includes('whatever'));
+		});
+
+		test('closing commits or rolls back, then gives the connection back', async () => {
+			for (const action of ['commit', 'rollback']) {
+				const log = [];
+				const { manager } = txManager(log);
+				const handlers = new QueryHandlers(() => {}, manager, makeState());
+				await handlers.handleExecuteQuery('MyDb', 'BEGIN TRAN', 10);
+				assert.strictEqual(await handlers.openTransactions(), 1);
+				await handlers.closeSession(action);
+				assert.ok(log.includes(action) || action === 'commit' && log.includes('commit'));
+				assert.strictEqual(log[log.length - 1], 'release');
+			}
+		});
+
+		test('a new connection after a reconnect reports no transaction', async () => {
+			const log = [];
+			const posts = [];
+			const { manager } = txManager(log);
+			const handlers = new QueryHandlers(m => posts.push(m), manager, makeState());
+			await handlers.handleExecuteQuery('MyDb', 'BEGIN TRAN', 10);
+			await handlers.resetSession();
+			assert.strictEqual(posts.filter(p => p.command === 'transactionState').pop().count, 0);
+		});
 	});
 });

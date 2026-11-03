@@ -48,6 +48,8 @@ class QueryManager {
             placeholder: 'SELECT TOP 100 * FROM ...'
         });
         this.status = document.getElementById('queryStatus');
+        this.transactionBar = document.getElementById('queryTransaction');
+        this.transactionText = document.getElementById('queryTransactionText');
         this.resultsContainer = document.getElementById('queryResultsContainer');
         this.history = [];
         this.customSnippets = [];
@@ -64,6 +66,8 @@ class QueryManager {
 
     initEventListeners() {
         this.runBtn.addEventListener('click', () => this.runQuery());
+        document.getElementById('queryCommitBtn').addEventListener('click', () => this.endTransaction('commit'));
+        document.getElementById('queryRollbackBtn').addEventListener('click', () => this.endTransaction('rollback'));
         // "Line N" in an error message: delegated, the results are re-rendered.
         const onErrorLine = (e) => {
             const link = e.target.closest && e.target.closest('.error-line-link');
@@ -552,6 +556,18 @@ class QueryManager {
         this.estimatedPlanBtn.disabled = running || !target;
         this.includeActualPlanToggle.disabled = running || !target;
         this.cancelBtn.style.display = (running && showCancel) ? '' : 'none';
+    }
+
+    endTransaction(action) {
+        vscode.postMessage({ command: 'endTransaction', action });
+    }
+
+    // The bar exists only while a transaction is open on the tab's session.
+    onTransactionState(message) {
+        const count = Number(message.count) || 0;
+        this.transactionBar.hidden = count === 0;
+        this.transactionText.textContent = count === 1 ? 'Transaction open' : `Transaction open (${count} levels)`;
+        if (message.error) this.status.textContent = message.error;
     }
 
     onQueryResult(message) {

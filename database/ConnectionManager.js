@@ -207,8 +207,16 @@ class ConnectionManager {
             acquire: (requester, cb) => cb(null, connection, pool.config),
             release: () => {}
         };
+        // A plain SQL batch (not sp_executesql): a script that leaves a
+        // transaction open is not reported as an error, and SET options such
+        // as SHOWPLAN keep working.
+        const batch = text => new sql.Request(pinned).batch(text);
         return {
             createRequest: () => new sql.Request(pinned),
+            transactionCount: async () => (await batch('SELECT @@TRANCOUNT AS n')).recordset[0].n,
+            endTransaction: action => batch(action === 'commit'
+                ? 'WHILE @@TRANCOUNT > 0 COMMIT TRANSACTION'
+                : 'IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION'),
             release: () => pool.release(connection)
         };
     }

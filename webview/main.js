@@ -2786,6 +2786,12 @@ class MessageHandler {
                 }
                 break;
 
+            case 'transactionState':
+                if (this.queryManager) {
+                    this.queryManager.onTransactionState(message);
+                }
+                break;
+
             case 'planResult':
                 if (this.queryManager) {
                     this.queryManager.onPlanResult(message);
