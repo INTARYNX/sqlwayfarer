@@ -1360,8 +1360,6 @@ class ExplorerManager {
 
         const objectNameForBackend = this._getQualifiedName(obj);
 
-        console.log(`Selected object: ${this._getDisplayName(obj)} (qualified: ${objectNameForBackend})`);
-
         if (obj.object_type === 'Table') {
             vscode.postMessage({
                 command: 'getTableDetails',
@@ -1954,8 +1952,6 @@ class ExplorerManager {
 
     onTableDetailsLoaded(tableName, columns, indexes, foreignKeys, dependencies, stats, database) {
         if (!this._isAwaitedDetails(database, tableName)) return;
-        console.log(`Table details loaded for: ${tableName}`);
-
         appState.currentDependencies = dependencies;
         this._currentDetailsTable = tableName;
 
@@ -1990,8 +1986,6 @@ class ExplorerManager {
 
     onObjectDetailsLoaded(objectName, objectType, dependencies, definition, database) {
         if (!this._isAwaitedDetails(database, objectName)) return;
-        console.log(`Object details loaded for: ${objectName} (${objectType})`);
-
         appState.currentDependencies = dependencies;
 
         if (appState.selectedObject) {
@@ -2987,8 +2981,6 @@ class MessageHandler {
 
 // Application initialization
 document.addEventListener('DOMContentLoaded', function () {
-    console.log('SQL Wayfarer webview loaded');
-
     // Tells the extension this page was just built, so it can restore what
     // this tab was showing (selected database, open tab) instead of
     // starting from scratch.

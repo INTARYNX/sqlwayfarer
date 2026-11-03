@@ -1,6 +1,7 @@
 'use strict';
 
 const vscode = require('vscode');
+const debug = require('../database/debugLog');
 const path = require('path');
 const fs = require('fs');
 
@@ -342,8 +343,8 @@ class SqlWayfarerPanel {
             // Needed to resolve the type of objects living in another database
             // (cross-database dependencies in the Explorer graph).
             this._dependencyService.setDatabaseService(this._databaseService);
-            console.log('IndexService connected to DependencyService');
-            console.log('SqlWayfarerPanel initialized successfully');
+            debug('IndexService connected to DependencyService');
+            debug('SqlWayfarerPanel initialized successfully');
         } catch (error) {
             console.error('Error initializing SqlWayfarerPanel:', error);
             vscode.window.showErrorMessage(`Failed to initialize SQL Wayfarer: ${error.message}`);

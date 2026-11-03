@@ -46,8 +46,6 @@ class CodeViewManager {
         this.currentObjectType = objectType;
         this.currentDefinition = definition;
 
-        console.log(`Loading code for ${objectType}: ${objectName}`);
-
         // Handle tables differently (they don't have code definitions)
         if (objectType === 'Table') {
             this.displayTableMessage();

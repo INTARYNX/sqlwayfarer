@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs').promises;
+const debug = require('./debugLog');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
@@ -232,7 +233,7 @@ class IndexService {
             await existing.promise.catch(() => {});
         }
 
-        console.log(`Force reindexing database: ${database}`);
+        debug(`Force reindexing database: ${database}`);
         const build = {
             forced: true, cancelRequested: false,
             subscribers: new Set(progressCallback ? [progressCallback] : []),
@@ -261,7 +262,7 @@ class IndexService {
         this._peeked.delete(indexFile);
         stats.phase('saveMs', IndexBuildStats.now() - saveStart);
         await this._recordStats(indexFile, stats, index, null);
-        console.log(`Force reindex complete for ${database}`);
+        debug(`Force reindex complete for ${database}`);
         return index;
     }
 
@@ -281,7 +282,7 @@ class IndexService {
         for (const file of [indexFile, legacyFile]) {
             try {
                 await fs.unlink(file);
-                console.log(`Cleared index for ${database}`);
+                debug(`Cleared index for ${database}`);
             } catch (error) {
                 if (error.code !== 'ENOENT') console.warn(`Failed to clear index for ${database}:`, error.message);
             }
@@ -396,7 +397,7 @@ class IndexService {
     }
 
     async _buildCompleteIndex(database, schemaChecksum, objects, server = this._getCurrentServerName(), stats = null) {
-        console.log(`Building full index for database: ${database} (${objects.length} objects)`);
+        debug(`Building full index for database: ${database} (${objects.length} objects)`);
 
         const index = {
             database, server,
@@ -427,7 +428,7 @@ class IndexService {
         this._markIncompleteDependencies(index.objects, failedKeys);
 
         index.totalObjects = Object.keys(index.objects).length;
-        console.log(`Index complete: ${index.totalObjects} objects`);
+        debug(`Index complete: ${index.totalObjects} objects`);
         return index;
     }
 
@@ -460,7 +461,7 @@ class IndexService {
         }
 
         const removed = Object.keys(cachedIndex.objects).filter(key => !objects[key]).length;
-        console.log(`Incremental index update for ${database}: ${changed.length} changed/new, ${removed} removed, ${liveObjects.length - changed.length} reused`);
+        debug(`Incremental index update for ${database}: ${changed.length} changed/new, ${removed} removed, ${liveObjects.length - changed.length} reused`);
 
         const columnRefs = {};
         const tableWrites = {};
@@ -792,7 +793,7 @@ class IndexService {
         try {
             await this._ensureIndexDir(path.dirname(indexFile));
             await fs.rename(legacyFile, indexFile);
-            console.log(`Migrated index cache ${legacyFile} -> ${indexFile}`);
+            debug(`Migrated index cache ${legacyFile} -> ${indexFile}`);
         } catch (error) {
             // Not fatal: the index is simply rebuilt from scratch.
             console.warn(`Could not migrate the index cache ${legacyFile}: ${error.message}`);
@@ -812,7 +813,7 @@ class IndexService {
             // Older formats lack per-object columnRefs: treat as no index so
             // every read path (getIndex, getIndexStats) triggers/report rebuild
             if (data.formatVersion !== INDEX_FORMAT_VERSION) {
-                console.log(`Index format ${data.formatVersion || 1} != ${INDEX_FORMAT_VERSION} for ${data.database}, ignoring cached file`);
+                debug(`Index format ${data.formatVersion || 1} != ${INDEX_FORMAT_VERSION} for ${data.database}, ignoring cached file`);
                 return null;
             }
             let dirty = false;
@@ -823,7 +824,7 @@ class IndexService {
                 }
             }
             if (dirty) await this._saveIndex(indexFile, data);
-            console.log(`Loaded existing index for ${data.database}: ${Object.keys(data.objects || {}).length} objects`);
+            debug(`Loaded existing index for ${data.database}: ${Object.keys(data.objects || {}).length} objects`);
             return data;
         } catch (error) {
             if (error.code !== 'ENOENT') console.warn('Failed to load index:', error.message);
@@ -868,7 +869,7 @@ class IndexService {
     async _saveIndex(indexFile, index) {
         try {
             await fs.writeFile(indexFile, JSON.stringify(index, null, 2), 'utf8');
-            console.log(`Saved index for ${index.database}: ${Object.keys(index.objects || {}).length} objects`);
+            debug(`Saved index for ${index.database}: ${Object.keys(index.objects || {}).length} objects`);
         } catch (error) {
             console.error('Failed to save index:', error.message);
             throw error;
