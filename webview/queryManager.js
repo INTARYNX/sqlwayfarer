@@ -859,7 +859,8 @@ class QueryManager {
     // "a,\nb,\nc": the names one under the other, a comma after each but the last.
     static columnNames(columns, brackets) {
         return columns
-            .map((col, i) => col === '' ? `Column${i + 1}` : col)
+            // A column with no name (see database/resultColumns.js) is not a name to copy.
+            .map((col, i) => col === '' || /^\(No column name\)(?: \(\d+\))?$/.test(col) ? `Column${i + 1}` : col)
             .map(col => brackets ? `[${col.replace(/]/g, ']]')}]` : col)
             .join(',\n');
     }

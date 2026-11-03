@@ -62,7 +62,8 @@ class TempTableScript {
         const columns = set.columns || [];
         if (columns.length === 0) return '-- This result set has no column: there is nothing to script.\n';
         const types = columns.map((col, i) => (set.types && set.types[i]) || TempTableScript.inferType(set.rows || [], col));
-        const names = columns.map((col, i) => col === '' ? `Column${i + 1}` : col);
+        // A column with no name (see database/resultColumns.js) is called ColumnN.
+        const names = columns.map((col, i) => col === '' || /^\(No column name\)(?: \(\d+\))?$/.test(col) ? `Column${i + 1}` : col);
         const unsupported = names.filter((n, i) => types[i].kind === 'unsupported');
 
         const lines = [`-- Result set scripted as a temp table (${(set.rows || []).length} row(s)).`];

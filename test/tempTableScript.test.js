@@ -70,6 +70,18 @@ suite('TempTableScript.build', () => {
 		].join('\n'));
 	});
 
+	test('columns the grid called "(No column name)" are ColumnN, whatever their key', () => {
+		const nameless = {
+			columns: ['(No column name)', 'id', '(No column name) (2)'],
+			types: [t('int', 'number'), t('int', 'number'), t('int', 'number')],
+			rows: [{ '(No column name)': 1, id: 2, '(No column name) (2)': 3 }],
+			totalRows: 1
+		};
+		const script = TempTableScript.build(nameless);
+		assert.ok(script.includes('[Column1] int NULL,') && script.includes('[Column3] int NULL'), script);
+		assert.ok(script.includes('INSERT INTO #Results ([Column1], [id], [Column3]) VALUES\n(1, 2, 3);'), script);
+	});
+
 	test('rows go by 1000 per INSERT', () => {
 		const rows = Array.from({ length: 2500 }, (_, i) => ({ id: i }));
 		const script = TempTableScript.build({ columns: ['id'], types: [t('int', 'number')], rows, totalRows: 2500 });
