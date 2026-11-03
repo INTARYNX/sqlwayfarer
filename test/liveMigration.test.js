@@ -5,7 +5,7 @@ const { diffModels } = require('../database/schemaDiff');
 const { buildMigrationScript } = require('../database/migrationScript');
 const { planSnapshot, createSnapshot, dropSnapshot } = require('../database/dbSnapshots');
 const { splitBatches } = require('../database/sqlBatches');
-const { RICH_SCHEMA, createDatabase, dropDatabase, runScript, bracket } = require('./support/schemaFixture');
+const { createDatabase, dropDatabase, runScript, bracket } = require('./support/schemaFixture');
 
 // === Live: the script of a comparison, applied to a real server ===
 //
