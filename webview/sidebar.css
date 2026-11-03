@@ -304,6 +304,17 @@ button, input, select, textarea {
     display: none;
 }
 
+/* Marks a production connection. */
+.sb-prod-badge {
+    padding: 0 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--vscode-errorForeground, #f14c4c);
+    border: 1px solid var(--vscode-errorForeground, #f14c4c);
+}
+
 /* Marks a connection that has a tab open. */
 .sb-open-dot {
     width: 8px;

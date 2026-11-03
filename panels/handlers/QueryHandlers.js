@@ -121,11 +121,13 @@ function splitTopLevelStatements(sql) {
 }
 
 class QueryHandlers {
-    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null, onQuerySucceeded = null) {
+    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null, onQuerySucceeded = null, isProduction = () => false) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._workspaceState = workspaceState;
         this._riskAnalyzer = riskAnalyzer;
+        // True while the connection of this tab is marked as production.
+        this._isProduction = isProduction;
         this._getConnectionIdentity = getConnectionIdentity;
         // Notified after every successful query (used to ask for a rating).
         this._onQuerySucceeded = onQuerySucceeded;
@@ -142,9 +144,11 @@ class QueryHandlers {
     }
 
     // Modal confirmation for destructive statements; overridable in tests.
-    async _confirmRisks(risks) {
+    async _confirmRisks(risks, production = false) {
         const selection = await vscode.window.showWarningMessage(
-            'This query contains potentially destructive statements. Execute anyway?',
+            production
+                ? 'This is a PRODUCTION connection, and the query contains statements that change it. Execute anyway?'
+                : 'This query contains potentially destructive statements. Execute anyway?',
             { modal: true, detail: risks.join('\n') },
             'Execute'
         );
@@ -182,8 +186,9 @@ class QueryHandlers {
         this._executing = true;
 
         if (this._riskAnalyzer) {
-            const risks = this._riskAnalyzer.analyze(query);
-            if (risks.length > 0 && !(await this._confirmRisks(risks))) {
+            const production = this._isProduction();
+            const risks = this._riskAnalyzer.analyze(query, { production });
+            if (risks.length > 0 && !(await this._confirmRisks(risks, production))) {
                 this._executing = false;
                 this._post({
                     command: 'queryError',

@@ -144,7 +144,7 @@ class SqlWayfarerPanel {
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
         const riskParser = new BabelfishSqlParser();
         riskParser.setEnabled(true);
-        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._ratingPrompt.onQuerySucceeded());
+        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._ratingPrompt.onQuerySucceeded(), () => this._isProduction());
         this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._schemaRouter, this._databaseService));
@@ -274,6 +274,13 @@ class SqlWayfarerPanel {
         this._currentSelectedDatabase = database;
         this._persistPanelState({ database });
         this.post({ command: 'selectDatabase', database });
+    }
+
+    // Read from the saved connection each time, so marking it (or not) from
+    // the sidebar counts for the next query without reconnecting.
+    _isProduction() {
+        const saved = this._connectionStorage.getConnection(this.connectionName);
+        return !!(saved && saved.production);
     }
 
     // The saved connection of this tab was renamed (from the sidebar).

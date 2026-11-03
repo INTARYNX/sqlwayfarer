@@ -26,13 +26,14 @@ suite('e2e: sidebar (connections, snippets) and panel basics', function () {
 		const conns = [
 			{ name: 'Prod <b>', server: 'srv', port: 1433, database: 'db', authType: 'sql', username: 'sa' },
 			{ name: 'Dev', server: 'dev', authType: 'windows' },
-			{ name: 'Azure', server: 'x.database.windows.net', authType: 'entra' },
+			{ name: 'Azure', server: 'x.database.windows.net', authType: 'entra', production: true },
 			{ name: 'zeta', server: 'srv' }, { name: 'beta10', server: 'srv' }, { name: 'beta2', server: 'special-srv' }];
 		await post(p, { command: 'savedConnectionsLoaded', connections: conns, lastConnection: 'Dev', openConnections: ['Dev'] });
 		check(JSON.stringify(await names()) === JSON.stringify(['Azure', 'beta2', 'beta10', 'Dev', 'Prod <b>', 'zeta']), 'sorted naturally, case-insensitively: ' + (await names()).join(','));
 		check(!(await p.locator('#connectionList').innerHTML()).includes('<b>'), 'names are escaped');
 		check(await p.locator('.sb-open-dot').count() === 1 && await p.locator('.sb-last-used').count() === 1, 'one open dot, one last-used mark');
 		check(await p.locator('[data-connection-name="Dev"] .codicon-account').count() === 1 && await p.locator('[data-connection-name="Azure"] .codicon-azure').count() === 1 && await p.locator('[data-connection-name="zeta"] .codicon-key').count() === 1, 'auth type icons');
+		check(await p.locator('.sb-prod-badge').count() === 1 && await p.locator('[data-connection-name="Azure"] .sb-prod-badge').count() === 1, 'only the production connection carries the PROD badge');
 		await post(p, { command: 'openConnectionsChanged', names: [] });
 		check(await p.locator('.sb-open-dot').count() === 0, 'open dot cleared');
 
@@ -69,12 +70,15 @@ suite('e2e: sidebar (connections, snippets) and panel basics', function () {
 		check(!(await p.locator('#sqlAuthFields').isVisible()) && await p.locator('#windowsAuthHint').isVisible(), 'windows hides the login fields');
 		await p.locator('#saveConnectionBtn').click();
 		check((await p.locator('#connectionFormStatus').textContent()).includes('name'), 'a name is required');
+		check(!(await p.locator('#productionCheckbox').isChecked()), 'a new connection is not production');
+		await p.check('#productionCheckbox');
 		await p.fill('#connectionNameInput', 'New'); await p.fill('#serverInput', 'localhost');
 		await p.evaluate(() => { document.getElementById('usernameInput').value = 'stale'; });
 		await clear();
 		await p.locator('#saveConnectionBtn').click();
 		const save = await last();
 		check(save.command === 'saveConnection' && save.connectionConfig.authType === 'windows' && save.connectionConfig.username === '' && save.originalName === null, 'save sends a clean windows config');
+		check(save.connectionConfig.production === true, 'the production mark is saved');
 		await post(p, { command: 'connectionSaved', success: true, message: 'saved ok' });
 		check(await p.locator('#connectionListView').isVisible() && (await p.locator('#connectionsStatus').textContent()) === 'saved ok', 'back on the list with a confirmation above it');
 		check((await p.locator('#connectionsStatus').boundingBox()).y < (await p.locator('#connectionList').boundingBox()).y, 'the confirmation sits above the list');

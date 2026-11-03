@@ -289,6 +289,22 @@ suite('QueryHandlers', () => {
 		assert.ok(posts.some(p => p.command === 'queryResult'));
 	});
 
+	test('the risk check is told when the connection is marked as production, and the user too', async () => {
+		const calls = [];
+		const asked = [];
+		const analyzer = { analyze: (q, options) => { calls.push(options); return options.production ? ['Changes data or schema (UPDATE) on a production connection'] : []; } };
+		let production = true;
+		const handlers = new QueryHandlers(() => {}, connMock(() => new FakeRequest(req => { req.emit('rowsaffected', 1); })), makeState(), analyzer, () => null, null, () => production);
+		handlers._confirmRisks = async (risks, flag) => { asked.push(flag); return true; };
+
+		await handlers.handleExecuteQuery('Db1', 'UPDATE T SET a = 1 WHERE id = 1', 1000);
+		production = false;
+		await handlers.handleExecuteQuery('Db1', 'UPDATE T SET a = 1 WHERE id = 1', 1000);
+
+		assert.deepStrictEqual(calls, [{ production: true }, { production: false }]);
+		assert.deepStrictEqual(asked, [true], 'only the production query prompts, and says so');
+	});
+
 	test('rejects a second query while one is still running', async () => {
 		const posts = [];
 		let release;
