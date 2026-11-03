@@ -129,5 +129,6 @@ suite('QueryManager.columnNames', () => {
 	test('with brackets, a ] in a name is doubled; an unnamed column gets a name', () => {
 		assert.strictEqual(QueryManager.columnNames(['id', 'a]b', ''], true), '[id],\n[a]]b],\n[Column3]');
 		assert.strictEqual(QueryManager.columnNames(['a', ''], false), 'a,\nColumn2');
+		assert.strictEqual(QueryManager.columnNames(['a', '(No column name)', '(No column name) (2)'], true), '[a],\n[Column2],\n[Column3]');
 	});
 });
