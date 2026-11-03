@@ -143,6 +143,8 @@ class DatabaseService {
     async getObjectColumns(database, objectName) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
+        // Schema and name apart, each quoted: a name with a dot or a bracket in it is one object.
+        const { schema, objectName: name } = this._parseObjectName(objectName);
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT c.name AS column_name,
                    TYPE_NAME(c.user_type_id) AS data_type,
@@ -153,9 +155,9 @@ class DatabaseService {
                        WHERE i.is_primary_key = 1 AND ic.object_id = c.object_id AND ic.column_id = c.column_id
                    ) THEN 1 ELSE 0 END AS is_primary_key
             FROM sys.columns c
-            WHERE c.object_id = OBJECT_ID(@objectName)
+            WHERE c.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))
             ORDER BY c.column_id
-        `, { objectName });
+        `, { schema, objectName: name });
 
         return result.recordset.map(row => ({
             name: row.column_name,
@@ -172,13 +174,14 @@ class DatabaseService {
     async getObjectParameters(database, objectName) {
         if (!this._connectionManager.isConnected()) throw new Error('No active connection');
 
+        const { schema, objectName: name } = this._parseObjectName(objectName);
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT p.name AS parameter_name, TYPE_NAME(p.user_type_id) AS data_type,
                    p.max_length, p.precision, p.scale, p.is_output
             FROM sys.parameters p
-            WHERE p.object_id = OBJECT_ID(@objectName) AND p.parameter_id > 0
+            WHERE p.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName)) AND p.parameter_id > 0
             ORDER BY p.parameter_id
-        `, { objectName });
+        `, { schema, objectName: name });
 
         return result.recordset.map(row => ({
             name: row.parameter_name,
@@ -287,17 +290,17 @@ class DatabaseService {
             let definition = result.recordset[0]?.definition;
             if (definition && definition.trim()) return definition;
 
-            // Fall back to probing common schemas when no schema was specified
+            // No schema was given: the object of that name, in whatever schema it is
+            // (dbo first when several have it).
             if (!objectName.includes('.')) {
-                for (const s of ['dbo', 'hr', 'sales', 'production', 'purchasing', 'person']) {
-                    try {
-                        result = await this._connectionManager.executeQueryInDatabase(database, `
-                            SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))) as definition
-                        `, { schema: s, objectName: parsedName });
-                        definition = result.recordset[0]?.definition;
-                        if (definition && definition.trim()) return definition;
-                    } catch { continue; }
-                }
+                result = await this._connectionManager.executeQueryInDatabase(database, `
+                    SELECT TOP 1 OBJECT_DEFINITION(o.object_id) AS definition
+                    FROM sys.objects o
+                    WHERE o.name = @objectName AND OBJECT_DEFINITION(o.object_id) IS NOT NULL
+                    ORDER BY CASE WHEN o.schema_id = SCHEMA_ID('dbo') THEN 0 ELSE 1 END, SCHEMA_NAME(o.schema_id)
+                `, { objectName: parsedName });
+                definition = result.recordset[0]?.definition;
+                if (definition && definition.trim()) return definition;
             }
 
             return null;
@@ -446,7 +449,7 @@ class DatabaseService {
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT
                 (SELECT SUM(p2.rows) FROM sys.partitions p2
-                 WHERE p2.object_id = OBJECT_ID(@objectName) AND p2.index_id IN (0, 1)) AS row_count,
+                 WHERE p2.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName)) AND p2.index_id IN (0, 1)) AS row_count,
                 SUM(a.total_pages) * 8 AS reserved_kb,
                 SUM(a.used_pages) * 8 AS used_kb,
                 SUM(CASE
@@ -456,8 +459,8 @@ class DatabaseService {
                 END) * 8 AS data_kb
             FROM sys.partitions p
             JOIN sys.allocation_units a ON a.container_id = p.partition_id
-            WHERE p.object_id = OBJECT_ID(@objectName)
-        `, { objectName: `${schema}.${objectName}` });
+            WHERE p.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@objectName))
+        `, { schema, objectName });
 
         const row = result.recordset[0];
         if (!row || row.row_count === null) return null;

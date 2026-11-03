@@ -34,12 +34,12 @@ class ScriptGeneratorService {
                 }
             }
             case 'Procedure:exec': {
-                const params = await this._getParameters(database, `${schema}.${name}`);
+                const params = await this._getParameters(database, schema, name);
                 return ScriptGeneratorService.buildExec(bracketed, params);
             }
             case 'Function:select': {
-                const params = await this._getParameters(database, `${schema}.${name}`);
-                const isScalar = await this._isScalarFunction(database, `${schema}.${name}`);
+                const params = await this._getParameters(database, schema, name);
+                const isScalar = await this._isScalarFunction(database, schema, name);
                 return ScriptGeneratorService.buildFunctionSelect(bracketed, params, isScalar);
             }
             case 'View:create':
@@ -56,21 +56,21 @@ class ScriptGeneratorService {
         }
     }
 
-    async _getParameters(database, qualifiedName) {
+    async _getParameters(database, schema, name) {
         const result = await this._connectionManager.executeQueryInDatabase(database, `
             SELECT p.name, TYPE_NAME(p.user_type_id) AS data_type,
                    p.max_length, p.precision, p.scale, p.is_output
             FROM sys.parameters p
-            WHERE p.object_id = OBJECT_ID(@qualifiedName) AND p.parameter_id > 0
+            WHERE p.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@name)) AND p.parameter_id > 0
             ORDER BY p.parameter_id
-        `, { qualifiedName });
+        `, { schema, name });
         return result.recordset;
     }
 
-    async _isScalarFunction(database, qualifiedName) {
+    async _isScalarFunction(database, schema, name) {
         const result = await this._connectionManager.executeQueryInDatabase(database, `
-            SELECT o.type FROM sys.objects o WHERE o.object_id = OBJECT_ID(@qualifiedName)
-        `, { qualifiedName });
+            SELECT o.type FROM sys.objects o WHERE o.object_id = OBJECT_ID(QUOTENAME(@schema) + '.' + QUOTENAME(@name))
+        `, { schema, name });
         return result.recordset[0]?.type?.trim() === 'FN';
     }
 
