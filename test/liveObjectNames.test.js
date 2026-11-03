@@ -48,6 +48,11 @@ suite('live SQL Server: object names with a dot or a bracket', function () {
 		assert.strictEqual(Number(stats.rowCount), 2);
 	});
 
+	test('the row count of a table, as a number', async () => {
+		assert.strictEqual(await service.getTableRowCount(DB, 'dbo.[a.b]'), 2);
+		assert.strictEqual(await service.getTableRowCount(DB, 'dbo.Plain'), 0);
+	});
+
 	test('the EXEC and SELECT scripts of a procedure and a function whose names have a dot', async () => {
 		const exec = await scripts.generateScript(DB, 'dbo.[p.q]', 'Procedure', 'exec');
 		assert.ok(exec.includes('@n') && exec.includes('[p.q]'), exec);
