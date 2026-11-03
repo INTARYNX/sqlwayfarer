@@ -85,6 +85,10 @@ class SnippetSidebarProvider {
             onImported: () => connections.handleLoadConnections()
         });
 
+        // Another window of VS Code saved or deleted a connection: show the list as it is now.
+        const stopListening = this._connectionStorage.onDidChange(() => connections.handleLoadConnections());
+        webviewView.onDidDispose(stopListening);
+
         webviewView.webview.onDidReceiveMessage(async message => {
             switch (message.command) {
                 case 'getSnippets':         await snippets.handleGetSnippets(); break;

@@ -1,17 +1,60 @@
 'use strict';
 
-// Passwords are stored in VS Code secrets API; only non-sensitive config goes in the connections map
+const CONNECTIONS_KEY = 'sqlwayfarer.connections';
+
+// Passwords are stored in VS Code secrets API; only non-sensitive config goes in the connections map.
+// The secret storage is shared by every window of VS Code: a change is read from it before it is
+// made (not from what this window loaded long ago), and a change made by another window is picked up.
 class ConnectionStorage {
     constructor(context) {
         this._context = context;
         this._savedConnections = new Map();
+        this._listeners = new Set();
+        // Writes go one after the other, each from what the previous one left.
+        this._queue = Promise.resolve();
     }
 
     async initialize() {
         await this._loadSavedConnections();
+        const onDidChange = this._context.secrets.onDidChange;
+        if (typeof onDidChange === 'function') {
+            onDidChange.call(this._context.secrets, async event => {
+                if (event.key !== CONNECTIONS_KEY) return;
+                try {
+                    await this._loadSavedConnections();
+                    for (const listener of this._listeners) listener();
+                } catch (error) {
+                    console.warn('Could not read the connections changed by another window:', error.message);
+                }
+            });
+        }
+    }
+
+    // listener() is called when the saved connections changed, whoever made it.
+    // Returns the function that stops listening.
+    onDidChange(listener) {
+        this._listeners.add(listener);
+        return () => this._listeners.delete(listener);
+    }
+
+    _exclusively(task) {
+        const run = this._queue.then(async () => {
+            await this._loadSavedConnections();
+            return task();
+        });
+        this._queue = run.catch(() => {});
+        return run;
     }
 
     async saveConnection(connectionConfig, originalName = null) {
+        try {
+            return await this._exclusively(() => this._saveConnection(connectionConfig, originalName));
+        } catch (error) {
+            return { success: false, message: `Failed to save connection: ${error.message}` };
+        }
+    }
+
+    async _saveConnection(connectionConfig, originalName) {
         try {
             const { name, password } = connectionConfig;
             if (!name) throw new Error('Connection name is required');
@@ -56,6 +99,10 @@ class ConnectionStorage {
     // once instead of once each. No password is touched. Returns the names that
     // were saved and the ones refused (no name).
     async saveConnections(configs) {
+        return this._exclusively(() => this._saveConnections(configs));
+    }
+
+    async _saveConnections(configs) {
         const before = new Map(this._savedConnections);
         const saved = [];
         const failed = [];
@@ -74,6 +121,14 @@ class ConnectionStorage {
     }
 
     async deleteConnection(connectionName) {
+        try {
+            return await this._exclusively(() => this._deleteConnection(connectionName));
+        } catch (error) {
+            return { success: false, message: `Failed to delete connection: ${error.message}` };
+        }
+    }
+
+    async _deleteConnection(connectionName) {
         try {
             if (!connectionName) throw new Error('Connection name is required');
             await this._context.secrets.delete(`sqlwayfarer.password.${connectionName}`);
@@ -126,8 +181,8 @@ class ConnectionStorage {
 
     async _loadSavedConnections() {
         try {
-            const json = await this._context.secrets.get('sqlwayfarer.connections');
-            if (json) this._savedConnections = new Map(Object.entries(JSON.parse(json)));
+            const json = await this._context.secrets.get(CONNECTIONS_KEY);
+            this._savedConnections = json ? new Map(Object.entries(JSON.parse(json))) : new Map();
         } catch (error) {
             console.error('Error loading saved connections:', error);
             throw new Error(`Failed to load saved connections: ${error.message}`);
@@ -135,7 +190,7 @@ class ConnectionStorage {
     }
 
     async _persistConnections() {
-        await this._context.secrets.store('sqlwayfarer.connections', JSON.stringify(Object.fromEntries(this._savedConnections)));
+        await this._context.secrets.store(CONNECTIONS_KEY, JSON.stringify(Object.fromEntries(this._savedConnections)));
     }
 }
 
