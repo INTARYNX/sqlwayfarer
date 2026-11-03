@@ -5,7 +5,8 @@ const { diffModels } = require('../database/schemaDiff');
 const { buildMigrationScript } = require('../database/migrationScript');
 const { planSnapshot, createSnapshot, dropSnapshot } = require('../database/dbSnapshots');
 const { splitBatches } = require('../database/sqlBatches');
-const { createDatabase, dropDatabase, runScript, bracket } = require('./support/schemaFixture');
+const { applyScript, classifyTarget } = require('../database/migrationApply');
+const { createDatabase, dropDatabase, runScript } = require('./support/schemaFixture');
 
 // === Live: the script of a comparison, applied to a real server ===
 //
@@ -69,23 +70,11 @@ const DATA = `
 	INSERT Sales.[Order] (customerId, total, placed) SELECT id, 12.5, '2026-01-01' FROM Sales.Customer;
 `;
 
-// What the editor does with a script: every batch in order, on one connection, an error
-// does not stop the next one (the script does that itself).
+// The runner the Compare tab applies a script with; the messages of the errors it gives back.
 async function apply(manager, database, script, { stopAfter = Infinity } = {}) {
-	const errors = [];
-	const conn = await manager.acquireConnection();
-	try {
-		await conn.createRequest().batch(`USE ${bracket(database)}`);
-		let n = 0;
-		for (const b of splitBatches(script)) {
-			if (n++ >= stopAfter) break;
-			try { await conn.createRequest().batch(b.sql); } catch (error) { errors.push(error.message); }
-		}
-	} finally {
-		try { await conn.createRequest().batch('SET NOEXEC OFF; USE [master]'); } catch { /* ignore */ }
-		conn.release();
-	}
-	return errors;
+	let started = 0;
+	const result = await applyScript(manager, database, script, { shouldStop: () => started++ >= stopAfter });
+	return result.errors.map(e => e.message);
 }
 
 suite('live SQL Server: applying the script of a comparison', function () {
@@ -99,6 +88,8 @@ suite('live SQL Server: applying the script of a comparison', function () {
 	const read = db => readSchemaModel(manager, db);
 	const generate = options => buildMigrationScript(diff, Object.assign({ reference: snapshot, current: SRC }, options));
 	const names = d => d.changes.map(c => `${c.kind}:${c.name}:${c.status}`);
+	const ids = () => diff.changes.map(c => `${c.kind}:${c.name}`);
+	const standing = async db => { const target = await read(db); return classifyTarget(ids(), diffModels(reference, target), diffModels(target, current)); };
 
 	suiteSetup(async function () {
 		if (!LIVE_CONFIG) return this.skip();
@@ -137,6 +128,9 @@ suite('live SQL Server: applying the script of a comparison', function () {
 	test('without destructive changes, the script runs clean on a database in the state of the snapshot, and nothing is lost', async () => {
 		const result = generate();
 		assert.deepStrictEqual(result.skipped.map(s => s.op).sort(), ['dropColumn', 'dropTable']);
+		// Before: the target is in the state of the reference, everything is still to do.
+		const before = await standing(TARGETS[0]);
+		assert.deepStrictEqual([before.done.length, before.differs.length, before.pending.length], [0, 0, ids().length]);
 		const errors = await apply(manager, TARGETS[0], result.script);
 		assert.deepStrictEqual(errors, []);
 
@@ -156,6 +150,7 @@ suite('live SQL Server: applying the script of a comparison', function () {
 		assert.deepStrictEqual(await apply(manager, TARGETS[0], result.script), []);
 		const after = diffModels(current, await read(TARGETS[0]));
 		assert.deepStrictEqual(names(after), []);
+		assert.deepStrictEqual((await standing(TARGETS[0])).done, ids());
 	});
 
 	test('run again, it changes nothing and says nothing', async () => {
@@ -180,6 +175,8 @@ suite('live SQL Server: applying the script of a comparison', function () {
 		assert.deepStrictEqual(await apply(manager, TARGETS[1], script, { stopAfter: Math.floor(total / 2) }), []);
 		const half = diffModels(current, await read(TARGETS[1]));
 		assert.ok(half.changes.length > 0, 'the first half does not do it all');
+		const middle = await standing(TARGETS[1]);
+		assert.ok(middle.done.length + middle.differs.length > 0 && middle.pending.length + middle.differs.length > 0, JSON.stringify(middle));
 		assert.deepStrictEqual(await apply(manager, TARGETS[1], script), []);
 		assert.deepStrictEqual(names(diffModels(current, await read(TARGETS[1]))), []);
 	});
