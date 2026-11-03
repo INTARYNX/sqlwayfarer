@@ -39,6 +39,7 @@ const ConnectionRouter = require('../database/ConnectionRouter');
 const QueryHandlers = require('./handlers/QueryHandlers');
 const InstanceHandlers = require('./handlers/InstanceHandlers');
 const CompareHandlers = require('./handlers/CompareHandlers');
+const RecentHandlers = require('./handlers/RecentHandlers');
 const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
 const ScriptHandlers = require('./handlers/ScriptHandlers');
@@ -150,6 +151,7 @@ class SqlWayfarerPanel {
         // The instance tree is always the connection the queries run on - never a schema source -
         // since what it deletes or renames is done there.
         this._instanceScript = new ScriptHandlers(post, new ScriptGeneratorService(this._connectionManager, this._targetDatabaseService));
+        this._recent = new RecentHandlers(post, { connectionManager: this._connectionManager });
         this._compare = new CompareHandlers(post, {
             connectionManager: this._connectionManager,
             connectionStorage: this._connectionStorage,
@@ -487,6 +489,8 @@ class SqlWayfarerPanel {
             case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
             case 'getAutocompleteSettings':      this._postAutocompleteSettings(); this._postDiagnosticsSettings(); break;
             case 'endTransaction':               await this._query.handleEndTransaction(message.action); break;
+            case 'getRecentChanges':             await this._recent.handleGetRecent(message.database, message.minutes); break;
+            case 'getRecentDefinition':          await this._recent.handleGetDefinition(message.database, message.schema, message.name); break;
             case 'getCompareSources':            await this._compare.handleGetSources(message.database); break;
             case 'runCompare':                   await this._compare.handleCompare(message.database, message.reference); break;
             case 'buildCompareScript':           this._compare.handleBuildScript(message.ids, message.allowDestructive, message.legacy); break;
