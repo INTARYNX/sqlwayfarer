@@ -10,8 +10,9 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // Bumped when the index entry shape changes (2 = columnRefs for column lineage,
 // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
 // table-level writes, 5 = parseErrors for the incomplete analyses, 6 = no false
-// ambiguous dependencies); older cached files rebuild.
-const INDEX_FORMAT_VERSION = 6;
+// ambiguous dependencies, 7 = checksums from the ISO date, not the text a Date
+// has in the local time zone); older cached files rebuild.
+const INDEX_FORMAT_VERSION = 7;
 
 class IndexService {
     // How many objects' dependency queries run concurrently during a build.
@@ -155,7 +156,7 @@ class IndexService {
     }
 
     _entryChecksum(obj) {
-        return this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${obj.modify_date}`);
+        return this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${IndexService._stamp(obj.modify_date)}`);
     }
 
     // BUILDS (or updates) the index: only for an explicit user action - the
@@ -351,12 +352,17 @@ class IndexService {
         }));
     }
 
-    // Same formula as the historical checksum query (sorted by object_id) so
-    // indexes cached by previous versions stay valid after the upgrade.
+    // The date of a modification as text. A Date is written in UTC, to the
+    // millisecond: its own toString depends on the time zone of the machine
+    // (and drops the milliseconds), so a change of zone made every index stale.
+    static _stamp(modifyDate) {
+        return modifyDate instanceof Date ? modifyDate.toISOString() : String(modifyDate);
+    }
+
     _checksumFromObjects(objects) {
         const raw = [...objects]
             .sort((a, b) => a.object_id - b.object_id)
-            .map(o => `${o.object_id}:${o.modify_date}`)
+            .map(o => `${o.object_id}:${IndexService._stamp(o.modify_date)}`)
             .join('|');
         return crypto.createHash('md5').update(raw).digest('hex');
     }
