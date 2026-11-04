@@ -7,12 +7,14 @@ suite('debugLog', () => {
 	let flag;
 	setup(() => {
 		lines = [];
-		original = console.log;
 		flag = process.env.SQLWAYFARER_DEBUG;
-		console.log = (...args) => lines.push(args.join(' '));
+		// The console of the extension host cannot be replaced - its
+		// console.log is a getter that ignores the assignments - so the
+		// module is given another sink to write to.
+		original = debug.setSink((...args) => lines.push(args.join(' ')));
 	});
 	teardown(() => {
-		console.log = original;
+		debug.setSink(original);
 		if (flag === undefined) delete process.env.SQLWAYFARER_DEBUG; else process.env.SQLWAYFARER_DEBUG = flag;
 	});
 
