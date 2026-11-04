@@ -1,5 +1,5 @@
 const assert = require('assert'); // eslint-disable-line no-unused-vars
-const { loadPlaywright, openPage, checker, themes } = require('./harness');
+const { loadPlaywright, openPage, checker, themes, tmpPath } = require('./harness');
 
 const playwright = loadPlaywright();
 
@@ -51,7 +51,7 @@ suite('e2e: SQL autocompletion in the real query editor', function () {
 			await fresh(); await type('SELECT * FROM Employees e JOIN ');
 			if (0) console.log('DBG', await open(), (await items()).slice(0,3), await p.evaluate(() => [appState.foreignKeys.length, appState.currentDatabase, window.queryManager.input.value, window.queryManager.autocomplete.isOpen()]));
 			check(await open() && (await items())[0].includes('ON o.ID = e.ID') || (await items())[0].includes('ON '), theme + ': JOIN offers the FK join first (' + (await items())[0] + ')');
-			await p.screenshot({ path: `/home/claude/smoke/out/ac_${theme}_join.png`, clip: { x: 0, y: 0, width: 1000, height: 620 } });
+			await p.screenshot({ path: tmpPath(`ac_${theme}_join.png`), clip: { x: 0, y: 0, width: 1000, height: 620 } });
 			await p.keyboard.press('Enter');
 			check((await p.evaluate(() => window.queryManager.input.value)) === 'SELECT * FROM Employees e JOIN Sales.Orders o ON o.ID = e.ID', theme + ': the join item inserts table, alias and condition');
 
@@ -61,7 +61,7 @@ suite('e2e: SQL autocompletion in the real query editor', function () {
 			const colsOnly = await items();
 			check(colsOnly.length > 0 && colsOnly[0].startsWith('Name'), theme + ': a column without prefix, from the FROM after the caret (' + colsOnly.slice(0, 2) + ')');
 			check((await info() || '').includes('Employees.Name') && (await info()).includes('nvarchar(50)'), theme + ': the details line describes it (' + await info() + ')');
-			await p.screenshot({ path: `/home/claude/smoke/out/ac_${theme}_columns.png`, clip: { x: 0, y: 0, width: 1000, height: 620 } });
+			await p.screenshot({ path: tmpPath(`ac_${theme}_columns.png`), clip: { x: 0, y: 0, width: 1000, height: 620 } });
 			await p.keyboard.press('Escape');
 
 			await fresh(); await type('SELECT Employees.');
@@ -87,7 +87,7 @@ suite('e2e: SQL autocompletion in the real query editor', function () {
 			await fresh(); await type('EXEC uspGetEmployees ');
 			await p.waitForTimeout(150); await reply();
 			check((await items()).join('|').startsWith('All parameters'), theme + ': EXEC proc lists the parameters (' + (await items()).map(t => t.split(/\s/)[0]) + ')');
-			await p.screenshot({ path: `/home/claude/smoke/out/ac_${theme}_exec.png`, clip: { x: 0, y: 0, width: 1000, height: 620 } });
+			await p.screenshot({ path: tmpPath(`ac_${theme}_exec.png`), clip: { x: 0, y: 0, width: 1000, height: 620 } });
 			await p.keyboard.press('Escape');
 
 			await fresh(); await type('ssf');
