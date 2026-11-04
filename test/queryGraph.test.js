@@ -90,6 +90,17 @@ suite('BabelfishSqlParser.analyzeJoins', () => {
 		const result = parseJoins('SELECT * FROM dbo.A a JOIN dbo.B b ON a.Id = b.Id; SELECT * FROM dbo.C c JOIN dbo.D d ON c.Id = d.Id');
 		assert.strictEqual(result.joins.length, 2);
 	});
+
+	test('a call whose name looks like a system procedure is kept, not dropped', () => {
+		const result = parseJoins('EXEC sp_ArchiveOrders');
+		assert.deepStrictEqual(result.possibleSystemCalls, ['sp_archiveorders']);
+	});
+
+	test('a schema-qualified call is a function, whatever its name', () => {
+		const result = parseJoins('EXEC dbo.sp_ArchiveOrders');
+		assert.deepStrictEqual(result.functions, ['dbo.sp_archiveorders']);
+		assert.deepStrictEqual(result.possibleSystemCalls, []);
+	});
 });
 
 // === The graph built over the cached index ===
@@ -146,6 +157,28 @@ suite('QueryGraphService.buildGraph', () => {
 		assert.deepStrictEqual(viaProc, ['dbo.Customers', 'dbo.Orders']);
 		const orders = graph.tables.find(t => t.qualifiedName === 'dbo.Orders');
 		assert.deepStrictEqual(orders.via, ['dbo.uspGetOrders']);
+	});
+
+	test('a procedure whose name looks like a system one is followed when it is the user\'s', () => {
+		const index = makeIndex([
+			{ name: 'Orders', schema: 'dbo', qualifiedName: 'dbo.Orders', type: 'U' },
+			{ name: 'sp_ArchiveOrders', schema: 'dbo', qualifiedName: 'dbo.sp_ArchiveOrders', type: 'P', dependencies: ['dbo.Orders'] }
+		]);
+		const parsed = parseJoins('EXEC sp_ArchiveOrders');
+		const graph = QueryGraphService.buildGraph({ index, parsed });
+
+		const orders = graph.tables.find(t => t.qualifiedName === 'dbo.Orders');
+		assert.ok(orders, 'the table of the procedure is part of the graph');
+		assert.strictEqual(orders.access, 'via-code');
+		assert.deepStrictEqual(orders.via, ['dbo.sp_ArchiveOrders']);
+	});
+
+	test('a system procedure that is not in the index is left alone', () => {
+		const parsed = parseJoins('EXEC sp_help');
+		const graph = QueryGraphService.buildGraph({ index: INDEX, parsed });
+
+		assert.deepStrictEqual(graph.tables, []);
+		assert.deepStrictEqual(graph.unresolved, []);
 	});
 
 	test('the tables of a called function are reached too', () => {

@@ -116,6 +116,18 @@ class QueryGraphService {
             queue.push({ entry, via: [entry.qualifiedName], depth: 0 });
         }
 
+        // === the calls whose name looks like a system procedure ===
+        // sp_... and xp_... are usually system procedures, but the user may
+        // have created one too - and it would then be followed like any other
+        // procedure. One that is in the index is followed; one that is not
+        // is a system procedure, and is left alone.
+        for (const fnName of (parsed && parsed.possibleSystemCalls) || []) {
+            const entry = resolver.resolveCode(fnName, null);
+            if (!entry) continue;
+            if (!QueryGraphService._isCodeType(entry.type)) continue;
+            queue.push({ entry, via: [entry.qualifiedName], depth: 0 });
+        }
+
         let truncated = false;
         const visited = new Set();
         while (queue.length) {
