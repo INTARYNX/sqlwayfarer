@@ -710,3 +710,47 @@ suite('IndexService checksums do not depend on the time zone', () => {
 		assert.notStrictEqual(service._entryChecksum(object('1')), service._entryChecksum(object('2')));
 	});
 });
+
+suite('IndexService: the index file stays where it belongs', () => {
+	let tempDir;
+
+	setup(async () => {
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sqlwayfarer-index-'));
+	});
+
+	teardown(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true });
+	});
+
+	function makeService() {
+		const service = new IndexService(makeMockCm({}), null);
+		service._indexDir = tempDir;
+		return service;
+	}
+
+	test('a server named ".." cannot write the index outside the cache folder', () => {
+		const service = makeService();
+		const file = service._getIndexFilePath('Db', '..');
+		assert.strictEqual(path.dirname(path.dirname(file)), tempDir, 'the index must stay in the cache folder');
+		assert.ok(path.resolve(file).startsWith(path.resolve(tempDir) + path.sep), 'the index must not climb out of the cache folder');
+	});
+
+	test('a database named ".." cannot either', () => {
+		const service = makeService();
+		const file = service._getIndexFilePath('..', 'testserver');
+		assert.strictEqual(path.dirname(file), path.join(tempDir, 'testserver'));
+		assert.strictEqual(path.basename(file), '_.json');
+	});
+
+	test('the index is written atomically: no half-written file is left behind', async () => {
+		const service = makeService();
+		const file = service._getIndexFilePath('Db', 'testserver');
+		await fs.mkdir(path.dirname(file), { recursive: true });
+
+		await service._saveIndex(file, { database: 'Db', formatVersion: 8, objects: { a: {} } });
+
+		assert.deepStrictEqual(JSON.parse(await fs.readFile(file, 'utf8')).objects, { a: {} });
+		const leftovers = (await fs.readdir(path.dirname(file))).filter(name => name.endsWith('.tmp'));
+		assert.deepStrictEqual(leftovers, [], 'no temporary file must survive the write');
+	});
+});

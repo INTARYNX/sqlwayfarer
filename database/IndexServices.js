@@ -761,9 +761,11 @@ class IndexService {
     // one filename) so e.g. server "SERVER\INSTANCE" + db "MyDb" can never
     // collide with server "SERVER" + db "INSTANCE_MyDb" - slug() alone can't
     // tell those apart once joined into a single string.
+    //
+    // A segment that is made of dots only (".." or ".") is turned into "_":
+    // it would otherwise walk out of the cache folder.
     _getIndexFilePath(database, server = this._getCurrentServerName()) {
-        const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
-        return path.join(this._indexDir, slug(server), `${slug(database)}.json`);
+        return path.join(this._indexDir, IndexService._pathSegment(server), `${IndexService._pathSegment(database)}.json`);
     }
 
     // Where the index files were written before the server became its own
@@ -771,6 +773,11 @@ class IndexService {
     _legacyIndexFilePath(database, server = this._getCurrentServerName()) {
         const slug = name => (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
         return path.join(this._indexDir, `${slug(server)}_${slug(database)}.json`);
+    }
+
+    // A name that is safe as one segment of a path.
+    static _pathSegment(name) {
+        return (name || '').replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/^\.+$/, '_');
     }
 
     // Moves an index cached under the old file name to its new place, the
@@ -853,7 +860,11 @@ class IndexService {
             await fs.mkdir(path.dirname(file), { recursive: true });
             let history = null;
             try { history = JSON.parse(await fs.readFile(file, 'utf8')); } catch { /* first run */ }
-            await fs.writeFile(file, JSON.stringify(addRun(history, run), null, 2), 'utf8');
+            // Atomic too: the history of the builds must not be truncated by
+            // an interrupted write.
+            const temporary = `${file}.tmp`;
+            await fs.writeFile(temporary, JSON.stringify(addRun(history, run), null, 2), 'utf8');
+            await fs.rename(temporary, file);
         } catch (error) {
             console.warn('Could not record the index statistics:', error.message);
         }
@@ -872,7 +883,14 @@ class IndexService {
 
     async _saveIndex(indexFile, index) {
         try {
-            await fs.writeFile(indexFile, JSON.stringify(index, null, 2), 'utf8');
+            // Written to a temporary file and renamed: a rename is atomic on
+            // the same file system, so an interrupted write never leaves a
+            // half-written index behind (which would only be read back as a
+            // cache to rebuild - minutes of indexing the user never asked
+            // for).
+            const temporary = `${indexFile}.tmp`;
+            await fs.writeFile(temporary, JSON.stringify(index, null, 2), 'utf8');
+            await fs.rename(temporary, indexFile);
             debug(`Saved index for ${index.database}: ${Object.keys(index.objects || {}).length} objects`);
         } catch (error) {
             console.error('Failed to save index:', error.message);
