@@ -15,6 +15,11 @@ const STATE_KEY = 'sqlwayfarer.panelState';
 class PanelStateStore {
     constructor(workspaceState) {
         this._workspaceState = workspaceState;
+        // The writes go one after the other: two tabs that save their state at
+        // the same time would otherwise read the same object, and the second
+        // one would write it back without what the first one had just put in
+        // it.
+        this._queue = Promise.resolve();
     }
 
     // What we know about one connection, or null when we know nothing yet.
@@ -29,9 +34,13 @@ class PanelStateStore {
     // a field left out keeps its previous value.
     async set(identity, patch) {
         if (!identity) return;
-        const all = { ...(this._workspaceState.get(STATE_KEY, {}) || {}) };
-        all[identity] = { ...(all[identity] || {}), ...patch };
-        await this._workspaceState.update(STATE_KEY, all);
+        const run = this._queue.then(async () => {
+            const all = { ...(this._workspaceState.get(STATE_KEY, {}) || {}) };
+            all[identity] = { ...(all[identity] || {}), ...patch };
+            await this._workspaceState.update(STATE_KEY, all);
+        });
+        this._queue = run.catch(() => {});
+        return run;
     }
 }
 
