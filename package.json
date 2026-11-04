@@ -279,7 +279,7 @@
   },
   "dependencies": {
     "antlr4": "^4.13.2",
-    "mssql": "^10.0.1",
+    "mssql": "^12.7.13",
     "piscina": "^5.3.2"
   },
   "devDependencies": {
@@ -309,5 +309,8 @@
     "webpack": "^5.107.2",
     "webpack-cli": "^5.1.4",
     "@vscode/vsce": "^4.1.0"
+  },
+  "overrides": {
+    "tedious": "^19.2.2"
   }
 }
