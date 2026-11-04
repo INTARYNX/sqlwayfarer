@@ -10,10 +10,11 @@
 
 ## Synthèse
 
-> **État au 2026-11-04, après les corrections** — les 15 commits qui suivent la
-> revue ont traité 11 des 15 constats. Le détail est dans
+> **État au 2026-11-04, après les corrections** — les 26 commits qui suivent la
+> revue ont traité 27 constats sur 37 (24 de la première revue, 13 de la
+> seconde). Le détail est dans
 > [« Ce qui a été corrigé »](#ce-qui-a-été-corrigé) en bas de ce document.
-> Les 4 constats qui restent sont signalés « ouvert ».
+> Les constats qui restent sont signalés « ouvert ».
 
 Le code est **nettement au-dessus de la moyenne** pour une extension VS Code de cette taille : l'échappement SQL est systématique, la CSP est stricte, les secrets sont dans le `SecretStorage`, le cycle de vie des panels est propre, le protocole est couvert par un test de non-régression, et la suite de tests est substantielle (1 232 cas, 0 test vide, 0 `.only`).
 
@@ -370,6 +371,120 @@ Les tests e2e (`test/e2e/*.e2e.js`) se skippent quand Playwright est absent, et 
 
 ---
 
+## 🔎 Seconde revue — 13 constats supplémentaires
+
+Une seconde passe, menée à part, a posé 13 questions sur le code déjà
+corrigé. Chacune a été **vérifiée par exécution** avant d'être traitée : ce
+qui était vrai a été corrigé, ce qui était faux a été écarté — un constat
+non reproduit est une hypothèse, pas un fait.
+
+### ✅ Corrigés
+
+#### **A1** — Un changement de connexion venu d'une autre fenêtre annulait un enregistrement
+
+`storage/ConnectionStorage.js` — le rechargement du fichier de connexions, fait
+à la création d'un panel, passait **hors** de la file d'écriture : une
+modification faite entre la lecture du fichier et son enregistrement était
+écrasée, sans bruit.
+
+*Vérifié :* un test qui change le fichier pendant qu'un enregistrement est en
+cours — l'ancien code perd l'enregistrement, le nouveau le garde.
+
+#### **A2** — Les écritures d'une connexion de production n'étaient pas toutes signalées
+
+`database/QueryRiskAnalyzer.js` — les verbes n'étaient cherchés qu'au **début**
+d'un énoncé. Une écriture dans un `IF`, dans un `ELSE`, dans un `BEGIN...END`,
+dans un `TRY...CATCH` ou derrière un CTE passait inaperçue. Étaient ignorés
+aussi : `SELECT ... INTO` (qui crée une table), un SQL dynamique écrit en
+littéral, et un `EXEC dbo.proc`.
+
+*Vérifié :* 13 cas rejoués sur l'ancien code — **9 écritures non signalées**.
+
+#### **A3** — Des tables temporatoires étaient signalées comme des écritures de production
+
+Le même fichier — l'inverse. Le mot entre le verbe et sa cible était attendu
+au plus près du verbe : `DROP TABLE IF EXISTS #tmp`, `UPDATE TOP (10) #t` et
+`CREATE INDEX ... ON #t` étaient donc signalés, alors que ce sont des
+temporaires. Et un `WHERE 1=1` n'était vu qu'à la fin de l'énoncé, donc pas
+dans un bloc.
+
+*Vérifié :* 4 fausses alertes rejouées sur l'ancien code, et un `WHERE 1=1`
+dans un `BEGIN...END` qui n'était pas vu.
+
+#### **A4** — L'événement `input` partait pour tout changement, y compris ceux du code
+
+`webview-build/sqlEditor.js` — chaque changement du document déclenchait un
+`input`, **y compris ceux faits par le code** : le texte d'un script chargé,
+le texte d'un autre onglet, les brouillons en cours de récupération. Le
+brouillon de récupération pouvait ainsi être réécrit par-dessus.
+
+*Vérifié :* `input` ne part plus que pour l'utilisateur, `content-changed`
+porte tout changement. 1 281 tests unitaires et **34 tests e2e dans un vrai
+navigateur** passent.
+
+#### **A5** — La lecture d'un fichier de snippets était quadratique
+
+`database/sqlPromptSnippet.js` — les balises ouvrantes étaient trouvées avec
+un motif qui parcourait le reste du texte pour chaque balise jamais fermée ;
+les déclarations étaient parcourues de la même façon. Un fichier fait de
+30 000 balises jamais fermées prenait **5,7 s** à être lu.
+
+*Vérifié :* le même fichier est lu en **2 ms** (mesuré), et le test échoue
+sur l'ancien code.
+
+#### **A6** — Une procédure `sp_…` de l'utilisateur était ignorée sans être signalée
+
+`database/BabelfishSqlParser.js` — tout appel dont le nom ressemblait à
+une procédure système (`sp_…`, `xp_…`) était écarté, sur l'hypothèse que
+l'utilisateur ne nomme jamais ses procédures ainsi. Celle qu'il avait créée
+était alors invisible : ni suivie, ni signalée.
+
+*Vérifié :* le graphe de requête suit maintenant `dbo.sp_ArchiveOrders` et
+atteint ses tables ; une procédure système qui n'est pas dans l'index reste
+tranquille. 3 tests échouent sur l'ancien code.
+
+#### **A7** — `SET STATISTICS XML` était basculé pour chaque batch
+
+`panels/handlers/QueryHandlers.js` — le réglage était allumé et éteint autour
+de chaque batch, et autour de chaque répétition d'un `GO N` : un script de
+cinq répétations payait dix allers-retours au serveur pour rien.
+
+*Vérifié :* une seule paire pour tout le script, éteinte même après un
+échec. 2 tests échouent sur l'ancien code.
+
+#### **A8** — Les fichiers de test n'étaient pas indentés en tabulations
+
+`AGENTS.md` dit que les tests sont indentés en tabulations ; quatre fichiers
+ne l'étaient pas.
+
+*Vérifié :* ESLint vérifie désormais l'indentation des tests, qui ne peut plus
+dériver. La correction ne touche que l'indentation du code : les fixtures SQL
+et XML, dont l'alignement fait partie, sont laissées telles quelles.
+
+#### **B9** — Le fichier temporaire de l'écriture de l'index avait un nom fixe
+
+`database/IndexServices.js` — l'index et l'historique des builds étaient
+écrits dans `….tmp` puis renommés. Deux écritures en même temps — deux
+builds de la même base — écrivaient le même fichier, et un des renommages
+échouait : l'index n'était pas sauvegardé du tout.
+
+*Vérifié :* le nom porte maintenant le pid et un compteur. Le test reproduit
+l'échec sur l'ancien code (`ENOENT` au renommage).
+
+#### **B10** — Le rapport disait « non poussés » alors que les commits l'étaient
+
+`CODE_REVIEW.md` — phrase corrigée.
+
+### 🟡 Ouvert
+
+| Constat | Pourquoi il reste | Ce qu'il faudrait |
+|---|---|---|
+| **C11** — `mssql@12` | La montée corrige la CVE `uuid`, mais elle change la forme du paquet (`@12` est en ESM) : les `require()` du code CommonJS cassent | Tester la montée sur une instance réelle, puis faire la conversion module par module |
+| **C12** — Le job `audit` en `continue-on-error` | Volontaire : habituer l'équipe à ignorer un job qui échoue est pire que le job lui-même | Le rendre bloquant quand `mssql@12` sera monté |
+| **C13** — Les tests « live » (39 cas) ne tournent pas | Ils exigent une instance SQL Server réelle | Un job `sql-integration` avec le service `mcr.microsoft.com/mssql/server` |
+
+---
+
 ## ✅ Points forts vérifiés
 
 ### Sécurité — aucune vulnérabilité confirmée
@@ -444,8 +559,8 @@ Les tests e2e (`test/e2e/*.e2e.js`) se skippent quand Playwright est absent, et 
 
 # Ce qui a été corrigé
 
-15 commits, sur la branche `dev`, non poussés. Chaque point est vérifié par
-l'exécution, pas par la lecture.
+26 commits, sur la branche `dev`. Chaque point est vérifié par l'exécution,
+pas par la lecture.
 
 | Constat | Correction | Commit |
 |---|---|---|
@@ -467,6 +582,15 @@ l'exécution, pas par la lecture.
 | **M5** — `git add -A` + publish avant commit | Exclusion des noms de secrets courants + affichage des fichiers indexés ; commit avant publish | `68a5487` |
 | **F1** — `.vscodeignore` aux mauvais noms | `README.md` / `LICENSE` ; `webview-build/` et `CODE_REVIEW.md` exclus | `3100c54` |
 | **F3** — commentaire faux sur le coût du parse | Commentaire réécrit avec le coût réel (à froid / à chaud) | `03dfb14` |
+| **A1** — un changement de connexion depuis une autre fenêtre annulait un enregistrement | Le rechargement passe dans la file d'écriture, et l'abonnement est libéré | `1d94d8f` |
+| **A2** — les écritures d'une connexion de production n'étaient pas signalées | Le verbe est cherché où qu'il soit ; `SELECT ... INTO`, le SQL dynamique littéral et `EXEC dbo.proc` sont des écritures | `a0c9519` |
+| **A3** — des tables temporatoires étaient signalées comme des écritures | `DROP TABLE IF EXISTS #tmp`, `UPDATE TOP (10) #t` et `CREATE INDEX ... ON #t` ne le sont plus ; `WHERE 1=1` est vu où qu'il soit | `a0c9519` |
+| **A4** — `input` partait pour tout changement, y compris ceux du code | `input` = l'utilisateur, `content-changed` = tout changement ; le brouillon ne suit plus que l'utilisateur | `625f770` |
+| **A5** — la lecture d'un fichier de snippets était quadratique | Scan linéaire : 30 000 balises jamais fermées lues en 2 ms au lieu de 5,7 s | `9897add` |
+| **A6** — une procédure `sp_…` de l'utilisateur était ignorée | Elle est cherchée dans l'index et suivie ; une procédure système est laissée tranquille | `27b12be` |
+| **A7** — `SET STATISTICS XML` était basculé pour chaque batch | Une seule paire pour tout le script | `6cee06a` |
+| **A8** — indentation des tests en espaces | ESLint vérifie l'indentation des tests ; les 4 fichiers sont alignés | `11fccff` |
+| **B9** — nom de fichier temporaire fixe pour l'écriture de l'index | Le nom porte le pid et un compteur ; un échec ne laisse pas de fichier derrière | `4077cd8` |
 
 ## Ce qui reste ouvert
 
@@ -474,7 +598,7 @@ l'exécution, pas par la lecture.
 |---|---|---|
 | **E3** (CVE `uuid`) | Le correctif exige `mssql@12` (rupture) | Tester la montée sur une instance réelle, puis la faire |
 | **E5** (vendor) | Sortir les libs du `.vsix` = changer le chargement du webview | Sortir `dagre`/`cytoscape` de npm et les bundler ; trancher le sort de `viz.full.render.js` (1,98 Mo parsés à chaque ouverture) |
-| **M6/M7** (tests) | `npm test` exige un bureau ; les e2e exigeent les navigateurs Playwright | Le job `unit` couvre l'essentiel ; ajouter un job `sql-integration` avec un service SQL Server pour les 39 tests live |
+| **M6/M7** (tests) | `npm test` exige un bureau ; les e2e exigent les navigateurs Playwright | Les 34 tests e2e **passent** en local une fois les navigateurs installés : le job CI doit faire `playwright install --with-deps chromium`. Le job `sql-integration` avec un service SQL Server reste à faire pour les 39 tests live |
 | **E10** (process) | Hors code | Garder la CI verte sur `dev` avant merge, et relire les commits IA avant merge |
 
 ## Un point de méthode
