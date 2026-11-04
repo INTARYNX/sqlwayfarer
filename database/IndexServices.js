@@ -16,6 +16,20 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // older cached files rebuild.
 const INDEX_FORMAT_VERSION = 8;
 
+// Counts the temporary files written in this process, so that two writes
+// that run at the same time - two builds of the same database, or a build
+// and the statistics it records - never write the same temporary file and
+// rename it over each other.
+let temporaryCounter = 0;
+
+// The name of the temporary file of an atomic write. The pid and the counter
+// are part of it: two extensions running at the same time, or two writes of
+// the same file in one extension, must not fight over the same name.
+function temporaryPath(file) {
+    temporaryCounter += 1;
+    return `${file}.tmp-${process.pid}-${temporaryCounter}`;
+}
+
 class IndexService {
     // How many objects' dependency queries run concurrently during a build.
     // mssql's default pool allows up to 10 simultaneous requests; this leaves
@@ -862,9 +876,15 @@ class IndexService {
             try { history = JSON.parse(await fs.readFile(file, 'utf8')); } catch { /* first run */ }
             // Atomic too: the history of the builds must not be truncated by
             // an interrupted write.
-            const temporary = `${file}.tmp`;
-            await fs.writeFile(temporary, JSON.stringify(addRun(history, run), null, 2), 'utf8');
-            await fs.rename(temporary, file);
+            const temporary = temporaryPath(file);
+            try {
+                await fs.writeFile(temporary, JSON.stringify(addRun(history, run), null, 2), 'utf8');
+                await fs.rename(temporary, file);
+            } catch (error) {
+                // The temporary file must not be left behind.
+                await fs.unlink(temporary).catch(() => {});
+                throw error;
+            }
         } catch (error) {
             console.warn('Could not record the index statistics:', error.message);
         }
@@ -888,10 +908,16 @@ class IndexService {
             // half-written index behind (which would only be read back as a
             // cache to rebuild - minutes of indexing the user never asked
             // for).
-            const temporary = `${indexFile}.tmp`;
-            await fs.writeFile(temporary, JSON.stringify(index, null, 2), 'utf8');
-            await fs.rename(temporary, indexFile);
-            debug(`Saved index for ${index.database}: ${Object.keys(index.objects || {}).length} objects`);
+            const temporary = temporaryPath(indexFile);
+            try {
+                await fs.writeFile(temporary, JSON.stringify(index, null, 2), 'utf8');
+                await fs.rename(temporary, indexFile);
+                debug(`Saved index for ${index.database}: ${Object.keys(index.objects || {}).length} objects`);
+            } catch (error) {
+                // The temporary file must not be left behind.
+                await fs.unlink(temporary).catch(() => {});
+                throw error;
+            }
         } catch (error) {
             console.error('Failed to save index:', error.message);
             throw error;
