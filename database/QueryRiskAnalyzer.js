@@ -63,7 +63,7 @@ function leadingDml(statement) {
     }
     const direct = text.match(/^(update|delete)\b/i);
     if (direct) return { verb: direct[1].toLowerCase(), body: text.slice(direct[0].length) };
-    if (!/^with\b/i.test(text)) return null;
+    if (!/^(?:with|if|while)\b/i.test(text)) return null;
 
     let depth = 0;
     for (let i = 0; i < text.length; i++) {
@@ -87,6 +87,15 @@ function dmlTarget(body) {
 }
 
 const isScratchTarget = name => !!name && /^[#@]/.test(name.replace(/^\[/, ''));
+
+// Whether the word at `index` is a statement verb and not a name (a column
+// called [Update], t.Delete, @insert) or a permission (GRANT UPDATE) or a
+// clause (ON DELETE CASCADE, AFTER INSERT).
+function isStatementVerb(text, index) {
+    const before = text.slice(Math.max(0, index - 20), index);
+    if (/[.@\[]\s*$/.test(before)) return false;
+    return !/\b(?:grant|deny|revoke|on|after|for|of|instead)\s+$|,\s*$/i.test(before);
+}
 
 // The verbs of the statements that change data or schema, in the order of
 // appearance and without repeats; a statement aimed at a temporary table or a
@@ -127,6 +136,7 @@ function productionWrites(sql, depth = 0) {
     for (const m of cleaned.matchAll(/\b(insert|update|delete|merge|create|alter|drop|truncate)\b/gi)) {
         // Inside a statement already handled (the clauses of a MERGE).
         if (m.index < skipUntil) continue;
+        if (!isStatementVerb(cleaned, m.index)) continue;
         const verb = m[1].toLowerCase();
         const rest = cleaned.slice(m.index + m[0].length);
         let target = null;
@@ -153,9 +163,17 @@ function productionWrites(sql, depth = 0) {
         add(verb.toUpperCase());
     }
 
-    // SELECT ... INTO creates a table: it is a write.
-    for (const m of cleaned.matchAll(/\bselect\b[^;]*?\binto\s+([^\s(;]+)/gi)) {
-        if (!isScratchTarget(m[1])) add('INSERT');
+    // SELECT ... INTO creates a table: it is a write. One pass over the text
+    // (a pattern per SELECT would walk the rest of the script each time, and
+    // a script of thousands of them takes seconds).
+    let selecting = false;
+    for (const m of cleaned.matchAll(/\b(select|insert|update|delete|merge)\b|\binto\s+([^\s(;]+)|;/gi)) {
+        if (m[2] !== undefined) {
+            if (selecting && !isScratchTarget(m[2])) add('INSERT');
+            selecting = false;
+        } else {
+            selecting = !!m[1] && m[1].toLowerCase() === 'select';
+        }
     }
 
     // A procedure called with EXEC may write anything. A system procedure
@@ -184,7 +202,10 @@ const DROP_KINDS = 'table|view|procedure|proc|function|trigger|index|database|sc
 // "WHERE 1=1" is always true. "WHERE 1=1 AND x = 5" is not: only what comes
 // after the comparison decides - nothing (the clause IS the comparison), or an
 // OR, which makes the whole clause true whatever follows it.
-const ALWAYS_TRUE_WHERE = /\bwhere\s+\(*\s*(\d+)\s*=\s*\1\s*\)*\s*(?:$|\bor\b)/i;
+//
+// The statement may end without a ";": what follows is then the next one.
+const NEXT_STATEMENT = 'select|insert|update|delete|merge|declare|set|if|else|while|exec|execute|print|begin|end|with|truncate|drop|create|alter|return|use|option';
+const ALWAYS_TRUE_WHERE = new RegExp(`\\bwhere\\s+\\(*\\s*(\\d+)\\s*=\\s*\\1\\s*\\)*\\s*(?:$|\\bor\\b|(?=\\b(?:${NEXT_STATEMENT})\\b))`, 'i');
 
 // Flags destructive statements in a query before execution:
 // - UPDATE / DELETE without WHERE, or with a WHERE that is always true
