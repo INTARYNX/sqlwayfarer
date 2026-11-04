@@ -265,7 +265,7 @@
   "scripts": {
     "build": "webpack",
     "build:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-helper.ps1",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "test": "vscode-test",
     "package": "npm run build && npm run build:helper && vsce package",
     "publish": "npm run build && npm run build:helper && vsce publish",
