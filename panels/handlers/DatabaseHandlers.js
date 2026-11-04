@@ -176,6 +176,18 @@ class DatabaseHandlers {
         }
     }
 
+    // === The handlers the page does not ask for (any more) ===
+    //
+    // The page rewrote its Explorer and dropped these three calls, so nothing
+    // asks for them and nothing reads their answers. They are kept because
+    // the services behind them are wanted (the row count in particular is
+    // exact, COUNT_BIG, where the badge of the Explorer is an estimate read
+    // from the allocation metadata) - but they are RESERVED: a page that asks
+    // for one has to handle its answer.
+    //
+    // test/webviewProtocol.test.js watches that: the day the page sends
+    // 'searchObjects', 'getTableRowCount' or 'getTableSampleData', the test
+    // fails until the matching '...Result' case is added to the page.
     async handleSearchObjects(database, searchPattern, objectTypes) {
         try {
             const objects = await this._databaseService.searchObjects(database, searchPattern, objectTypes);
@@ -225,6 +237,8 @@ class DatabaseHandlers {
         }
     }
 
+    // Reserved too, like the three handlers above: the page does not ask for
+    // it any more, and test/webviewProtocol.test.js says so.
     async handleGetImpactAnalysis(database, objectName) {
         try {
             const impactAnalysis = await this._dependencyService.getImpactAnalysis(database, objectName);

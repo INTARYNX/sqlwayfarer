@@ -82,6 +82,21 @@ suite('messages from the extension reach the page', () => {
 		}
 	});
 
+	test('the allowed unanswered results really have no case in the page either', () => {
+		// The list above is a list of answers that go nowhere. It is only
+		// honest as long as the page indeed ignores them: the day one of them
+		// is handled, it is not an "answer nobody asks for" any more.
+		const main = read('webview/main.js');
+		const handled = casesOf('webview/main.js', main.indexOf('switch (message.command)'));
+		const elsewhere = new Set();
+		for (const file of list('webview')) {
+			for (const m of read(file).matchAll(/message\.command === '(\w+)'|command === '(\w+)'/g)) elsewhere.add(m[1] || m[2]);
+		}
+		for (const result of Object.keys(ANSWERS_NOBODY_ASKS_FOR)) {
+			assert.ok(!handled.has(result) && !elsewhere.has(result), `the page now handles ${result}: it is not a reserved answer any more`);
+		}
+	});
+
 	test('the new autocompletion and index answers are handled', () => {
 		const handled = casesOf('webview/main.js');
 		for (const command of ['autocompleteSettings', 'objectParametersLoaded', 'objectColumnsLoaded', 'autocompleteObjectsLoaded', 'indexStatus', 'indexResult', 'indexingStarted', 'indexingCompleted']) {
