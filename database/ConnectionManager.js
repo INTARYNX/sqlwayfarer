@@ -26,6 +26,17 @@ class ConnectionManager {
         // falling back to 'unknown' - see IndexService._getIndexFilePath, which
         // keys the on-disk cache by server name.
         this._lastKnownServer = null;
+        // Two numbers that order the connection attempts:
+        //  - the ticket: every request for a connection gets one. When two of
+        //    them are in flight (the user clicks another server before the
+        //    first one answered), the LAST request wins, not the last to
+        //    answer - otherwise the tab ends up on a server the user left.
+        //  - the generation: bumped by dispose(). A connection that was still
+        //    opening when the panel was closed (or was reset for a reconnect)
+        //    opens nothing at all.
+        this._connectTicket = 0;
+        this._activeTicket = 0;
+        this._generation = 0;
     }
 
     // Native mssql config object instead of a hand-concatenated connection
@@ -136,14 +147,33 @@ class ConnectionManager {
         // Connect the new one first - if it fails (bad password, unreachable
         // server), the old connection stays usable instead of leaving the
         // extension with none at all.
+        const ticket = ++this._connectTicket;
+        const generation = this._generation;
         const poolConfig = await this.buildConnectionConfig(connectionConfig);
         const newConnection = await this._openPool(poolConfig);
+
+        // The panel was closed (or the connection was reset for a reconnect)
+        // while this pool was opening: it is of no use to anyone any more.
+        if (generation !== this._generation) {
+            await newConnection.close().catch(() => { /* already gone */ });
+            return;
+        }
+
+        // A newer connection already took over: this one is not the one the
+        // user asked for last, so it is closed. A newer one that FAILED is a
+        // different matter - this connection is then still the best the user
+        // has, and it stays.
+        if (this._activeTicket > ticket) {
+            await newConnection.close().catch(() => { /* already gone */ });
+            return;
+        }
 
         if (this._activeConnection) {
             await this._activeConnection.close().catch(() => { /* already gone */ });
         }
         this._activeConnection = newConnection;
         this._activeConfig = connectionConfig;
+        this._activeTicket = ticket;
         this._adoptTokenSource(poolConfig);
         this._lastKnownServer = connectionConfig.server;
     }
@@ -265,6 +295,8 @@ class ConnectionManager {
     }
 
     async dispose() {
+        // Any connection still opening now belongs to a panel that is gone.
+        this._generation++;
         if (this._activeTokenSource) {
             this._activeTokenSource.stop();
             this._activeTokenSource = null;

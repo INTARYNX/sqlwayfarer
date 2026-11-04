@@ -358,23 +358,29 @@ class SqlWayfarerPanel {
         if (this._connecting || this._disposed) return;
         this._connecting = true;
         try {
-            if (this._connectionManager.isConnected()) {
-                this._restorePanelState();
-                this.post({ command: 'connectionStatus', success: true, message: 'Connected successfully!', production: this._isProduction() });
-                await this._restoreSchemaSource();
-                await this._db.handleGetDatabases();
-                return;
-            }
-            // A connection saved with a database opens on it.
-            const saved = this._connectionStorage.getConnection(this.connectionName);
-            if (saved && saved.database) this._currentSelectedDatabase = saved.database;
-            const ok = await this._conn.handleConnectWithSaved(this.connectionName);
-            if (ok) {
-                await this._restoreSchemaSource();
-                await this._db.handleGetDatabases();
-            }
+            await this._connectNow();
         } finally {
             this._connecting = false;
+        }
+    }
+
+    // The connection itself, without the guard: _reconnect() holds it while
+    // it resets the tab, then calls this.
+    async _connectNow() {
+        if (this._connectionManager.isConnected()) {
+            this._restorePanelState();
+            this.post({ command: 'connectionStatus', success: true, message: 'Connected successfully!', production: this._isProduction() });
+            await this._restoreSchemaSource();
+            await this._db.handleGetDatabases();
+            return;
+        }
+        // A connection saved with a database opens on it.
+        const saved = this._connectionStorage.getConnection(this.connectionName);
+        if (saved && saved.database) this._currentSelectedDatabase = saved.database;
+        const ok = await this._conn.handleConnectWithSaved(this.connectionName);
+        if (ok) {
+            await this._restoreSchemaSource();
+            await this._db.handleGetDatabases();
         }
     }
 
@@ -396,13 +402,18 @@ class SqlWayfarerPanel {
 
     async _reconnect() {
         if (this._connecting || this._disposed) return;
-        this._connectionLost = false;
-        try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error closing the lost connection:', error); }
-        await this._schemaSource.reset();
-        await this._syntax.reset();
-        await this._query.resetSession();
-        await this._compare.reset();
-        await this._connect();
+        this._connecting = true;
+        try {
+            this._connectionLost = false;
+            try { await this._connectionManager.dispose(); } catch (error) { console.warn('Error closing the lost connection:', error); }
+            await this._schemaSource.reset();
+            await this._syntax.reset();
+            await this._query.resetSession();
+            await this._compare.reset();
+            await this._connectNow();
+        } finally {
+            this._connecting = false;
+        }
     }
 
     // The query editor's autocompletion follows the sqlwayfarer.autocomplete.* settings, live.

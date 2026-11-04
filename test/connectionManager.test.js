@@ -148,7 +148,9 @@ suite('ConnectionManager.buildConnectionConfig (Entra ID)', () => {
 suite('ConnectionManager.connect', () => {
 	// Each connection is a pool of its own (never mssql's global one): the pool's connect() is what is faked.
 	let originalConnect;
-	const stubConnect = fn => { sql.ConnectionPool.prototype.connect = function () { return fn(); }; };
+	// The fake is given the server of the pool it opens, so a test can make
+	// one connection answer before the other.
+	const stubConnect = fn => { sql.ConnectionPool.prototype.connect = function () { return fn(this.config && this.config.server); }; };
 
 	setup(() => {
 		originalConnect = sql.ConnectionPool.prototype.connect;
@@ -202,6 +204,62 @@ suite('ConnectionManager.connect', () => {
 
 		assert.strictEqual(cm.isConnected(), false);
 		assert.strictEqual(cm.getServerName(), 'my-server', 'the index cache key must stay stable through a reconnect gap');
+	});
+
+	test('two connections in flight: the last one asked for wins, not the last to answer', async () => {
+		const cm = manager();
+		const closed = [];
+		// The first server answers slowly, the second one quickly: the second
+		// one is the last request, so it must be the one that stays, even
+		// though the first one answers last.
+		stubConnect(async server => {
+			await new Promise(resolve => setTimeout(resolve, server === 'slow-server' ? 60 : 5));
+			return { close: async () => { closed.push(server); } };
+		});
+
+		await Promise.all([
+			cm.connect({ server: 'slow-server' }),
+			cm.connect({ server: 'fast-server' })
+		]);
+
+		assert.strictEqual(cm.getServerName(), 'fast-server', 'the last connection asked for is the one that stays');
+		assert.ok(closed.includes('slow-server'), 'the connection that lost is closed, not left open');
+	});
+
+	test('a newer connection that fails leaves the older one active', async () => {
+		const cm = manager();
+		stubConnect(async server => {
+			if (server === 'bad-server') throw new Error('ELOGIN: wrong password');
+			await new Promise(resolve => setTimeout(resolve, 40));
+			return { close: async () => {} };
+		});
+
+		const slow = cm.connect({ server: 'good-server' });
+		const failing = cm.connect({ server: 'bad-server' });
+
+		await assert.rejects(() => failing);
+		await slow;
+
+		// The connection that answered is still the best the user has: the
+		// failed attempt must not leave the tab with no connection at all.
+		assert.strictEqual(cm.isConnected(), true);
+		assert.strictEqual(cm.getServerName(), 'good-server');
+	});
+
+	test('a connection that opens after the panel was closed is closed at once', async () => {
+		const cm = manager();
+		let closed = false;
+		stubConnect(async () => {
+			await new Promise(resolve => setTimeout(resolve, 40));
+			return { close: async () => { closed = true; } };
+		});
+
+		const connecting = cm.connect({ server: 'my-server' });
+		await cm.dispose();
+		await connecting;
+
+		assert.strictEqual(closed, true, 'the pool that opened after the panel was closed must not stay open');
+		assert.strictEqual(cm.isConnected(), false);
 	});
 });
 
