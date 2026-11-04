@@ -143,6 +143,14 @@ suite('sqlPromptSnippet: files made to be slow', () => {
 		within(1500, '<CodeSnippet><Title>t</Title><Code>x</Code>' + '<Declarations>'.repeat(60000) + '</CodeSnippet>');
 	});
 
+	test('an opening tag that is never closed does not make the scan walk the text again and again', () => {
+		// A tag whose ">" is missing: the pattern that looked for it used to
+		// walk the rest of the file for each one of them - quadratic.
+		within(1500, '<CodeSnippet '.repeat(30000));
+		within(1500, '<CodeSnippet a="1"'.repeat(30000));
+		within(1500, wrap('<Declarations>' + '<Literal '.repeat(30000) + '</Declarations>'));
+	});
+
 	test('a self-closing tag with attributes is empty, not stretched to the next closing tag', () => {
 		const result = within(500, '<CodeSnippet><Title a="1"/><Shortcut>zz</Shortcut><Code>SELECT 1</Code></CodeSnippet>');
 		assert.strictEqual(result.snippets[0].name, 'zz', 'no title: the shortcut names it');
