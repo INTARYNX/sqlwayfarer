@@ -10,6 +10,11 @@
 
 ## Synthèse
 
+> **État au 2026-11-04, après les corrections** — les 15 commits qui suivent la
+> revue ont traité 11 des 15 constats. Le détail est dans
+> [« Ce qui a été corrigé »](#ce-qui-a-été-corrigé) en bas de ce document.
+> Les 4 constats qui restent sont signalés « ouvert ».
+
 Le code est **nettement au-dessus de la moyenne** pour une extension VS Code de cette taille : l'échappement SQL est systématique, la CSP est stricte, les secrets sont dans le `SecretStorage`, le cycle de vie des panels est propre, le protocole est couvert par un test de non-régression, et la suite de tests est substantielle (1 232 cas, 0 test vide, 0 `.only`).
 
 Les problèmes réels ne sont pas dans le code métier mais **autour** :
@@ -434,3 +439,54 @@ Les tests e2e (`test/e2e/*.e2e.js`) se skippent quand Playwright est absent, et 
 **Non vérifié (délégué à l'auteur, environnement requis) :** comportement contre une instance SQL Server réelle (aucun serveur dans l'environnement d'audit) ; exécution des tests e2e Playwright (navigateurs non installés) ; exécution de `npm test` (vscode-test) qui exige un bureau ; audit de sécurité ligne à ligne de `helper/SqlWayfarerSspi.cs` (22 Ko de C# natif) au-delà de l'analyse de son lancement ; revue exhaustive de la grammaire ANTLR `database/tsql-grammar/*.g4` (source générée de 5,71 Mo).
 
 **Note :** quatre sous-auditeurs délégués n'ont pas eu accès au système de fichiers dans leur session ; leurs grilles de contrôle ont été conservées comme pistes, mais **aucun constat de ce rapport ne provient d'eux** — tout est vérifié ci-dessus par exécution directe.
+
+---
+
+# Ce qui a été corrigé
+
+15 commits, sur la branche `dev`, non poussés. Chaque point est vérifié par
+l'exécution, pas par la lecture.
+
+| Constat | Correction | Commit |
+|---|---|---|
+| **C1** — CI jamais verte, `dev` non couverte | CI déclenchée sur `main` **et** `dev` (push + PR) ; 4 jobs : `unit`, `test`, `package`, `audit` ; `npm run build` dans la CI ; cache npm ; le job `package` liste le contenu du `.vsix` et échoue si le webview ou un bundle manque | `9083758` |
+| **C2** — suite rouge (timeout ANTLR) | Timeout mocha à 10 s (`.mocharc.json` + `.vscode-test.mjs`). **Résultat : 1 274 passing, 0 échec** | `c0d742f` |
+| **E1** — `lint` ne peut jamais échouer | Règles en `error`, script `--max-warnings=0`, les 3 warnings corrigés | `a08a112`, `d6661e9` |
+| **E2** — `sourceType: "module"` sur du CommonJS | `sourceType: "commonjs"` par défaut, `module` seulement pour le bundle CodeMirror | `a08a112` |
+| **E3** — 16 CVE npm | **Nuancé** : `serialize-javascript` (le « high ») vient de `@vscode/test-cli` → chaîne de build seule, pas l'extension livrée ; `uuid` vient de `mssql` → exigence `mssql@12` (rupture). Le job `audit` est en `continue-on-error` pour ne pas habituer à l'ignorer | `9083758` |
+| **E4** — la CI ne construit pas | Job `package` : build + contrôle du contenu du paquet | `9083758` |
+| **E5** — vendor sans version ni licence | `webview/vendor/VERSIONS.md` : versions, licences, et l'avertissement que les copies peuvent diverger de `node_modules`. La migration vers npm reste à faire (refactor lourd) | `2302301` |
+| **E6** — `connect()` concurrent perd le dernier choix | Ticket par demande : la **dernière demandée** gagne, pas la dernière à répondre ; une connexion plus récente qui **échoue** laisse la précédente active ; une connexion qui s'ouvre après la fermeture du panel est fermée aussitôt. 3 tests ajoutés | `7eb8cea` |
+| **E7** — cache d'index écrit non atomiquement | Écriture dans un fichier temporaire + `rename()` (atomique), pour l'index et l'historique des builds | `8d0b941` |
+| **E8** — slug laissant passer `..` | Un segment fait uniquement de points devient `_` | `8d0b941` |
+| **E9** — 5 réponses sans consommateur | **Conservées** : le commit `ab3a19b` les corrigeait volontairement il y a 2 jours. Elles sont désormais **documentées comme réservées**, et le test du protocole vérifie les deux sens | `5417e1c` |
+| **E10** — 158 commits sans CI ni revue | Traité par C1 (la CI couvre enfin `dev`). La part « revue humaine » reste une question de process | `9083758` |
+| **M1** — commande absente du manifeste | `sqlwayfarer.openConnection` déclarée | `f552150` |
+| **M3** — `panelState` : deux onglets s'écrasaient | File d'attente sur les écritures (vérifié : l'ancien code perdait un état) | `dab2772`→`dab2772` |
+| **M4** — suppression effaçait un password | Le secret n'est plus effacé qu'une fois la connexion confirmée | `9d530e9` |
+| **M5** — `git add -A` + publish avant commit | Exclusion des noms de secrets courants + affichage des fichiers indexés ; commit avant publish | `68a5487` |
+| **F1** — `.vscodeignore` aux mauvais noms | `README.md` / `LICENSE` ; `webview-build/` et `CODE_REVIEW.md` exclus | `3100c54` |
+| **F3** — commentaire faux sur le coût du parse | Commentaire réécrit avec le coût réel (à froid / à chaud) | `03dfb14` |
+
+## Ce qui reste ouvert
+
+| Constat | Pourquoi il reste | Ce qu'il faudrait |
+|---|---|---|
+| **E3** (CVE `uuid`) | Le correctif exige `mssql@12` (rupture) | Tester la montée sur une instance réelle, puis la faire |
+| **E5** (vendor) | Sortir les libs du `.vsix` = changer le chargement du webview | Sortir `dagre`/`cytoscape` de npm et les bundler ; trancher le sort de `viz.full.render.js` (1,98 Mo parsés à chaque ouverture) |
+| **M6/M7** (tests) | `npm test` exige un bureau ; les e2e exigeent les navigateurs Playwright | Le job `unit` couvre l'essentiel ; ajouter un job `sql-integration` avec un service SQL Server pour les 39 tests live |
+| **E10** (process) | Hors code | Garder la CI verte sur `dev` avant merge, et relire les commits IA avant merge |
+
+## Un point de méthode
+
+Deux constats de ce rapport ont été **corrigés à l'envers** après vérification,
+et c'est le but de la revue :
+
+- **M2** (import de connexions) : la fusion volontaire du mot de passe existant
+  (`mergeIntoExisting`, documenté) avait été lue comme un défaut. Le patch
+  aurait cassé l'intention : il a été revert.
+- **E3** : le « high » de `npm audit` est dans la chaîne de test, pas dans
+  l'extension livrée. La sévérité a été revue à la baisse.
+
+Les deux cas sont le rappel qu'un constat de revue qui n'a pas été
+reproduction est une hypothèse, pas un fait.
