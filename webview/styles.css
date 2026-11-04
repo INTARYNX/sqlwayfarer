@@ -1145,6 +1145,9 @@ td.rs-null {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    /* A flex item in a row stretches to its content by default: a wide result
+       grid would widen the whole section instead of scrolling in its pane. */
+    min-width: 0;
     gap: 12px;
     /* anchor for the absolutely-positioned autocomplete dropdown */
     position: relative;
@@ -1709,6 +1712,29 @@ body.vscode-high-contrast .qp-tt-header {
 .result-set-pane {
     flex: 1;
     min-height: 0;
+}
+
+/* A grid pane: the actions bar (filter, Copy, CSV...) stays put, only the
+   table scrolls - in both directions, with its sticky header. */
+.result-set-pane.rs-grid-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.rs-grid-pane > .result-set-actions {
+    flex: 0 0 auto;
+}
+
+.rs-grid-pane > .truncation-note {
+    flex: 0 0 auto;
+}
+
+.rs-grid-pane > .result-set-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
 }
 
 #queryResultsContainer table {
