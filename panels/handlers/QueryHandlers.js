@@ -235,7 +235,17 @@ class QueryHandlers {
             return;
         }
 
+        let planOn = false;
         try {
+            // SET STATISTICS XML is a session setting: it is turned on once
+            // for the whole script and turned back off when it ends. Turning
+            // it on and off around every batch - or every repetition of a
+            // "GO N" batch - costs two extra round-trips to the server each
+            // time, for nothing.
+            if (actualPlan) {
+                planOn = true;
+                await conn.createRequest().batch('SET STATISTICS XML ON');
+            }
             // All GO-separated batches (and GO-N repetitions) share this one
             // pinned connection, exactly like SSMS does for a multi-batch
             // script - otherwise a `USE`, SET option or #temp table from an
@@ -269,6 +279,10 @@ class QueryHandlers {
                 }
             }
         } finally {
+            if (planOn) {
+                // Back off even after a failure or a cancel: the connection goes back to the session.
+                try { await conn.createRequest().batch('SET STATISTICS XML OFF'); } catch { /* the connection is gone */ }
+            }
             this._currentRequest = null;
             this._executing = false;
         }
@@ -330,26 +344,17 @@ class QueryHandlers {
     // UI. Returns the batch's raw (unformatted) errors, if any - formatting
     // needs batch.startLine, which only the caller knows.
     async _executeOneBatch(conn, database, batchSql, applyUsePrefix, actualPlan, rowCap, resultSets, timeline, rowsAffected, planXmls) {
-        // The USE and the plan setting go as batches of their own: a batch
-        // that starts with CREATE/ALTER PROCEDURE, VIEW, FUNCTION or TRIGGER
-        // must be the first statement of its batch.
+        // The USE goes as a batch of its own: a batch that starts with
+        // CREATE/ALTER PROCEDURE, VIEW, FUNCTION or TRIGGER must be the
+        // first statement of its batch. The plan setting is the caller's:
+        // it is a session setting, on for the whole script.
         const errors = [];
-        let planOn = false;
         try {
             if (applyUsePrefix) await this._useDatabase(conn, database);
-            if (actualPlan) {
-                planOn = true;
-                await conn.createRequest().batch('SET STATISTICS XML ON');
-            }
             // A cancel that came in meanwhile: the script never starts.
             if (!this._cancelReason) errors.push(...await this._streamBatch(conn, batchSql, actualPlan, rowCap, resultSets, timeline, rowsAffected, planXmls));
         } catch (error) {
             errors.push(error);
-        } finally {
-            if (planOn) {
-                // Back off even after a failure or a cancel: the connection goes back to the session.
-                try { await conn.createRequest().batch('SET STATISTICS XML OFF'); } catch { /* the connection is gone */ }
-            }
         }
         return errors;
     }
