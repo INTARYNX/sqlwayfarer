@@ -2854,43 +2854,50 @@ table.fp-cols .fp-center { text-align: center; }
 
 /* === NOTIFICATIONS === */
 .database-ready-glow {
-    animation: database-ready-pulse 1s ease-in-out 2;
-    border-color: var(--vscode-button-background) !important;
+    animation: database-ready-pulse 1.2s ease-out 2;
+    border-color: var(--vscode-focusBorder) !important;
 }
 
 @keyframes database-ready-pulse {
     0% {
-        box-shadow: 0 0 5px var(--vscode-button-background);
-        transform: scale(1);
-    }
-    50% {
-        box-shadow: 0 0 20px var(--vscode-button-background),
-                    0 0 30px rgba(0, 123, 255, 0.4);
-        transform: scale(1.02);
+        box-shadow: 0 0 0 0 var(--vscode-focusBorder);
     }
     100% {
-        box-shadow: 0 0 5px var(--vscode-button-background);
-        transform: scale(1);
+        box-shadow: 0 0 0 6px transparent;
     }
 }
 
 .database-ready-notification {
     position: absolute;
     top: 100%;
-    margin-top: 6px;
+    margin-top: 10px;
     right: 0;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    padding: 8px 15px;
-    border-radius: 6px;
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-widget-border, transparent));
+    padding: 7px 12px;
+    border-radius: 8px;
     font-size: 12px;
-    font-weight: 500;
     display: flex;
     align-items: center;
-    gap: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    animation: notification-slide-in 0.3s ease-out;
+    gap: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    animation: notification-slide-in 0.25s ease-out;
     z-index: 1000;
+}
+
+.database-ready-notification::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    right: 24px;
+    width: 8px;
+    height: 8px;
+    background: inherit;
+    border: inherit;
+    border-right: 0;
+    border-bottom: 0;
+    transform: rotate(45deg);
 }
 
 .database-ready-notification.fade-out {
@@ -2921,18 +2928,7 @@ table.fp-cols .fp-center { text-align: center; }
 
 .notification-icon {
     font-size: 14px;
-    animation: notification-sparkle 1s ease-in-out infinite alternate;
-}
-
-@keyframes notification-sparkle {
-    from {
-        opacity: 0.7;
-        transform: scale(1);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1.1);
-    }
+    color: var(--vscode-textLink-foreground);
 }
 
 .notification-text {
