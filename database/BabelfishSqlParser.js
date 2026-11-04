@@ -722,7 +722,7 @@ class JoinGraphVisitor {
             const nested = node.table_source_item ? node.table_source_item() : [];
             if (nested.length === 2) this._recordJoin(node, nested, scopes, ctes);
         } else if (node.ruleIndex === TSqlParser.RULE_table_sources) {
-            this._recordCommaJoins(node, scopes, ctes);
+            this._recordCommaJoins(node, scopes);
         }
 
         const count = node.getChildCount();
@@ -730,7 +730,7 @@ class JoinGraphVisitor {
     }
 
     // FROM a, b, c: comma joins have no condition, the partner is the order.
-    _recordCommaJoins(node, scopes, ctes) {
+    _recordCommaJoins(node, scopes) {
         const items = node.table_source_item ? node.table_source_item() : [];
         if (items.length < 2) return;
         const left = this._sources(items[0], scopes);
@@ -888,7 +888,7 @@ class JoinGraphVisitor {
         if (this._tokens && ctx.start && ctx.stop) {
             try {
                 return this._tokens.getText({ start: ctx.start.tokenIndex, stop: ctx.stop.tokenIndex }).trim();
-            } catch (e) { /* fall back to the concatenated text */ }
+            } catch { /* fall back to the concatenated text */ }
         }
         return ctx.getText();
     }
@@ -912,7 +912,7 @@ class JoinGraphVisitor {
         const before = [];
         for (let i = keyword.index - 1; i >= keyword.index - 3 && i >= 0; i--) {
             let token = null;
-            try { token = this._tokens.get(i); } catch (e) { token = null; }
+            try { token = this._tokens.get(i); } catch { token = null; }
             if (!token) continue;
             const text = String(token.text || '').toUpperCase();
             if (text === 'OUTER') continue;

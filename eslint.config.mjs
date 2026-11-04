@@ -3,6 +3,7 @@ import globals from "globals";
 export default [{
     ignores: ["dist/**", "webview/vendor/**", "webview/codicons/**", ".vscode-test/**", "database/generated/**"],
 }, {
+    // The extension host: CommonJS (require / module.exports), Node runtime.
     files: ["**/*.js"],
     languageOptions: {
         globals: {
@@ -12,17 +13,17 @@ export default [{
         },
 
         ecmaVersion: 2022,
-        sourceType: "module",
+        sourceType: "commonjs",
     },
 
     rules: {
-        "no-const-assign": "warn",
-        "no-this-before-super": "warn",
-        "no-undef": "warn",
-        "no-unreachable": "warn",
-        "no-unused-vars": "warn",
-        "constructor-super": "warn",
-        "valid-typeof": "warn",
+        "no-const-assign": "error",
+        "no-this-before-super": "error",
+        "no-undef": "error",
+        "no-unreachable": "error",
+        "no-unused-vars": "error",
+        "constructor-super": "error",
+        "valid-typeof": "error",
     },
 }, {
     // The e2e suites run callbacks inside the browser page (window, document...).
@@ -75,12 +76,13 @@ export default [{
 
     rules: {
         // Top-level classes/consts are the shared API of the other scripts.
-        "no-unused-vars": ["warn", { vars: "local" }],
+        "no-unused-vars": ["error", { vars: "local" }],
     },
 }, {
     // CodeMirror bundle entry point (ES modules, built by webpack).
     files: ["webview-build/**/*.js"],
     languageOptions: {
+        sourceType: "module",
         globals: { ...globals.browser },
     },
 }];
