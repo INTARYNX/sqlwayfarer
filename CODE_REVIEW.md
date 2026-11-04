@@ -241,6 +241,31 @@ n'avaient **aucun** test. Ils ont révélé que le correctif A4 (l'événement
 `input` ne part plus que pour l'utilisateur) **n'était protégé par rien** : le
 test écrit pour cela échoue sur le code d'avant A4.
 
+### Le garde-fou
+
+Un angle mort qu'on a mesuré revient toujours. La suite unitaire garde donc
+sa couverture (`NODE_V8_COVERAGE`), et `scripts/coverage-check.js` compare
+les fichiers source qu'**aucun** test ne charge avec la liste écrite dans
+`test/coverage-baseline.json` : **un fichier qui apparaît dans cette liste
+fait échouer le build**.
+
+L'état aujourd'hui : 57 fichiers sur 75 sont chargés par la suite unitaire ;
+18 ne le sont pas ; parmi eux, **6 ne sont chargés par aucune suite** —
+
+| Fichier | Lignes | Pourquoi |
+|---|---|---|
+| `extension.js` | 61 | Le point d'entrée : son activation n'est pas exécutée par un test |
+| `panels/SnippetSidebarProvider.js` | 161 | La barre latérale (connexions + snippets) : jamais chargée |
+| `panels/handlers/connectionImportUi.js` | 72 | Les dialogues d'import de connexions |
+| `panels/handlers/snippetImportUi.js` | 51 | Les dialogues d'import de snippets |
+| `panels/buildInfo.js` | 18 | La date de build |
+| `database/generate-tsql-parser.js` | 116 | Un script de développement, pas du code livré |
+
+C'est la liste à Reduce. Elle est courte parce que la carte de couverture
+est mesurée : « le fichier est-il mentionné dans un test » est une **mauvaise
+mesure** (un fichier peut être exercé sans être nommé), et la première
+version de cette carte était fausse.
+
 ### Ce que cela dit du rapport que vous lisez
 
 Les constats de la première partie sont **vérifiés**, mais leur **couverture
@@ -718,6 +743,8 @@ pas par la lecture.
 | **B9** — nom de fichier temporaire fixe pour l'écriture de l'index | Le nom porte le pid et un compteur ; un échec ne laisse pas de fichier derrière | `4077cd8` |
 | **C3** — les réglages d'Actions interdisent les actions externes : tout workflow qui en utilise une échoue avant son premier job | La CI ne dépend plus d'aucune action externe : le code est récupéré avec `git`, le Node du runner est utilisé | `58b4f8b` |
 | **C2** (suite) — quatre fautes que la suite locale ne pouvait pas voir, parce que les fichiers exclus de `test:unit` n'étaient jamais exécutés | Le panneau de test est construit comme l'extension le construit ; le journal de débogage a un substitut à la console ; les captures d'écran vont dans le temporaire ; les tests live tournent dans VS Code | `2c902ee`, `4c86db4`, `1968d84`, `3f328cd` |
+| **M6** (suite) — 654 lignes de code webview sans un seul test (les onglets de requête, les brouillons de récupération, les fichiers) | `test/e2e/queryFiles.e2e.js` : six tests, qui protègent aussi le correctif de l'événement `input` — rien ne le protégeait | `c3a5478` |
+| **M6** (suite) — les angles morts peuvent revenir sans qu'on le voie | La suite garde sa couverture ; `scripts/coverage-check.js` échoue quand un fichier source n'est plus chargé par aucun test | `8071ed1` |
 
 ## Ce qui reste ouvert
 
