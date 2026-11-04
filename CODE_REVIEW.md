@@ -188,6 +188,68 @@ existé.* Une suite qui exclut son propre cœur n'est pas une suite.
 
 ---
 
+## 🧭 La méthode, et ce qu'elle a coûté
+
+Cette revue a lu le code. Elle l'a **mal lu**, et le prix s'est vu quand la
+CI est enfin devenue verte : elle a trouvé quatre fautes que rien, dans la
+suite locale, ne pouvait voir.
+
+### Le défaut
+
+L'instrument — l'exécutable qui trouve les fautes — était **cassé**, et il a
+été traité comme **un constat parmi d'autres** (C1) au lieu d'être la
+**question première**. Un rapport de revue qui lit du code ne trouve que ce
+que le code montre ; un rapport qui **exécute** trouve ce que le code fait.
+
+La suite locale a son propre angle mort, et il est mesurable :
+
+| Ce que la suite locale exécute | Ce qu'elle n'exécute pas |
+|---|---|
+| 1 282 tests unitaires | 8 fichiers de test exclus, dont l'état du panel et les handlers de requêtes |
+| — | les 34 tests du webview (il faut un navigateur) |
+| — | les tests « live » (il faut un SQL Server) |
+
+Ces angles morts ne sont pas des détails : c'est là que les fautes étaient.
+Le test de l'état du panel construisait le panneau **sans le stockage des
+connexions** — le constructeur levait — et personne ne l'avait vu, parce que
+le fichier n'avait jamais été exécuté depuis que le panneau lit la connexion
+sauvegardée. Le journal de débogage remplaçait la console globale : dans
+l'hôte d'extension, `console.log` est un accesseur qui **ignore** les
+affectations, le test ne pouvait donc rien capturer — et il ne le pouvait
+que **dans** l'hôte d'extension. Les captures d'écran de l'autocomplétion
+allaient dans `/home/claude/smoke/out` : un chemin qui n'existe que sur la
+machine qui a écrit le test.
+
+### La correction
+
+1. **L'instrument d'abord.** La CI doit être verte avant toute revue : c'est
+   elle qui exécute ce qu'aucun poste de travail ne peut exécuter. Elle
+   l'est aujourd'hui (six jobs, dont un vrai SQL Server et un vrai
+   navigateur).
+2. **La carte de couverture avant la lecture.** Quels fichiers source ne sont
+   jamais chargés par une suite ? (Couverture V8 mesurée, pas devinée : la
+   carte « le fichier est-il mentionné dans un test » est fausse — un fichier
+   peut être exercé sans être nommé.)
+3. **Les angles morts d'abord**, pas les fichiers bien couverts.
+4. **Chaque constat vérifié par exécution** — et, quand c'est possible, par
+   un test qui **échoue sur l'ancien code**.
+
+Le premier passage sur les angles morts a produit la suite
+`test/e2e/queryFiles.e2e.js` : six tests sur les onglets de requête, les
+brouillons de récupération et les fichiers — 654 lignes de code webview qui
+n'avaient **aucun** test. Ils ont révélé que le correctif A4 (l'événement
+`input` ne part plus que pour l'utilisateur) **n'était protégé par rien** : le
+test écrit pour cela échoue sur le code d'avant A4.
+
+### Ce que cela dit du rapport que vous lisez
+
+Les constats de la première partie sont **vérifiés**, mais leur **couverture
+était inégale** : les fichiers couverts par une suite ont été regardés de
+près, les autres ont été lus. Les seconds sont plus justes que les premiers,
+parce qu'ils ont été trouvés par l'exécution.
+
+---
+
 ## 🟠 Élevé
 
 ### E1 — `npm run lint` ne peut jamais échouer
