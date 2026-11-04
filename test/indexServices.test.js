@@ -750,7 +750,48 @@ suite('IndexService: the index file stays where it belongs', () => {
 		await service._saveIndex(file, { database: 'Db', formatVersion: 8, objects: { a: {} } });
 
 		assert.deepStrictEqual(JSON.parse(await fs.readFile(file, 'utf8')).objects, { a: {} });
-		const leftovers = (await fs.readdir(path.dirname(file))).filter(name => name.endsWith('.tmp'));
+		const leftovers = (await fs.readdir(path.dirname(file))).filter(name => name.includes('.tmp'));
 		assert.deepStrictEqual(leftovers, [], 'no temporary file must survive the write');
+	});
+
+	// Two writes of the same file at the same time must not write the same
+	// temporary file: the second one would overwrite the first one's, and one
+	// of the renames would fail - or the file would keep the wrong content.
+	test('two writes of the same index at the same time do not step on each other', async () => {
+		const service = makeService();
+		const file = service._getIndexFilePath('Db', 'testserver');
+		await fs.mkdir(path.dirname(file), { recursive: true });
+
+		// The rename of a write waits for the temporary files of both writes
+		// to be there: that is the moment the two writes collide.
+		const realWrite = fs.writeFile;
+		const realRename = fs.rename;
+		let written = 0;
+		let release;
+		const bothWritten = new Promise(resolve => { release = resolve; });
+		fs.writeFile = async (target, ...rest) => {
+			const done = realWrite(target, ...rest);
+			written += 1;
+			if (written === 2) release();
+			return done;
+		};
+		fs.rename = async (from, to) => {
+			await bothWritten;
+			return realRename(from, to);
+		};
+		try {
+			await Promise.all([
+				service._saveIndex(file, { database: 'Db', formatVersion: 8, objects: { a: {} } }),
+				service._saveIndex(file, { database: 'Db', formatVersion: 8, objects: { b: {} } })
+			]);
+		} finally {
+			fs.writeFile = realWrite;
+			fs.rename = realRename;
+		}
+
+		const saved = JSON.parse(await fs.readFile(file, 'utf8'));
+		assert.ok(saved.objects.a || saved.objects.b, 'one of the two writes is the file that is kept');
+		const leftovers = (await fs.readdir(path.dirname(file))).filter(name => name.includes('.tmp'));
+		assert.deepStrictEqual(leftovers, [], 'no temporary file must survive the writes');
 	});
 });
