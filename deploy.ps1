@@ -52,14 +52,17 @@ if (-not $?) { Fail "Build failed" }
 & npm run build:helper
 if (-not $?) { Fail "Helper build failed" }
 
+# The commit comes before the publish: a version that is on the Marketplace
+# always has its commit, and a publish that fails leaves a commit that can be
+# retried - the other way round, a failed commit left a published version
+# that no branch explained.
+Write-Host "Committing v$newVersion..."
+& (Join-Path $root 'commit.ps1')
+if (-not $?) { Fail "Commit failed" }
+
 # Publish
 Write-Host "Publishing v$newVersion..."
 & $vsce publish
 if (-not $?) { Fail "Publish failed" }
-
-# Commit
-Write-Host "Committing v$newVersion..."
-& (Join-Path $root 'commit.ps1')
-if (-not $?) { Fail "Commit failed" }
 
 Write-Host "Published and committed v$newVersion successfully."
