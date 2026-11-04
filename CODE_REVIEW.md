@@ -10,11 +10,14 @@
 
 ## Synthèse
 
-> **État au 2026-11-04, après les corrections** — les 26 commits qui suivent la
-> revue ont traité 28 constats sur 38 (25 de la première revue, 13 de la
+> **État au 2026-11-04, après les corrections** — les 30 commits qui suivent la
+> revue ont traité 30 constats sur 38 (25 de la première revue, 13 de la
 > seconde). Le détail est dans
 > [« Ce qui a été corrigé »](#ce-qui-a-été-corrigé) en bas de ce document.
 > Les constats qui restent sont signalés « ouvert ».
+>
+> **La CI est verte** : six jobs (`unit`, `test`, `e2e`, `package`, `audit`,
+> `sql-integration`), tous au vert sur `dev`.
 
 Le code est **nettement au-dessus de la moyenne** pour une extension VS Code de cette taille : l'échappement SQL est systématique, la CSP est stricte, les secrets sont dans le `SecretStorage`, le cycle de vie des panels est propre, le protocole est couvert par un test de non-régression, et la suite de tests est substantielle (1 232 cas, 0 test vide, 0 `.only`).
 
@@ -161,6 +164,27 @@ est récupéré avec `git`, et le Node du runner est utilisé. Les jobs sont
 ceux d'avant, plus les tests du webview et les tests qui exigent un vrai SQL
 Server. Quand le réglage sera rouvert, l'étape « The code » peut revenir à
 `actions/checkout` et une étape `setup-node` peut épingler la version de Node.
+
+---
+
+## 🟢 Ce que la CI a trouvé, et qu'aucune suite locale ne voyait
+
+`npm run test:unit` **exclut huit fichiers de test** : ceux qui chargent
+l'API de VS Code. Le job `test`, qui lance un vrai VS Code, les exécute
+tous — et il a trouvé des fautes qu'aucune exécution locale ne pouvait
+montrer, parce que la machine qui les a écrites n'avait pas les mêmes
+contraintes.
+
+| Faut trouvé | Où | Pourquoi personne ne l'avait vu |
+|---|---|---|
+| Le test de l'état du panel construisait le panneau sans le stockage des connexions : le constructeur levait | `test/panelState.test.js` | Le fichier est exclu de `test:unit` ; il n'avait jamais été exécuté depuis que le panneau lit la connexion sauvegardée |
+| Le test du journal de débogage remplaçait la console globale | `test/debugLog.test.js` | **La console de l'hôte d'extension ne peut pas être remplacée** : `console.log` y est un accesseur qui ignore les affectations, et la sortie part vers l'hôte, pas vers la sortie standard. Même l'appel direct du test n'atteignait pas le collecteur |
+| Les captures d'écran de l'autocomplétion allaient dans `/home/claude/smoke/out` | `test/e2e/autocomplete.e2e.js` | Ce chemin n'existe que sur la machine qui a écrit le test : il échouait sur tout autre exécuteur |
+| Les tests « live » ne pouvaient pas tourner hors de VS Code : ils chargent les handlers de l'extension | `test/live*.test.js` | Ils n'avaient jamais été exécutés par un job |
+
+*Le point important n'est pas le nombre de fautes trouvées, c'est qu'elles
+sont restées invisibles aussi longtemps que le job qui les voit n'a pas
+existé.* Une suite qui exclut son propre cœur n'est pas une suite.
 
 ---
 
@@ -598,7 +622,7 @@ l'échec sur l'ancien code (`ENOENT` au renommage).
 
 # Ce qui a été corrigé
 
-26 commits, sur la branche `dev`. Chaque point est vérifié par l'exécution,
+30 commits, sur la branche `dev`. Chaque point est vérifié par l'exécution,
 pas par la lecture.
 
 | Constat | Correction | Commit |
@@ -631,6 +655,7 @@ pas par la lecture.
 | **A8** — indentation des tests en espaces | ESLint vérifie l'indentation des tests ; les 4 fichiers sont alignés | `11fccff` |
 | **B9** — nom de fichier temporaire fixe pour l'écriture de l'index | Le nom porte le pid et un compteur ; un échec ne laisse pas de fichier derrière | `4077cd8` |
 | **C3** — les réglages d'Actions interdisent les actions externes : tout workflow qui en utilise une échoue avant son premier job | La CI ne dépend plus d'aucune action externe : le code est récupéré avec `git`, le Node du runner est utilisé | `58b4f8b` |
+| **C2** (suite) — quatre fautes que la suite locale ne pouvait pas voir, parce que les fichiers exclus de `test:unit` n'étaient jamais exécutés | Le panneau de test est construit comme l'extension le construit ; le journal de débogage a un substitut à la console ; les captures d'écran vont dans le temporaire ; les tests live tournent dans VS Code | `2c902ee`, `4c86db4`, `1968d84`, `3f328cd` |
 
 ## Ce qui reste ouvert
 
@@ -638,12 +663,13 @@ pas par la lecture.
 |---|---|---|
 | **E3** (CVE `uuid`) | Le correctif exige `mssql@12` (rupture) | Tester la montée sur une instance réelle, puis la faire |
 | **E5** (vendor) | Sortir les libs du `.vsix` = changer le chargement du webview | Sortir `dagre`/`cytoscape` de npm et les bundler ; trancher le sort de `viz.full.render.js` (1,98 Mo parsés à chaque ouverture) |
-| **M6/M7** (tests) | `npm test` exige un bureau ; les e2e exigent les navigateurs Playwright | Les 34 tests e2e **passent** en local une fois les navigateurs installés : le job CI doit faire `playwright install --with-deps chromium`. Le job `sql-integration` avec un service SQL Server reste à faire pour les 39 tests live |
+| **M6/M7** (tests) | La suite locale ne peut pas tout faire : `npm test` exige un bureau, les e2e exigent les navigateurs Playwright | **Fait dans la CI** : le job `test` lance un vrai VS Code, le job `e2e` un vrai Chromium, et le job `sql-integration` un vrai SQL Server (service `mcr.microsoft.com/mssql/server`). Ce qui reste : la suite locale ne peut pas exécuter ces trois-là — un `npm test` local demande `xvfb` et les bibliothèques d'Electron |
+| **C11** (`mssql@12`) | La montée corrige la CVE `uuid`, mais `@12` est en ESM : les `require()` du code CommonJS cassent | Tester la montée sur une instance réelle (le job `sql-integration` en fournit une), puis faire la conversion module par module |
 | **E10** (process) | Hors code | Garder la CI verte sur `dev` avant merge, et relire les commits IA avant merge |
 
 ## Un point de méthode
 
-Deux constats de ce rapport ont été **corrigés à l'envers** après vérification,
+Trois constats de ce rapport ont été **corrigés à l'envers** après vérification,
 et c'est le but de la revue :
 
 - **M2** (import de connexions) : la fusion volontaire du mot de passe existant
@@ -651,6 +677,12 @@ et c'est le but de la revue :
   aurait cassé l'intention : il a été revert.
 - **E3** : le « high » de `npm audit` est dans la chaîne de test, pas dans
   l'extension livrée. La sévérité a été revue à la baisse.
+- **C1** : la CI « n'avait jamais été verte » à cause du `package-lock.json`
+  manquant sur `main` — c'était vrai pour les quatre premiers runs, mais la
+  cause des suivants était dans les **réglages du dépôt** (C3), pas dans le
+  fichier de workflow. Un workflow qui passe le test de la syntaxe peut
+  quand même ne jamais démarrer.
 
-Les deux cas sont le rappel qu'un constat de revue qui n'a pas été
-reproduction est une hypothèse, pas un fait.
+Ces trois cas sont le rappel qu'un constat de revue qui n'a pas été
+reproduction est une hypothèse, pas un fait — et qu'un diagnostic posé trop
+vite sur la cause visible cache la vraie.
