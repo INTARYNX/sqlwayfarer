@@ -12,22 +12,40 @@ class ConnectionStorage {
         this._listeners = new Set();
         // Writes go one after the other, each from what the previous one left.
         this._queue = Promise.resolve();
+        // The subscription to the changes another window makes, released when
+        // the storage is disposed.
+        this._secretsListener = null;
     }
 
     async initialize() {
         await this._loadSavedConnections();
         const onDidChange = this._context.secrets.onDidChange;
         if (typeof onDidChange === 'function') {
-            onDidChange.call(this._context.secrets, async event => {
+            // The reload goes through the write queue like every other write:
+            // reloading outside of it would replace the connections while a
+            // save was in flight, and the save would then write back the
+            // reloaded map - the change the user just made would be lost,
+            // and the save would still answer "success".
+            this._secretsListener = onDidChange.call(this._context.secrets, event => {
                 if (event.key !== CONNECTIONS_KEY) return;
-                try {
-                    await this._loadSavedConnections();
+                this._exclusively(async () => {
                     for (const listener of this._listeners) listener();
-                } catch (error) {
+                }).catch(error => {
                     console.warn('Could not read the connections changed by another window:', error.message);
-                }
+                });
             });
         }
+    }
+
+    // Stops listening to the changes another window makes. The storage lives
+    // as long as the extension does, so this is only called when it is
+    // disposed.
+    dispose() {
+        if (this._secretsListener && typeof this._secretsListener.dispose === 'function') {
+            this._secretsListener.dispose();
+            this._secretsListener = null;
+        }
+        this._listeners.clear();
     }
 
     // listener() is called when the saved connections changed, whoever made it.

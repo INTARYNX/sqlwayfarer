@@ -19,6 +19,9 @@ function activate(context) {
         console.error('Error loading saved connections:', error);
         vscode.window.showErrorMessage(`Failed to initialize SQL Wayfarer: ${error.message}`);
     });
+    // The storage listens to the changes another window makes; the
+    // subscription is released with the extension.
+    context.subscriptions.push({ dispose: () => connectionStorage.dispose() });
 
     const launcher = new ConnectionLauncher({
         storage: connectionStorage,
