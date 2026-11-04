@@ -642,9 +642,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
-        html = html.replace('{{DAGRE_URI}}',                u('webview', 'vendor', 'dagre.min.js'));
-        html = html.replace('{{CYTOSCAPE_URI}}',            u('webview', 'vendor', 'cytoscape.min.js'));
-        html = html.replace('{{CYTOSCAPE_DAGRE_URI}}',      u('webview', 'vendor', 'cytoscape-dagre.min.js'));
+        html = html.replace('{{GRAPH_LIBS_URI}}',           u('dist', 'webview', 'graphLibs.js'));
         html = html.replace('{{QUERY_PLAN_URI}}',           u('webview', 'vendor', 'html-query-plan', 'qp.min.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 

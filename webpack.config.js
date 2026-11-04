@@ -37,7 +37,8 @@ const webviewConfig = {
   name: 'webview',
   target: 'web',
   entry: {
-    sqlEditor: './webview-build/sqlEditor.js'
+    sqlEditor: './webview-build/sqlEditor.js',
+    graphLibs: './webview-build/graphLibs.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist', 'webview'),

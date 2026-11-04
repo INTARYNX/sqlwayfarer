@@ -113,6 +113,7 @@ jobs:
             dist/extension.js \
             dist/parseColumnsWorker.js \
             dist/webview/sqlEditor.js \
+            dist/webview/graphLibs.js \
             webview/index.html \
             webview/main.js \
             webview/styles.css \

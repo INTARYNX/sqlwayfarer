@@ -727,19 +727,40 @@ class DatabaseSelectorManager {
 class DependencyVisualizer {
     constructor() {
         this.viz = null;
+        this._vizLoading = null;
         this.currentMode = 'both';
         this.currentObjectName = null;
         this.dependencies = null;
-        this.initViz();
         this.initEventListeners();
     }
 
-    async initViz() {
-        try {
-            this.viz = new Viz();
-        } catch (error) {
-            console.error('Failed to initialize Viz.js:', error);
+    // Viz.js and the Graphviz engine behind it weigh 2 MB: they are loaded the
+    // first time a graph is drawn, not each time the panel opens.
+    static _loadScript(uri) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = uri;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`Could not load ${uri}`));
+            document.head.appendChild(script);
+        });
+    }
+
+    initViz() {
+        if (this.viz) return Promise.resolve();
+        if (!this._vizLoading) {
+            const uri = name => (document.querySelector(`meta[name="${name}"]`) || {}).content;
+            // The API first, then the engine it calls.
+            this._vizLoading = DependencyVisualizer._loadScript(uri('viz-script'))
+                .then(() => DependencyVisualizer._loadScript(uri('viz-render-script')))
+                .then(() => { this.viz = new Viz(); })
+                .catch(error => {
+                    console.error('Failed to initialize Viz.js:', error);
+                    // Asked again on the next graph rather than failing for good.
+                    this._vizLoading = null;
+                });
         }
+        return this._vizLoading;
     }
 
     getNodeColorDark(objectType) {
@@ -817,6 +838,7 @@ class DependencyVisualizer {
     }
 
     async generateGraph(objectName, dependencies) {
+        await this.initViz();
         if (!this.viz) {
             document.getElementById('dependencyGraph').innerHTML =
                 '<p style="color: var(--vscode-errorForeground);">Visualization engine not available</p>';
