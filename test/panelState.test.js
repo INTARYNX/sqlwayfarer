@@ -46,13 +46,20 @@ function makePanel() {
 	};
 }
 
+// The connections are managed from the sidebar: the panel reads the saved
+// connection it was opened for, at construction (see the constructor).
+function makeConnectionStorage() {
+	return { getConnection: () => null };
+}
+
 function makePanelInstance(workspaceState) {
 	const panel = makePanel();
 	const instance = new SqlWayfarerPanel(
 		panel,
 		vscode.Uri.file(path.resolve(__dirname, '..')),
 		makeContext(workspaceState),
-		new PanelRegistry()
+		new PanelRegistry(),
+		makeConnectionStorage()
 	);
 	return { instance, panel };
 }
