@@ -301,7 +301,6 @@
     "codemirror": "^6.0.2",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
-    "dagre": "^0.8.5",
     "eslint": "^9.25.1",
     "playwright": "^1.63.0",
     "sql-formatter": "^15.9.0",

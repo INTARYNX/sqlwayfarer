@@ -593,12 +593,11 @@
         </div>
     </div>
 
-    <!-- Vendored locally (no CDN): dependency graph (viz.js) and interactive footprint graph -->
-    <script src="{{VIZ_URI}}"></script>
-    <script src="{{VIZ_RENDER_URI}}"></script>
-    <script src="{{DAGRE_URI}}"></script>
-    <script src="{{CYTOSCAPE_URI}}"></script>
-    <script src="{{CYTOSCAPE_DAGRE_URI}}"></script>
+    <!-- Local, no CDN: the interactive footprint graph (built from npm). Viz.js (the dependency
+         graph, 2 MB with Graphviz) is not loaded here: main.js loads it the first time a graph is drawn. -->
+    <meta name="viz-script" content="{{VIZ_URI}}">
+    <meta name="viz-render-script" content="{{VIZ_RENDER_URI}}">
+    <script src="{{GRAPH_LIBS_URI}}"></script>
     <script src="{{QUERY_PLAN_URI}}"></script>
     <script src="{{ICONS_URI}}"></script>
     <script src="{{TAB_MANAGER_URI}}"></script>

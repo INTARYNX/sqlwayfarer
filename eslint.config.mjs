@@ -37,7 +37,7 @@ export default [{
     files: ["test/e2e/**/*.js"],
     languageOptions: {
         sourceType: "commonjs",
-        globals: { ...globals.node, ...globals.mocha, ...globals.browser, appState: "readonly" },
+        globals: { ...globals.node, ...globals.mocha, ...globals.browser, appState: "readonly", DependencyVisualizer: "readonly" },
     },
 },
 

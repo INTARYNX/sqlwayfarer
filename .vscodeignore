@@ -63,6 +63,8 @@ helper/**
 !dist/extension.js
 !dist/parseColumnsWorker.js
 !dist/webview/sqlEditor.js
+!dist/webview/graphLibs.js
+!dist/webview/graphLibs.js.LICENSE.txt
 !icon.png
 !images/banner.png
 !package.json
