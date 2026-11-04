@@ -152,16 +152,21 @@ function placeholdersOf(snippetXml) {
     // carries an ID is kept the same way (its default is just text). Walks the
     // opening tags: the first element with an <ID> inside is one declaration.
     const body = declarations.inner;
-    const unclosed = new Set();
+    // Where the LAST closing tag of each name stands, from one scan: a tag
+    // whose name has no closing after it is dismissed at once, instead of
+    // walking the rest of the text to find that out (a file of thousands of
+    // different tags that are never closed would otherwise take minutes).
+    const lastClosing = new Map();
+    for (const match of body.matchAll(/<\/(\w+)>/g)) lastClosing.set(match[1], match.index);
     let pos = 0;
     for (;;) {
         const tag = nextOpeningTag(body, pos);
         if (!tag) break;
         pos = tag.end + 1;
-        if (tag.selfClosing || unclosed.has(tag.name)) continue;
+        if (tag.selfClosing || (lastClosing.get(tag.name) ?? -1) < pos) continue;
         const closing = `</${tag.name}>`;
         const end = body.indexOf(closing, pos);
-        if (end === -1) { unclosed.add(tag.name); continue; }
+        if (end === -1) continue;
         const inner = body.slice(pos, end);
         const id = elementText(inner, 'ID').trim();
         if (!id) continue;

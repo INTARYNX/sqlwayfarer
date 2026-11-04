@@ -160,4 +160,17 @@ suite('sqlPromptSnippet: files made to be slow', () => {
 		const result = within(500, wrap('<Declarations><Literal><ID>a</ID><Default>1</Default></Literal><Literal><ID>b</ID></Declarations>'));
 		assert.deepStrictEqual(result.snippets[0].placeholders.map(p => p.id), ['a']);
 	});
+
+	test('thousands of different tags that are never closed', () => {
+		let tags = '';
+		for (let i = 0; i < 40000; i++) tags += `<Tag${i}>`;
+		within(1500, wrap('<Declarations>' + tags + '</Declarations>'));
+	});
+
+	test('closing tags that all come before the opening ones', () => {
+		let closings = '';
+		let openings = '';
+		for (let i = 0; i < 40000; i++) { closings += `</Tag${i}>`; openings += `<Tag${i}>`; }
+		within(1500, wrap('<Declarations>' + closings + openings + '</Declarations>'));
+	});
 });
