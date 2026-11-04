@@ -705,8 +705,8 @@ class DatabaseSelectorManager {
         const notification = document.createElement('div');
         notification.className = 'database-ready-notification';
         notification.innerHTML = `
-            <span class="notification-icon"><i class="codicon codicon-sparkle"></i></span>
-            <span class="notification-text">Connected! Select a database to explore</span>
+            <span class="notification-icon"><i class="codicon codicon-database"></i></span>
+            <span class="notification-text">Connected. Select a database to explore.</span>
         `;
 
         const toolbar = document.querySelector('.app-toolbar');
