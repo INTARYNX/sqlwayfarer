@@ -49,29 +49,40 @@ function stripCommentsAndStrings(sql, keepStrings = false) {
 // leading WITH-CTE block (if any) by tracking paren depth. Same tradeoff as
 // the rest of this fallback path - not a real parser, just enough to catch
 // the common "WITH cte AS (...) UPDATE/DELETE ..." shape.
-function leadingDmlVerb(statement) {
-    const trimmed = statement.replace(/^\s+/, '');
-    const direct = trimmed.match(/^(update|delete)\b/i);
-    if (direct) return direct[1].toLowerCase();
-    if (!/^with\b/i.test(trimmed)) return null;
+//
+// A statement can also be wrapped in BEGIN...END, in a TRY...CATCH or in an
+// ELSE branch: the verb is not always at the very beginning either.
+//
+// Returns the verb and the text that follows it, or null.
+function leadingDml(statement) {
+    let text = statement.replace(/^\s+/, '');
+    // The keywords that open a block or a branch come before the verb.
+    let match;
+    while ((match = text.match(/^(?:begin|end|else|then|try|catch|do)\b\s*/i))) {
+        text = text.slice(match[0].length);
+    }
+    const direct = text.match(/^(update|delete)\b/i);
+    if (direct) return { verb: direct[1].toLowerCase(), body: text.slice(direct[0].length) };
+    if (!/^with\b/i.test(text)) return null;
 
     let depth = 0;
-    for (let i = 0; i < trimmed.length; i++) {
-        const ch = trimmed[i];
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
         if (ch === '(') depth++;
         else if (ch === ')') depth = Math.max(0, depth - 1);
         else if (depth === 0) {
-            const m = trimmed.slice(i).match(/^(update|delete)\b/i);
-            if (m) return m[1].toLowerCase();
+            const m = text.slice(i).match(/^(update|delete)\b/i);
+            if (m) return { verb: m[1].toLowerCase(), body: text.slice(i + m[0].length) };
         }
     }
     return null;
 }
 
 // The target of an UPDATE / DELETE, to tell a temporary table or a table
-// variable (nothing to lose) from a real table.
-function dmlTarget(statement) {
-    const m = statement.replace(/^\s+/, '').match(/^(?:update|delete)\s+(?:top\s*\([^)]*\)\s*(?:percent\s+)?)?(?:from\s+)?([^\s(;]+)/i);
+// variable (nothing to lose) from a real table. The text is what follows the
+// verb.
+function dmlTarget(body) {
+    const m = body.match(/^\s*(?:top\s*(?:\(\s*\d+\s*\)|\d+)\s*(?:percent\s+)?)?(?:from\s+)?([^\s(;]+)/i);
     return m ? m[1] : null;
 }
 
@@ -80,23 +91,100 @@ const isScratchTarget = name => !!name && /^[#@]/.test(name.replace(/^\[/, ''));
 // The verbs of the statements that change data or schema, in the order of
 // appearance and without repeats; a statement aimed at a temporary table or a
 // table variable does not count.
-function productionWrites(cleaned) {
+//
+// The verb is looked for wherever it stands: a write wrapped in an IF, in an
+// ELSE, in a BEGIN...END or behind a WITH-CTE is still a write.
+const WRITE_TARGETS = {
+    insert: /^\s*(?:into\s+)?([^\s(;]+)/i,
+    update: /^\s*(?:top\s*(?:\(\s*\d+\s*\)|\d+)\s*(?:percent\s+)?)?(?:from\s+)?([^\s(;]+)/i,
+    delete: /^\s*(?:top\s*(?:\(\s*\d+\s*\)|\d+)\s*(?:percent\s+)?)?(?:from\s+)?([^\s(;]+)/i,
+    merge: /^\s*(?:into\s+)?([^\s(;]+)/i,
+    truncate: /^\s*table\s+([^\s(;]+)/i,
+    create: /^\s*(?:table|view|procedure|proc|function|schema|database|type|sequence|synonym)\s+(?:if\s+exists\s+)?([^\s(;]+)/i,
+    alter: /^\s*(?:table|view|procedure|proc|function|schema|database|type|sequence|synonym)\s+([^\s(;]+)/i,
+    drop: /^\s*(?:table|view|procedure|proc|function|schema|database|type|sequence|synonym)\s+(?:if\s+exists\s+)?([^\s(;]+)/i
+};
+
+// An index is built on a table: it is that table that is touched.
+const INDEX_TARGET = /^\s*(?:unique\s+|clustered\s+|nonclustered\s+)?index\s+([^\s(;]+)(?:\s+on\s+([^\s(;]+))?/i;
+
+// A procedure called with EXEC may write anything - the text does not say.
+const EXEC_PROCEDURE = /\bexec(?:ute)?\s+((?:\[?[\w$#]+\]?\s*\.\s*)?\[?[\w$#]+\]?)/gi;
+
+// A dynamic statement is only checked when it is written as a literal
+// (EXEC('...') / sp_executesql N'...'); one built in a variable is not visible.
+const DYNAMIC_LITERAL = /\b(?:exec(?:ute)?\s*\(\s*|sp_executesql\s+)N?'((?:[^']|'')*)'/gi;
+const MAX_DYNAMIC_DEPTH = 2;
+
+function productionWrites(sql, depth = 0) {
     const verbs = [];
-    for (const m of cleaned.matchAll(/(?:^|;)[ \t]*(insert|update|delete|merge|create|alter|drop|truncate)\b([^\n;]*)/gim)) {
-        if (/^\s*(?:(?:into|from|table|unique|clustered|nonclustered)\s+)*[#@]/i.test(m[2])) continue;
-        const verb = m[1].toUpperCase();
-        if (!verbs.includes(verb)) verbs.push(verb);
+    const add = verb => { if (!verbs.includes(verb)) verbs.push(verb); };
+    const cleaned = stripCommentsAndStrings(sql);
+    // Where the statement being handled ends: the clauses that follow are
+    // part of it.
+    let skipUntil = -1;
+
+    for (const m of cleaned.matchAll(/\b(insert|update|delete|merge|create|alter|drop|truncate)\b/gi)) {
+        // Inside a statement already handled (the clauses of a MERGE).
+        if (m.index < skipUntil) continue;
+        const verb = m[1].toLowerCase();
+        const rest = cleaned.slice(m.index + m[0].length);
+        let target = null;
+        if (verb === 'create' || verb === 'alter' || verb === 'drop') {
+            const index = INDEX_TARGET.exec(rest);
+            if (index) target = index[2] || null;
+        }
+        if (target === null) {
+            const pattern = WRITE_TARGETS[verb];
+            target = pattern ? (pattern.exec(rest) || [])[1] || null : null;
+        }
+        if (verb === 'merge') {
+            // The clauses of a MERGE ("WHEN MATCHED THEN UPDATE...") write
+            // into the table the MERGE targets, not into a table of their
+            // own: the MERGE itself is the write.
+            const end = cleaned.indexOf(';', m.index);
+            skipUntil = end === -1 ? cleaned.length : end;
+            if (target && isScratchTarget(target)) continue;
+            add('MERGE');
+            continue;
+        }
+        // A temporary table or a table variable: nothing to lose.
+        if (target && isScratchTarget(target)) continue;
+        add(verb.toUpperCase());
     }
+
+    // SELECT ... INTO creates a table: it is a write.
+    for (const m of cleaned.matchAll(/\bselect\b[^;]*?\binto\s+([^\s(;]+)/gi)) {
+        if (!isScratchTarget(m[1])) add('INSERT');
+    }
+
+    // A procedure called with EXEC may write anything. A system procedure
+    // (sp_..., xp_...) without a schema is left out: it only reads.
+    for (const m of cleaned.matchAll(EXEC_PROCEDURE)) {
+        const name = m[1].replace(/[\[\]\s]/g, '');
+        if (!name.includes('.') && /^(?:sp|xp)_/i.test(name)) continue;
+        add('EXEC (a procedure may write)');
+        break;
+    }
+
+    // The same writes inside a dynamic statement written as a literal.
+    if (depth < MAX_DYNAMIC_DEPTH) {
+        const withLiterals = stripCommentsAndStrings(sql, true);
+        for (const m of withLiterals.matchAll(DYNAMIC_LITERAL)) {
+            for (const verb of productionWrites(m[1].replace(/''/g, "'"), depth + 1)) add(verb);
+        }
+    }
+
     return verbs;
 }
 
 // Object kinds a DROP is flagged for.
 const DROP_KINDS = 'table|view|procedure|proc|function|trigger|index|database|schema|synonym|user|login|role|type|sequence|assembly';
 
-// A dynamic statement is only checked when it is written as a literal
-// (EXEC('...') / sp_executesql N'...'); one built in a variable is not visible.
-const DYNAMIC_LITERAL = /\b(?:exec(?:ute)?\s*\(\s*|sp_executesql\s+)N?'((?:[^']|'')*)'/gi;
-const MAX_DYNAMIC_DEPTH = 2;
+// "WHERE 1=1" is always true. "WHERE 1=1 AND x = 5" is not: only what comes
+// after the comparison decides - nothing (the clause IS the comparison), or an
+// OR, which makes the whole clause true whatever follows it.
+const ALWAYS_TRUE_WHERE = /\bwhere\s+\(*\s*(\d+)\s*=\s*\1\s*\)*\s*(?:$|\bor\b)/i;
 
 // Flags destructive statements in a query before execution:
 // - UPDATE / DELETE without WHERE, or with a WHERE that is always true
@@ -117,7 +205,7 @@ class QueryRiskAnalyzer {
     analyze(sql, { production = false } = {}) {
         const risks = this._analyze(sql, 0);
         if (production) {
-            const writes = productionWrites(stripCommentsAndStrings(sql || ''));
+            const writes = productionWrites(sql || '');
             if (writes.length > 0) risks.push(`Changes data or schema (${writes.join(', ')}) on a production connection`);
         }
         return risks;
@@ -137,8 +225,8 @@ class QueryRiskAnalyzer {
             // statements the text shows aimed at a temporary table or a variable.
             const scratch = { UPDATE: 0, DELETE: 0 };
             for (const statement of cleaned.split(/;|^\s*GO\s*$/im)) {
-                const verb = leadingDmlVerb(statement);
-                if (verb && !/\bwhere\b/i.test(statement) && isScratchTarget(dmlTarget(statement))) scratch[verb.toUpperCase()]++;
+                const dml = leadingDml(statement);
+                if (dml && !/\bwhere\b/i.test(dml.body) && isScratchTarget(dmlTarget(dml.body))) scratch[dml.verb.toUpperCase()]++;
             }
             for (const risk of parsed) {
                 if (isScratchTarget(risk.table)) continue;
@@ -150,17 +238,17 @@ class QueryRiskAnalyzer {
         } else {
             // Parser unavailable or SQL unparseable: coarse per-statement heuristic.
             for (const statement of cleaned.split(/;|^\s*GO\s*$/im)) {
-                const verb = leadingDmlVerb(statement);
-                if (verb && !/\bwhere\b/i.test(statement) && !isScratchTarget(dmlTarget(statement))) {
-                    risks.push(`${verb.toUpperCase()} without WHERE`);
+                const dml = leadingDml(statement);
+                if (dml && !/\bwhere\b/i.test(dml.body) && !isScratchTarget(dmlTarget(dml.body))) {
+                    risks.push(`${dml.verb.toUpperCase()} without WHERE`);
                 }
             }
         }
 
         for (const statement of cleaned.split(/;|^\s*GO\s*$/im)) {
-            const verb = leadingDmlVerb(statement);
-            if (verb && /\bwhere\s+\(*\s*(\d+)\s*=\s*\1\s*\)*\s*$/i.test(statement) && !isScratchTarget(dmlTarget(statement))) {
-                risks.push(`${verb.toUpperCase()} with an always-true WHERE`);
+            const dml = leadingDml(statement);
+            if (dml && ALWAYS_TRUE_WHERE.test(dml.body) && !isScratchTarget(dmlTarget(dml.body))) {
+                risks.push(`${dml.verb.toUpperCase()} with an always-true WHERE`);
             }
         }
 
