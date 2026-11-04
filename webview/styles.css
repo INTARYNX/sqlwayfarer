@@ -2144,6 +2144,22 @@ body.vscode-high-contrast .qp-tt-header {
     background: var(--vscode-focusBorder);
 }
 
+/* Before any resize the table sizes itself on its content: one line per row,
+   long values cut with "..." at a cap, and the grid scrolls sideways when the
+   columns are wider than the pane (a wrapped cell would make the rows uneven
+   and never overflow). Double-click a cell to copy its whole value. */
+.result-set-table-wrap table:not(.rs-fixed) {
+    width: auto;
+    min-width: 100%;
+}
+
+.result-set-table-wrap table:not(.rs-fixed) td {
+    max-width: 600px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 table.rs-fixed {
     table-layout: fixed;
 }
