@@ -96,8 +96,10 @@ class ConnectionStorage {
     }
 
     // Several connections at once (an import), written to the secret storage
-    // once instead of once each. No password is touched. Returns the names that
-    // were saved and the ones refused (no name).
+    // once instead of once each. No password is touched: an entry over a
+    // connection of the same name was merged before it got here (see
+    // mergeIntoExisting), so the password the user saved stays with it.
+    // Returns the names that were saved and the ones refused (no name).
     async saveConnections(configs) {
         return this._exclusively(() => this._saveConnections(configs));
     }
@@ -131,10 +133,14 @@ class ConnectionStorage {
     async _deleteConnection(connectionName) {
         try {
             if (!connectionName) throw new Error('Connection name is required');
-            await this._context.secrets.delete(`sqlwayfarer.password.${connectionName}`);
-            if (!this._savedConnections.delete(connectionName)) {
+            // The secret is only dropped once the connection is known to be
+            // there: deleting a name that does not exist must not erase the
+            // password of another connection that happens to share it.
+            if (!this._savedConnections.has(connectionName)) {
                 throw new Error(`Connection '${connectionName}' not found`);
             }
+            await this._context.secrets.delete(`sqlwayfarer.password.${connectionName}`);
+            this._savedConnections.delete(connectionName);
             // Drop the auto-connect pointer if it referenced the deleted connection.
             if (this.getLastConnectionName() === connectionName) {
                 await this.setLastConnectionName(null);
