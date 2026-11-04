@@ -21,3 +21,6 @@ helper/*.exe
 
 # ANTLR dev tools (jar requis seulement pour régénérer les sources du parser)
 database/tsql-grammar/antlr.jar
+
+# The coverage of a test run (scripts/coverage-check.js)
+coverage/
