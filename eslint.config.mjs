@@ -26,6 +26,13 @@ export default [{
         "valid-typeof": "error",
     },
 }, {
+    // The test files are indented with tabs (AGENTS.md).
+    files: ["test/**/*.js"],
+    rules: {
+        indent: ["error", "tab", { SwitchCase: 1 }],
+    },
+},
+{
     // The e2e suites run callbacks inside the browser page (window, document...).
     files: ["test/e2e/**/*.js"],
     languageOptions: {
