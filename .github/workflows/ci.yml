@@ -176,9 +176,4 @@ jobs:
       # The live tests load the handlers of the extension, which need the API
       # of the host: they run inside VS Code, like the others.
       - name: The live tests
-        run: |
-          set +e
-          xvfb-run -a npx vscode-test --config .vscode-test.live.mjs > /tmp/fail.log 2>&1
-          code=$?
-          echo "::error title=live tests,file=ci.yml::$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/fail.log | grep -A 60 ' failing' | tail -c 4000 | tr '\n' '%0A')"
-          exit $code
+        run: xvfb-run -a npx vscode-test --config .vscode-test.live.mjs
