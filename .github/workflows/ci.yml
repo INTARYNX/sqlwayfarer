@@ -2,11 +2,31 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
+  # The fast gate: lint and the unit tests that need no VS Code. Runs in
+  # seconds, so it is the one that gives a quick answer on a pull request.
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run test:unit
+
+  # The full gate: the same tests, in a real VS Code. Needs a display, hence
+  # xvfb-run.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -15,9 +35,74 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - run: npm ci
 
-      - run: npm run lint
-
       - run: xvfb-run -a npm test
+
+  # The artefact is never checked by the tests above: a webpack mistake, or a
+  # file missing from the .vsix, would only show up on a user's machine. This
+  # job builds the bundle and looks at what would be published.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # The webview is loaded as plain <script> tags, not bundled: a pattern
+      # that excludes it would ship an extension with an empty page, with no
+      # error anywhere. The same goes for the extension bundle itself.
+      - name: The published package keeps what it needs
+        run: |
+          set -e
+          files=$(npx vsce ls)
+          for required in \
+            dist/extension.js \
+            dist/parseColumnsWorker.js \
+            dist/webview/sqlEditor.js \
+            webview/index.html \
+            webview/main.js \
+            webview/styles.css \
+            package.json
+          do
+            echo "$files" | grep -qx "$required" || { echo "MISSING from the package: $required"; exit 1; }
+          done
+          for unwanted in \
+            test/ \
+            database/ \
+            panels/ \
+            webview-build/ \
+            deploy.ps1 \
+            commit.ps1
+          do
+            if echo "$files" | grep -q "^$unwanted"; then echo "SHOULD NOT be published: $unwanted"; exit 1; fi
+          done
+          echo "the package holds what it needs"
+
+  # The dependencies of the extension and of its build. The audit is not
+  # blocking yet: the known advisories are in the test toolchain and in a
+  # transitive dependency of the SQL Server driver, and both need a major
+  # upgrade. Failing the build on them would only teach everyone to ignore it.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm audit --audit-level=high
+        continue-on-error: true
