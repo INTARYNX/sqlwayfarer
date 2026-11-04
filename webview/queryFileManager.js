@@ -69,7 +69,13 @@ class QueryFileManager {
                 this.saveActiveTab();
             }
         });
+        // The draft snapshot follows what the user typed. A change the page
+        // made on its own (the text of a script loaded, the text of another
+        // tab, the drafts being recovered) must not write the editor's
+        // content over the draft that is being recovered.
         this.input.addEventListener('input', () => this.onEditorInput());
+        // The Save button follows every change of the text, whoever made it.
+        this.input.addEventListener('content-changed', () => this.updateSaveButtonState());
         // Ctrl+Alt+PageDown / PageUp: the next / previous open query. Capture
         // phase, so the editor does not get to it first.
         document.addEventListener('keydown', (e) => {

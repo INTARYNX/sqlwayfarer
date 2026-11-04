@@ -86,7 +86,9 @@ class QueryManager {
         if (this.formatBtn) this.formatBtn.addEventListener('click', () => this.formatQuery());
         this.input.addEventListener('sw-format', () => this.formatQuery());
         // Syntax check (the setting is the extension's, see setSyntaxEnabled): after a pause in typing.
-        this.input.addEventListener('input', () => this.scheduleSyntaxCheck());
+        // The syntax check follows every change of the text, whoever made it:
+        // a script loaded by the page has to be checked as well.
+        this.input.addEventListener('content-changed', () => this.scheduleSyntaxCheck());
         this.cancelBtn.addEventListener('click', () => this.cancelQuery());
         this.historySelect.addEventListener('change', () => this.applyHistorySelection());
         this.snippetsSelect.addEventListener('change', () => this.applySnippetSelection());
@@ -412,7 +414,12 @@ class QueryManager {
 
     // Fill the editor without running (used by the Explorer script generator)
     setQueryText(sql) {
-        this.input.value = sql;
+        // The user asked for this text: the drafts follow it like they follow
+        // a typed text. setUserText is the editor's way of saying so - with a
+        // plain <textarea> there is no such distinction, and the value setter
+        // fires nothing.
+        if (typeof this.input.setUserText === 'function') this.input.setUserText(sql);
+        else this.input.value = sql;
         this.input.focus();
         this.input.setSelectionRange(0, 0);
         this.input.scrollTop = 0;

@@ -179,7 +179,20 @@ function baseExtensions(options, historyBox) {
 // that same DOM node - real DOM events (keydown/click/dblclick) already
 // bubble up from CodeMirror's contentDOM to it with no extra wiring needed.
 function attach(container, options = {}) {
-    const onUserInput = () => container.dispatchEvent(new Event('input'));
+    // Where the change being dispatched comes from: 'user' when the user
+    // typed or asked for the text, 'program' when the code changed it on its
+    // own (the text of a script loaded, the text of another tab, the drafts
+    // being recovered).
+    let changeSource = 'user';
+    // The text changed. The 'input' event means the USER typed (or asked for
+    // the text): what listens to it - the draft snapshot - must not be woken
+    // by a change the code made on its own, or a draft that is being
+    // recovered can be written back over. The 'content-changed' event
+    // carries every change, with its source.
+    const onContentChanged = source => {
+        container.dispatchEvent(new CustomEvent('content-changed', { detail: { source } }));
+        if (source === 'user') container.dispatchEvent(new Event('input'));
+    };
     // The undo history sits in a compartment so it can be emptied (resetHistory).
     const historyBox = new Compartment();
 
@@ -190,13 +203,21 @@ function attach(container, options = {}) {
             ...baseExtensions(options, historyBox),
             keymap.of([{ key: 'Shift-Alt-f', run: () => { container.dispatchEvent(new Event('sw-format')); return true; }, preventDefault: true }]),
             EditorView.updateListener.of((update) => {
-                // Any change of the text, typed or made by the code (a history entry, a
-                // script, a snippet): what listens to the 'input' event (the Save
-                // button, the drafts, the syntax check) must know.
-                if (update.docChanged) onUserInput();
+                if (update.docChanged) onContentChanged(changeSource);
             })
         ]
     });
+
+    // Dispatches a change of the text, remembering where it comes from.
+    const dispatchText = (spec, source) => {
+        const previous = changeSource;
+        changeSource = source;
+        try {
+            view.dispatch(spec);
+        } finally {
+            changeSource = previous;
+        }
+    };
 
     container.cmView = view;
 
@@ -242,21 +263,30 @@ function attach(container, options = {}) {
     // has focus, and callers have to ask the adapter instead.
     container.isFocused = () => view.hasFocus;
 
+    // Replaces the whole text. This is what the page does on its own (the
+    // text of a script loaded, the text of another tab, the drafts being
+    // recovered): the drafts must not follow it as if the user had typed it.
+    const setText = (text, source) => {
+        const str = text == null ? '' : String(text);
+        dispatchText({
+            changes: { from: 0, to: view.state.doc.length, insert: str },
+            // A <textarea>'s value setter leaves the caret at the end of
+            // the new text; CodeMirror would otherwise map the old
+            // selection through the replacement and land it at the
+            // start, which breaks the autocomplete's context detection.
+            selection: { anchor: str.length }
+        }, source);
+    };
+
     Object.defineProperty(container, 'value', {
         configurable: true,
         get() { return view.state.doc.toString(); },
-        set(text) {
-            const str = text == null ? '' : String(text);
-            view.dispatch({
-                changes: { from: 0, to: view.state.doc.length, insert: str },
-                // A <textarea>'s value setter leaves the caret at the end of
-                // the new text; CodeMirror would otherwise map the old
-                // selection through the replacement and land it at the
-                // start, which breaks the autocomplete's context detection.
-                selection: { anchor: str.length }
-            });
-        }
+        set(text) { setText(text, 'program'); }
     });
+
+    // The text the user asked for (a generated script): the drafts follow it
+    // like they follow a typed text.
+    container.setUserText = text => setText(text, 'user');
     Object.defineProperty(container, 'selectionStart', {
         configurable: true,
         get() { return view.state.selection.main.from; }
