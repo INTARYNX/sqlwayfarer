@@ -66,6 +66,11 @@
         "command": "sqlwayfarer.sqlwayfarer",
         "title": "Open SQL Wayfarer",
         "icon": "$(compass)"
+      },
+      {
+        "command": "sqlwayfarer.openConnection",
+        "title": "SQL Wayfarer: Open a Saved Connection",
+        "icon": "$(compass)"
       }
     ],
     "configuration": {
