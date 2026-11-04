@@ -310,6 +310,7 @@
     "@vscode/vsce": "^4.1.0"
   },
   "overrides": {
-    "tedious": "^19.2.2"
+    "tedious": "^19.2.2",
+    "serialize-javascript": "^7.1.4"
   }
 }
