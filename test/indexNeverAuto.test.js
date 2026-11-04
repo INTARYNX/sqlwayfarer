@@ -6,7 +6,7 @@ const DatabaseService = require('../database/DatabaseService');
 
 const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
-const sourceFiles = dir => fs.readdirSync(path.join(root, dir)).filter(f => f.endsWith('.js')).map(f => path.join(dir, f));
+const sourceFiles = dir => fs.readdirSync(path.join(root, dir)).filter(f => f.endsWith('.js')).map(f => path.posix.join(dir.split(path.sep).join('/'), f));
 
 // IndexHandlers asks for `vscode` at load time: give it a stand-in.
 function loadIndexHandlers(vscodeStub) {
