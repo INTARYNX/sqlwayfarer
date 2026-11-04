@@ -299,7 +299,49 @@ suite('QueryHandlers', () => {
 		assert.deepStrictEqual(sent.map(r => r.sql), ['USE [Db];', 'CREATE PROCEDURE dbo.p AS SELECT 1']);
 		sent.length = 0;
 		await handlers.handleGetActualPlan('Db', 'CREATE PROCEDURE dbo.p AS SELECT 1', 1000);
-		assert.deepStrictEqual(sent.map(r => r.sql), ['USE [Db];', 'SET STATISTICS XML ON', 'CREATE PROCEDURE dbo.p AS SELECT 1', 'SET STATISTICS XML OFF']);
+		// The plan setting is a session setting: it is turned on once for the
+		// whole script, and the USE runs under it.
+		assert.deepStrictEqual(sent.map(r => r.sql), ['SET STATISTICS XML ON', 'USE [Db];', 'CREATE PROCEDURE dbo.p AS SELECT 1', 'SET STATISTICS XML OFF']);
+	});
+
+	// The plan setting is a session setting: turning it on and off around
+	// every batch (or every repetition of a "GO N" batch) cost two extra
+	// round-trips to the server each time, for nothing.
+	test('the plan setting is turned on and off once for the whole script', async () => {
+		const sent = [];
+		const handlers = new QueryHandlers(() => {}, connMock(() => {
+			const req = new FakeRequest(() => {});
+			sent.push(req);
+			return req;
+		}), makeState());
+
+		await handlers.handleExecuteQuery('Db', 'SELECT 1\nGO 3', 1000, true);
+		assert.deepStrictEqual(sent.map(r => r.sql), [
+			'SET STATISTICS XML ON',
+			'USE [Db];',
+			'SELECT 1\n',
+			'SELECT 1\n',
+			'SELECT 1\n',
+			'SET STATISTICS XML OFF'
+		]);
+	});
+
+	test('the plan setting is turned off even when a batch fails', async () => {
+		const sent = [];
+		let call = 0;
+		const handlers = new QueryHandlers(() => {}, connMock(() => {
+			call++;
+			const req = new FakeRequest(r => {
+				if (call === 2) r.emit('error', new Error('Invalid object name missing.'));
+			});
+			sent.push(req);
+			return req;
+		}), makeState());
+
+		// The first batch fails: the script goes on with the next one, and the
+		// setting is still turned off - once.
+		await handlers.handleExecuteQuery('Db', 'SELECT 1\nGO\nSELECT 2', 1000, true);
+		assert.strictEqual(sent.filter(r => r.sql === 'SET STATISTICS XML OFF').length, 1);
 	});
 
 	// S3: a database name containing ']' used to break out of the bracketed
