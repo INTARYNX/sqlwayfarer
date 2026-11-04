@@ -54,7 +54,13 @@ jobs:
       # bundle, the extension is not there to be tested.
       - run: npm run build
 
-      - run: xvfb-run -a npm test
+      - name: VS Code tests
+        run: |
+          set +e
+          xvfb-run -a npm test > /tmp/fail.log 2>&1
+          code=$?
+          echo "::error title=VS Code tests,file=ci.yml::$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/fail.log | tail -c 4000 | tr '\n' '%0A')"
+          exit $code
 
   # The webview is where the business code of the extension lives. Its tests
   # drive a real browser against the real page.
@@ -75,7 +81,13 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
 
-      - run: npm run test:e2e
+      - name: webview tests
+        run: |
+          set +e
+          npm run test:e2e > /tmp/fail.log 2>&1
+          code=$?
+          echo "::error title=webview tests,file=ci.yml::$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/fail.log | tail -c 4000 | tr '\n' '%0A')"
+          exit $code
 
   # The artefact is never checked by the tests above: a webpack mistake, or a
   # file missing from the .vsix, would only show up on a user's machine. This
@@ -173,5 +185,10 @@ jobs:
 
       - run: npm ci
 
-      - name: The live tests
-        run: npx mocha --ui tdd "test/live*.test.js" --timeout 600000
+      - name: live tests
+        run: |
+          set +e
+          npx mocha --ui tdd "test/live*.test.js" --timeout 600000 > /tmp/fail.log 2>&1
+          code=$?
+          echo "::error title=live tests,file=ci.yml::$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/fail.log | tail -c 4000 | tr '\n' '%0A')"
+          exit $code
