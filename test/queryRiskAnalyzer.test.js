@@ -300,3 +300,40 @@ suite('QueryRiskAnalyzer: a WHERE that is always true', () => {
 		assert.deepStrictEqual(analyzer.analyze('UPDATE dbo.t SET x=1 WHERE 1=1 AND y = 5;'), []);
 	});
 });
+
+suite('QueryRiskAnalyzer: statements without a semicolon, and names that look like verbs', () => {
+	const analyzer = new QueryRiskAnalyzer(null);
+	const production = sql => analyzer.analyze(sql, { production: true });
+
+	test('a WHERE 1=1 followed by another statement is flagged', () => {
+		for (const sql of [
+			'DELETE FROM dbo.Orders WHERE 1=1\nSELECT 1',
+			'UPDATE dbo.t SET x=1 WHERE 1=1\nUPDATE dbo.u SET y=2 WHERE id=3',
+			'IF @x = 1 DELETE FROM dbo.Orders WHERE 1=1'
+		]) {
+			const risks = analyzer.analyze(sql);
+			assert.ok(risks.some(r => /always-true WHERE/.test(r)), `${sql} -> ${risks.join(' | ')}`);
+		}
+	});
+
+	test('a column or a permission named like a verb is not a write', () => {
+		for (const sql of [
+			'SELECT [Update], t.Delete, @insert FROM dbo.t',
+			'GRANT UPDATE ON dbo.t TO u',
+			'DENY DELETE ON dbo.t TO u'
+		]) {
+			assert.deepStrictEqual(production(sql), [], sql);
+		}
+	});
+
+	test('a script of thousands of SELECT without a semicolon does not freeze the host', () => {
+		const started = Date.now();
+		production('SELECT 1\n'.repeat(60000));
+		assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
+	});
+
+	test('SELECT ... INTO still counts, the next statement does not borrow it', () => {
+		assert.ok(production('SELECT a INTO dbo.copy FROM dbo.t').length > 0);
+		assert.deepStrictEqual(production('SELECT a FROM dbo.t; SELECT b INTO #tmp FROM dbo.u'), []);
+	});
+});
