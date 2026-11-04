@@ -3,8 +3,8 @@ const WriteFootprintService = require('../database/WriteFootprintService');
 
 // Minimal index entry factory.
 function obj(qualifiedName, type, { columnRefs = {}, dependencies = [], possibleRefs = [], tableWrites = [], parseErrors = [] } = {}) {
-    const [schema, name] = qualifiedName.split('.');
-    return { qualifiedName, schema, name, type, columnRefs, dependencies, possibleRefs, tableWrites, parseErrors };
+	const [schema, name] = qualifiedName.split('.');
+	return { qualifiedName, schema, name, type, columnRefs, dependencies, possibleRefs, tableWrites, parseErrors };
 }
 
 // Scenario:
@@ -14,112 +14,112 @@ function obj(qualifiedName, type, { columnRefs = {}, dependencies = [], possible
 //   app.A has trigger app.trg2  -> writes app.T   (cycle back to T)
 //   app.R has trigger app.trgR  -> DISABLED, must not fire
 function makeIndex() {
-    const objects = {};
-    const add = e => { objects[e.qualifiedName] = e; };
+	const objects = {};
+	const add = e => { objects[e.qualifiedName] = e; };
 
-    add(obj('app.P', 'P', {
-        columnRefs: { 'app.T': { c: { write: true } }, 'app.R': { c: { write: false } } },
-        dependencies: ['app.T', 'app.R', 'app.P2', 'app.Ext'],
-        // Dynamic-SQL name scan: app.Dyn only mentioned in text; app.T also
-        // mentioned but is written confidently and must stay 'write'.
-        possibleRefs: ['app.Dyn', 'app.T']
-    }));
-    add(obj('app.P2', 'P', {
-        columnRefs: { 'app.W': { c: { write: true } } },
-        dependencies: ['app.W']
-    }));
-    add(obj('app.trg', 'TR', {
-        columnRefs: { 'app.A': { c: { write: true } } },
-        dependencies: ['app.A', 'app.T']
-    }));
-    add(obj('app.trg2', 'TR', {
-        columnRefs: { 'app.T': { c: { write: true } } },
-        dependencies: ['app.T', 'app.A']
-    }));
-    add(obj('app.trgR', 'TR', { columnRefs: { 'app.R': { c: { write: true } } }, dependencies: ['app.R'] }));
+	add(obj('app.P', 'P', {
+		columnRefs: { 'app.T': { c: { write: true } }, 'app.R': { c: { write: false } } },
+		dependencies: ['app.T', 'app.R', 'app.P2', 'app.Ext'],
+		// Dynamic-SQL name scan: app.Dyn only mentioned in text; app.T also
+		// mentioned but is written confidently and must stay 'write'.
+		possibleRefs: ['app.Dyn', 'app.T']
+	}));
+	add(obj('app.P2', 'P', {
+		columnRefs: { 'app.W': { c: { write: true } } },
+		dependencies: ['app.W']
+	}));
+	add(obj('app.trg', 'TR', {
+		columnRefs: { 'app.A': { c: { write: true } } },
+		dependencies: ['app.A', 'app.T']
+	}));
+	add(obj('app.trg2', 'TR', {
+		columnRefs: { 'app.T': { c: { write: true } } },
+		dependencies: ['app.T', 'app.A']
+	}));
+	add(obj('app.trgR', 'TR', { columnRefs: { 'app.R': { c: { write: true } } }, dependencies: ['app.R'] }));
 
-    for (const t of ['app.T', 'app.R', 'app.A', 'app.W', 'app.Dyn']) add(obj(t, 'U'));
+	for (const t of ['app.T', 'app.R', 'app.A', 'app.W', 'app.Dyn']) add(obj(t, 'U'));
 
-    return { objects };
+	return { objects };
 }
 
 const triggers = [
-    { trigger: 'app.trg', parentTable: 'app.T', disabled: false },
-    { trigger: 'app.trg2', parentTable: 'app.A', disabled: false },
-    { trigger: 'app.trgR', parentTable: 'app.R', disabled: true }
+	{ trigger: 'app.trg', parentTable: 'app.T', disabled: false },
+	{ trigger: 'app.trg2', parentTable: 'app.A', disabled: false },
+	{ trigger: 'app.trgR', parentTable: 'app.R', disabled: true }
 ];
 
 function run(target = 'app.P') {
-    return WriteFootprintService.analyzeFootprint({ index: makeIndex(), triggers, target });
+	return WriteFootprintService.analyzeFootprint({ index: makeIndex(), triggers, target });
 }
 
 suite('WriteFootprintService.analyzeFootprint', () => {
-    test('returns not found for an unknown object', () => {
-        const r = WriteFootprintService.analyzeFootprint({ index: makeIndex(), triggers, target: 'app.Nope' });
-        assert.strictEqual(r.found, false);
-    });
+	test('returns not found for an unknown object', () => {
+		const r = WriteFootprintService.analyzeFootprint({ index: makeIndex(), triggers, target: 'app.Nope' });
+		assert.strictEqual(r.found, false);
+	});
 
-    test('classifies direct reads and writes', () => {
-        const r = run();
-        const t = r.tables.find(x => x.qualifiedName === 'app.T');
-        const rd = r.tables.find(x => x.qualifiedName === 'app.R');
-        assert.strictEqual(t.access, 'write');
-        assert.strictEqual(t.viaTriggerOnly, false, 'T is written directly, not only via trigger');
-        assert.strictEqual(rd.access, 'read');
-    });
+	test('classifies direct reads and writes', () => {
+		const r = run();
+		const t = r.tables.find(x => x.qualifiedName === 'app.T');
+		const rd = r.tables.find(x => x.qualifiedName === 'app.R');
+		assert.strictEqual(t.access, 'write');
+		assert.strictEqual(t.viaTriggerOnly, false, 'T is written directly, not only via trigger');
+		assert.strictEqual(rd.access, 'read');
+	});
 
-    test('follows nested procedure calls', () => {
-        const w = run().tables.find(x => x.qualifiedName === 'app.W');
-        assert.ok(w, 'table written by a called proc is in the footprint');
-        assert.strictEqual(w.access, 'write');
-        assert.strictEqual(w.viaTriggerOnly, false);
-    });
+	test('follows nested procedure calls', () => {
+		const w = run().tables.find(x => x.qualifiedName === 'app.W');
+		assert.ok(w, 'table written by a called proc is in the footprint');
+		assert.strictEqual(w.access, 'write');
+		assert.strictEqual(w.viaTriggerOnly, false);
+	});
 
-    test('follows trigger cascade on written tables and flags trigger-only tables', () => {
-        const r = run();
-        const a = r.tables.find(x => x.qualifiedName === 'app.A');
-        assert.ok(a, 'table written by a trigger is in the footprint');
-        assert.strictEqual(a.access, 'write');
-        assert.strictEqual(a.viaTriggerOnly, true, 'A is reachable only through the trigger cascade');
-        assert.ok(r.triggersFired.includes('app.trg'), 'trg fired (T written)');
-        assert.ok(r.triggersFired.includes('app.trg2'), 'trg2 fired (A written via trigger)');
-    });
+	test('follows trigger cascade on written tables and flags trigger-only tables', () => {
+		const r = run();
+		const a = r.tables.find(x => x.qualifiedName === 'app.A');
+		assert.ok(a, 'table written by a trigger is in the footprint');
+		assert.strictEqual(a.access, 'write');
+		assert.strictEqual(a.viaTriggerOnly, true, 'A is reachable only through the trigger cascade');
+		assert.ok(r.triggersFired.includes('app.trg'), 'trg fired (T written)');
+		assert.ok(r.triggersFired.includes('app.trg2'), 'trg2 fired (A written via trigger)');
+	});
 
-    test('attributes a trigger-only table to the write and trigger that reached it', () => {
-        const a = run().tables.find(x => x.qualifiedName === 'app.A');
-        assert.deepStrictEqual(a.viaTriggerFrom, { table: 'app.T', trigger: 'app.trg' });
-    });
+	test('attributes a trigger-only table to the write and trigger that reached it', () => {
+		const a = run().tables.find(x => x.qualifiedName === 'app.A');
+		assert.deepStrictEqual(a.viaTriggerFrom, { table: 'app.T', trigger: 'app.trg' });
+	});
 
-    test('viaTriggerFrom is null for directly-reached tables', () => {
-        const r = run();
-        assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.T').viaTriggerFrom, null);
-        assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.W').viaTriggerFrom, null);
-    });
+	test('viaTriggerFrom is null for directly-reached tables', () => {
+		const r = run();
+		assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.T').viaTriggerFrom, null);
+		assert.strictEqual(r.tables.find(x => x.qualifiedName === 'app.W').viaTriggerFrom, null);
+	});
 
-    test('does not fire disabled triggers', () => {
-        assert.ok(!run().triggersFired.includes('app.trgR'));
-    });
+	test('does not fire disabled triggers', () => {
+		assert.ok(!run().triggersFired.includes('app.trgR'));
+	});
 
-    test('terminates on trigger cycles', () => {
-        // trg -> A -> trg2 -> T -> trg ... must not loop forever.
-        const r = run();
-        assert.strictEqual(r.truncated, false, 'cycle handled without hitting the depth guard');
-    });
+	test('terminates on trigger cycles', () => {
+		// trg -> A -> trg2 -> T -> trg ... must not loop forever.
+		const r = run();
+		assert.strictEqual(r.truncated, false, 'cycle handled without hitting the depth guard');
+	});
 
-    test('reports unresolved external references', () => {
-        assert.ok(run().unresolved.includes('app.ext'));
-    });
+	test('reports unresolved external references', () => {
+		assert.ok(run().unresolved.includes('app.ext'));
+	});
 
-    test('surfaces dynamic-SQL name mentions as possible tables', () => {
-        const dyn = run().tables.find(x => x.qualifiedName === 'app.Dyn');
-        assert.ok(dyn, 'a table only mentioned by name is included');
-        assert.strictEqual(dyn.access, 'possible');
-    });
+	test('surfaces dynamic-SQL name mentions as possible tables', () => {
+		const dyn = run().tables.find(x => x.qualifiedName === 'app.Dyn');
+		assert.ok(dyn, 'a table only mentioned by name is included');
+		assert.strictEqual(dyn.access, 'possible');
+	});
 
-    test('a confidently written table is not downgraded to possible', () => {
-        const t = run().tables.find(x => x.qualifiedName === 'app.T');
-        assert.strictEqual(t.access, 'write', 'confident write wins over a name mention');
-    });
+	test('a confidently written table is not downgraded to possible', () => {
+		const t = run().tables.find(x => x.qualifiedName === 'app.T');
+		assert.strictEqual(t.access, 'write', 'confident write wins over a name mention');
+	});
 });
 
 suite('WriteFootprintService table-level writes', () => {
@@ -317,65 +317,65 @@ suite('WriteFootprintService parse issues', () => {
 });
 
 suite('WriteFootprintService.foreignKeysAmong', () => {
-    const fks = [
-        { fkName: 'FK_Order_Customer', fromTable: 'app.Order', fromColumn: 'CustomerID', toTable: 'app.Customer', toColumn: 'CustomerID' },
-        { fkName: 'FK_Order_Ext', fromTable: 'app.Order', fromColumn: 'X', toTable: 'other.Thing', toColumn: 'Id' },
-        // multi-column FK -> should collapse to a single edge
-        { fkName: 'FK_Multi', fromTable: 'app.A', fromColumn: 'c1', toTable: 'app.B', toColumn: 'c1' },
-        { fkName: 'FK_Multi', fromTable: 'app.A', fromColumn: 'c2', toTable: 'app.B', toColumn: 'c2' }
-    ];
-    const tables = [{ qualifiedName: 'app.Order' }, { qualifiedName: 'app.Customer' }, { qualifiedName: 'app.A' }, { qualifiedName: 'app.B' }];
+	const fks = [
+		{ fkName: 'FK_Order_Customer', fromTable: 'app.Order', fromColumn: 'CustomerID', toTable: 'app.Customer', toColumn: 'CustomerID' },
+		{ fkName: 'FK_Order_Ext', fromTable: 'app.Order', fromColumn: 'X', toTable: 'other.Thing', toColumn: 'Id' },
+		// multi-column FK -> should collapse to a single edge
+		{ fkName: 'FK_Multi', fromTable: 'app.A', fromColumn: 'c1', toTable: 'app.B', toColumn: 'c1' },
+		{ fkName: 'FK_Multi', fromTable: 'app.A', fromColumn: 'c2', toTable: 'app.B', toColumn: 'c2' }
+	];
+	const tables = [{ qualifiedName: 'app.Order' }, { qualifiedName: 'app.Customer' }, { qualifiedName: 'app.A' }, { qualifiedName: 'app.B' }];
 
-    test('keeps only edges whose both ends are in the footprint', () => {
-        const edges = WriteFootprintService.foreignKeysAmong(fks, tables);
-        assert.ok(edges.some(e => e.fkName === 'FK_Order_Customer'));
-        assert.ok(!edges.some(e => e.fkName === 'FK_Order_Ext'), 'edge to a table outside the footprint is dropped');
-    });
+	test('keeps only edges whose both ends are in the footprint', () => {
+		const edges = WriteFootprintService.foreignKeysAmong(fks, tables);
+		assert.ok(edges.some(e => e.fkName === 'FK_Order_Customer'));
+		assert.ok(!edges.some(e => e.fkName === 'FK_Order_Ext'), 'edge to a table outside the footprint is dropped');
+	});
 
-    test('collapses multi-column FKs to one edge', () => {
-        const edges = WriteFootprintService.foreignKeysAmong(fks, tables);
-        assert.strictEqual(edges.filter(e => e.fkName === 'FK_Multi').length, 1);
-    });
+	test('collapses multi-column FKs to one edge', () => {
+		const edges = WriteFootprintService.foreignKeysAmong(fks, tables);
+		assert.strictEqual(edges.filter(e => e.fkName === 'FK_Multi').length, 1);
+	});
 });
 
 // A trigger fires on one kind of write: an AFTER INSERT trigger does not fire when a procedure only deletes.
 suite('WriteFootprintService: the kind of write decides which triggers fire', () => {
-    function scenario({ writeOps, events, tableWrites = ['app.T'] }) {
-        const objects = {};
-        const add = e => { objects[e.qualifiedName] = e; };
-        add(Object.assign(obj('app.P', 'P', { columnRefs: {}, dependencies: ['app.T'], tableWrites }), { tableWriteOps: writeOps }));
-        add(obj('app.trg', 'TR', { columnRefs: { 'app.Audit': { c: { write: true } } }, dependencies: ['app.Audit'], tableWrites: ['app.Audit'] }));
-        add(obj('app.T', 'U'));
-        add(obj('app.Audit', 'U'));
-        const triggers = [{ trigger: 'app.trg', parentTable: 'app.T', disabled: false, events }];
-        return WriteFootprintService.analyzeFootprint({ index: { objects }, triggers, target: 'app.P' });
-    }
+	function scenario({ writeOps, events, tableWrites = ['app.T'] }) {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(Object.assign(obj('app.P', 'P', { columnRefs: {}, dependencies: ['app.T'], tableWrites }), { tableWriteOps: writeOps }));
+		add(obj('app.trg', 'TR', { columnRefs: { 'app.Audit': { c: { write: true } } }, dependencies: ['app.Audit'], tableWrites: ['app.Audit'] }));
+		add(obj('app.T', 'U'));
+		add(obj('app.Audit', 'U'));
+		const triggers = [{ trigger: 'app.trg', parentTable: 'app.T', disabled: false, events }];
+		return WriteFootprintService.analyzeFootprint({ index: { objects }, triggers, target: 'app.P' });
+	}
 
-    test('a DELETE does not fire an AFTER INSERT trigger, an INSERT does', () => {
-        const deleted = scenario({ writeOps: { 'app.T': ['delete'] }, events: ['insert'] });
-        assert.deepStrictEqual(deleted.triggersFired, []);
-        assert.ok(!deleted.tables.some(t => t.qualifiedName === 'app.Audit'));
+	test('a DELETE does not fire an AFTER INSERT trigger, an INSERT does', () => {
+		const deleted = scenario({ writeOps: { 'app.T': ['delete'] }, events: ['insert'] });
+		assert.deepStrictEqual(deleted.triggersFired, []);
+		assert.ok(!deleted.tables.some(t => t.qualifiedName === 'app.Audit'));
 
-        const inserted = scenario({ writeOps: { 'app.T': ['insert'] }, events: ['insert'] });
-        assert.deepStrictEqual(inserted.triggersFired, ['app.trg']);
-        assert.ok(inserted.tables.find(t => t.qualifiedName === 'app.Audit').viaTriggerOnly);
-    });
+		const inserted = scenario({ writeOps: { 'app.T': ['insert'] }, events: ['insert'] });
+		assert.deepStrictEqual(inserted.triggersFired, ['app.trg']);
+		assert.ok(inserted.tables.find(t => t.qualifiedName === 'app.Audit').viaTriggerOnly);
+	});
 
-    test('a trigger on several events fires on any of them, and a write of several kinds on any of those', () => {
-        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['update'] }, events: ['insert', 'update'] }).triggersFired, ['app.trg']);
-        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete', 'insert'] }, events: ['insert'] }).triggersFired, ['app.trg']);
-    });
+	test('a trigger on several events fires on any of them, and a write of several kinds on any of those', () => {
+		assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['update'] }, events: ['insert', 'update'] }).triggersFired, ['app.trg']);
+		assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete', 'insert'] }, events: ['insert'] }).triggersFired, ['app.trg']);
+	});
 
-    test('what is not known counts as firing: an index without the kinds, a trigger without events', () => {
-        assert.deepStrictEqual(scenario({ writeOps: undefined, events: ['insert'] }).triggersFired, ['app.trg']);
-        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete'] }, events: [] }).triggersFired, ['app.trg']);
-        assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete'] }, events: undefined }).triggersFired, ['app.trg']);
-    });
+	test('what is not known counts as firing: an index without the kinds, a trigger without events', () => {
+		assert.deepStrictEqual(scenario({ writeOps: undefined, events: ['insert'] }).triggersFired, ['app.trg']);
+		assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete'] }, events: [] }).triggersFired, ['app.trg']);
+		assert.deepStrictEqual(scenario({ writeOps: { 'app.T': ['delete'] }, events: undefined }).triggersFired, ['app.trg']);
+	});
 
-    test('the event codes of sys.trigger_events', () => {
-        assert.deepStrictEqual(WriteFootprintService._eventsOf('1,2,3'), ['insert', 'update', 'delete']);
-        assert.deepStrictEqual(WriteFootprintService._eventsOf('1'), ['insert']);
-        assert.deepStrictEqual(WriteFootprintService._eventsOf(null), []);
-        assert.deepStrictEqual(WriteFootprintService._eventsOf('9,x'), []);
-    });
+	test('the event codes of sys.trigger_events', () => {
+		assert.deepStrictEqual(WriteFootprintService._eventsOf('1,2,3'), ['insert', 'update', 'delete']);
+		assert.deepStrictEqual(WriteFootprintService._eventsOf('1'), ['insert']);
+		assert.deepStrictEqual(WriteFootprintService._eventsOf(null), []);
+		assert.deepStrictEqual(WriteFootprintService._eventsOf('9,x'), []);
+	});
 });

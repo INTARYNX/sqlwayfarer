@@ -71,49 +71,49 @@ JOIN HumanResources.Department d ON d.DepartmentID = edh.DepartmentID;
 `;
 
 function parse(sql) {
-    const parser = new BabelfishSqlParser();
-    parser.setEnabled(true);
-    return parser.analyzeOperations(sql);
+	const parser = new BabelfishSqlParser();
+	parser.setEnabled(true);
+	return parser.analyzeOperations(sql);
 }
 
 suite('BabelfishSqlParser', () => {
-    test('disabled parser returns null without attempting to parse', () => {
-        const parser = new BabelfishSqlParser();
-        assert.strictEqual(parser.analyzeOperations(USP_UPDATE_EMPLOYEE_HIRE_INFO), null);
-    });
+	test('disabled parser returns null without attempting to parse', () => {
+		const parser = new BabelfishSqlParser();
+		assert.strictEqual(parser.analyzeOperations(USP_UPDATE_EMPLOYEE_HIRE_INFO), null);
+	});
 
-    test('detects UPDATE and INSERT targets in HumanResources.uspUpdateEmployeeHireInfo', () => {
-        const result = parse(USP_UPDATE_EMPLOYEE_HIRE_INFO);
+	test('detects UPDATE and INSERT targets in HumanResources.uspUpdateEmployeeHireInfo', () => {
+		const result = parse(USP_UPDATE_EMPLOYEE_HIRE_INFO);
 
-        assert.deepStrictEqual(result['humanresources.employee'], ['UPDATE']);
-        assert.deepStrictEqual(result['humanresources.employeepayhistory'], ['INSERT']);
-    });
+		assert.deepStrictEqual(result['humanresources.employee'], ['UPDATE']);
+		assert.deepStrictEqual(result['humanresources.employeepayhistory'], ['INSERT']);
+	});
 
-    test('does not classify EXECUTE calls or parameter-type references as operations', () => {
-        const result = parse(USP_UPDATE_EMPLOYEE_HIRE_INFO);
+	test('does not classify EXECUTE calls or parameter-type references as operations', () => {
+		const result = parse(USP_UPDATE_EMPLOYEE_HIRE_INFO);
 
-        // Known / documented in the README as a limitation: the EXEC of
-        // another procedure and a parameter type reference produce no entry
-        // in the map.
-        assert.strictEqual(result['dbo.uspLogError'], undefined);
-        assert.strictEqual(result['dbo.flag'], undefined);
-    });
+		// Known / documented in the README as a limitation: the EXEC of
+		// another procedure and a parameter type reference produce no entry
+		// in the map.
+		assert.strictEqual(result['dbo.uspLogError'], undefined);
+		assert.strictEqual(result['dbo.flag'], undefined);
+	});
 
-    test('treats the FROM/JOIN clause of an UPDATE as SELECT, in addition to the UPDATE target', () => {
-        const result = parse(UPDATE_WITH_FROM_JOIN);
+	test('treats the FROM/JOIN clause of an UPDATE as SELECT, in addition to the UPDATE target', () => {
+		const result = parse(UPDATE_WITH_FROM_JOIN);
 
-        // Sales.SalesOrderHeader is both the UPDATE target and re-read via its alias in FROM.
-        assert.deepStrictEqual(result['sales.salesorderheader'].sort(), ['SELECT', 'UPDATE']);
-        assert.deepStrictEqual(result['sales.customer'], ['SELECT']);
-    });
+		// Sales.SalesOrderHeader is both the UPDATE target and re-read via its alias in FROM.
+		assert.deepStrictEqual(result['sales.salesorderheader'].sort(), ['SELECT', 'UPDATE']);
+		assert.deepStrictEqual(result['sales.customer'], ['SELECT']);
+	});
 
-    test('collects every joined table in a SELECT as SELECT', () => {
-        const result = parse(SELECT_WITH_JOIN);
+	test('collects every joined table in a SELECT as SELECT', () => {
+		const result = parse(SELECT_WITH_JOIN);
 
-        assert.deepStrictEqual(result['humanresources.employee'], ['SELECT']);
-        assert.deepStrictEqual(result['humanresources.employeedepartmenthistory'], ['SELECT']);
-        assert.deepStrictEqual(result['humanresources.department'], ['SELECT']);
-    });
+		assert.deepStrictEqual(result['humanresources.employee'], ['SELECT']);
+		assert.deepStrictEqual(result['humanresources.employeedepartmenthistory'], ['SELECT']);
+		assert.deepStrictEqual(result['humanresources.department'], ['SELECT']);
+	});
 });
 
 suite('BabelfishSqlParser: the fast SLL stage gives what the full parse gives', () => {
