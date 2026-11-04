@@ -27,13 +27,16 @@ class IndexResolver {
     constructor(objects, isTable) {
         this._byQN = {};
         this._byBare = {};
+        this._byBareCode = {};
         this._isTable = isTable;
         for (const e of Object.values(objects || {})) {
             const qn = IndexResolver._clean(e.qualifiedName);
             this._byQN[qn] = e;
+            const bare = qn.split('.').pop();
             if (isTable(e.type)) {
-                const bare = qn.split('.').pop();
                 (this._byBare[bare] = this._byBare[bare] || []).push(e);
+            } else {
+                (this._byBareCode[bare] = this._byBareCode[bare] || []).push(e);
             }
         }
     }
@@ -81,6 +84,33 @@ class IndexResolver {
     // the ambiguity instead of resolving it.
     candidates(bareName) {
         return this._byBare[IndexResolver._clean(bareName)] || [];
+    }
+
+    // The code object (a procedure, a function, a view) a reference points
+    // to, or null when it cannot be resolved. Same rule as resolveTable: a
+    // qualified name is authoritative, an unqualified one is the module's own
+    // schema first, then the single object carrying that name - and nothing
+    // when it is ambiguous.
+    resolveCode(key, preferSchema) {
+        const n = IndexResolver._clean(key);
+        const exact = this._byQN[n];
+        if (exact) return this._isTable(exact.type) ? null : exact;
+        // A qualified name that is not in the index stays unresolved: the
+        // bare name would point at another schema's object.
+        if (n.includes('.')) return null;
+
+        const candidates = this._byBareCode[n] || [];
+        if (candidates.length === 0) return null;
+        if (candidates.length === 1) return candidates[0];
+
+        if (preferSchema) {
+            const inSchema = candidates.filter(
+                e => IndexResolver._clean(e.schema) === IndexResolver._clean(preferSchema)
+            );
+            if (inSchema.length === 1) return inSchema[0];
+        }
+        // Ambiguous: reported as unresolved rather than guessed.
+        return null;
     }
 }
 

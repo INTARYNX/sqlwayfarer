@@ -635,6 +635,9 @@ class JoinGraphVisitor {
     constructor() {
         this._tables = new Set();
         this._functions = new Set();
+        // The calls whose name looks like a system procedure (sp_..., xp_...):
+        // they are usually one, but the user may have created one too.
+        this._possibleSystemCalls = new Set();
         this._joins = [];
         this._seen = new Set();
         this._ctes = new Set();
@@ -648,7 +651,12 @@ class JoinGraphVisitor {
     }
 
     getResult() {
-        return { tables: [...this._tables], functions: [...this._functions], joins: this._joins };
+        return {
+            tables: [...this._tables],
+            functions: [...this._functions],
+            possibleSystemCalls: [...this._possibleSystemCalls],
+            joins: this._joins
+        };
     }
 
     _isStatement(ruleIndex) {
@@ -702,7 +710,15 @@ class JoinGraphVisitor {
     _collectExecuted(body) {
         const nameCtx = firstCtx(body.func_proc_name_server_database_schema ? body.func_proc_name_server_database_schema() : null);
         const name = nameCtx ? cleanTableKey(nameCtx.getText()) : null;
-        if (name && (name.includes('.') || !/^(?:sp|xp)_/i.test(name))) this._functions.add(name);
+        if (!name) return;
+        if (name.includes('.')) { this._functions.add(name); return; }
+        // A bare name that looks like a system procedure (sp_..., xp_...) is
+        // usually one - but the user may have created one too, and it would
+        // then be followed as any other procedure. It is not dropped: the
+        // caller resolves it against the catalog, and a system procedure that
+        // is not there is simply left alone.
+        if (/^(?:sp|xp)_/i.test(name)) { this._possibleSystemCalls.add(name); return; }
+        this._functions.add(name);
     }
 
     _functionName(fc) {
