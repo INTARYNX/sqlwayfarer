@@ -351,10 +351,12 @@ class QueryManager {
         }
     }
 
-    // Fill the editor with a given SQL string and run it immediately
-    // (used by the per-object "Top 10" shortcut in Explorer).
+    // Run a given SQL string right away (used by the per-object "Top 10"
+    // shortcut in Explorer). An editor that holds text is not overwritten: the
+    // query goes to a new draft tab, an empty editor is reused.
     runQueryText(sql) {
-        this.input.value = sql;
+        if (this.openScriptInNewTab && (this.input.value || '').trim()) this.openScriptInNewTab(sql);
+        else this.input.value = sql;
         this.runQuery();
     }
 
