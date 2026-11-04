@@ -233,3 +233,70 @@ suite('QueryRiskAnalyzer only parses what may write', () => {
 		assert.strictEqual(parser.calls, 0);
 	});
 });
+
+suite('QueryRiskAnalyzer: the writes of a production connection', () => {
+	const analyzer = new QueryRiskAnalyzer(null);
+	const prod = sql => analyzer.analyze(sql, { production: true });
+	const writes = sql => prod(sql).filter(r => /on a production connection/.test(r));
+
+	test('a write wrapped in a condition or in a block is a write', () => {
+		for (const sql of [
+			'IF EXISTS (SELECT 1 FROM dbo.t) DROP TABLE dbo.t;',
+			'IF 1=1 SELECT 1; ELSE DROP TABLE dbo.t;',
+			'BEGIN TRY DROP TABLE dbo.t; END TRY',
+			'BEGIN UPDATE dbo.t SET x=1; END',
+			'WITH c AS (SELECT 1) UPDATE dbo.t SET x=1 FROM c;'
+		]) {
+			assert.ok(writes(sql).length > 0, sql);
+		}
+	});
+
+	test('SELECT ... INTO creates a table: it is a write', () => {
+		assert.ok(writes('SELECT a INTO dbo.NewTable FROM dbo.t;').length > 0);
+	});
+
+	test('a dynamic statement written as a literal is looked into', () => {
+		assert.ok(writes("EXEC('DELETE FROM dbo.t');").length > 0);
+		assert.ok(writes("EXEC(N'DELETE FROM dbo.t');").length > 0);
+	});
+
+	test('a procedure called with EXEC may write anything', () => {
+		assert.ok(writes('EXEC dbo.MyProc;').length > 0);
+		// A system procedure only reads.
+		assert.deepStrictEqual(writes('EXEC sp_help'), []);
+	});
+
+	test('a temporary table or a table variable is not a change to production', () => {
+		for (const sql of [
+			'DROP TABLE IF EXISTS #tmp;',
+			'UPDATE TOP (10) #t SET x=1;',
+			'UPDATE TOP 10 #t SET x=1;',
+			'CREATE INDEX ix ON #t (x);',
+			'CREATE UNIQUE INDEX ix ON #t (x);',
+			'TRUNCATE TABLE #t;',
+			'MERGE #t AS s USING dbo.src AS t ON s.id = t.id WHEN MATCHED THEN UPDATE SET s.x = t.x;'
+		]) {
+			assert.deepStrictEqual(writes(sql), [], sql);
+		}
+	});
+});
+
+suite('QueryRiskAnalyzer: a WHERE that is always true', () => {
+	const analyzer = new QueryRiskAnalyzer(null);
+
+	test('is flagged wherever it stands', () => {
+		for (const sql of [
+			'UPDATE dbo.t SET x=1 WHERE 1=1;',
+			'BEGIN UPDATE dbo.t SET x=1 WHERE 1=1; END',
+			'DELETE FROM dbo.t WHERE 1=1',
+			'UPDATE dbo.t SET x=1 WHERE 1=1 OR y IS NULL;'
+		]) {
+			const risks = analyzer.analyze(sql);
+			assert.ok(risks.some(r => /always-true WHERE/.test(r)), `${sql} -> ${risks.join(' | ')}`);
+		}
+	});
+
+	test('a WHERE that filters is not flagged', () => {
+		assert.deepStrictEqual(analyzer.analyze('UPDATE dbo.t SET x=1 WHERE 1=1 AND y = 5;'), []);
+	});
+});
