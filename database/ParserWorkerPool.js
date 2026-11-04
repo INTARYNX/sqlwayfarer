@@ -15,9 +15,17 @@ const BabelfishSqlParser = require('./BabelfishSqlParser');
 const MAX_CONSECUTIVE_FAILURES = 10;
 
 // Parses T-SQL definitions for column lineage and table-level writes across
-// a small pool of worker threads, so the CPU-bound ANTLR parse (40-550ms per
-// object) doesn't serialize on the extension host's single main thread. Falls
-// back to in-process parsing if the pool can't be used for any reason.
+// a small pool of worker threads, so the CPU-bound ANTLR parse doesn't
+// serialize on the extension host's single main thread. Falls back to
+// in-process parsing if the pool can't be used for any reason.
+//
+// Two costs, and they are not the same one:
+//  - the FIRST parse of a process builds ANTLR's decision caches, which takes
+//    about a second and a half. Every worker pays it once, on its own heap:
+//    the first indexing of a database waits for it, and the caches are held
+//    once per worker.
+//  - a parse with the caches warm takes a few milliseconds on a small
+//    definition, up to about half a second on a big one.
 class ParserWorkerPool {
     constructor() {
         this._piscina = null;
