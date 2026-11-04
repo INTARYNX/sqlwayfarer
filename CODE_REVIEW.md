@@ -11,7 +11,7 @@
 ## Synthèse
 
 > **État au 2026-11-04, après les corrections** — les 26 commits qui suivent la
-> revue ont traité 27 constats sur 37 (24 de la première revue, 13 de la
+> revue ont traité 28 constats sur 38 (25 de la première revue, 13 de la
 > seconde). Le détail est dans
 > [« Ce qui a été corrigé »](#ce-qui-a-été-corrigé) en bas de ce document.
 > Les constats qui restent sont signalés « ouvert ».
@@ -24,6 +24,7 @@ Les problèmes réels ne sont pas dans le code métier mais **autour** :
 |---|---|---|
 | **C1** | La CI n'a **jamais** été verte (4 runs, 4 échecs) et ne couvre pas `dev` (+34 294 lignes) | 🔴 Critique |
 | **C2** | La suite de tests est **rouge** : un timeout ANTLR (défaut 2 000 ms) — préexistant, aussi sur `main` | 🔴 Critique |
+| **C3** | Les réglages d'Actions **interdisent les actions externes** : tout workflow qui en utilise une échoue avant son premier job | 🔴 Critique |
 | **E1/E2** | `npm run lint` ne peut **jamais** échouer (règles en `warn`) ; `sourceType: "module"` sur du CommonJS | 🟠 Élevé |
 | **E3/E4/E5** | 16 CVE npm ; la CI ne build pas ; 2,9 Mo de vendor sans version ni licence | 🟠 Élevé |
 | **E6** | `connect()` concurrent : le **dernier choix de l'utilisateur est perdu** (démontré) | 🟠 Élevé |
@@ -122,6 +123,44 @@ Le commit `f78d1f6` (« Parser: SLL prediction first… ») a bien ajouté un é
 - structurellement : le vrai coût est ailleurs — voir ci-dessous.
 
 **Impact réel sur l'extension (au-delà du test) :** `ParserWorkerPool` (`database/ParserWorkerPool.js:36-49`) crée **jusqu'à 4 workers**, et chacun charge le parser ANTLR généré (5,71 Mo de source) dans son propre heap. Chaque worker paie son cold start → **jusqu'à ~4 × 1,5 s = 6 s** de latence au premier indexage, et **×4 la mémoire** pour des tables DFA identiques. Le commentaire du fichier (« the CPU-bound ANTLR parse (40-550ms per object) ») décrit le cas chaud et masque ce cold start.
+
+---
+
+## 🔴 C3 — Les réglages d'Actions du dépôt interdisent les actions externes
+
+**Fichiers :** réglages du dépôt (Actions → General → Actions permissions) — pas de fichier
+
+C1 dit que la CI n'a jamais été verte. La cause en était double : le
+`package-lock.json` manquait sur `main`, **et** le dépôt refuse les actions
+des autres dépôts. Un workflow qui utilise `actions/checkout` ou
+`actions/setup-node` n'atteint jamais son premier job : le run est
+`startup_failure`, **sans aucun job et sans aucun message**.
+
+*Mesuré, une action à la fois :*
+
+| Workflow | Résultat |
+|---|---|
+| Un seul `run: echo hello` | `success` |
+| Le même + `uses: actions/checkout@v4` | `startup_failure`, **0 job** |
+| Le même + `uses: actions/checkout@<sha complet>` | `startup_failure`, **0 job** |
+| Le même + `uses: actions/setup-node@v4` | `startup_failure`, **0 job** |
+| Le même + `uses: ./.github/actions/...` (action locale) | le job démarre |
+
+Le `continue-on-error` ne change rien : l'échec est avant le job. Le workflow
+lui-même est valide — GitHub le liste comme `active`.
+
+*La piste qui a trompé :* le `package-lock.json` manquant expliquait les
+quatre premiers échecs (à `npm ci`), mais pas ceux-là. Un workflow minimal,
+sans aucune action, passait ; le même avec une action, non. La cause est
+dans les **réglages du dépôt**, que le code ne peut pas contourner : c'est
+`Settings → Actions → General → Actions permissions → Allow all actions`
+(ou une liste qui contient `actions/*`).
+
+*Ce qui a été fait :* la CI ne dépend plus d'aucune action externe. Le code
+est récupéré avec `git`, et le Node du runner est utilisé. Les jobs sont
+ceux d'avant, plus les tests du webview et les tests qui exigent un vrai SQL
+Server. Quand le réglage sera rouvert, l'étape « The code » peut revenir à
+`actions/checkout` et une étape `setup-node` peut épingler la version de Node.
 
 ---
 
@@ -591,6 +630,7 @@ pas par la lecture.
 | **A7** — `SET STATISTICS XML` était basculé pour chaque batch | Une seule paire pour tout le script | `6cee06a` |
 | **A8** — indentation des tests en espaces | ESLint vérifie l'indentation des tests ; les 4 fichiers sont alignés | `11fccff` |
 | **B9** — nom de fichier temporaire fixe pour l'écriture de l'index | Le nom porte le pid et un compteur ; un échec ne laisse pas de fichier derrière | `4077cd8` |
+| **C3** — les réglages d'Actions interdisent les actions externes : tout workflow qui en utilise une échoue avant son premier job | La CI ne dépend plus d'aucune action externe : le code est récupéré avec `git`, le Node du runner est utilisé | `58b4f8b` |
 
 ## Ce qui reste ouvert
 

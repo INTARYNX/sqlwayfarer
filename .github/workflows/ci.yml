@@ -50,6 +50,10 @@ jobs:
 
       - run: npm ci
 
+      # VS Code loads the extension from dist/extension.js: without the
+      # bundle, the extension is not there to be tested.
+      - run: npm run build
+
       - run: xvfb-run -a npm test
 
   # The webview is where the business code of the extension lives. Its tests
@@ -65,6 +69,9 @@ jobs:
           git checkout -q --force FETCH_HEAD
 
       - run: npm ci
+
+      # The pages of the webview load the editor bundle from dist/webview/.
+      - run: npm run build
 
       - run: npx playwright install --with-deps chromium
 
