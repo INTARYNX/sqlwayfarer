@@ -61,6 +61,14 @@ function buildPage(htmlName, providerFile, theme) {
 	return 'file://' + out;
 }
 
+// A file in the temporary directory of the run. The screenshots of a test
+// have to land somewhere that exists on every machine - the path they were
+// written to before was the one of the machine that wrote them.
+function tmpPath(name) {
+	if (!tmpDir) tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlwayfarer-e2e-'));
+	return path.join(tmpDir, name);
+}
+
 // A page with the stubbed API; errors of the page are collected in page.errors.
 async function openPage(browser, htmlName, providerFile, theme, viewport = { width: 1100, height: 760 }) {
 	const page = await browser.newPage({ viewport });
@@ -99,4 +107,4 @@ function checker() {
 	return check;
 }
 
-module.exports = { themes, loadPlaywright, buildPage, openPage, post, sent, clearSent, commands, checker, root, placeholderFiles };
+module.exports = { themes, loadPlaywright, buildPage, openPage, post, sent, clearSent, commands, checker, root, placeholderFiles, tmpPath };
