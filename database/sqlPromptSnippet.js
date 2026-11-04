@@ -55,22 +55,73 @@ function contentText(raw) {
 // every <tag> that is never closed, and a file made of such tags takes minutes.
 // Here an element is an opening tag, then the first closing tag after it (found
 // with indexOf); when there is none, no later element of that name has one.
+// The opening tags are found by a linear scan too: a regular expression would
+// walk the rest of the text for every tag that is never closed.
+
+// The opening tag at or after `pos` in xml: { name, start, end, selfClosing },
+// or null when there is none. The name is the word characters right after the
+// "<", and the tag ends at the first ">".
+function nextOpeningTag(xml, pos) {
+    while (pos < xml.length) {
+        const start = xml.indexOf('<', pos);
+        if (start === -1) return null;
+        let i = start + 1;
+        while (i < xml.length && /\w/.test(xml[i])) i++;
+        // Not the name of a tag: "<", "</", "<3".
+        if (i === start + 1) { pos = start + 1; continue; }
+        const name = xml.slice(start + 1, i);
+        // The name must be followed by the end of the tag, a slash or a space:
+        // "<Taggy>" is not a "<Tag>".
+        const after = xml[i];
+        if (after !== '>' && after !== '/' && !(after && /\s/.test(after))) { pos = start + 1; continue; }
+        const end = xml.indexOf('>', i);
+        // An opening tag that is never closed ends the scan.
+        if (end === -1) return null;
+        return { name, start, end, selfClosing: xml[end - 1] === '/' };
+    }
+    return null;
+}
 
 // The elements named `tag` in xml, in order: { inner, selfClosing }. An opening
 // tag that is never closed ends the search.
 function elementsNamed(xml, tag, { first = false } = {}) {
     const out = [];
-    const open = new RegExp(`<${tag}(?:\\s[^>]*?)?(/?)>`, 'g');
     const closing = `</${tag}>`;
-    let match;
-    while ((match = open.exec(xml))) {
-        if (match[1] === '/') {
-            out.push({ inner: '', selfClosing: true });
-        } else {
-            const end = xml.indexOf(closing, open.lastIndex);
+    const open = `<${tag}`;
+    let pos = 0;
+    while (pos < xml.length) {
+        const start = xml.indexOf(open, pos);
+        if (start === -1) break;
+        const after = start + open.length;
+        const next = xml[after];
+        let contentStart;
+        let selfClosing;
+        if (next === '>') {
+            contentStart = after + 1;
+            selfClosing = false;
+        } else if (next === '/') {
+            // "<tag/ >" is not a tag.
+            if (xml[after + 1] !== '>') { pos = start + 1; continue; }
+            contentStart = after + 2;
+            selfClosing = true;
+        } else if (next !== undefined && /\s/.test(next)) {
+            const end = xml.indexOf('>', after);
             if (end === -1) break;
-            out.push({ inner: xml.slice(open.lastIndex, end), selfClosing: false });
-            open.lastIndex = end + closing.length;
+            selfClosing = xml[end - 1] === '/';
+            contentStart = end + 1;
+        } else {
+            // "<taggy>" is not a "<tag>".
+            pos = start + 1;
+            continue;
+        }
+        if (selfClosing) {
+            out.push({ inner: '', selfClosing: true });
+            pos = contentStart;
+        } else {
+            const end = xml.indexOf(closing, contentStart);
+            if (end === -1) break;
+            out.push({ inner: xml.slice(contentStart, end), selfClosing: false });
+            pos = end + closing.length;
         }
         if (first) break;
     }
@@ -101,20 +152,21 @@ function placeholdersOf(snippetXml) {
     // carries an ID is kept the same way (its default is just text). Walks the
     // opening tags: the first element with an <ID> inside is one declaration.
     const body = declarations.inner;
-    const open = /<(\w+)(?:\s[^>]*?)?>/g;
     const unclosed = new Set();
-    let match;
-    while ((match = open.exec(body))) {
-        const tag = match[1];
-        if (match[0].endsWith('/>') || unclosed.has(tag)) continue;
-        const closing = `</${tag}>`;
-        const end = body.indexOf(closing, open.lastIndex);
-        if (end === -1) { unclosed.add(tag); continue; }
-        const inner = body.slice(open.lastIndex, end);
+    let pos = 0;
+    for (;;) {
+        const tag = nextOpeningTag(body, pos);
+        if (!tag) break;
+        pos = tag.end + 1;
+        if (tag.selfClosing || unclosed.has(tag.name)) continue;
+        const closing = `</${tag.name}>`;
+        const end = body.indexOf(closing, pos);
+        if (end === -1) { unclosed.add(tag.name); continue; }
+        const inner = body.slice(pos, end);
         const id = elementText(inner, 'ID').trim();
         if (!id) continue;
         out.push({ id, tooltip: elementText(inner, 'ToolTip').trim(), default: elementText(inner, 'Default') });
-        open.lastIndex = end + closing.length;
+        pos = end + closing.length;
     }
     return out;
 }
