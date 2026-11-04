@@ -705,7 +705,7 @@ class QueryManager {
 
         let html = '';
         resultSets.forEach((set, index) => {
-            html += `<div class="result-set-pane" data-rs-pane="${index}"${index === 0 ? '' : ' style="display:none;"'}>`
+            html += `<div class="result-set-pane rs-grid-pane" data-rs-pane="${index}"${index === 0 ? '' : ' style="display:none;"'}>`
                 + this.buildResultSetActionsHtml(set, index)
                 + `<div class="result-set-table-wrap" data-rs-table="${index}">`
                 + this.buildResultSetTableHtml(this.visibleRows(set, index), set.columns, index)
