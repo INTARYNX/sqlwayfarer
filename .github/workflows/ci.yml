@@ -6,18 +6,29 @@ on:
   pull_request:
     branches: [main, dev]
 
+# The Actions settings of this repository do not allow the actions of the
+# other repositories. A workflow that refers to one - actions/checkout,
+# actions/setup-node - fails before its first job exists: the run is
+# "startup_failure", with no job, no log and no message, whatever the
+# workflow file says. This was measured, one action at a time.
+#
+# The code is therefore fetched with git, and the Node of the runner is used.
+# When the setting allows the actions again, the "The code" step of each job
+# can go back to actions/checkout, and a setup-node step can pin the version
+# of Node.
+
 jobs:
   # The fast gate: lint and the unit tests that need no VS Code. Runs in
   # seconds, so it is the one that gives a quick answer on a pull request.
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+      - name: The code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q --force FETCH_HEAD
 
       - run: npm ci
 
@@ -30,16 +41,34 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+      - name: The code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q --force FETCH_HEAD
 
       - run: npm ci
 
       - run: xvfb-run -a npm test
+
+  # The webview is where the business code of the extension lives. Its tests
+  # drive a real browser against the real page.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q --force FETCH_HEAD
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
 
   # The artefact is never checked by the tests above: a webpack mistake, or a
   # file missing from the .vsix, would only show up on a user's machine. This
@@ -47,12 +76,12 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+      - name: The code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q --force FETCH_HEAD
 
       - run: npm ci
 
@@ -95,14 +124,47 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+      - name: The code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q --force FETCH_HEAD
 
       - run: npm ci
 
       - run: npm audit --audit-level=high
         continue-on-error: true
+
+  # The tests that need a real SQL Server. They are opt-in (they read the
+  # connection from SQLWAYFARER_TEST_SQL) and they create the databases they
+  # need, so a throwaway instance is enough.
+  sql-integration:
+    runs-on: ubuntu-latest
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: Sqlwayfarer2026
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Sqlwayfarer2026 -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      SQLWAYFARER_TEST_SQL: '{"server":"localhost","user":"sa","password":"Sqlwayfarer2026","database":"master","options":{"trustServerCertificate":true,"encrypt":false}}'
+    steps:
+      - name: The code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q --force FETCH_HEAD
+
+      - run: npm ci
+
+      - name: The live tests
+        run: npx mocha --ui tdd "test/live*.test.js" --timeout 600000
