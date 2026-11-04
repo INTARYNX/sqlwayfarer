@@ -34,7 +34,15 @@ jobs:
 
       - run: npm run lint
 
-      - run: npm run test:unit
+      # The coverage of the run is kept: the check below needs it.
+      - name: The unit tests
+        run: NODE_V8_COVERAGE=coverage npm run test:unit
+
+      # A file that no test loads cannot have its faults found. The list of
+      # those files is written down (test/coverage-baseline.json) and must not
+      # grow: a new one fails the build.
+      - name: The blind spots have not grown
+        run: node scripts/coverage-check.js coverage
 
   # The full gate: the same tests, in a real VS Code. Needs a display, hence
   # xvfb-run.

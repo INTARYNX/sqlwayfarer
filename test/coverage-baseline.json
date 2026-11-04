@@ -1,0 +1,31 @@
+{
+	"comment": "The source files the unit suite does not load. The files of neverLoaded are loaded by NO test at all: they are the blind spots, and a fault in one of them cannot be found by a test. A file that appears in uncovered without being in the baseline fails the check (scripts/coverage-check.js): the blind spot must not grow silently.",
+	"uncovered": [
+		"database/CommentsService.js",
+		"database/generate-tsql-parser.js",
+		"extension.js",
+		"panels/SnippetSidebarProvider.js",
+		"panels/SqlWayfarerPanel.js",
+		"panels/buildInfo.js",
+		"panels/handlers/CommentsHandlers.js",
+		"panels/handlers/ExportHandlers.js",
+		"panels/handlers/FootprintHandlers.js",
+		"panels/handlers/QueryFileHandlers.js",
+		"panels/handlers/QueryHandlers.js",
+		"panels/handlers/ScriptHandlers.js",
+		"panels/handlers/SnippetHandlers.js",
+		"panels/handlers/connectionImportUi.js",
+		"panels/handlers/snippetImportUi.js",
+		"panels/iconSprite.js",
+		"panels/panelState.js",
+		"panels/ratingPrompt.js"
+	],
+	"neverLoaded": [
+		"database/generate-tsql-parser.js",
+		"extension.js",
+		"panels/SnippetSidebarProvider.js",
+		"panels/buildInfo.js",
+		"panels/handlers/connectionImportUi.js",
+		"panels/handlers/snippetImportUi.js"
+	]
+}
