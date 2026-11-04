@@ -462,7 +462,7 @@ l'exécution, pas par la lecture.
 | **E9** — 5 réponses sans consommateur | **Conservées** : le commit `ab3a19b` les corrigeait volontairement il y a 2 jours. Elles sont désormais **documentées comme réservées**, et le test du protocole vérifie les deux sens | `5417e1c` |
 | **E10** — 158 commits sans CI ni revue | Traité par C1 (la CI couvre enfin `dev`). La part « revue humaine » reste une question de process | `9083758` |
 | **M1** — commande absente du manifeste | `sqlwayfarer.openConnection` déclarée | `f552150` |
-| **M3** — `panelState` : deux onglets s'écrasaient | File d'attente sur les écritures (vérifié : l'ancien code perdait un état) | `dab2772`→`dab2772` |
+| **M3** — `panelState` : deux onglets s'écrasaient | File d'attente sur les écritures (vérifié : l'ancien code perdait un état) | `dab2772` |
 | **M4** — suppression effaçait un password | Le secret n'est plus effacé qu'une fois la connexion confirmée | `9d530e9` |
 | **M5** — `git add -A` + publish avant commit | Exclusion des noms de secrets courants + affichage des fichiers indexés ; commit avant publish | `68a5487` |
 | **F1** — `.vscodeignore` aux mauvais noms | `README.md` / `LICENSE` ; `webview-build/` et `CODE_REVIEW.md` exclus | `3100c54` |
