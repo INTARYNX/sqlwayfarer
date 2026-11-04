@@ -16,6 +16,7 @@ package-lock.json
 deploy.ps1
 commit.ps1
 .vscode-test.mjs
+.mocharc.json
 eslint.config.mjs
 jsconfig.json
 tsconfig.json
@@ -23,12 +24,16 @@ tsconfig.json
 vsc-extension-quickstart.md
 scripts/**
 
+# The sources of the editor bundle: only dist/webview/sqlEditor.js is loaded
+webview-build/**
+
 # Scratch/dev files that don't belong in the published package
 fix_sqlerrm.sql
 large_db_test.sql
 REVIEW.md
 EDITOR_EVALUATION.md
 AGENTS.md
+CODE_REVIEW.md
 .claude/**
 
 # Project assets, not extension assets
@@ -61,8 +66,8 @@ helper/**
 !icon.png
 !images/banner.png
 !package.json
-!readme.md
-!LICENSE.txt
+!README.md
+!LICENSE
 
 # piscina has no runtime dependencies of its own, but it resolves its worker
 # bootstrap script relative to its own package folder at runtime (not bundled
