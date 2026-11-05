@@ -16,6 +16,8 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 - **Result grid**: a `date` column shows no time, a `time` column no date (grid, CSV and JSON); a `bigint` sent as text is aligned and sorted as a number; a column with no name is called `(No column name)`, and a name returned twice gets a suffix (`id`, `id (2)`) instead of folding into one.
 - Closing a draft that holds text asks for a confirmation.
 - The progress messages of the extension host print only with the `SQLWAYFARER_DEBUG` environment variable; the Marketplace keywords are cut to the 30 it reads.
+- **SQL Server driver**: `mssql` 12 (was 10). A vulnerable transitive dependency (`uuid`) is gone: `npm audit --omit=dev` reports nothing for what the extension ships. The driver `tedious` stays on 19, for the Node 20 of VS Code 1.100.
+- **Graph libraries**: the footprint graph (cytoscape and its dagre layout) is built from the versions npm installs instead of copied by hand, and Viz.js with Graphviz (2 MB) is loaded the first time a dependency graph is drawn instead of each time the panel opens.
 
 ### Fixed
 
