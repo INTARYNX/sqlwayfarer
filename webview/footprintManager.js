@@ -165,11 +165,26 @@ class FootprintManager {
         this._cy = window.cytoscape({
             container: this.graphEl, elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 1.3,
             style: FootprintManager._queryGraphStyle(),
-            layout: { name: 'dagre', rankDir: 'LR', nodeSep: 40, rankSep: 90, animate: false }
+            // The tables are far enough apart for the condition written on the
+            // line between them: a gap that is too short hides it behind the nodes.
+            layout: { name: 'dagre', rankDir: 'LR', nodeSep: 40, rankSep: Math.max(90, FootprintManager._joinLabelWidth(graph.joins || []) + 40), animate: false }
         });
         this._cy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('name')));
         this._cy.fit(this._cy.elements(), 30);
         this._renderQueryMeta(graph);
+    }
+
+    // The width the longest join condition takes on a line (9 px text, wrapped at
+    // JOIN_LABEL_MAX_WIDTH).
+    static _joinLabelWidth(joins) {
+        const context = document.createElement('canvas').getContext('2d');
+        let widest = 0;
+        for (const join of joins) {
+            const text = String(join.condition || '');
+            const width = context ? (context.font = '9px sans-serif', context.measureText(text).width) : text.length * 5.5;
+            widest = Math.max(widest, width);
+        }
+        return Math.min(widest, FootprintManager.JOIN_LABEL_MAX_WIDTH);
     }
 
     _renderQueryMeta(graph) {
@@ -493,6 +508,9 @@ class FootprintManager {
                 'curve-style': 'bezier', 'width': 1.8, 'line-color': '#4a9eda', 'target-arrow-color': '#4a9eda',
                 'target-arrow-shape': 'triangle', 'arrow-scale': 0.9,
                 'label': 'data(label)', 'font-size': 9, 'color': '#9ecbff',
+                // A long condition is wrapped: the gap between two tables is made for
+                // this width (see _joinLabelWidth).
+                'text-wrap': 'wrap', 'text-max-width': FootprintManager.JOIN_LABEL_MAX_WIDTH,
                 'text-background-color': '#1e1e1e', 'text-background-opacity': 0.85, 'text-background-padding': 2
             } },
             // A join whose condition does not qualify its columns: the partner
@@ -521,6 +539,9 @@ class FootprintManager {
         ];
     }
 }
+
+// The widest a join condition gets on a line before it wraps.
+FootprintManager.JOIN_LABEL_MAX_WIDTH = 200;
 
 // Allow unit tests to require() this file; in the webview `module` is undefined.
 if (typeof module !== 'undefined' && module.exports) {
