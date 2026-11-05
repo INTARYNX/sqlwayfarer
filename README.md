@@ -6,7 +6,9 @@ A SQL Server and Azure SQL client for VS Code, for the people who write T-SQL an
 
 [![VS Code Marketplace](https://vsmarketplacebadges.dev/version/intarynx.sqlwayfarer.svg)](https://marketplace.visualstudio.com/items?itemName=intarynx.sqlwayfarer)
 [![CI](https://github.com/INTARYNX/sqlwayfarer/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/INTARYNX/sqlwayfarer/actions/workflows/ci.yml)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/intarynx/sqlwayfarer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![No telemetry](https://img.shields.io/badge/telemetry-none-blue)
 
 ## Why
 
