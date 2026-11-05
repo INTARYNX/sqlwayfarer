@@ -12,7 +12,7 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 
 - **Destructive statement guardrails** are wider: a `WHERE` that is always true (`1=1`), `ALTER TABLE … DROP COLUMN` / `ALTER COLUMN`, every kind of `DROP` (schema, synonym, user, login, role, type, sequence, assembly…), `MERGE … THEN DELETE`, `ALTER DATABASE … SET SINGLE_USER/OFFLINE/EMERGENCY`, `xp_cmdshell`, and a statement written as a literal inside `EXEC('…')` or `sp_executesql`. Temporary tables and table variables no longer ask. The T-SQL parser is only asked about a query that has an `UPDATE` or a `DELETE` (it took 0.1 to 0.5 s of the host on each run).
 - **Write footprint**: a trigger is followed only for the kind of write it is declared for (an `AFTER INSERT` trigger is not fired by a `DELETE`).
-- **Index cache**: the index format is now 8 (the kind of each table write, and checksums that no longer depend on the time zone): the first indexing after the update is a full rebuild.
+- **Index cache**: the index format is now 9 (the kind of each table write, checksums that no longer depend on the time zone, and no user-defined type among the dependencies): the first indexing after the update is a full rebuild.
 - **Result grid**: a `date` column shows no time, a `time` column no date (grid, CSV and JSON); a `bigint` sent as text is aligned and sorted as a number; a column with no name is called `(No column name)`, and a name returned twice gets a suffix (`id`, `id (2)`) instead of folding into one.
 - Closing a draft that holds text asks for a confirmation.
 - The progress messages of the extension host print only with the `SQLWAYFARER_DEBUG` environment variable; the Marketplace keywords are cut to the 30 it reads.
@@ -21,6 +21,11 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 
 - **Run sent the whole editor even with a selection** (F5, Ctrl+Enter, the Run button). It now sends the selection when there is one, as SSMS does; the line of an error is still the one of the editor.
 - **Code tab: Format cut string literals and comments, and replaced the code** (Copy then copied the changed text). It now uses the real formatter of the editor and is a way of looking: the code of the server is kept, Copy copies what is shown, pressed again the button gives the code back.
+- **Comments tab listed a column twice**, and describing a column could fail, when an index carried a description too (AdventureWorks describes its indexes): the description of an index was read as that of the column of the same number.
+- **Explorer: the structure of a wide table widened the whole page** and shrank the object list; it now scrolls in its panel. The same went for a wide result grid, which now scrolls in its pane, with one line per row (long values cut with an ellipsis), its actions bar and header staying in place.
+- **Top 10 overwrote the text of the editor**: the query now goes to a new draft tab when the editor holds text.
+- **Write footprint reported a user-defined type** (`dbo.Flag`...) used by a procedure as an unresolved reference.
+- **Query graph: the condition written on a join was hidden behind the tables** it joins; the gap is now made for it.
 - **The query graph did not follow `EXEC`**, though the README says it follows the procedures a query calls: the procedure an `EXEC` runs, and the tables behind it, are now in the graph.
 - **A production server was run like a test one**: nothing told them apart, and the confirmation before a destructive statement was the same on both. A saved connection can now be marked *Production* (a checkbox when you edit it): the list shows a `PROD` badge, the tab a `PRODUCTION` banner, and every statement that changes data or schema (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`) asks for a confirmation, whatever its `WHERE`.
 - **A `CREATE` or `ALTER` of a procedure, view, function or trigger failed** ("must be the first statement in a query batch"): the `USE` and the plan setting now go as batches of their own.
