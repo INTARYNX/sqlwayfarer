@@ -34,7 +34,7 @@ export default [{
 },
 {
     // The e2e suites run callbacks inside the browser page (window, document...).
-    files: ["test/e2e/**/*.js"],
+    files: ["test/e2e/**/*.js", "test/tools/auditLayout.js"],
     languageOptions: {
         sourceType: "commonjs",
         globals: { ...globals.node, ...globals.mocha, ...globals.browser, appState: "readonly", DependencyVisualizer: "readonly" },
