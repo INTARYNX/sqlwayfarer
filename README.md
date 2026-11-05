@@ -97,6 +97,10 @@ The dependency analysis (tree, graph, lineage, footprint, query graph) needs a l
 - Encrypted definitions cannot be read (a SQL Server restriction). The first index of a very large database takes a while, and the next ones are incremental.
 - The Compare tab does not cover everything (synonyms, sequences, user types, CLR, columnstore and XML indexes, partitioning, permissions); what it skips is counted and said, never reported as identical.
 
+## Author
+
+Made by [intarynx](https://www.intarynx.com): one developer who builds all kinds of things (generative art, VS Code tooling, Bluetooth hardware, language-learning apps), not a company. SQL Wayfarer comes from maintaining a legacy SQL Server database, and is shared because other people live in the same kind of database.
+
 ## Contributing
 
 Bugs and ideas: [GitHub Issues](https://github.com/intarynx/sqlwayfarer/issues). Pull requests are welcome; `AGENTS.md` describes how the repository is built and tested.
