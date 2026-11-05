@@ -262,6 +262,9 @@ function collectStatementScope(node, scope, ctes) {
  * CTE names are dropped (their bodies are analyzed on their own), and inside
  * triggers the inserted/deleted pseudo-tables resolve to the trigger's target.
  */
+// How many levels of EXEC('EXEC(...)') are followed.
+const MAX_LITERAL_DEPTH = 2;
+
 class ColumnLineageVisitor extends TSqlParserVisitor {
     constructor() {
         super();
@@ -270,6 +273,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         this._scope = null;
         this._ctes = new Set();
         this._triggerTable = null;
+        this._literals = []; // the statements written as a literal in EXEC('...') or sp_executesql N'...'
     }
 
     getResult() {
@@ -281,6 +285,60 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
             }
         }
         return out;
+    }
+
+    // The text of the statements written as a literal in EXEC('...') or in
+    // sp_executesql N'...': they are code, and the caller analyzes them.
+    getLiterals() {
+        return this._literals;
+    }
+
+    // What the statements of another analysis (a literal) did, as if they had
+    // been written here.
+    absorb(other) {
+        for (const [table, cols] of other._result.entries()) {
+            for (const [col, info] of cols.entries()) this._record(table, col, { write: info.write, confident: info.confident });
+        }
+        for (const [table, ops] of other._writes.entries()) this._recordWrite(table, ...ops);
+    }
+
+    // EXEC('...') / EXEC sp_executesql N'...': the text of the literal, or null
+    // when the statement is built in a variable or by concatenation - nothing
+    // says what it holds then.
+    static _literalOf(body) {
+        const unquote = text => {
+            const match = /^N?'((?:[^']|'')*)'$/i.exec((text || '').trim());
+            return match ? match[1].replace(/''/g, "'") : null;
+        };
+        const strings = [];
+        const collect = node => {
+            if (node.ruleIndex === TSqlParser.RULE_execute_var_string) strings.push(node.getText());
+            for (let i = 0; i < node.getChildCount(); i++) collect(node.getChild(i));
+        };
+        collect(body);
+        // EXEC('...') holds one literal and nothing else: 'a' + @t is a text
+        // built at run time, whose first piece says nothing of what runs.
+        if (strings.length > 0) {
+            const alone = /^\((N?'(?:[^']|'')*')\)(?:AS(?:LOGIN|USER)=.*)?$/i.exec(body.getText());
+            return alone ? unquote(alone[1]) : null;
+        }
+        const nameCtx = firstCtx(body.func_proc_name_server_database_schema ? body.func_proc_name_server_database_schema() : null);
+        const name = nameCtx ? cleanTableKey(nameCtx.getText()) : '';
+        if (!/^(?:sys\.)?sp_executesql$/i.test(name)) return null;
+        const params = [];
+        const findParams = node => {
+            if (node.ruleIndex === TSqlParser.RULE_execute_parameter) params.push(node.getText());
+            else for (let i = 0; i < node.getChildCount(); i++) findParams(node.getChild(i));
+        };
+        findParams(body);
+        return params.length > 0 ? unquote(params[0]) : null;
+    }
+
+    visitExecute_statement(ctx) {
+        const body = this._first(ctx.execute_body ? ctx.execute_body() : null);
+        const literal = body ? ColumnLineageVisitor._literalOf(body) : null;
+        if (literal) this._literals.push(literal);
+        this.visitChildren(ctx);
     }
 
     // Tables written by the definition, whatever the columns involved.
@@ -1100,6 +1158,24 @@ class BabelfishSqlParser {
      * @returns {{columns: Object<string, Object<string, {write: boolean, confident: boolean}>>, writes: string[], errors: Array<{line: number, column: number, message: string}>}|null}
      *          null when parsing is disabled or fails.
      */
+    // A statement written as a literal in EXEC('...') is code like the rest of
+    // the definition: it is parsed, and what it reads and writes counts. A
+    // literal that holds another EXEC is followed too, two levels at most.
+    _followLiterals(visitor, depth) {
+        if (depth >= MAX_LITERAL_DEPTH) return;
+        for (const text of visitor.getLiterals()) {
+            let nested;
+            try {
+                nested = new ColumnLineageVisitor();
+                nested.visit(this._parseTree(text, true).tree);
+            } catch {
+                continue;
+            }
+            this._followLiterals(nested, depth + 1);
+            visitor.absorb(nested);
+        }
+    }
+
     analyzeDefinition(sqlDefinition) {
         if (!sqlDefinition || !this._enabled) return null;
 
@@ -1107,6 +1183,7 @@ class BabelfishSqlParser {
             const { tree, errors } = this._parseTree(sqlDefinition, true);
             const visitor = new ColumnLineageVisitor();
             visitor.visit(tree);
+            this._followLiterals(visitor, 0);
             return {
                 columns: visitor.getResult(),
                 writes: visitor.getWrites(),

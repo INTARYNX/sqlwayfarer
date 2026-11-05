@@ -351,3 +351,38 @@ suite('BabelfishSqlParser.analyzeDefinition: what is done to each table written'
 		assert.deepStrictEqual(ops('SELECT 1 FROM dbo.T'), {});
 	});
 });
+
+suite('BabelfishSqlParser.analyzeDefinition: statements written as a literal', () => {
+	test('EXEC(\'...\') is code: what it writes is written by the definition', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition("CREATE PROCEDURE dbo.p AS EXEC('INSERT dbo.Customers (id, name) VALUES (1, ''x'')')");
+		assert.deepStrictEqual(analysis.writes, ['dbo.customers']);
+		assert.deepStrictEqual(analysis.writeOps, { 'dbo.customers': ['insert'] });
+	});
+
+	test('sp_executesql N\'...\' is code too, and so is the one inside it', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition("CREATE PROCEDURE dbo.p AS EXEC sp_executesql N'DELETE FROM dbo.Old WHERE id = 1; EXEC(''UPDATE dbo.Stats SET n = 0'')'");
+		assert.deepStrictEqual(analysis.writes, ['dbo.old', 'dbo.stats']);
+		assert.deepStrictEqual(analysis.writeOps, { 'dbo.old': ['delete'], 'dbo.stats': ['update'] });
+	});
+
+	test('a statement built in a variable, or by concatenation, says nothing', function () {
+		this.timeout(10000);
+		const parser = makeParser();
+		assert.deepStrictEqual(parser.analyzeDefinition("CREATE PROCEDURE dbo.p @t sysname AS BEGIN DECLARE @s nvarchar(200) = N'DELETE FROM dbo.' + @t; EXEC sp_executesql @s; END").writes, []);
+		assert.deepStrictEqual(parser.analyzeDefinition("CREATE PROCEDURE dbo.p @t sysname AS EXEC('DELETE FROM dbo.' + @t)").writes, []);
+	});
+
+	test('a literal that is not a statement does not break the analysis', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition("CREATE PROCEDURE dbo.p AS BEGIN EXEC('not sql at all ((('); DELETE FROM dbo.T; END");
+		assert.deepStrictEqual(analysis.writes, ['dbo.t']);
+	});
+
+	test('the levels of EXEC inside EXEC are followed two deep, not further', function () {
+		this.timeout(10000);
+		const deep = "CREATE PROCEDURE dbo.p AS EXEC('EXEC(''EXEC(''''DELETE FROM dbo.Deep'''')'')')";
+		assert.deepStrictEqual(makeParser().analyzeDefinition(deep).writes, []);
+	});
+});
