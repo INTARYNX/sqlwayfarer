@@ -18,7 +18,7 @@ class CommentsService {
             FROM sys.extended_properties ep
             INNER JOIN sys.objects o ON ep.major_id = o.object_id
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
-            WHERE ep.minor_id = 0 AND ep.name = 'MS_Description'
+            WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
             AND s.name = @schema AND o.name = @objectName
         `, { schema, objectName });
 
@@ -36,6 +36,7 @@ class CommentsService {
             FROM INFORMATION_SCHEMA.COLUMNS c
             LEFT JOIN sys.extended_properties ep
                 ON ep.major_id = ${objectIdExpr}
+                AND ep.class = 1
                 AND ep.minor_id = c.ORDINAL_POSITION
                 AND ep.name = 'MS_Description'
             WHERE c.TABLE_SCHEMA = @schema AND c.TABLE_NAME = @objectName
@@ -74,7 +75,7 @@ class CommentsService {
             FROM sys.extended_properties ep
             INNER JOIN sys.objects o ON ep.major_id = o.object_id
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
-            WHERE ep.minor_id = 0 AND ep.name = 'MS_Description'
+            WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
             AND s.name = @schema AND o.name = @objectName
         `, { schema, objectName: parsedName });
 
@@ -128,13 +129,13 @@ class CommentsService {
                 INNER JOIN INFORMATION_SCHEMA.COLUMNS c ON c.TABLE_SCHEMA = s.name
                     AND c.TABLE_NAME = o.name AND c.COLUMN_NAME = @columnName
                     AND ep.minor_id = c.ORDINAL_POSITION
-                WHERE ep.name = 'MS_Description' AND s.name = @schema AND o.name = @objectName
+                WHERE ep.class = 1 AND ep.name = 'MS_Description' AND s.name = @schema AND o.name = @objectName
             )`
             : `EXISTS (
                 SELECT 1 FROM sys.extended_properties ep
                 INNER JOIN sys.objects o ON ep.major_id = o.object_id
                 INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
-                WHERE ep.minor_id = 0 AND ep.name = 'MS_Description'
+                WHERE ep.class = 1 AND ep.minor_id = 0 AND ep.name = 'MS_Description'
                 AND s.name = @schema AND o.name = @objectName
             )`;
 
