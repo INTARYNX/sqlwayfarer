@@ -275,7 +275,8 @@
     "package": "npm run build && npm run build:helper && vsce package",
     "publish": "npm run build && npm run build:helper && vsce publish",
     "test:e2e": "mocha --ui tdd \"test/e2e/*.e2e.js\" --timeout 120000",
-    "test:unit": "mocha --ui tdd \"test/*.test.js\" --ignore test/extension.test.js --ignore test/panelState.test.js --ignore test/queryFileHandlers.test.js --ignore test/queryHandlers.test.js --ignore test/indexHandlers.test.js --ignore test/liveQueryHandlers.test.js --ignore test/ratingPrompt.test.js --ignore test/snippetHandlers.test.js"
+    "test:unit": "mocha --ui tdd \"test/*.test.js\" --ignore test/extension.test.js --ignore test/panelState.test.js --ignore test/queryFileHandlers.test.js --ignore test/queryHandlers.test.js --ignore test/indexHandlers.test.js --ignore test/liveQueryHandlers.test.js --ignore test/ratingPrompt.test.js --ignore test/snippetHandlers.test.js",
+    "e2e:fixtures": "node test/tools/captureAdventureWorks.js"
   },
   "dependencies": {
     "antlr4": "^4.13.2",
