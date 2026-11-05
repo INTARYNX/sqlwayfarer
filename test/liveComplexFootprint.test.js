@@ -31,11 +31,25 @@ const SETUP = [
 	'CREATE TABLE dbo.Customers (id int PRIMARY KEY, name nvarchar(50))',
 	'CREATE TABLE sales.Orders (id int PRIMARY KEY, note nvarchar(50))',
 	'CREATE TABLE hr.Employees (id int PRIMARY KEY, name nvarchar(50))',
+	'CREATE TABLE dbo.[Order Lines Archive] (id int, note nvarchar(50))',
+	'CREATE TABLE dbo.Muted (id int)',
+	'CREATE TABLE dbo.MutedLog (id int)',
+	'CREATE TABLE dbo.Counter (n int)',
+	'CREATE SYNONYM dbo.synOrders FOR dbo.Orders',
 	// Triggers: a cascade of two levels, and one per kind of write.
 	"CREATE TRIGGER dbo.trgOrdersIns ON dbo.Orders AFTER INSERT AS INSERT dbo.Audit (what) SELECT 'ins' FROM inserted",
 	'CREATE TRIGGER dbo.trgAuditIns ON dbo.Audit AFTER INSERT AS INSERT dbo.[Log] (what) SELECT what FROM inserted',
 	'CREATE TRIGGER dbo.trgOrdersDel ON dbo.Orders AFTER DELETE AS INSERT dbo.Archive (id, note) SELECT id, N\'del\' FROM deleted',
 	"CREATE TRIGGER dbo.trgCustomersIns ON dbo.Customers AFTER INSERT AS INSERT dbo.Audit (what) SELECT 'c' FROM inserted",
+	// A trigger that is disabled fires nothing; a trigger that calls a procedure; a trigger that writes its own table.
+	'CREATE TRIGGER dbo.trgMuted ON dbo.Muted AFTER INSERT AS INSERT dbo.MutedLog SELECT id FROM inserted',
+	'DISABLE TRIGGER dbo.trgMuted ON dbo.Muted',
+	'CREATE PROCEDURE dbo.uspAuditInventory AS INSERT dbo.Audit (what) VALUES (N\'inv\')',
+	'CREATE TRIGGER dbo.trgInventoryUpd ON dbo.Inventory AFTER UPDATE AS EXEC dbo.uspAuditInventory',
+	'CREATE TRIGGER dbo.trgCounterUpd ON dbo.Counter AFTER UPDATE AS IF (SELECT COUNT(*) FROM inserted) > 100 UPDATE dbo.Counter SET n = 0',
+	// A view with an INSTEAD OF trigger: the real write is the one of the trigger.
+	'CREATE VIEW dbo.vCustomers AS SELECT id, name FROM dbo.Customers',
+	'CREATE TRIGGER dbo.trgVCustomersIns ON dbo.vCustomers INSTEAD OF INSERT AS INSERT dbo.Archive (id, note) SELECT id, name FROM inserted',
 	'CREATE VIEW dbo.vOrders AS SELECT id, customerId, total FROM dbo.Orders',
 	'CREATE FUNCTION dbo.fnOrders(@c int) RETURNS TABLE AS RETURN SELECT id, total FROM dbo.Orders WHERE customerId = @c',
 	// Procedures.
@@ -56,6 +70,16 @@ const SETUP = [
 	'CREATE PROCEDURE dbo.uspTvf AS SELECT * FROM dbo.fnOrders(1)',
 	'CREATE PROCEDURE dbo.uspUpdateCustomers AS UPDATE dbo.Customers SET name = N\'y\' WHERE id = 1',
 	'CREATE PROCEDURE dbo.uspRecurse @n int AS BEGIN INSERT dbo.[Log] (what) VALUES (N\'r\'); IF @n > 0 BEGIN DECLARE @m int = @n - 1; EXEC dbo.uspRecurse @m; END END',
+	'CREATE PROCEDURE dbo.uspSynonym AS INSERT dbo.synOrders (customerId, total) VALUES (3, 30)',
+	'CREATE PROCEDURE dbo.uspMutedTrigger AS INSERT dbo.Muted (id) VALUES (1)',
+	'CREATE PROCEDURE dbo.uspAliasJoin AS UPDATE o SET total = 0 FROM dbo.Orders o JOIN dbo.Customers c ON c.id = o.customerId WHERE c.name = N\'x\'',
+	'CREATE PROCEDURE dbo.uspInsertExec AS INSERT dbo.Archive (id, note) EXEC dbo.uspCancel',
+	'CREATE PROCEDURE dbo.uspTriggerCallsProc AS UPDATE dbo.Inventory SET qty = 0',
+	'CREATE PROCEDURE dbo.uspSelfTrigger AS UPDATE dbo.Counter SET n = n + 1',
+	'CREATE PROCEDURE dbo.uspSelectInto AS SELECT * INTO dbo.Snapshot FROM dbo.Orders',
+	'CREATE PROCEDURE dbo.uspUpperCase AS UPDATE DBO.ORDERS SET TOTAL = 1',
+	'CREATE PROCEDURE dbo.uspBrackets AS DELETE FROM [dbo].[Order Lines Archive]',
+	'CREATE PROCEDURE dbo.uspInsteadOf AS INSERT dbo.vCustomers (id, name) VALUES (9, N\'i\')',
 	'CREATE PROCEDURE hr.uspTryCatch AS BEGIN SET NOCOUNT ON; BEGIN TRY UPDATE hr.Employees SET name = N\'z\'; END TRY BEGIN CATCH INSERT dbo.[Log] (what) VALUES (ERROR_MESSAGE()); END CATCH END'
 ];
 
@@ -114,6 +138,15 @@ suite('live SQL Server: write footprint on a hard schema', function () {
 		'dbo.uspRecurse': ['dbo.Log'],
 		'sales.uspSameName': ['sales.Orders'],
 		'hr.uspTryCatch': ['dbo.Log', 'hr.Employees'],
+		'dbo.uspSynonym': ['dbo.Audit', 'dbo.Log', 'dbo.Orders'],
+		'dbo.uspMutedTrigger': ['dbo.Muted'],
+		'dbo.uspAliasJoin': ['dbo.Orders'],
+		'dbo.uspInsertExec': ['dbo.Archive', 'dbo.Orders'],
+		'dbo.uspTriggerCallsProc': ['dbo.Audit', 'dbo.Inventory', 'dbo.Log'],
+		'dbo.uspSelfTrigger': ['dbo.Counter'],
+		'dbo.uspUpperCase': ['dbo.Orders'],
+		'dbo.uspBrackets': ['dbo.Order Lines Archive'],
+		'dbo.uspInsteadOf': ['dbo.Archive'],
 		'dbo.uspDynamicVar': [],
 		'dbo.uspTvf': []
 	};
