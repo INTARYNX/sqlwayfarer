@@ -38,6 +38,8 @@ suite('live SQL Server: write footprint and triggers', function () {
 		await run("CREATE TRIGGER dbo.trgT ON dbo.T AFTER INSERT AS INSERT dbo.Audit SELECT id, N'insert' FROM inserted");
 		await run('CREATE PROCEDURE dbo.pDelete AS DELETE FROM dbo.T WHERE id = 1');
 		await run('CREATE PROCEDURE dbo.pInsert AS INSERT dbo.T (id, v) VALUES (1, 1)');
+		await run('CREATE TYPE dbo.Flag FROM bit NOT NULL');
+		await run('CREATE PROCEDURE dbo.pTyped @f dbo.Flag AS INSERT dbo.T (id, v) VALUES (3, @f)');
 		await run('CREATE PROCEDURE dbo.pBoth AS BEGIN INSERT dbo.T (id, v) VALUES (2, 2); DELETE FROM dbo.T WHERE id = 2; END');
 		conn.release();
 		const databaseService = new DatabaseService(manager);
@@ -77,5 +79,11 @@ suite('live SQL Server: write footprint and triggers', function () {
 		const index = await indexService.peekIndex(DB);
 		assert.deepStrictEqual(index.objects['dbo.pDelete'].tableWriteOps, { 'dbo.t': ['delete'] });
 		assert.deepStrictEqual(index.objects['dbo.pBoth'].tableWriteOps, { 'dbo.t': ['delete', 'insert'] });
+	});
+
+	test('a user-defined type a procedure uses is not reported as an unresolved reference', async () => {
+		const result = await footprint.analyze(DB, 'dbo.pTyped');
+		assert.deepStrictEqual(result.unresolved, []);
+		assert.deepStrictEqual(touched(result), ['dbo.Audit:write:trigger', 'dbo.T:write']);
 	});
 });

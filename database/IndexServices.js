@@ -12,9 +12,10 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
 // table-level writes, 5 = parseErrors for the incomplete analyses, 6 = no false
 // ambiguous dependencies, 7 = checksums from the ISO date, not the text a Date
-// has in the local time zone, 8 = tableWriteOps: the kind of each table write);
+// has in the local time zone, 8 = tableWriteOps: the kind of each table write, 9 = a user-defined type is not a
+// dependency);
 // older cached files rebuild.
-const INDEX_FORMAT_VERSION = 8;
+const INDEX_FORMAT_VERSION = 9;
 
 // Counts the temporary files written in this process, so that two writes
 // that run at the same time - two builds of the same database, or a build
@@ -626,6 +627,9 @@ class IndexService {
                 WHERE referenced_entity_name IS NOT NULL
                   AND referenced_schema_name IS NOT NULL AND referenced_schema_name != ''
                   AND referenced_entity_name != '' AND referenced_minor_id = 0
+                  -- Objects only: a user-defined type (6) or an XML schema collection (10)
+                  -- that a parameter or a column uses is not code or a table to follow.
+                  AND referenced_class = 1
                   -- An ambiguous reference the server could not resolve is a method call
                   -- (xml.value(), hierarchyid.GetAncestor()...), not an object.
                   AND NOT (is_ambiguous = 1 AND referenced_id IS NULL);
