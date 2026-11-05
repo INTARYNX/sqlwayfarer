@@ -412,4 +412,50 @@ suite('WriteFootprintService: the kind of write decides which triggers fire', ()
 		assert.strictEqual(r.tables.find(t => t.qualifiedName === 'app.T').access, 'write');
 		assert.deepStrictEqual(r.triggersFired, []);
 	});
+
+	test('a write through a synonym is a write of the table it stands for, triggers included', () => {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(obj('app.P', 'P', { columnRefs: { 'app.synT': { c: { write: true } } }, dependencies: ['app.synT'], tableWrites: ['app.synT'] }));
+		add(obj('app.T', 'U'));
+		add(obj('app.A', 'U'));
+		add(obj('app.trg', 'TR', { columnRefs: { 'app.A': { c: { write: true } } }, dependencies: ['app.A'] }));
+		const r = WriteFootprintService.analyzeFootprint({
+			index: { objects }, target: 'app.P', synonyms: { 'app.synt': 'app.t' },
+			triggers: [{ trigger: 'app.trg', parentTable: 'app.T', disabled: false, events: ['insert'] }]
+		});
+		assert.deepStrictEqual(Object.fromEntries(r.tables.map(t => [t.qualifiedName, t.access])), { 'app.A': 'write', 'app.T': 'write' });
+		assert.deepStrictEqual(r.unresolved, []);
+	});
+
+	test('a synonym of an object in another database is left alone, and said', () => {
+		const objects = {};
+		objects['app.P'] = obj('app.P', 'P', { columnRefs: { 'app.synX': { c: { write: true } } }, dependencies: ['app.synX'], tableWrites: ['app.synX'] });
+		const r = WriteFootprintService.analyzeFootprint({ index: { objects }, target: 'app.P', synonyms: { 'app.synx': 'otherdb.dbo.t' }, triggers: [] });
+		assert.deepStrictEqual(r.tables, []);
+		assert.deepStrictEqual(r.unresolved, ['app.synx']);
+	});
+
+	test('a write through a view with an INSTEAD OF trigger is what the trigger does, not a write of the table behind', () => {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(obj('app.P', 'P', { columnRefs: { 'app.V': { c: { write: true } } }, dependencies: ['app.V'], tableWrites: ['app.V'] }));
+		add(obj('app.V', 'V', { dependencies: ['app.T'] }));
+		add(obj('app.T', 'U'));
+		add(obj('app.A', 'U'));
+		add(obj('app.B', 'U'));
+		add(obj('app.trgInstead', 'TR', { columnRefs: { 'app.B': { c: { write: true } } }, dependencies: ['app.B'], tableWrites: ['app.B'] }));
+		add(obj('app.trgAfter', 'TR', { columnRefs: { 'app.A': { c: { write: true } } }, dependencies: ['app.A'] }));
+		const r = WriteFootprintService.analyzeFootprint({
+			index: { objects }, target: 'app.P',
+			triggers: [
+				{ trigger: 'app.trgInstead', parentTable: 'app.V', disabled: false, insteadOf: true, events: ['insert'] },
+				{ trigger: 'app.trgAfter', parentTable: 'app.T', disabled: false, events: ['insert'] }
+			]
+		});
+		// The view is also a dependency of the procedure, so the table behind it
+		// shows as read; it is not written, and its own trigger does not fire.
+		assert.deepStrictEqual(r.tables.filter(t => t.access === 'write').map(t => t.qualifiedName), ['app.B']);
+		assert.deepStrictEqual(r.triggersFired, ['app.trgInstead']);
+	});
 });

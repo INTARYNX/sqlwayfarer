@@ -34,7 +34,8 @@ class WriteFootprintService {
     async analyze(database, objectName) {
         const index = await this._indexService.requireIndex(database);
         const triggers = await this._getTriggerParents(database);
-        const footprint = WriteFootprintService.analyzeFootprint({ index, triggers, target: objectName });
+        const synonyms = await this._getSynonyms(database);
+        const footprint = WriteFootprintService.analyzeFootprint({ index, triggers, synonyms, target: objectName });
         if (footprint.found && footprint.tables.length > 0) {
             const allFks = await this._databaseService.getForeignKeys(database);
             footprint.relationships = WriteFootprintService.foreignKeysAmong(allFks, footprint.tables);
@@ -69,6 +70,7 @@ class WriteFootprintService {
             SELECT SCHEMA_NAME(trObj.schema_id) + '.' + tr.name AS trigger_name,
                    SCHEMA_NAME(o.schema_id) + '.' + o.name AS parent_table,
                    tr.is_disabled,
+                   tr.is_instead_of_trigger,
                    -- The writes it fires on: 1 INSERT, 2 UPDATE, 3 DELETE.
                    STUFF((SELECT ',' + CAST(te.type AS varchar(3)) FROM sys.trigger_events te
                           WHERE te.object_id = tr.object_id FOR XML PATH('')), 1, 1, '') AS events
@@ -85,8 +87,33 @@ class WriteFootprintService {
             trigger: r.trigger_name,
             parentTable: r.parent_table,
             disabled: !!r.is_disabled,
+            insteadOf: !!r.is_instead_of_trigger,
             events: WriteFootprintService._eventsOf(r.events)
         }));
+    }
+
+    // The synonyms of the database and what each one stands for: { 'dbo.syn': 'dbo.Target' }.
+    async _getSynonyms(database) {
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT SCHEMA_NAME(schema_id) + '.' + name AS synonym_name, base_object_name FROM sys.synonyms
+        `);
+        const out = {};
+        for (const r of result.recordset) out[WriteFootprintService._clean(r.synonym_name)] = WriteFootprintService._clean(r.base_object_name);
+        return out;
+    }
+
+    // What a name stands for when it is a synonym: a name without a schema is
+    // looked up in the schema of the module that uses it, then in dbo. A
+    // synonym of an object in another database is left alone: that database
+    // is not indexed here.
+    static _synonymTarget(key, schema, synonyms) {
+        const name = WriteFootprintService._clean(key);
+        const candidates = name.includes('.') ? [name] : [`${WriteFootprintService._clean(schema)}.${name}`, `dbo.${name}`];
+        for (const candidate of candidates) {
+            const base = synonyms[candidate];
+            if (base && base.split('.').length <= 2) return base;
+        }
+        return null;
     }
 
     // === Pure analysis ===
@@ -108,10 +135,22 @@ class WriteFootprintService {
         return ops.some(op => events.includes(op));
     }
 
+    // What a name written in a module points at: { table }, { view }, or null.
+    // A synonym is followed once to the object it stands for.
+    static _locate(key, schema, resolver, synonyms, viaSynonym = false) {
+        const found = resolver.resolveTable(key, schema);
+        if (found && found.type === 'U') return { table: found };
+        const code = found ? null : resolver.resolveCode(key, schema);
+        if (code && code.type === 'V') return { view: code };
+        if (viaSynonym) return null;
+        const base = WriteFootprintService._synonymTarget(key, schema, synonyms);
+        return base ? WriteFootprintService._locate(base, schema, resolver, synonyms, true) : null;
+    }
+
     // The tables behind a view, through the views it is made of. A view over
     // several tables stands for all of them: only one can be written at a time,
-    // and which one is not something the text of the statement says. An INSTEAD
-    // OF trigger on the view, which does the real write, is not followed.
+    // and which one is not something the text of the statement says. (A view
+    // with an INSTEAD OF trigger is handled before: the trigger is the write.)
     static _baseTables(view, resolver) {
         const bases = new Map();
         const seen = new Set();
@@ -141,7 +180,7 @@ class WriteFootprintService {
      * @param {number}   maxDepth  safety bound on the traversal depth
      * @returns {{ found, target, tables, triggersFired, unresolved, truncated }}
      */
-    static analyzeFootprint({ index, triggers = [], target, maxDepth = 50 }) {
+    static analyzeFootprint({ index, triggers = [], synonyms = {}, target, maxDepth = 50 }) {
         const objects = (index && index.objects) ? index.objects : {};
 
         // Name resolution: a qualified name is authoritative, an unqualified
@@ -158,6 +197,7 @@ class WriteFootprintService {
             (trigByParent[p] = trigByParent[p] || []).push({
                 key: WriteFootprintService._clean(t.trigger),
                 disabled: !!t.disabled,
+                insteadOf: !!t.insteadOf,
                 events: t.events || []
             });
         }
@@ -227,21 +267,37 @@ class WriteFootprintService {
             for (const tableKey of new Set([...Object.keys(columnRefs), ...writeKeys])) {
                 const cols = columnRefs[tableKey] || {};
                 const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
-                // The reference was written inside this object: an unqualified
-                // name resolves against the schema of that object.
-                const te = resolver.resolveTable(tableKey, entry.schema);
-                if (te && te.type === 'U') {
-                    recordTable(te, isWrite, cause);
-                    if (isWrite) writtenTables.push({ table: te, ops: writeOps[tableKey] || [] });
+                const ops = writeOps[tableKey] || [];
+                // A name can be a table, a view, or a synonym of either.
+                const where = WriteFootprintService._locate(tableKey, entry.schema, resolver, synonyms);
+                if (where && where.table) {
+                    recordTable(where.table, isWrite, cause);
+                    if (isWrite) writtenTables.push({ table: where.table, ops });
                     continue;
                 }
-                // A view: what is written (or read) through it is the table
-                // behind it - and the triggers that fire are that table's.
-                const view = te ? null : resolver.resolveCode(tableKey, entry.schema);
-                if (view && view.type === 'V') {
+                if (where && where.view) {
+                    const view = where.view;
+                    // A write through a view that has an INSTEAD OF trigger is
+                    // what that trigger does, not a write of the tables behind:
+                    // the trigger takes the write over.
+                    const instead = isWrite
+                        ? (trigByParent[WriteFootprintService._clean(view.qualifiedName)] || [])
+                            .filter(tg => tg.insteadOf && !tg.disabled && WriteFootprintService._firesOn(tg.events, ops))
+                        : [];
+                    if (instead.length > 0) {
+                        for (const tg of instead) {
+                            const tgEntry = resolver.resolve(tg.key);
+                            if (!tgEntry) { unresolved.add(tg.key); continue; }
+                            triggersFired.add(tgEntry.qualifiedName);
+                            queue.push({ entry: tgEntry, cause: { table: view.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
+                        }
+                        continue;
+                    }
+                    // Otherwise what is written (or read) through a view is the
+                    // table behind it - and the triggers that fire are that table's.
                     for (const base of WriteFootprintService._baseTables(view, resolver)) {
                         recordTable(base, isWrite, cause);
-                        if (isWrite) writtenTables.push({ table: base, ops: writeOps[tableKey] || [] });
+                        if (isWrite) writtenTables.push({ table: base, ops });
                     }
                     continue;
                 }
@@ -250,7 +306,12 @@ class WriteFootprintService {
 
             // Referenced entities: recurse into code, add unclassified tables as reads.
             for (const dep of entry.dependencies || []) {
-                const de = resolver.resolve(dep);
+                let de = resolver.resolve(dep);
+                if (!de) {
+                    // A synonym: the object it stands for is the dependency.
+                    const base = WriteFootprintService._synonymTarget(dep, entry.schema, synonyms);
+                    de = base ? resolver.resolve(base) : null;
+                }
                 if (!de) { unresolved.add(WriteFootprintService._clean(dep)); continue; }
                 if (de.type === 'U') {
                     if (!tableAcc.has(WriteFootprintService._clean(de.qualifiedName))) recordTable(de, false, cause);
