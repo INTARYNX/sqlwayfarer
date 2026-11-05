@@ -587,6 +587,10 @@ label {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    /* A flex item in a row stretches to its content by default: the columns
+       of a wide table would widen the whole page instead of scrolling in the
+       panel. */
+    min-width: 0;
 }
 
 /* === DETAILS PANEL TABS === */
