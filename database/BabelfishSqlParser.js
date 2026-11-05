@@ -489,6 +489,17 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         this.visitChildren(ctx);
     }
 
+    // TRUNCATE TABLE writes the table (it empties it) and fires no trigger:
+    // its operation is neither an insert, an update nor a delete.
+    visitTruncate_table(ctx) {
+        const name = this._first(ctx.table_name ? ctx.table_name() : null);
+        if (name) {
+            const resolved = this._resolveQualifier(this._clean(name.getText()));
+            if (resolved && resolved !== DERIVED) this._recordWrite(resolved, 'truncate');
+        }
+        this.visitChildren(ctx);
+    }
+
     visitMerge_statement(ctx) {
         this._enterStatement(ctx, () => {
             const ddl = this._first(ctx.ddl_object ? ctx.ddl_object() : null);

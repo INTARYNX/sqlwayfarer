@@ -13,9 +13,9 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // table-level writes, 5 = parseErrors for the incomplete analyses, 6 = no false
 // ambiguous dependencies, 7 = checksums from the ISO date, not the text a Date
 // has in the local time zone, 8 = tableWriteOps: the kind of each table write, 9 = a user-defined type is not a
-// dependency);
+// dependency, 10 = TRUNCATE TABLE among the table writes);
 // older cached files rebuild.
-const INDEX_FORMAT_VERSION = 9;
+const INDEX_FORMAT_VERSION = 10;
 
 // Counts the temporary files written in this process, so that two writes
 // that run at the same time - two builds of the same database, or a build
