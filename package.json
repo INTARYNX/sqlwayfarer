@@ -256,15 +256,6 @@
           "type": "webview"
         }
       ]
-    },
-    "menus": {
-      "view/title": [
-        {
-          "command": "sqlwayfarer.sqlwayfarer",
-          "when": "view == sqlWayfarerView",
-          "group": "navigation"
-        }
-      ]
     }
   },
   "scripts": {
