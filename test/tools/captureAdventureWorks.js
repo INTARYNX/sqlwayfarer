@@ -7,6 +7,7 @@
 // SQL Server. Reads the connection from SQLWAYFARER_TEST_SQL (a server that
 // has AdventureWorks) and is run by hand: npm run e2e:fixtures
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const sql = require('mssql');
 const { describeColumn } = require('../../database/columnTypes');
@@ -15,6 +16,14 @@ const ConnectionManager = require('../../database/ConnectionManager');
 const DatabaseService = require('../../database/DatabaseService');
 const DependencyService = require('../../database/DependencyService');
 const DatabaseHandlers = require('../../panels/handlers/DatabaseHandlers');
+const CommentsHandlers = require('../../panels/handlers/CommentsHandlers');
+const FootprintHandlers = require('../../panels/handlers/FootprintHandlers');
+const QueryGraphHandlers = require('../../panels/handlers/QueryGraphHandlers');
+const CommentsService = require('../../database/CommentsService');
+const DataDictionaryService = require('../../database/DataDictionaryService');
+const IndexService = require('../../database/IndexServices');
+const WriteFootprintService = require('../../database/WriteFootprintService');
+const QueryGraphService = require('../../database/QueryGraphService');
 
 const QUERIES = {
 	// 26 columns, a description of up to 400 characters.
@@ -36,16 +45,42 @@ async function captureExplorer(live) {
 	});
 	await manager.connectWithSaved('live');
 	const messages = [];
-	const handlers = new DatabaseHandlers(m => messages.push(JSON.parse(JSON.stringify(m))), new DatabaseService(manager), new DependencyService(manager), null, () => 'AdventureWorks');
+	const post = m => messages.push(JSON.parse(JSON.stringify(m)));
 	const DB = 'AdventureWorks';
+	const databaseService = new DatabaseService(manager);
+	const indexService = new IndexService(manager, databaseService);
+	const indexDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlwayfarer-fixture-'));
+	indexService._indexDir = indexDir;
+	// Wired the way the panel wires it: the dependencies come from the index.
+	const dependencyService = new DependencyService();
+	dependencyService.setIndexService(indexService);
+	dependencyService.setConnectionManager(manager);
+	dependencyService.setDatabaseService(databaseService);
+	const handlers = new DatabaseHandlers(post, databaseService, dependencyService, indexService, () => DB);
 	try {
+		await indexService.forceReindex(DB);
 		await handlers.handleGetObjects(DB);
 		for (const table of ['Sales.SalesOrderHeader', 'Person.Person', 'Production.Product', 'HumanResources.Employee']) await handlers.handleGetTableDetails(DB, table);
 		await handlers.handleGetObjectDetails(DB, 'dbo.uspGetBillOfMaterials', 'Procedure');
 		await handlers.handleGetObjectDetails(DB, 'HumanResources.vEmployee', 'View');
 		await handlers.handleGetObjectDetails(DB, 'dbo.ufnGetStock', 'Function');
 		await handlers.handleGetDependencyTree(DB, 'Sales.SalesOrderHeader');
+
+		// Comments: AdventureWorks describes every table and column.
+		const comments = new CommentsHandlers(post, new CommentsService(manager));
+		await comments.handleGetTableExtendedProperties(DB, 'Production.Product');
+		await comments.handleGetTableExtendedProperties(DB, 'Sales.SalesOrderHeader');
+		await comments.handleGetObjectExtendedProperties(DB, 'dbo.uspGetBillOfMaterials', 'Procedure');
+
+		// The footprint and the query graph read the index of the database.
+		const footprint = new FootprintHandlers(post, new WriteFootprintService(manager, indexService, databaseService), new DataDictionaryService(manager, indexService), () => DB);
+		await footprint.handleGetWriteFootprint(DB, 'HumanResources.uspUpdateEmployeeHireInfo');
+		await footprint.handleGetWriteFootprint(DB, 'Sales.SalesOrderHeader');
+		const graphs = new QueryGraphHandlers(post, new QueryGraphService(manager, indexService, databaseService), () => DB);
+		await graphs.handleGetQueryGraph(DB, 'SELECT p.Name, h.OrderDate FROM Sales.SalesOrderHeader h JOIN Sales.SalesOrderDetail d ON d.SalesOrderID = h.SalesOrderID JOIN Production.Product p ON p.ProductID = d.ProductID; EXEC dbo.uspGetBillOfMaterials 1, \'2010-01-01\';');
 	} finally {
+		await indexService.dispose();
+		fs.rmSync(indexDir, { recursive: true, force: true });
 		await manager.dispose();
 	}
 	const errors = messages.filter(m => m.command === 'error');
