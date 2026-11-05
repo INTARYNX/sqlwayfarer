@@ -36,7 +36,7 @@ const DETECT = () => {
 (async () => {
 	const b = await chromium.launch();
 	const all = {};
-	for (const theme of ['dark', 'light']) for (const [w, hgt] of [[760, 600], [1100, 760], [1600, 900]]) {
+	for (const theme of ['dark', 'light']) for (const [w, hgt] of [[760, 600], [900, 700], [1000, 700], [1100, 760], [1280, 800], [1600, 900]]) {
 		const p = await h.openPage(b, 'index.html', 'panels/SqlWayfarerPanel.js', theme, { width: w, height: hgt });
 		const post = async (m, ms = 150) => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(ms); };
 		const tag = `${theme}-${w}`;
@@ -74,11 +74,36 @@ const DETECT = () => {
 			await check('object-' + o.objectName, w === 1100);
 			for (const tab of ['code', 'tree']) {
 				await p.click(`.details-tab-button[data-details-tab=${tab}]`);
-				await post(EX.find(m => m.command === 'dependencyTreeResult'), 300);
+				await post({ ...EX.find(m => m.command === 'dependencyTreeResult'), objectName: o.objectName, dependencyTree: { name: o.objectName, external: null, dependencies: [...o.dependencies.dependsOn, ...o.dependencies.referencedBy].map(d => ({ name: d.dependency || d.name || JSON.stringify(d), external: null, dependencies: [] })) } }, 300);
 				await check(`object-${o.objectName}-${tab}`, w === 1100);
 			}
 			await p.click('.details-tab-button[data-details-tab=structure]');
 		}
+		// Comments (AdventureWorks describes every column), Graph, footprint and query graph.
+		await p.evaluate(() => { appState.selectedObject = appState.allObjects.find(o => o.qualified_name === 'Production.Product') || appState.selectedObject; });
+		await post(EX.filter(m => m.command === 'tableDetailsLoaded')[2], 300);
+		await p.click('.details-tab-button[data-details-tab=comments]');
+		for (const m of EX.filter(x => x.command === 'tableExtendedPropertiesResult')) await post(m, 300);
+		await check('comments-table', w === 1100);
+		await p.click('.details-tab-button[data-details-tab=graph]');
+		const viewDetails = EX.filter(m => m.command === 'objectDetailsLoaded')[1];
+		await p.evaluate(n => { appState.selectedObject = appState.allObjects.find(o => o.qualified_name === n) || appState.selectedObject; }, viewDetails.objectName);
+		await post(viewDetails, 1500);
+		await check('graph-view', w === 1100);
+		for (const [name, i] of [['footprint-proc', 0], ['footprint-table', 1]]) {
+			await p.evaluate(n => window.footprintManager.open(n), 'X');
+			await post(EX.filter(m => m.command === 'writeFootprintResult')[i], 800);
+			await check(name, w === 1100);
+			for (const tab of ['schema', 'tables']) {
+				await p.evaluate(t => window.footprintManager.switchTab(t), tab);
+				await post({ command: 'footprintDocResult', success: true, doc: null }, 200);
+				await check(`${name}-${tab}`, false);
+			}
+			await p.evaluate(() => window.footprintManager.close());
+		}
+		await p.evaluate(() => window.footprintManager.openQueryGraph('select 1'));
+		await post(EX.find(m => m.command === 'queryGraphResult'), 800);
+		await check('query-graph', w === 1100);
 		await p.close();
 	}
 	await b.close();
