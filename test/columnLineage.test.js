@@ -124,6 +124,13 @@ suite('BabelfishSqlParser.analyzeDefinition table-level writes', () => {
 		assert.deepStrictEqual(analysis.columns, {}, 'no column is named at all');
 	});
 
+	test('TRUNCATE TABLE writes its table, and its operation is not a delete', function () {
+		this.timeout(10000);
+		const analysis = makeParser().analyzeDefinition('TRUNCATE TABLE dbo.Task');
+		assert.deepStrictEqual(analysis.writes, ['dbo.task']);
+		assert.deepStrictEqual(analysis.writeOps, { 'dbo.task': ['truncate'] });
+	});
+
 	test('an aliased DELETE writes the real table, not the alias', function () {
 		this.timeout(10000);
 		const analysis = makeParser().analyzeDefinition('DELETE t FROM dbo.Task t WHERE t.done = 1');

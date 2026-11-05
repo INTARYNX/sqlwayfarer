@@ -108,6 +108,28 @@ class WriteFootprintService {
         return ops.some(op => events.includes(op));
     }
 
+    // The tables behind a view, through the views it is made of. A view over
+    // several tables stands for all of them: only one can be written at a time,
+    // and which one is not something the text of the statement says. An INSTEAD
+    // OF trigger on the view, which does the real write, is not followed.
+    static _baseTables(view, resolver) {
+        const bases = new Map();
+        const seen = new Set();
+        const walk = (entry, depth) => {
+            const key = WriteFootprintService._clean(entry.qualifiedName);
+            if (seen.has(key) || depth > 20) return;
+            seen.add(key);
+            for (const dep of entry.dependencies || []) {
+                const target = resolver.resolve(dep);
+                if (!target) continue;
+                if (target.type === 'U') bases.set(WriteFootprintService._clean(target.qualifiedName), target);
+                else if (target.type === 'V') walk(target, depth + 1);
+            }
+        };
+        walk(view, 0);
+        return [...bases.values()];
+    }
+
     static _isCodeType(type) {
         return ['P', 'FN', 'IF', 'TF', 'V', 'TR'].includes(type);
     }
@@ -204,13 +226,26 @@ class WriteFootprintService {
             const writeKeys = new Set(entry.tableWrites || []);
             for (const tableKey of new Set([...Object.keys(columnRefs), ...writeKeys])) {
                 const cols = columnRefs[tableKey] || {};
+                const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
                 // The reference was written inside this object: an unqualified
                 // name resolves against the schema of that object.
                 const te = resolver.resolveTable(tableKey, entry.schema);
-                if (!te || te.type !== 'U') { unresolved.add(WriteFootprintService._clean(tableKey)); continue; }
-                const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
-                recordTable(te, isWrite, cause);
-                if (isWrite) writtenTables.push({ table: te, ops: writeOps[tableKey] || [] });
+                if (te && te.type === 'U') {
+                    recordTable(te, isWrite, cause);
+                    if (isWrite) writtenTables.push({ table: te, ops: writeOps[tableKey] || [] });
+                    continue;
+                }
+                // A view: what is written (or read) through it is the table
+                // behind it - and the triggers that fire are that table's.
+                const view = te ? null : resolver.resolveCode(tableKey, entry.schema);
+                if (view && view.type === 'V') {
+                    for (const base of WriteFootprintService._baseTables(view, resolver)) {
+                        recordTable(base, isWrite, cause);
+                        if (isWrite) writtenTables.push({ table: base, ops: writeOps[tableKey] || [] });
+                    }
+                    continue;
+                }
+                unresolved.add(WriteFootprintService._clean(tableKey));
             }
 
             // Referenced entities: recurse into code, add unclassified tables as reads.

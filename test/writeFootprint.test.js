@@ -378,4 +378,38 @@ suite('WriteFootprintService: the kind of write decides which triggers fire', ()
 		assert.deepStrictEqual(WriteFootprintService._eventsOf(null), []);
 		assert.deepStrictEqual(WriteFootprintService._eventsOf('9,x'), []);
 	});
+
+	test('a write through a view is a write of the table behind it, and that table triggers fire', () => {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(obj('app.P', 'P', { columnRefs: { 'app.V': { c: { write: true } } }, dependencies: ['app.V'], tableWrites: ['app.V'] }));
+		add(obj('app.V', 'V', { dependencies: ['app.T'] }));
+		add(obj('app.T', 'U'));
+		add(obj('app.A', 'U'));
+		add(obj('app.trg', 'TR', { columnRefs: { 'app.A': { c: { write: true } } }, dependencies: ['app.A'] }));
+		const r = WriteFootprintService.analyzeFootprint({
+			index: { objects }, target: 'app.P',
+			triggers: [{ trigger: 'app.trg', parentTable: 'app.T', disabled: false, events: ['insert'] }]
+		});
+		const access = Object.fromEntries(r.tables.map(t => [t.qualifiedName, t.access]));
+		assert.deepStrictEqual(access, { 'app.A': 'write', 'app.T': 'write' });
+		assert.deepStrictEqual(r.unresolved, []);
+	});
+
+	test('a view of views leads to the tables at the bottom, and a view that loops ends', () => {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(obj('app.P', 'P', { columnRefs: { 'app.V1': { c: { write: true } } }, dependencies: ['app.V1'], tableWrites: ['app.V1'] }));
+		add(obj('app.V1', 'V', { dependencies: ['app.V2'] }));
+		add(obj('app.V2', 'V', { dependencies: ['app.T', 'app.V1'] }));
+		add(obj('app.T', 'U'));
+		const r = WriteFootprintService.analyzeFootprint({ index: { objects }, target: 'app.P', triggers: [] });
+		assert.deepStrictEqual(r.tables.map(t => `${t.qualifiedName}:${t.access}`), ['app.T:write']);
+	});
+
+	test('TRUNCATE fires no trigger: the table is written, its triggers stay quiet', () => {
+		const r = scenario({ writeOps: { 'app.T': ['truncate'] }, events: ['insert', 'update', 'delete'] });
+		assert.strictEqual(r.tables.find(t => t.qualifiedName === 'app.T').access, 'write');
+		assert.deepStrictEqual(r.triggersFired, []);
+	});
 });

@@ -14,9 +14,8 @@ const WriteFootprintService = require('../database/WriteFootprintService');
 // construction: every procedure below writes the tables listed with it, no
 // more and no less - triggers that fire on the kind of write included.
 //
-// The scenarios that the analysis gets wrong today are written as skipped
-// tests, each one saying what it should give: they are known gaps, not
-// forgotten ones.
+// The scenario that the analysis gets wrong today is written as a skipped
+// test saying what it should give: a known gap, not a forgotten one.
 
 const LIVE_CONFIG = process.env.SQLWAYFARER_TEST_SQL;
 const DB = 'SqlWayfarerLiveHard';
@@ -141,15 +140,16 @@ suite('live SQL Server: write footprint on a hard schema', function () {
 		assert.strictEqual(result.truncated, false);
 	});
 
-	// === Known gaps: what the analysis gives today is wrong, and each of these says what it should give ===
-
-	test.skip('TRUNCATE TABLE is a write (today: the table is reported as read)', async () => {
+	test('TRUNCATE TABLE is a write, and fires no trigger', async () => {
 		assert.deepStrictEqual(await written('dbo.uspTruncate'), ['dbo.Log']);
 	});
 
-	test.skip('a write through a view is a write of the table behind it, triggers included (today: the table is reported as read, "dbo.vorders" unresolved, the triggers missed)', async () => {
+	test('a write through a view is a write of the table behind it, triggers included', async () => {
 		assert.deepStrictEqual(await written('dbo.uspThroughView'), ['dbo.Audit', 'dbo.Log', 'dbo.Orders']);
+		assert.deepStrictEqual((await footprint.analyze(DB, 'dbo.uspThroughView')).unresolved, []);
 	});
+
+	// === Known gap: what the analysis gives today is wrong, and the test says what it should give ===
 
 	test.skip('a statement written as a literal in EXEC(...) is followed (today: "possible" only, with no trigger)', async () => {
 		assert.deepStrictEqual(await written('dbo.uspDynamicLiteral'), ['dbo.Audit', 'dbo.Customers', 'dbo.Log']);
