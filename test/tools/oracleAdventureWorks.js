@@ -18,6 +18,8 @@ const WriteFootprintService = require('../../database/WriteFootprintService');
 if (!process.env.SQLWAYFARER_TEST_SQL) { console.error('Set SQLWAYFARER_TEST_SQL to the JSON connection of a scratch SQL Server that has AdventureWorks (see AGENTS.md, "Live tests").'); process.exit(1); }
 const live = JSON.parse(process.env.SQLWAYFARER_TEST_SQL);
 const DB = 'AdventureWorks';
+// A probe is a statement, or { before, sql }: what to run in the transaction first.
+const probeSql = probe => (typeof probe === 'string' ? probe : probe.sql);
 const PROBES = {
 	'update Person.Person': 'UPDATE TOP (1) Person.Person SET MiddleName = MiddleName',
 	'update Production.WorkOrder': 'UPDATE TOP (1) Production.WorkOrder SET OrderQty = OrderQty',
@@ -34,7 +36,16 @@ const PROBES = {
 	'insert Purchasing.PurchaseOrderDetail': 'INSERT Purchasing.PurchaseOrderDetail (PurchaseOrderID, DueDate, OrderQty, ProductID, UnitPrice, ReceivedQty, RejectedQty) SELECT TOP (1) PurchaseOrderID, DueDate, OrderQty, ProductID, UnitPrice, ReceivedQty, RejectedQty FROM Purchasing.PurchaseOrderDetail',
 	'insert Sales.SalesOrderDetail': 'INSERT Sales.SalesOrderDetail (SalesOrderID, CarrierTrackingNumber, OrderQty, ProductID, SpecialOfferID, UnitPrice, UnitPriceDiscount) SELECT TOP (1) SalesOrderID, CarrierTrackingNumber, OrderQty, ProductID, SpecialOfferID, UnitPrice, UnitPriceDiscount FROM Sales.SalesOrderDetail',
 	'insert Person.Person (a BusinessEntity first)': "INSERT Person.BusinessEntity DEFAULT VALUES; INSERT Person.Person (BusinessEntityID, PersonType, NameStyle, FirstName, LastName) VALUES (SCOPE_IDENTITY(), N'EM', 0, N'A', N'B')",
-	'insert Sales.Customer (no trigger)': 'INSERT Sales.Customer (PersonID, StoreID, TerritoryID) VALUES (NULL, NULL, NULL)'
+	'insert Sales.Customer (no trigger)': 'INSERT Sales.Customer (PersonID, StoreID, TerritoryID) VALUES (NULL, NULL, NULL)',
+	// The branches of the triggers a plain probe does not reach. A condition on the
+	// columns that are updated: IF UPDATE(SubTotal), IF NOT UPDATE(Status).
+	'update Sales.SalesOrderHeader (SubTotal: SalesPerson and SalesTerritory)': 'UPDATE TOP (1) Sales.SalesOrderHeader SET SubTotal = SubTotal WHERE SalesPersonID IS NOT NULL AND TerritoryID IS NOT NULL',
+	'update Purchasing.PurchaseOrderHeader (not Status: RevisionNumber)': 'UPDATE TOP (1) Purchasing.PurchaseOrderHeader SET ShipMethodID = ShipMethodID',
+	// The CATCH of a trigger: made to run by a table that refuses what the trigger inserts
+	// (the constraint goes with the transaction, which every probe rolls back).
+	'insert Sales.SalesOrderDetail, the trigger fails (its CATCH runs)': { before: 'ALTER TABLE Production.TransactionHistory WITH NOCHECK ADD CONSTRAINT zzRefuse CHECK (1 = 0)', sql: 'INSERT Sales.SalesOrderDetail (SalesOrderID, CarrierTrackingNumber, OrderQty, ProductID, SpecialOfferID, UnitPrice, UnitPriceDiscount) SELECT TOP (1) SalesOrderID, CarrierTrackingNumber, OrderQty, ProductID, SpecialOfferID, UnitPrice, UnitPriceDiscount FROM Sales.SalesOrderDetail' },
+	'insert Purchasing.PurchaseOrderDetail, the trigger fails (its CATCH runs)': { before: 'ALTER TABLE Production.TransactionHistory WITH NOCHECK ADD CONSTRAINT zzRefuse CHECK (1 = 0)', sql: 'INSERT Purchasing.PurchaseOrderDetail (PurchaseOrderID, DueDate, OrderQty, ProductID, UnitPrice, ReceivedQty, RejectedQty) SELECT TOP (1) PurchaseOrderID, DueDate, OrderQty, ProductID, UnitPrice, ReceivedQty, RejectedQty FROM Purchasing.PurchaseOrderDetail' },
+	'insert Production.WorkOrder, the trigger fails (its CATCH runs)': { before: 'ALTER TABLE Production.TransactionHistory WITH NOCHECK ADD CONSTRAINT zzRefuse CHECK (1 = 0)', sql: 'INSERT Production.WorkOrder (ProductID, OrderQty, ScrappedQty, StartDate, DueDate) SELECT TOP (1) ProductID, OrderQty, ScrappedQty, StartDate, DueDate FROM Production.WorkOrder' }
 };
 (async () => {
 	const manager = new ConnectionManager({ getConnection: () => ({ name: 'l', server: live.server, authType: 'sql', username: live.user, database: 'master', encrypt: false, trustServerCertificate: true }), getConnectionPassword: async () => live.password });
@@ -43,7 +54,7 @@ const PROBES = {
 	const run = async sql => { const r = conn.createRequest(); const res = await r.batch(sql); return res; };
 	await run(`USE ${DB}`);
 	const names = Object.keys(PROBES);
-	for (let i = 0; i < names.length; i++) { await run(`IF OBJECT_ID('dbo.zzProbe${i}') IS NOT NULL DROP PROCEDURE dbo.zzProbe${i}`); await run(`CREATE PROCEDURE dbo.zzProbe${i} AS ${PROBES[names[i]]}`); }
+	for (let i = 0; i < names.length; i++) { await run(`IF OBJECT_ID('dbo.zzProbe${i}') IS NOT NULL DROP PROCEDURE dbo.zzProbe${i}`); await run(`CREATE PROCEDURE dbo.zzProbe${i} AS ${probeSql(PROBES[names[i]])}`); }
 	conn.release();
 	const dbs = new DatabaseService(manager);
 	const idx = new IndexService(manager, dbs); idx._indexDir = await fs.mkdtemp(path.join(os.tmpdir(), 'awo-'));
@@ -57,7 +68,7 @@ const PROBES = {
 	for (let i = 0; i < names.length; i++) {
 		const before = Object.fromEntries((await q(usage)).map(r => [r.t, Number(r.u)]));
 		let note = '';
-		try { await c2.createRequest().batch(`BEGIN TRAN; EXEC dbo.zzProbe${i}; ROLLBACK`); } catch (e) { note = ' (the statement ended with: ' + e.message.slice(0, 70) + ')'; }
+		try { await c2.createRequest().batch(`BEGIN TRAN; ${PROBES[names[i]].before || ''}; EXEC dbo.zzProbe${i}; ROLLBACK`); } catch (e) { note = ' (the statement ended with: ' + e.message.slice(0, 70) + ')'; }
 		await c2.createRequest().batch('IF @@TRANCOUNT > 0 ROLLBACK');
 		const after = Object.fromEntries((await q(usage)).map(r => [r.t, Number(r.u)]));
 		const observed = Object.keys(after).filter(t => (after[t] || 0) > (before[t] || 0)).sort();
