@@ -458,4 +458,51 @@ suite('WriteFootprintService: the kind of write decides which triggers fire', ()
 		assert.deepStrictEqual(r.tables.filter(t => t.access === 'write').map(t => t.qualifiedName), ['app.B']);
 		assert.deepStrictEqual(r.triggersFired, ['app.trgInstead']);
 	});
+
+	// A table with an INSTEAD OF trigger: the trigger takes over the kinds of write it is declared for.
+	function insteadScenario({ procOps, triggerWritesOwnTable = false }) {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		const proc = obj('app.P', 'P', { columnRefs: { 'app.T': { c: { write: true } } }, dependencies: ['app.T'], tableWrites: ['app.T'] });
+		proc.tableWriteOps = { 'app.T': procOps };
+		add(proc);
+		add(obj('app.T', 'U'));
+		add(obj('app.B', 'U'));
+		const target = triggerWritesOwnTable ? 'app.T' : 'app.B';
+		const trigger = obj('app.trgInstead', 'TR', { columnRefs: { [target]: { c: { write: true } } }, dependencies: [target], tableWrites: [target] });
+		trigger.tableWriteOps = { [target]: [triggerWritesOwnTable ? 'delete' : 'insert'] };
+		add(trigger);
+		add(obj('app.trgAfter', 'TR', { columnRefs: { 'app.B': { c: { write: true } } }, dependencies: ['app.B'] }));
+		return WriteFootprintService.analyzeFootprint({
+			index: { objects }, target: 'app.P',
+			triggers: [
+				{ trigger: 'app.trgInstead', parentTable: 'app.T', disabled: false, insteadOf: true, events: ['delete'] },
+				{ trigger: 'app.trgAfter', parentTable: 'app.T', disabled: false, events: ['update'] }
+			]
+		});
+	}
+	const access = r => Object.fromEntries(r.tables.map(t => [t.qualifiedName, t.access]));
+
+	test('a DELETE taken over by an INSTEAD OF trigger is not a write of the table: the trigger does what it says', () => {
+		const r = insteadScenario({ procOps: ['delete'] });
+		assert.deepStrictEqual(access(r), { 'app.B': 'write', 'app.T': 'read' });
+		assert.deepStrictEqual(r.triggersFired, ['app.trgInstead']);
+	});
+
+	test('an INSTEAD OF trigger that writes its own table does write it, and does not fire itself again', () => {
+		const r = insteadScenario({ procOps: ['delete'], triggerWritesOwnTable: true });
+		assert.strictEqual(access(r)['app.T'], 'write');
+		assert.deepStrictEqual(r.triggersFired, ['app.trgInstead']);
+	});
+
+	test('a kind of write the INSTEAD OF trigger is not declared for goes through, and the AFTER trigger fires', () => {
+		const r = insteadScenario({ procOps: ['update'] });
+		assert.strictEqual(access(r)['app.T'], 'write');
+		assert.deepStrictEqual(r.triggersFired, ['app.trgAfter']);
+	});
+
+	test('a write of unknown kind is still a write of the table, whatever INSTEAD OF triggers there are', () => {
+		const r = insteadScenario({ procOps: [] });
+		assert.strictEqual(access(r)['app.T'], 'write');
+	});
 });

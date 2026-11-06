@@ -271,8 +271,31 @@ class WriteFootprintService {
                 // A name can be a table, a view, or a synonym of either.
                 const where = WriteFootprintService._locate(tableKey, entry.schema, resolver, synonyms);
                 if (where && where.table) {
-                    recordTable(where.table, isWrite, cause);
-                    if (isWrite) writtenTables.push({ table: where.table, ops });
+                    const table = where.table;
+                    const tableKeyClean = WriteFootprintService._clean(table.qualifiedName);
+                    // An INSTEAD OF trigger takes over the kinds of write it is
+                    // declared for: the statement does not write the table, the
+                    // trigger does what it says. The writes of a table's own
+                    // trigger go straight through, though.
+                    const insideOwnTrigger = !!cause && WriteFootprintService._clean(cause.table) === tableKeyClean;
+                    const instead = (isWrite && ops.length > 0 && !insideOwnTrigger)
+                        ? (trigByParent[tableKeyClean] || []).filter(tg => tg.insteadOf && !tg.disabled && tg.events.some(event => ops.includes(event)))
+                        : [];
+                    if (instead.length > 0) {
+                        const intercepted = ops.filter(op => instead.some(tg => tg.events.includes(op)));
+                        for (const tg of instead) {
+                            const tgEntry = resolver.resolve(tg.key);
+                            if (!tgEntry) { unresolved.add(tg.key); continue; }
+                            triggersFired.add(tgEntry.qualifiedName);
+                            queue.push({ entry: tgEntry, cause: { table: table.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
+                        }
+                        const remaining = ops.filter(op => !intercepted.includes(op));
+                        recordTable(table, remaining.length > 0, cause);
+                        if (remaining.length > 0) writtenTables.push({ table, ops: remaining });
+                        continue;
+                    }
+                    recordTable(table, isWrite, cause);
+                    if (isWrite) writtenTables.push({ table, ops });
                     continue;
                 }
                 if (where && where.view) {
@@ -335,6 +358,8 @@ class WriteFootprintService {
                 const trigs = trigByParent[WriteFootprintService._clean(te.qualifiedName)] || [];
                 for (const tg of trigs) {
                     if (tg.disabled) continue;
+                    // An INSTEAD OF trigger does not fire from its own table's trigger.
+                    if (tg.insteadOf && cause && WriteFootprintService._clean(cause.table) === WriteFootprintService._clean(te.qualifiedName)) continue;
                     // An AFTER INSERT trigger does not fire on a DELETE.
                     if (!WriteFootprintService._firesOn(tg.events, ops)) continue;
                     const tgEntry = resolver.resolve(tg.key);
