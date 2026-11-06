@@ -619,6 +619,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
         html = html.replace('{{CODE_VIEW_STYLES_URI}}',     u('webview', 'codeView.css'));
         html = html.replace('{{QUERY_PLAN_STYLES_URI}}',    u('webview', 'vendor', 'html-query-plan', 'qp.css'));
+        html = html.replace('{{APP_STATE_URI}}',          u('webview', 'appState.js'));
         html = html.replace('{{ICONS_URI}}',                u('webview', 'icons.js'));
         html = html.replace('{{TAB_MANAGER_URI}}',          u('webview', 'tabManager.js'));
         html = html.replace('{{CONNECTION_STATUS_URI}}',    u('webview', 'connectionStatus.js'));
@@ -640,6 +641,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));
+        html = html.replace('{{OBJECTS_TAB_MANAGER_URI}}', u('webview', 'objectsTabManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{GRAPH_LIBS_URI}}',           u('dist', 'webview', 'graphLibs.js'));

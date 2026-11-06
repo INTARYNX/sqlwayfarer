@@ -65,14 +65,14 @@ suite('the dependency index is only built on request (static guard)', () => {
 			});
 		}
 		assert.strictEqual(calls.length, 1, calls.join(', '));
-		const main = read('webview/main.js');
+		const main = read('webview/objectsTabManager.js');
 		const at = main.indexOf("command: 'getIndex'");
 		const method = main.lastIndexOf('\n    buildIndex()', at);
 		assert.ok(method > 0 && main.slice(method, at).indexOf('\n    }\n') === -1, 'the getIndex request is inside buildIndex()');
 	});
 
 	test('buildIndex is reached only from the notice buttons (data-index-action="build")', () => {
-		const main = read('webview/main.js');
+		const main = read('webview/objectsTabManager.js');
 		const uses = [...main.matchAll(/\.buildIndex\(\)/g)];
 		assert.strictEqual(uses.length, 1);
 		assert.ok(/dataset\.indexAction === 'build'\) this\.buildIndex\(\)/.test(main));
