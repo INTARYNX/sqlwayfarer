@@ -386,3 +386,50 @@ suite('BabelfishSqlParser.analyzeDefinition: statements written as a literal', (
 		assert.deepStrictEqual(makeParser().analyzeDefinition(deep).writes, []);
 	});
 });
+
+suite('BabelfishSqlParser.analyzeDefinition: writes that happen on some executions only', () => {
+	const conditional = sql => makeParser().analyzeDefinition(sql).conditionalWrites;
+
+	test('a write in CATCH is conditional, one in TRY or outside is not', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(conditional(`CREATE PROCEDURE dbo.p AS BEGIN
+			BEGIN TRY INSERT dbo.Work VALUES (1); END TRY
+			BEGIN CATCH INSERT dbo.ErrorLog VALUES (ERROR_MESSAGE()); END CATCH
+		END`), ['dbo.errorlog']);
+	});
+
+	test('a table written in CATCH and elsewhere is not conditional', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(conditional(`CREATE PROCEDURE dbo.p AS BEGIN
+			DELETE FROM dbo.Log;
+			BEGIN TRY SELECT 1; END TRY
+			BEGIN CATCH DELETE FROM dbo.Log; END CATCH
+		END`), []);
+	});
+
+	test('in a trigger, the branches of IF UPDATE(col) are conditional, the rest is not', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(conditional(`CREATE TRIGGER dbo.trg ON dbo.T AFTER UPDATE AS BEGIN
+			INSERT dbo.Always SELECT id FROM inserted;
+			IF UPDATE(price) INSERT dbo.PriceHistory SELECT id FROM deleted; ELSE DELETE FROM dbo.Cache;
+		END`), ['dbo.cache', 'dbo.pricehistory']);
+	});
+
+	test('in a trigger, a test on inserted / deleted picks the branch', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(conditional(`CREATE TRIGGER dbo.trg ON dbo.T AFTER INSERT, DELETE AS BEGIN
+			IF EXISTS (SELECT 1 FROM inserted) INSERT dbo.AuditIns SELECT id FROM inserted;
+			IF EXISTS (SELECT 1 FROM deleted) INSERT dbo.AuditDel SELECT id FROM deleted;
+		END`), ['dbo.auditdel', 'dbo.auditins']);
+	});
+
+	test('outside a trigger, an IF is not flagged', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(conditional('CREATE PROCEDURE dbo.p @x int AS IF @x > 0 DELETE FROM dbo.T'), []);
+	});
+
+	test('a literal in CATCH is conditional too', function () {
+		this.timeout(10000);
+		assert.deepStrictEqual(conditional("CREATE PROCEDURE dbo.p AS BEGIN BEGIN TRY SELECT 1; END TRY BEGIN CATCH EXEC('DELETE FROM dbo.Err'); END CATCH END"), ['dbo.err']);
+	});
+});

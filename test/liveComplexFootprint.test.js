@@ -87,7 +87,12 @@ const SETUP = [
 	'CREATE PROCEDURE dbo.uspInsteadOf AS INSERT dbo.vCustomers (id, name) VALUES (9, N\'i\')',
 	'CREATE PROCEDURE dbo.uspDeleteDoomed AS DELETE FROM dbo.Doomed WHERE id = 1',
 	'CREATE PROCEDURE dbo.uspDeleteSoft AS DELETE FROM dbo.Soft WHERE id = 1',
-	'CREATE PROCEDURE hr.uspTryCatch AS BEGIN SET NOCOUNT ON; BEGIN TRY UPDATE hr.Employees SET name = N\'z\'; END TRY BEGIN CATCH INSERT dbo.[Log] (what) VALUES (ERROR_MESSAGE()); END CATCH END'
+	'CREATE PROCEDURE hr.uspTryCatch AS BEGIN SET NOCOUNT ON; BEGIN TRY UPDATE hr.Employees SET name = N\'z\'; END TRY BEGIN CATCH INSERT dbo.[Log] (what) VALUES (ERROR_MESSAGE()); END CATCH END',
+	// A trigger that writes a table only when a column is part of the UPDATE.
+	'CREATE TABLE dbo.Priced (id int PRIMARY KEY, price money, label nvarchar(20))',
+	'CREATE TABLE dbo.PriceHistory (id int, price money)',
+	'CREATE TRIGGER dbo.trgPricedUpd ON dbo.Priced AFTER UPDATE AS BEGIN IF UPDATE(price) INSERT dbo.PriceHistory SELECT id, price FROM inserted; END',
+	'CREATE PROCEDURE dbo.uspReprice AS UPDATE dbo.Priced SET price = 0'
 ];
 
 suite('live SQL Server: write footprint on a hard schema', function () {
@@ -191,5 +196,12 @@ suite('live SQL Server: write footprint on a hard schema', function () {
 
 	test('a statement written as a literal in EXEC(...) is followed, triggers included', async () => {
 		assert.deepStrictEqual(await written('dbo.uspDynamicLiteral'), ['dbo.Audit', 'dbo.Customers', 'dbo.Log']);
+	});
+
+	test('a write in CATCH, or in a branch picked by UPDATE(column), is flagged as not on every run', async () => {
+		const flags = async name => Object.fromEntries((await footprint.analyze(DB, name)).tables.filter(t => t.access === 'write').map(t => [t.qualifiedName, t.conditional]));
+		assert.deepStrictEqual(await flags('hr.uspTryCatch'), { 'dbo.Log': true, 'hr.Employees': false });
+		assert.deepStrictEqual(await flags('dbo.uspReprice'), { 'dbo.PriceHistory': true, 'dbo.Priced': false });
+		assert.deepStrictEqual(await flags('dbo.uspPlaceOrder'), { 'dbo.Audit': false, 'dbo.Inventory': false, 'dbo.Log': false, 'dbo.Orders': false });
 	});
 });

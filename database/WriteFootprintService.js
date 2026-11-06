@@ -217,16 +217,17 @@ class WriteFootprintService {
         const ensureRec = (entry) => {
             const qn = WriteFootprintService._clean(entry.qualifiedName);
             let rec = tableAcc.get(qn);
-            if (!rec) { rec = { entry, write: false, confident: false, possible: false, direct: false, viaTrigger: false, viaCause: null }; tableAcc.set(qn, rec); }
+            if (!rec) { rec = { entry, write: false, sure: false, confident: false, possible: false, direct: false, viaTrigger: false, viaCause: null }; tableAcc.set(qn, rec); }
             return rec;
         };
         // cause is null for a direct reference, or { table, trigger } naming the
         // write + trigger that led here - first attribution wins when a table is
         // reachable through more than one trigger path.
-        const recordTable = (entry, isWrite, cause) => {
+        // maybe: the write happens on some executions only (see ColumnLineageVisitor).
+        const recordTable = (entry, isWrite, cause, maybe = false) => {
             const rec = ensureRec(entry);
             rec.confident = true;
-            if (isWrite) rec.write = true;
+            if (isWrite) { rec.write = true; if (!maybe) rec.sure = true; }
             if (cause) { rec.viaTrigger = true; if (!rec.viaCause) rec.viaCause = cause; } else rec.direct = true;
         };
         // Low-confidence table mentioned only via the dynamic-SQL name scan.
@@ -239,10 +240,10 @@ class WriteFootprintService {
         // BFS over code objects. An object may be reached both directly and via a
         // trigger; we expand it at most once per context so the two taints are
         // both recorded, while still terminating on cycles (trigger loops).
-        const queue = [{ entry: targetEntry, cause: null, depth: 0 }];
+        const queue = [{ entry: targetEntry, cause: null, depth: 0, maybe: false }];
         while (queue.length) {
-            const { entry, cause, depth } = queue.shift();
-            const vkey = `${WriteFootprintService._clean(entry.qualifiedName)}|${cause ? 1 : 0}`;
+            const { entry, cause, depth, maybe } = queue.shift();
+            const vkey = `${WriteFootprintService._clean(entry.qualifiedName)}|${cause ? 1 : 0}|${maybe ? 1 : 0}`;
             if (visited.has(vkey)) continue;
             visited.add(vkey);
             if (depth > maxDepth) { truncated = true; continue; }
@@ -264,10 +265,12 @@ class WriteFootprintService {
             const writeOps = entry.tableWriteOps || {};
             const columnRefs = entry.columnRefs || {};
             const writeKeys = new Set(entry.tableWrites || []);
+            const conditionalKeys = new Set(entry.tableWriteConditional || []);
             for (const tableKey of new Set([...Object.keys(columnRefs), ...writeKeys])) {
                 const cols = columnRefs[tableKey] || {};
                 const isWrite = writeKeys.has(tableKey) || Object.values(cols).some(c => c && c.write);
                 const ops = writeOps[tableKey] || [];
+                const maybeWrite = maybe || conditionalKeys.has(tableKey);
                 // A name can be a table, a view, or a synonym of either.
                 const where = WriteFootprintService._locate(tableKey, entry.schema, resolver, synonyms);
                 if (where && where.table) {
@@ -287,15 +290,15 @@ class WriteFootprintService {
                             const tgEntry = resolver.resolve(tg.key);
                             if (!tgEntry) { unresolved.add(tg.key); continue; }
                             triggersFired.add(tgEntry.qualifiedName);
-                            queue.push({ entry: tgEntry, cause: { table: table.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
+                            queue.push({ entry: tgEntry, cause: { table: table.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1, maybe: maybeWrite });
                         }
                         const remaining = ops.filter(op => !intercepted.includes(op));
-                        recordTable(table, remaining.length > 0, cause);
-                        if (remaining.length > 0) writtenTables.push({ table, ops: remaining });
+                        recordTable(table, remaining.length > 0, cause, maybeWrite);
+                        if (remaining.length > 0) writtenTables.push({ table, ops: remaining, maybe: maybeWrite });
                         continue;
                     }
-                    recordTable(table, isWrite, cause);
-                    if (isWrite) writtenTables.push({ table, ops });
+                    recordTable(table, isWrite, cause, maybeWrite);
+                    if (isWrite) writtenTables.push({ table, ops, maybe: maybeWrite });
                     continue;
                 }
                 if (where && where.view) {
@@ -312,15 +315,15 @@ class WriteFootprintService {
                             const tgEntry = resolver.resolve(tg.key);
                             if (!tgEntry) { unresolved.add(tg.key); continue; }
                             triggersFired.add(tgEntry.qualifiedName);
-                            queue.push({ entry: tgEntry, cause: { table: view.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
+                            queue.push({ entry: tgEntry, cause: { table: view.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1, maybe: maybeWrite });
                         }
                         continue;
                     }
                     // Otherwise what is written (or read) through a view is the
                     // table behind it - and the triggers that fire are that table's.
                     for (const base of WriteFootprintService._baseTables(view, resolver)) {
-                        recordTable(base, isWrite, cause);
-                        if (isWrite) writtenTables.push({ table: base, ops });
+                        recordTable(base, isWrite, cause, maybeWrite);
+                        if (isWrite) writtenTables.push({ table: base, ops, maybe: maybeWrite });
                     }
                     continue;
                 }
@@ -339,7 +342,7 @@ class WriteFootprintService {
                 if (de.type === 'U') {
                     if (!tableAcc.has(WriteFootprintService._clean(de.qualifiedName))) recordTable(de, false, cause);
                 } else if (WriteFootprintService._isCodeType(de.type)) {
-                    queue.push({ entry: de, cause, depth: depth + 1 });
+                    queue.push({ entry: de, cause, depth: depth + 1, maybe });
                 }
             }
 
@@ -354,7 +357,7 @@ class WriteFootprintService {
             // own footprint is tainted "via trigger" - attributed to this table
             // and this trigger specifically, even if we're already inside another
             // trigger's cascade (nested cascades blame the innermost cause).
-            for (const { table: te, ops } of writtenTables) {
+            for (const { table: te, ops, maybe: maybeWrite } of writtenTables) {
                 const trigs = trigByParent[WriteFootprintService._clean(te.qualifiedName)] || [];
                 for (const tg of trigs) {
                     if (tg.disabled) continue;
@@ -365,7 +368,7 @@ class WriteFootprintService {
                     const tgEntry = resolver.resolve(tg.key);
                     if (!tgEntry) { unresolved.add(tg.key); continue; }
                     triggersFired.add(tgEntry.qualifiedName);
-                    queue.push({ entry: tgEntry, cause: { table: te.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1 });
+                    queue.push({ entry: tgEntry, cause: { table: te.qualifiedName, trigger: tgEntry.qualifiedName }, depth: depth + 1, maybe: maybeWrite });
                 }
             }
         }
@@ -379,6 +382,9 @@ class WriteFootprintService {
                 // Confident write/read wins over a mere name mention.
                 access: r.write ? 'write' : (r.confident ? 'read' : 'possible'),
                 viaTriggerOnly,
+                // Written, but only on some executions: in a CATCH, in a branch
+                // picked by UPDATE(column), or through code called from there.
+                conditional: r.write && !r.sure,
                 // Which table's write fired which trigger to reach this one -
                 // only meaningful (and only ever set) when viaTriggerOnly is true.
                 viaTriggerFrom: viaTriggerOnly ? r.viaCause : null
