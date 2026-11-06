@@ -63,6 +63,7 @@ const SETUP = [
 	'CREATE PROCEDURE dbo.uspNested AS EXEC dbo.uspPlaceOrder',
 	"CREATE PROCEDURE dbo.uspDynamicLiteral AS EXEC('INSERT dbo.Customers (id, name) VALUES (1, ''x'')')",
 	'CREATE PROCEDURE dbo.uspDynamicVar @t sysname AS BEGIN DECLARE @s nvarchar(200) = N\'DELETE FROM dbo.\' + @t; EXEC sp_executesql @s; END',
+	"CREATE PROCEDURE dbo.uspDynamicDeclared AS BEGIN DECLARE @s nvarchar(200) = N'INSERT dbo.Customers (id, name) VALUES (2, ''v'')'; EXEC sp_executesql @s; END",
 	'CREATE PROCEDURE dbo.uspThroughView AS INSERT dbo.vOrders (customerId, total) VALUES (2, 20)',
 	'CREATE PROCEDURE sales.uspSameName AS UPDATE Orders SET note = N\'x\' WHERE id = 1',
 	'CREATE PROCEDURE dbo.uspMerge AS MERGE dbo.Inventory AS t USING dbo.OrderLines AS s ON t.sku = s.orderId WHEN MATCHED THEN DELETE WHEN NOT MATCHED THEN INSERT (sku, qty) VALUES (s.orderId, s.qty);',
@@ -161,6 +162,7 @@ suite('live SQL Server: write footprint on a hard schema', function () {
 		'dbo.uspInsteadOf': ['dbo.Archive'],
 		'dbo.uspDeleteDoomed': ['dbo.Archive'],
 		'dbo.uspDeleteSoft': ['dbo.Soft'],
+		'dbo.uspDynamicDeclared': ['dbo.Audit', 'dbo.Customers', 'dbo.Log'],
 		'dbo.uspDynamicVar': [],
 		'dbo.uspTvf': []
 	};

@@ -25,6 +25,12 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         this._ctes = new Set();
         this._triggerTable = null;
         this._literals = []; // the statements written as a literal in EXEC('...') or sp_executesql N'...'
+        // The variables that hold a statement written once as a literal and run by EXEC(@s):
+        // how many times each name appears, how many of those are accounted for, and what it is given.
+        this._variableTotal = new Map();
+        this._variableKnown = new Map();
+        this._variableValues = new Map();
+        this._variableRuns = [];
         this._maybe = 0; // > 0 while visiting code that runs only on some executions (CATCH, a branch chosen by UPDATE() or inserted/deleted)
         this._sure = new Set(); // tables written at least once by code that always runs
     }
@@ -43,7 +49,98 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     // The text of the statements written as a literal in EXEC('...') or in
     // sp_executesql N'...': they are code, and the caller analyzes them.
     getLiterals() {
+        this._resolveVariables();
         return this._literals.map(literal => literal.text);
+    }
+
+    // The tree is read once for the variables before it is visited: a variable
+    // is followed only when every place it appears is known.
+    visit(tree) {
+        const count = node => {
+            if (node.symbol && node.symbol.type === TSqlParser.LOCAL_ID) {
+                const name = node.getText().toLowerCase();
+                this._variableTotal.set(name, (this._variableTotal.get(name) || 0) + 1);
+            }
+            for (let i = 0; i < node.getChildCount(); i++) count(node.getChild(i));
+        };
+        if (!Array.isArray(tree)) count(tree);
+        return super.visit(tree);
+    }
+
+    _knowVariable(name) {
+        this._variableKnown.set(name, (this._variableKnown.get(name) || 0) + 1);
+    }
+
+    // EXEC(@s) / sp_executesql @s, where @s is declared and given a literal once,
+    // and appears nowhere else (not a parameter, not changed, not passed on): the
+    // statement is that literal. A variable that is built, appended to or received
+    // says nothing of what runs.
+    _resolveVariables() {
+        for (const { name, maybe } of this._variableRuns.splice(0)) {
+            const values = this._variableValues.get(name) || [];
+            if (values.length === 1 && this._variableTotal.get(name) === this._variableKnown.get(name)) {
+                this._literals.push({ text: values[0], maybe });
+            }
+        }
+    }
+
+    // The text of a string literal alone ('...' or N'...'), or null.
+    static _loneLiteral(ctx) {
+        const match = ctx ? /^N?'((?:[^']|'')*)'$/i.exec(ctx.getText().trim()) : null;
+        return match ? match[1].replace(/''/g, "'") : null;
+    }
+
+    // DECLARE @s nvarchar(max) = N'...' (or without a value).
+    visitDeclare_local(ctx) {
+        const id = ctx.LOCAL_ID ? ctx.LOCAL_ID() : null;
+        if (id) {
+            const name = id.getText().toLowerCase();
+            const expression = this._first(ctx.expression ? ctx.expression() : null);
+            const literal = ColumnLineageVisitor._loneLiteral(expression);
+            if (!expression) this._knowVariable(name);
+            else if (literal !== null) {
+                this._knowVariable(name);
+                this._variableValues.set(name, [...(this._variableValues.get(name) || []), literal]);
+            }
+        }
+        this.visitChildren(ctx);
+    }
+
+    // SET @s = N'...'
+    visitSet_statement(ctx) {
+        const id = ctx.LOCAL_ID ? ctx.LOCAL_ID() : null;
+        const expression = this._first(ctx.expression ? ctx.expression() : null);
+        const literal = id && expression && ctx.EQUAL && ctx.EQUAL() && !(ctx.DOT && ctx.DOT()) ? ColumnLineageVisitor._loneLiteral(expression) : null;
+        if (literal !== null) {
+            const name = id.getText().toLowerCase();
+            this._knowVariable(name);
+            this._variableValues.set(name, [...(this._variableValues.get(name) || []), literal]);
+        }
+        this.visitChildren(ctx);
+    }
+
+    // The variable EXEC(@s) or sp_executesql @s runs, when that is all it does.
+    static _variableOf(body) {
+        const strings = [];
+        const collect = node => {
+            if (node.ruleIndex === TSqlParser.RULE_execute_var_string) strings.push(node.getText());
+            else for (let i = 0; i < node.getChildCount(); i++) collect(node.getChild(i));
+        };
+        collect(body);
+        if (strings.length > 0) {
+            const alone = /^\((@\w+)\)(?:AS(?:LOGIN|USER)=.*)?$/i.exec(body.getText());
+            return alone ? alone[1].toLowerCase() : null;
+        }
+        const nameCtx = firstCtx(body.func_proc_name_server_database_schema ? body.func_proc_name_server_database_schema() : null);
+        const name = nameCtx ? cleanTableKey(nameCtx.getText()) : '';
+        if (!/^(?:sys\.)?sp_executesql$/i.test(name)) return null;
+        const params = [];
+        const findParams = node => {
+            if (node.ruleIndex === TSqlParser.RULE_execute_parameter) params.push(node.getText());
+            else for (let i = 0; i < node.getChildCount(); i++) findParams(node.getChild(i));
+        };
+        findParams(body);
+        return params.length > 0 && /^@\w+$/.test(params[0]) ? params[0].toLowerCase() : null;
     }
 
     // What the statements of another analysis (a literal) did, as if they had
@@ -96,6 +193,13 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         const body = this._first(ctx.execute_body ? ctx.execute_body() : null);
         const literal = body ? ColumnLineageVisitor._literalOf(body) : null;
         if (literal) this._literals.push({ text: literal, maybe: this._maybe > 0 });
+        else if (body) {
+            const name = ColumnLineageVisitor._variableOf(body);
+            if (name) {
+                this._knowVariable(name);
+                this._variableRuns.push({ name, maybe: this._maybe > 0 });
+            }
+        }
         this.visitChildren(ctx);
     }
 

@@ -15,7 +15,8 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // has in the local time zone, 8 = tableWriteOps: the kind of each table write, 9 = a user-defined type is not a
 // dependency, 10 = TRUNCATE TABLE among the table writes, 11 = the statements written as a
 // literal in EXEC are analyzed, 12 = tableWriteConditional: the tables written only in a CATCH
-// or in a branch picked by UPDATE() / inserted / deleted);
+// or in a branch picked by UPDATE() / inserted / deleted, and the statements held by a variable
+// that is given a literal once);
 // older cached files rebuild.
 const INDEX_FORMAT_VERSION = 12;
 
