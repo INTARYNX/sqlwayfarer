@@ -17,8 +17,7 @@
 		"panels/handlers/connectionImportUi.js",
 		"panels/handlers/snippetImportUi.js",
 		"panels/iconSprite.js",
-		"panels/panelState.js",
-		"panels/ratingPrompt.js"
+		"panels/panelState.js"
 	],
 	"neverLoaded": [
 		"database/generate-tsql-parser.js",
