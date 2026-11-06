@@ -253,14 +253,15 @@ class FootprintManager {
         const targetId = `obj::${fp.target.qualifiedName}`;
         const elements = [{ data: { id: targetId, label: fp.target.qualifiedName, kind: 'target' } }];
 
-        const counts = { write: 0, read: 0, trigger: 0, possible: 0 };
+        const counts = { write: 0, read: 0, trigger: 0, possible: 0, conditional: 0 };
         for (const t of fp.tables) {
             let kind;
             if (t.access === 'possible') { kind = 'possible'; counts.possible++; }
             else if (t.viaTriggerOnly) { kind = 'trigger'; counts.trigger++; }
             else if (t.access === 'write') { kind = 'write'; counts.write++; }
             else { kind = 'read'; counts.read++; }
-            elements.push({ data: { id: `tbl::${t.qualifiedName}`, label: t.qualifiedName, kind } });
+            if (t.conditional) counts.conditional++;
+            elements.push({ data: { id: `tbl::${t.qualifiedName}`, label: t.qualifiedName, kind, conditional: !!t.conditional } });
 
             if (kind === 'possible') {
                 elements.push({ data: { id: `acc::${t.qualifiedName}`, source: targetId, target: `tbl::${t.qualifiedName}`, edge: 'access-possible' } });
@@ -310,6 +311,7 @@ class FootprintManager {
             `${counts.write} written`, `${counts.read} read`, `${counts.trigger} via trigger`,
             `${counts.possible} possible`, `${(fp.triggersFired || []).length} triggers fired`
         ];
+        if (counts.conditional) parts.push(`${counts.conditional} not on every run (dotted)`);
         if (fp.unresolved && fp.unresolved.length) parts.push(`${fp.unresolved.length} unresolved refs`);
         if (fp.parseIssues && fp.parseIssues.length) parts.push(`${fp.parseIssues.length} partially parsed`);
         if (fp.truncated) parts.push('depth-limited');
@@ -481,6 +483,7 @@ class FootprintManager {
             { selector: 'node[kind = "read"]', style: node('#5a6673') },
             { selector: 'node[kind = "trigger"]', style: { ...node('#c77d0a'), 'border-width': 2, 'border-style': 'dashed', 'border-color': '#e8a33d' } },
             { selector: 'node[kind = "possible"]', style: { ...node('#4a5160'), 'background-opacity': 0.55, 'border-width': 2, 'border-style': 'dashed', 'border-color': '#8892a0', 'color': '#cfd6de' } },
+            { selector: 'node[?conditional]', style: { 'border-width': 2, 'border-style': 'dotted', 'border-color': '#fff' } },
             { selector: 'edge', style: { 'curve-style': 'bezier', 'width': 1.5, 'target-arrow-shape': 'triangle', 'arrow-scale': 0.9 } },
             { selector: 'edge[edge = "fk"]', style: { 'line-color': '#8892a0', 'target-arrow-color': '#8892a0' } },
             { selector: 'edge[edge = "access-write"]', style: { 'line-color': '#c0392b', 'target-arrow-color': '#c0392b', 'width': 2 } },
