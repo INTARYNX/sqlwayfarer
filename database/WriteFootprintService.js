@@ -148,8 +148,7 @@ class WriteFootprintService {
     }
 
     // The tables behind a view, through the views it is made of. A view over
-    // several tables stands for all of them: only one can be written at a time,
-    // and which one is not something the text of the statement says. (A view
+    // several tables stands for all of them unless the columns written say which. (A view
     // with an INSTEAD OF trigger is handled before: the trigger is the write.)
     static _baseTables(view, resolver) {
         const bases = new Map();
@@ -167,6 +166,28 @@ class WriteFootprintService {
         };
         walk(view, 0);
         return [...bases.values()];
+    }
+
+    // The tables behind a view that receive the written columns, when the view
+    // says it: a view made of tables (not of other views) whose definition names
+    // each written column of one of them. A column that is not named as such (an
+    // alias, an INSERT without a column list, a DELETE) leaves the whole set.
+    static _baseTablesWithColumns(view, columns, resolver) {
+        if (columns.length === 0) return null;
+        const holders = [];
+        for (const [key, refs] of Object.entries(view.columnRefs || {})) {
+            const target = resolver.resolve(key) || resolver.resolveTable(key, view.schema);
+            if (!target) continue;
+            if (target.type !== 'U') return null;
+            holders.push({ table: target, columns: new Set(Object.keys(refs).map(c => c.toLowerCase())) });
+        }
+        const chosen = new Map();
+        for (const column of columns) {
+            const owners = holders.filter(h => h.columns.has(column.toLowerCase()));
+            if (owners.length === 0) return null;
+            for (const h of owners) chosen.set(WriteFootprintService._clean(h.table.qualifiedName), h.table);
+        }
+        return [...chosen.values()];
     }
 
     static _isCodeType(type) {
@@ -321,7 +342,11 @@ class WriteFootprintService {
                     }
                     // Otherwise what is written (or read) through a view is the
                     // table behind it - and the triggers that fire are that table's.
-                    for (const base of WriteFootprintService._baseTables(view, resolver)) {
+                    // A write names columns: only the tables that have them are written.
+                    const named = isWrite && !ops.includes('delete')
+                        ? Object.keys(cols).filter(c => cols[c] && cols[c].write) : [];
+                    const narrowed = named.length > 0 ? WriteFootprintService._baseTablesWithColumns(view, named, resolver) : null;
+                    for (const base of narrowed || WriteFootprintService._baseTables(view, resolver)) {
                         recordTable(base, isWrite, cause, maybeWrite);
                         if (isWrite) writtenTables.push({ table: base, ops, maybe: maybeWrite });
                     }

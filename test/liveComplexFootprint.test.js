@@ -93,7 +93,10 @@ const SETUP = [
 	'CREATE TABLE dbo.Priced (id int PRIMARY KEY, price money, label nvarchar(20))',
 	'CREATE TABLE dbo.PriceHistory (id int, price money)',
 	'CREATE TRIGGER dbo.trgPricedUpd ON dbo.Priced AFTER UPDATE AS BEGIN IF UPDATE(price) INSERT dbo.PriceHistory SELECT id, price FROM inserted; END',
-	'CREATE PROCEDURE dbo.uspReprice AS UPDATE dbo.Priced SET price = 0'
+	'CREATE PROCEDURE dbo.uspReprice AS UPDATE dbo.Priced SET price = 0',
+	'CREATE VIEW dbo.vOrderCustomer AS SELECT o.id, o.qty, c.name FROM dbo.OrderLines o JOIN dbo.Customers c ON c.id = o.orderId',
+	'CREATE PROCEDURE dbo.uspUpdateThroughJoinView AS UPDATE dbo.vOrderCustomer SET name = N\'q\'',
+	'CREATE PROCEDURE dbo.uspUpdateThroughJoinViewLine AS UPDATE dbo.vOrderCustomer SET qty = 1'
 ];
 
 suite('live SQL Server: write footprint on a hard schema', function () {
@@ -163,6 +166,8 @@ suite('live SQL Server: write footprint on a hard schema', function () {
 		'dbo.uspDeleteDoomed': ['dbo.Archive'],
 		'dbo.uspDeleteSoft': ['dbo.Soft'],
 		'dbo.uspDynamicDeclared': ['dbo.Audit', 'dbo.Customers', 'dbo.Log'],
+		'dbo.uspUpdateThroughJoinView': ['dbo.Customers'],
+		'dbo.uspUpdateThroughJoinViewLine': ['dbo.OrderLines'],
 		'dbo.uspDynamicVar': [],
 		'dbo.uspTvf': []
 	};
