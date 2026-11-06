@@ -396,6 +396,24 @@ suite('WriteFootprintService: the kind of write decides which triggers fire', ()
 		assert.deepStrictEqual(r.unresolved, []);
 	});
 
+	test('a write through a view of two tables is a write of the table that has the written column', () => {
+		const run = (written, ops) => {
+			const objects = {};
+			const add = e => { objects[e.qualifiedName] = e; };
+			add(Object.assign(obj('app.P', 'P', { columnRefs: { 'app.V': Object.fromEntries(written.map(c => [c, { write: true }])) }, dependencies: ['app.V'], tableWrites: ['app.V'] }), { tableWriteOps: { 'app.V': ops } }));
+			add(obj('app.V', 'V', { columnRefs: { 'app.Orders': { id: {}, total: {} }, 'app.Customers': { name: {} } }, dependencies: ['app.Orders', 'app.Customers'] }));
+			add(obj('app.Orders', 'U'));
+			add(obj('app.Customers', 'U'));
+			const r = WriteFootprintService.analyzeFootprint({ index: { objects }, target: 'app.P', triggers: [] });
+			return Object.fromEntries(r.tables.map(t => [t.qualifiedName, t.access]));
+		};
+		assert.deepStrictEqual(run(['total'], ['update']), { 'app.Customers': 'read', 'app.Orders': 'write' });
+		assert.deepStrictEqual(run(['name'], ['update']), { 'app.Customers': 'write', 'app.Orders': 'read' });
+		assert.deepStrictEqual(run(['total', 'name'], ['update']), { 'app.Customers': 'write', 'app.Orders': 'write' });
+		assert.deepStrictEqual(run(['alias'], ['update']), { 'app.Customers': 'write', 'app.Orders': 'write' }, 'a column the view does not name: all of them');
+		assert.deepStrictEqual(run(['total'], ['delete']), { 'app.Customers': 'write', 'app.Orders': 'write' }, 'a DELETE names no column: all of them');
+	});
+
 	test('a view of views leads to the tables at the bottom, and a view that loops ends', () => {
 		const objects = {};
 		const add = e => { objects[e.qualifiedName] = e; };
