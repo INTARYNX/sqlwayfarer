@@ -64,6 +64,7 @@ helper/**
 !dist/webview/sqlEditor.js
 !dist/webview/graphLibs.js
 !dist/webview/graphLibs.js.LICENSE.txt
+!dist/webview/vendor/**
 !icon.png
 !images/banner.png
 !package.json
