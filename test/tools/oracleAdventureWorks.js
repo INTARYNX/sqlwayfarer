@@ -1,6 +1,6 @@
 // The write footprint against what the server really does, on AdventureWorks and
-// its ten triggers. For each probe (an UPDATE or a DELETE of one real row, in a
-// procedure made for it) the tool
+// its ten triggers. For each probe (an UPDATE, a DELETE or an INSERT of one real row, in
+// a procedure made for it) the tool
 //   - runs it in a transaction and rolls back, and reads which tables the server
 //     says were modified (sys.dm_db_index_usage_stats: the server's own count,
 //     which depends on neither the parser nor the index);
@@ -28,7 +28,13 @@ const PROBES = {
 	'delete HumanResources.Employee': 'DELETE TOP (1) HumanResources.Employee',
 	'delete Purchasing.Vendor': 'DELETE TOP (1) Purchasing.Vendor',
 	'delete Sales.SalesOrderDetail': 'DELETE TOP (1) Sales.SalesOrderDetail',
-	'update Sales.Customer (no trigger)': 'UPDATE TOP (1) Sales.Customer SET TerritoryID = TerritoryID'
+	'update Sales.Customer (no trigger)': 'UPDATE TOP (1) Sales.Customer SET TerritoryID = TerritoryID',
+	// An INSERT needs a row that the constraints accept: a copy of a real one.
+	'insert Production.WorkOrder': 'INSERT Production.WorkOrder (ProductID, OrderQty, ScrappedQty, StartDate, DueDate) SELECT TOP (1) ProductID, OrderQty, ScrappedQty, StartDate, DueDate FROM Production.WorkOrder',
+	'insert Purchasing.PurchaseOrderDetail': 'INSERT Purchasing.PurchaseOrderDetail (PurchaseOrderID, DueDate, OrderQty, ProductID, UnitPrice, ReceivedQty, RejectedQty) SELECT TOP (1) PurchaseOrderID, DueDate, OrderQty, ProductID, UnitPrice, ReceivedQty, RejectedQty FROM Purchasing.PurchaseOrderDetail',
+	'insert Sales.SalesOrderDetail': 'INSERT Sales.SalesOrderDetail (SalesOrderID, CarrierTrackingNumber, OrderQty, ProductID, SpecialOfferID, UnitPrice, UnitPriceDiscount) SELECT TOP (1) SalesOrderID, CarrierTrackingNumber, OrderQty, ProductID, SpecialOfferID, UnitPrice, UnitPriceDiscount FROM Sales.SalesOrderDetail',
+	'insert Person.Person (a BusinessEntity first)': "INSERT Person.BusinessEntity DEFAULT VALUES; INSERT Person.Person (BusinessEntityID, PersonType, NameStyle, FirstName, LastName) VALUES (SCOPE_IDENTITY(), N'EM', 0, N'A', N'B')",
+	'insert Sales.Customer (no trigger)': 'INSERT Sales.Customer (PersonID, StoreID, TerritoryID) VALUES (NULL, NULL, NULL)'
 };
 (async () => {
 	const manager = new ConnectionManager({ getConnection: () => ({ name: 'l', server: live.server, authType: 'sql', username: live.user, database: 'master', encrypt: false, trustServerCertificate: true }), getConnectionPassword: async () => live.password });
