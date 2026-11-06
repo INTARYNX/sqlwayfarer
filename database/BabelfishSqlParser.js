@@ -150,7 +150,7 @@ class BabelfishSqlParser {
      * must be reported as such.
      *
      * @param {string} sqlDefinition
-     * @returns {{columns: Object<string, Object<string, {write: boolean, confident: boolean}>>, writes: string[], errors: Array<{line: number, column: number, message: string}>}|null}
+     * @returns {{columns: Object<string, Object<string, {write: boolean, confident: boolean}>>, writes: string[], writeOps: object, conditionalWrites: string[], errors: Array<{line: number, column: number, message: string}>}|null}
      *          null when parsing is disabled or fails.
      */
     // A statement written as a literal in EXEC('...') is code like the rest of
@@ -158,7 +158,9 @@ class BabelfishSqlParser {
     // literal that holds another EXEC is followed too, two levels at most.
     _followLiterals(visitor, depth) {
         if (depth >= MAX_LITERAL_DEPTH) return;
-        for (const text of visitor.getLiterals()) {
+        const texts = visitor.getLiterals();
+        for (let index = 0; index < texts.length; index++) {
+            const text = texts[index];
             let nested;
             try {
                 nested = new ColumnLineageVisitor();
@@ -167,7 +169,7 @@ class BabelfishSqlParser {
                 continue;
             }
             this._followLiterals(nested, depth + 1);
-            visitor.absorb(nested);
+            visitor.absorb(nested, index);
         }
     }
 
@@ -183,6 +185,7 @@ class BabelfishSqlParser {
                 columns: visitor.getResult(),
                 writes: visitor.getWrites(),
                 writeOps: visitor.getWriteOps(),
+                conditionalWrites: visitor.getConditionalWrites(),
                 errors: errors || []
             };
         } catch (err) {

@@ -25,6 +25,8 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         this._ctes = new Set();
         this._triggerTable = null;
         this._literals = []; // the statements written as a literal in EXEC('...') or sp_executesql N'...'
+        this._maybe = 0; // > 0 while visiting code that runs only on some executions (CATCH, a branch chosen by UPDATE() or inserted/deleted)
+        this._sure = new Set(); // tables written at least once by code that always runs
     }
 
     getResult() {
@@ -41,16 +43,21 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     // The text of the statements written as a literal in EXEC('...') or in
     // sp_executesql N'...': they are code, and the caller analyzes them.
     getLiterals() {
-        return this._literals;
+        return this._literals.map(literal => literal.text);
     }
 
     // What the statements of another analysis (a literal) did, as if they had
-    // been written here.
-    absorb(other) {
+    // been written here. `index` is the position of the literal in getLiterals().
+    absorb(other, index = -1) {
         for (const [table, cols] of other._result.entries()) {
             for (const [col, info] of cols.entries()) this._record(table, col, { write: info.write, confident: info.confident });
         }
+        // The writes are certain only when the literal is itself in code that always runs.
+        const always = this._maybe === 0 && !(index >= 0 && this._literals[index].maybe);
+        this._maybe++;
         for (const [table, ops] of other._writes.entries()) this._recordWrite(table, ...ops);
+        this._maybe--;
+        if (always) for (const table of other._sure) this._sure.add(table);
     }
 
     // EXEC('...') / EXEC sp_executesql N'...': the text of the literal, or null
@@ -88,7 +95,7 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
     visitExecute_statement(ctx) {
         const body = this._first(ctx.execute_body ? ctx.execute_body() : null);
         const literal = body ? ColumnLineageVisitor._literalOf(body) : null;
-        if (literal) this._literals.push(literal);
+        if (literal) this._literals.push({ text: literal, maybe: this._maybe > 0 });
         this.visitChildren(ctx);
     }
 
@@ -103,6 +110,13 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         const out = {};
         for (const table of this.getWrites()) out[table] = [...this._writes.get(table)].sort();
         return out;
+    }
+
+    // The tables written only by code that runs on some executions: in a CATCH
+    // block, or in the branch of a trigger chosen by UPDATE(column) or by
+    // what inserted and deleted hold.
+    getConditionalWrites() {
+        return this.getWrites().filter(table => !this._sure.has(table));
     }
 
     _clean(name) {
@@ -138,6 +152,30 @@ class ColumnLineageVisitor extends TSqlParserVisitor {
         if (this._ctes.has(table)) return;
         if (!this._writes.has(table)) this._writes.set(table, new Set());
         for (const op of ops) this._writes.get(table).add(op);
+        if (this._maybe === 0) this._sure.add(table);
+    }
+
+    // CATCH runs only when the TRY failed.
+    visitCatch_block(ctx) {
+        this._maybe++;
+        this.visitChildren(ctx);
+        this._maybe--;
+        return null;
+    }
+
+    // In a trigger, IF UPDATE(col) and a test on inserted / deleted pick the
+    // part that runs for this write: the branches are then conditional.
+    visitIf_statement(ctx) {
+        const condition = this._first(ctx.search_condition ? ctx.search_condition() : null);
+        const picksByWrite = !!this._triggerTable && !!condition && /update\(|columns_updated\(|inserted|deleted/i.test(condition.getText());
+        for (let i = 0; i < ctx.getChildCount(); i++) {
+            const child = ctx.getChild(i);
+            const branch = picksByWrite && child.ruleIndex === TSqlParser.RULE_sql_clauses;
+            if (branch) this._maybe++;
+            child.accept(this);
+            if (branch) this._maybe--;
+        }
+        return null;
     }
 
     // inserted/deleted are NOT handled here: _record() remaps them, which also

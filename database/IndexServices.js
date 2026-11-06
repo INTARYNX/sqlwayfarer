@@ -14,9 +14,10 @@ const { IndexBuildStats, addRun } = require('./IndexStats');
 // ambiguous dependencies, 7 = checksums from the ISO date, not the text a Date
 // has in the local time zone, 8 = tableWriteOps: the kind of each table write, 9 = a user-defined type is not a
 // dependency, 10 = TRUNCATE TABLE among the table writes, 11 = the statements written as a
-// literal in EXEC are analyzed);
+// literal in EXEC are analyzed, 12 = tableWriteConditional: the tables written only in a CATCH
+// or in a branch picked by UPDATE() / inserted / deleted);
 // older cached files rebuild.
-const INDEX_FORMAT_VERSION = 11;
+const INDEX_FORMAT_VERSION = 12;
 
 // Counts the temporary files written in this process, so that two writes
 // that run at the same time - two builds of the same database, or a build
@@ -529,6 +530,8 @@ class IndexService {
             indexObjects[key].tableWrites = writes.tables;
             // What is done to each table (insert, update, delete): a trigger fires on one kind.
             indexObjects[key].tableWriteOps = writes.ops;
+            // The tables it writes only on some executions (CATCH, a branch picked by UPDATE()).
+            indexObjects[key].tableWriteConditional = writes.conditional;
         }
     }
 
@@ -692,7 +695,7 @@ class IndexService {
                 // The table-level writes travel with the column lineage: a
                 // DELETE or an INSERT without a column list writes a table
                 // without writing any named column.
-                if (writes.length > 0 && tableWritesOut) tableWritesOut[cleanQN] = { tables: writes, ops: analysis.writeOps || {} };
+                if (writes.length > 0 && tableWritesOut) tableWritesOut[cleanQN] = { tables: writes, ops: analysis.writeOps || {}, conditional: analysis.conditionalWrites || [] };
                 // The syntax errors make the analysis partial: the tree was
                 // still walked, but not everything in it could be understood.
                 if (errors.length > 0 && parseErrorsOut) parseErrorsOut[cleanQN] = errors;

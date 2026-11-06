@@ -506,3 +506,40 @@ suite('WriteFootprintService: the kind of write decides which triggers fire', ()
 		assert.strictEqual(access(r)['app.T'], 'write');
 	});
 });
+
+// A write that happens on some executions only (a CATCH, a branch picked by UPDATE()) is reported as such, and so is what it fires.
+suite('WriteFootprintService: conditional writes', () => {
+	function scenario(conditional) {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(Object.assign(obj('app.P', 'P', { dependencies: ['app.T', 'app.Err', 'app.Sub'], tableWrites: ['app.T', 'app.Err'] }), { tableWriteOps: { 'app.T': ['insert'], 'app.Err': ['insert'] }, tableWriteConditional: conditional }));
+		add(obj('app.Sub', 'P', { dependencies: ['app.Err'], tableWrites: ['app.Err'] }));
+		add(obj('app.trgErr', 'TR', { columnRefs: {}, dependencies: ['app.Audit'], tableWrites: ['app.Audit'] }));
+		for (const t of ['app.T', 'app.Err', 'app.Audit']) add(obj(t, 'U'));
+		const triggers = [{ trigger: 'app.trgErr', parentTable: 'app.Err', disabled: false, events: ['insert'] }];
+		const r = WriteFootprintService.analyzeFootprint({ index: { objects }, triggers, target: 'app.P' });
+		return Object.fromEntries(r.tables.map(t => [t.qualifiedName, t.conditional]));
+	}
+
+	test('a table that a called procedure writes for sure is not conditional, whatever the CATCH says', () => {
+		const result = scenario(['app.Err']);
+		assert.strictEqual(result['app.T'], false);
+		assert.strictEqual(result['app.Err'], false, 'app.Sub writes it for sure');
+		assert.strictEqual(result['app.Audit'], false, 'fired by that sure write');
+	});
+
+	test('with no other write, the table and its trigger are conditional', () => {
+		const objects = {};
+		const add = e => { objects[e.qualifiedName] = e; };
+		add(Object.assign(obj('app.P', 'P', { dependencies: ['app.Err'], tableWrites: ['app.Err'] }), { tableWriteOps: { 'app.Err': ['insert'] }, tableWriteConditional: ['app.Err'] }));
+		add(obj('app.trgErr', 'TR', { dependencies: ['app.Audit'], tableWrites: ['app.Audit'] }));
+		for (const t of ['app.Err', 'app.Audit']) add(obj(t, 'U'));
+		const r = WriteFootprintService.analyzeFootprint({ index: { objects }, triggers: [{ trigger: 'app.trgErr', parentTable: 'app.Err', disabled: false, events: ['insert'] }], target: 'app.P' });
+		const flags = Object.fromEntries(r.tables.map(t => [t.qualifiedName, t.conditional]));
+		assert.deepStrictEqual(flags, { 'app.Audit': true, 'app.Err': true });
+	});
+
+	test('without the flag in the index, nothing is conditional', () => {
+		assert.ok(Object.values(scenario(undefined)).every(flag => flag === false));
+	});
+});
