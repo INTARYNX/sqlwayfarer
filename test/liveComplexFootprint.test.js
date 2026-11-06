@@ -48,6 +48,11 @@ const SETUP = [
 	'CREATE TRIGGER dbo.trgInventoryUpd ON dbo.Inventory AFTER UPDATE AS EXEC dbo.uspAuditInventory',
 	'CREATE TRIGGER dbo.trgCounterUpd ON dbo.Counter AFTER UPDATE AS IF (SELECT COUNT(*) FROM inserted) > 100 UPDATE dbo.Counter SET n = 0',
 	// A view with an INSTEAD OF trigger: the real write is the one of the trigger.
+	// A table whose DELETE is taken over by an INSTEAD OF trigger that writes elsewhere, and one that soft-deletes.
+	'CREATE TABLE dbo.Doomed (id int PRIMARY KEY, flag bit DEFAULT 0)',
+	'CREATE TRIGGER dbo.trgDoomedDel ON dbo.Doomed INSTEAD OF DELETE AS INSERT dbo.Archive (id, note) SELECT id, N\'doomed\' FROM deleted',
+	'CREATE TABLE dbo.Soft (id int PRIMARY KEY, deleted bit DEFAULT 0)',
+	'CREATE TRIGGER dbo.trgSoftDel ON dbo.Soft INSTEAD OF DELETE AS UPDATE s SET deleted = 1 FROM dbo.Soft s JOIN deleted d ON d.id = s.id',
 	'CREATE VIEW dbo.vCustomers AS SELECT id, name FROM dbo.Customers',
 	'CREATE TRIGGER dbo.trgVCustomersIns ON dbo.vCustomers INSTEAD OF INSERT AS INSERT dbo.Archive (id, note) SELECT id, name FROM inserted',
 	'CREATE VIEW dbo.vOrders AS SELECT id, customerId, total FROM dbo.Orders',
@@ -80,6 +85,8 @@ const SETUP = [
 	'CREATE PROCEDURE dbo.uspUpperCase AS UPDATE DBO.ORDERS SET TOTAL = 1',
 	'CREATE PROCEDURE dbo.uspBrackets AS DELETE FROM [dbo].[Order Lines Archive]',
 	'CREATE PROCEDURE dbo.uspInsteadOf AS INSERT dbo.vCustomers (id, name) VALUES (9, N\'i\')',
+	'CREATE PROCEDURE dbo.uspDeleteDoomed AS DELETE FROM dbo.Doomed WHERE id = 1',
+	'CREATE PROCEDURE dbo.uspDeleteSoft AS DELETE FROM dbo.Soft WHERE id = 1',
 	'CREATE PROCEDURE hr.uspTryCatch AS BEGIN SET NOCOUNT ON; BEGIN TRY UPDATE hr.Employees SET name = N\'z\'; END TRY BEGIN CATCH INSERT dbo.[Log] (what) VALUES (ERROR_MESSAGE()); END CATCH END'
 ];
 
@@ -147,6 +154,8 @@ suite('live SQL Server: write footprint on a hard schema', function () {
 		'dbo.uspUpperCase': ['dbo.Orders'],
 		'dbo.uspBrackets': ['dbo.Order Lines Archive'],
 		'dbo.uspInsteadOf': ['dbo.Archive'],
+		'dbo.uspDeleteDoomed': ['dbo.Archive'],
+		'dbo.uspDeleteSoft': ['dbo.Soft'],
 		'dbo.uspDynamicVar': [],
 		'dbo.uspTvf': []
 	};
