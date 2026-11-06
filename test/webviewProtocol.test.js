@@ -161,6 +161,11 @@ suite('every page placeholder is filled in by its provider', () => {
 		assert.ok(before('BUILTIN_SNIPPETS_URI', 'QUERY_MANAGER_URI'));
 		assert.ok(before('SQL_EDITOR_URI', 'QUERY_MANAGER_URI'));
 		assert.ok(before('ICONS_URI', 'QUERY_MANAGER_URI'));
+		// ExplorerManager is written in three files: the two parts are mixed in
+		// when explorerManager.js runs, so they load first.
+		assert.ok(before('EXPLORER_OBJECT_LIST_URI', 'EXPLORER_MANAGER_URI'));
+		assert.ok(before('EXPLORER_DETAILS_URI', 'EXPLORER_MANAGER_URI'));
+		assert.ok(before('APP_STATE_URI', 'QUERY_MANAGER_URI'), 'the shared state loads first');
 		assert.ok(order[order.length - 1] === 'MAIN_SCRIPT_URI', 'main.js loads last');
 	});
 });
