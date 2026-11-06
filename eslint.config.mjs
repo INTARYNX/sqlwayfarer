@@ -76,6 +76,7 @@ export default [{
             SidebarConnections: "readonly",
             CommentsManager: "readonly",
             CodeViewManager: "readonly",
+            ObjectsTabManager: "readonly",
             Viz: "readonly",
             QP: "readonly",
         },
