@@ -367,6 +367,27 @@ suite('BabelfishSqlParser.analyzeDefinition: statements written as a literal', (
 		assert.deepStrictEqual(analysis.writeOps, { 'dbo.old': ['delete'], 'dbo.stats': ['update'] });
 	});
 
+	test('a variable given a literal once and run by EXEC is that literal', function () {
+		this.timeout(10000);
+		const parser = makeParser();
+		const writes = sql => parser.analyzeDefinition(sql).writeOps;
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100) = N'DELETE FROM dbo.Old'; EXEC(@s); END"), { 'dbo.old': ['delete'] });
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100); SET @s = N'UPDATE dbo.Stats SET n = 0'; EXEC sp_executesql @s; END"), { 'dbo.stats': ['update'] });
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100) = N'INSERT dbo.T VALUES (1)'; EXEC sp_executesql @s, N'', @x = 1; END"), { 'dbo.t': ['insert'] });
+	});
+
+	test('a variable that is a parameter, changed, appended to or given twice is not followed', function () {
+		this.timeout(10000);
+		const parser = makeParser();
+		const writes = sql => parser.analyzeDefinition(sql).writes;
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p @s nvarchar(100) AS EXEC(@s)"), []);
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100) = N'DELETE FROM dbo.A'; SET @s = @s + N' WHERE 1 = 0'; EXEC(@s); END"), []);
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100) = N'DELETE FROM dbo.A'; SET @s += N' WHERE 1 = 0'; EXEC(@s); END"), []);
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p @x int AS BEGIN DECLARE @s nvarchar(100) = N'DELETE FROM dbo.A'; IF @x = 1 SET @s = N'DELETE FROM dbo.B'; EXEC(@s); END"), []);
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100) = N'DELETE FROM dbo.A'; SELECT @s = name FROM dbo.T; EXEC(@s); END"), []);
+		assert.deepStrictEqual(writes("CREATE PROCEDURE dbo.p AS BEGIN DECLARE @s nvarchar(100) = N'DELETE FROM dbo.A'; EXEC dbo.other @s OUTPUT; EXEC(@s); END"), []);
+	});
+
 	test('a statement built in a variable, or by concatenation, says nothing', function () {
 		this.timeout(10000);
 		const parser = makeParser();
