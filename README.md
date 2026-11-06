@@ -59,4 +59,4 @@ Made by [intarynx](https://www.intarynx.com), one developer who builds all kinds
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The third-party software it ships, and its licenses, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

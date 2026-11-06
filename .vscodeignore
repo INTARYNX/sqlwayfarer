@@ -70,6 +70,7 @@ helper/**
 !package.json
 !README.md
 !LICENSE
+!THIRD_PARTY_NOTICES.md
 
 # piscina has no runtime dependencies of its own, but it resolves its worker
 # bootstrap script relative to its own package folder at runtime (not bundled

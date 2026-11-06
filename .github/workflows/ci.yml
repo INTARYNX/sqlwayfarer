@@ -121,7 +121,9 @@ jobs:
             webview/index.html \
             webview/main.js \
             webview/styles.css \
-            package.json
+            package.json \
+            LICENSE \
+            THIRD_PARTY_NOTICES.md
           do
             echo "$files" | grep -qx "$required" || { echo "MISSING from the package: $required"; exit 1; }
           done

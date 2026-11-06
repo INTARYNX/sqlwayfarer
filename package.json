@@ -269,7 +269,8 @@
     "test:unit": "mocha --ui tdd \"test/*.test.js\" --ignore test/extension.test.js --ignore test/panelState.test.js --ignore test/queryFileHandlers.test.js --ignore test/queryHandlers.test.js --ignore test/indexHandlers.test.js --ignore test/liveQueryHandlers.test.js --ignore test/snippetHandlers.test.js",
     "e2e:fixtures": "node test/tools/captureAdventureWorks.js",
     "e2e:audit": "node test/tools/auditLayout.js",
-    "live:oracle": "node test/tools/oracleAdventureWorks.js"
+    "live:oracle": "node test/tools/oracleAdventureWorks.js",
+    "notices": "node scripts/generate-notices.js"
   },
   "dependencies": {
     "antlr4": "^4.13.2",
