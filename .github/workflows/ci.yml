@@ -114,6 +114,10 @@ jobs:
             dist/parseColumnsWorker.js \
             dist/webview/sqlEditor.js \
             dist/webview/graphLibs.js \
+            dist/webview/vendor/viz.js \
+            dist/webview/vendor/viz.full.render.js \
+            dist/webview/vendor/html-query-plan/qp.min.js \
+            dist/webview/vendor/html-query-plan/qp.css \
             webview/index.html \
             webview/main.js \
             webview/styles.css \

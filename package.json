@@ -259,7 +259,7 @@
     }
   },
   "scripts": {
-    "build": "webpack",
+    "build": "webpack && node scripts/copy-vendor.js",
     "build:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-helper.ps1",
     "lint": "eslint . --max-warnings=0",
     "test": "vscode-test",
@@ -292,16 +292,18 @@
     "@vscode/codicons": "^0.0.45",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^4.1.0",
     "codemirror": "^6.0.2",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
     "eslint": "^9.25.1",
+    "html-query-plan": "2.6.1",
     "playwright": "^1.63.0",
     "sql-formatter": "^15.9.0",
     "typescript": "^5.1.6",
+    "viz.js": "2.1.2",
     "webpack": "^5.107.2",
-    "webpack-cli": "^5.1.4",
-    "@vscode/vsce": "^4.1.0"
+    "webpack-cli": "^5.1.4"
   },
   "overrides": {
     "tedious": "^19.2.2",

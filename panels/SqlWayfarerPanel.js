@@ -614,7 +614,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{STYLES_URI}}',               u('webview', 'styles.css'));
         html = html.replace('{{COMMENTS_STYLES_URI}}',      u('webview', 'comments.css'));
         html = html.replace('{{CODE_VIEW_STYLES_URI}}',     u('webview', 'codeView.css'));
-        html = html.replace('{{QUERY_PLAN_STYLES_URI}}',    u('webview', 'vendor', 'html-query-plan', 'qp.css'));
+        html = html.replace('{{QUERY_PLAN_STYLES_URI}}',    u('dist', 'webview', 'vendor', 'html-query-plan', 'qp.css'));
         html = html.replace('{{APP_STATE_URI}}',          u('webview', 'appState.js'));
         html = html.replace('{{ICONS_URI}}',                u('webview', 'icons.js'));
         html = html.replace('{{TAB_MANAGER_URI}}',          u('webview', 'tabManager.js'));
@@ -649,10 +649,10 @@ class SqlWayfarerPanel {
         html = html.replace('{{DATABASE_SELECTOR_MANAGER_URI}}', u('webview', 'databaseSelectorManager.js'));
         html = html.replace('{{DEPENDENCY_VISUALIZER_URI}}', u('webview', 'dependencyVisualizer.js'));
         html = html.replace('{{FILTER_MANAGER_URI}}', u('webview', 'filterManager.js'));
-        html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
-        html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
+        html = html.replace('{{VIZ_URI}}',                   u('dist', 'webview', 'vendor', 'viz.js'));
+        html = html.replace('{{VIZ_RENDER_URI}}',            u('dist', 'webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{GRAPH_LIBS_URI}}',           u('dist', 'webview', 'graphLibs.js'));
-        html = html.replace('{{QUERY_PLAN_URI}}',           u('webview', 'vendor', 'html-query-plan', 'qp.min.js'));
+        html = html.replace('{{QUERY_PLAN_URI}}',           u('dist', 'webview', 'vendor', 'html-query-plan', 'qp.min.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));
 
         return html;

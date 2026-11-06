@@ -1,7 +1,7 @@
 import globals from "globals";
 
 export default [{
-    ignores: ["dist/**", "webview/vendor/**", "webview/codicons/**", ".vscode-test/**", "database/generated/**"],
+    ignores: ["dist/**", "webview/codicons/**", ".vscode-test/**", "database/generated/**"],
 }, {
     // The extension host: CommonJS (require / module.exports), Node runtime.
     files: ["**/*.js"],
