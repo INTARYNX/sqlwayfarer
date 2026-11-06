@@ -122,7 +122,7 @@ function splitTopLevelStatements(sql) {
 }
 
 class QueryHandlers {
-    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null, onQuerySucceeded = null, isProduction = () => false) {
+    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null, isProduction = () => false) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._workspaceState = workspaceState;
@@ -130,8 +130,6 @@ class QueryHandlers {
         // True while the connection of this tab is marked as production.
         this._isProduction = isProduction;
         this._getConnectionIdentity = getConnectionIdentity;
-        // Notified after every successful query (used to ask for a rating).
-        this._onQuerySucceeded = onQuerySucceeded;
         // One connection for the whole panel: a transaction a script opens
         // stays on it until it is committed or rolled back (see QuerySession).
         this._session = new QuerySession(connectionManager);
@@ -322,14 +320,6 @@ class QueryHandlers {
         }
 
         await this._recordHistory(database, query, true, durationMs);
-        if (this._onQuerySucceeded) {
-            try {
-                await this._onQuerySucceeded();
-            } catch (error) {
-                // A failed rating prompt must never break the query result.
-                console.warn('Rating prompt failed:', error.message);
-            }
-        }
         this._post({
             command: 'queryResult',
             resultSets, rowsAffected, timeline, durationMs, maxRows: rowCap,

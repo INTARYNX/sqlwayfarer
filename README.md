@@ -47,7 +47,7 @@ Needs VS Code 1.100+ and SQL Server 2017+ or Azure SQL. `db_datareader` is enoug
 
 ## Privacy
 
-No analytics, no crash reports. It only talks to the SQL Server you point it at (and the Microsoft sign-in of VS Code if you use Entra ID). Nothing is loaded from the internet; the index, history and drafts stay on your machine. It does ask for a Marketplace star now and then (after a few queries, at most every three weeks).
+No analytics, no crash reports. It only talks to the SQL Server you point it at (and the Microsoft sign-in of VS Code if you use Entra ID). Nothing is loaded from the internet; the index, history and drafts stay on your machine.
 
 ## Limits
 

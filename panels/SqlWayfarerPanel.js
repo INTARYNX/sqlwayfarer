@@ -30,7 +30,6 @@ const ERROR_COMMANDS = new Set(['error', 'queryError']);
 // Messages that prove the server answered: a lost connection came back.
 const ANSWER_COMMANDS = new Set(['queryResult', 'planResult', 'objectsLoaded', 'databasesLoaded']);
 const { PanelStateStore } = require('./panelState');
-const { RatingPrompt } = require('./ratingPrompt');
 const ConnectionHandlers = require('./handlers/ConnectionHandlers');
 const DatabaseHandlers = require('./handlers/DatabaseHandlers');
 const CommentsHandlers = require('./handlers/CommentsHandlers');
@@ -105,9 +104,6 @@ class SqlWayfarerPanel {
             path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
         );
         this._panelState = new PanelStateStore(context.workspaceState);
-        // Asks the user, every now and then, to rate the extension: the
-        // Marketplace shows the rating right in the search results.
-        this._ratingPrompt = new RatingPrompt(context);
         // The schema (Explorer, index, autocompletion, comments, dictionary,
         // footprint) is read through a router: it follows the run connection
         // unless the user plugs the schema on another saved connection, say a
@@ -145,7 +141,7 @@ class SqlWayfarerPanel {
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
         const riskParser = new BabelfishSqlParser();
         riskParser.setEnabled(true);
-        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._ratingPrompt.onQuerySucceeded(), () => this._isProduction());
+        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._isProduction());
         this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._schemaRouter, this._databaseService));

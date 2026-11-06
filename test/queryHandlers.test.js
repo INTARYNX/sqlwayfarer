@@ -384,7 +384,7 @@ suite('QueryHandlers', () => {
 		const asked = [];
 		const analyzer = { analyze: (q, options) => { calls.push(options); return options.production ? ['Changes data or schema (UPDATE) on a production connection'] : []; } };
 		let production = true;
-		const handlers = new QueryHandlers(() => {}, connMock(() => new FakeRequest(req => { req.emit('rowsaffected', 1); })), makeState(), analyzer, () => null, null, () => production);
+		const handlers = new QueryHandlers(() => {}, connMock(() => new FakeRequest(req => { req.emit('rowsaffected', 1); })), makeState(), analyzer, () => null, () => production);
 		handlers._confirmRisks = async (risks, flag) => { asked.push(flag); return true; };
 
 		await handlers.handleExecuteQuery('Db1', 'UPDATE T SET a = 1 WHERE id = 1', 1000);
