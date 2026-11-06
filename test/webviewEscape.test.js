@@ -14,9 +14,9 @@ suite('webview escapeHtml', () => {
 			for (const part of parts) {
 				const name = part.split(/[\s{]/)[0];
 				if (!/this\.escapeHtml\(/.test(part)) continue;
-				// A part of ExplorerManager (see explorerManager.js): `this` is the
-				// ExplorerManager, which defines escapeHtml.
-				if (/^Explorer\w+Methods$/.test(name)) continue;
+				// A part of ExplorerManager or QueryManager (see explorerManager.js,
+				// queryManager.js): `this` is that class, which defines escapeHtml.
+				if (/^(Explorer|Query)\w+Methods$/.test(name)) continue;
 				assert.ok(/^\s+(static\s+)?escapeHtml\(/m.test(part) || /escapeHtml\s*[:=]/.test(part),
 					`class ${name} in ${file} calls this.escapeHtml but does not define it`);
 			}
@@ -25,6 +25,11 @@ suite('webview escapeHtml', () => {
 
 	test('ExplorerManager, which the parts of the Explorer rely on, defines it', () => {
 		const source = fs.readFileSync(path.join(__dirname, '..', 'webview', 'explorerManager.js'), 'utf8');
+		assert.ok(/^\s+escapeHtml\(/m.test(source));
+	});
+
+	test('QueryManager, which the parts of the Query tool rely on, defines it', () => {
+		const source = fs.readFileSync(path.join(__dirname, '..', 'webview', 'queryManager.js'), 'utf8');
 		assert.ok(/^\s+escapeHtml\(/m.test(source));
 	});
 });

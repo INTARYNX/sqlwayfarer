@@ -631,6 +631,9 @@ class SqlWayfarerPanel {
         html = html.replace('{{SQL_AUTOCOMPLETE_URI}}',     u('webview', 'sqlAutocomplete.js'));
         html = html.replace('{{SQL_EDITOR_URI}}',           u('dist', 'webview', 'sqlEditor.js'));
         html = html.replace('{{TEMP_TABLE_SCRIPT_URI}}',    u('webview', 'tempTableScript.js'));
+        html = html.replace('{{QUERY_RESULTS_GRID_URI}}', u('webview', 'queryResultsGrid.js'));
+        html = html.replace('{{QUERY_FORMATTING_URI}}', u('webview', 'queryFormatting.js'));
+        html = html.replace('{{QUERY_SNIPPETS_HISTORY_URI}}', u('webview', 'querySnippetsHistory.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{FILE_TREE_URI}}',            u('webview', 'fileTree.js'));
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));

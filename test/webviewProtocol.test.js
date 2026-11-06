@@ -165,6 +165,7 @@ suite('every page placeholder is filled in by its provider', () => {
 		// when explorerManager.js runs, so they load first.
 		assert.ok(before('EXPLORER_OBJECT_LIST_URI', 'EXPLORER_MANAGER_URI'));
 		assert.ok(before('EXPLORER_DETAILS_URI', 'EXPLORER_MANAGER_URI'));
+		for (const part of ['QUERY_RESULTS_GRID_URI', 'QUERY_FORMATTING_URI', 'QUERY_SNIPPETS_HISTORY_URI']) assert.ok(before(part, 'QUERY_MANAGER_URI'), part);
 		assert.ok(before('APP_STATE_URI', 'QUERY_MANAGER_URI'), 'the shared state loads first');
 		assert.ok(order[order.length - 1] === 'MAIN_SCRIPT_URI', 'main.js loads last');
 	});
