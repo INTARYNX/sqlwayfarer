@@ -77,6 +77,7 @@ export default [{
             CommentsManager: "readonly",
             CodeViewManager: "readonly",
             ObjectsTabManager: "readonly",
+            IndexingModalManager: "readonly",
             Viz: "readonly",
             QP: "readonly",
         },
