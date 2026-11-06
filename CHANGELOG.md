@@ -55,7 +55,7 @@ Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected
 ### Known limits
 
 - SQL built in a variable (`EXEC(@sql)`) and a procedure that deletes by its own logic are not seen by the guardrails; the footprint and the query graph do not follow dynamic SQL.
-- **The write footprint reports every path of the code it reads**, so it can list more than one run does (checked on AdventureWorks against what the server modifies: no table written was missed, none). It does not know which branch runs: the `CATCH` of a trigger (`dbo.ErrorLog`), a condition on the updated column (`IF UPDATE(SubTotal)`), or what a trigger declared for several kinds of write does for one of them (`iduSalesOrderDetail`, for `INSERT`, `UPDATE` and `DELETE`, is read whole). A `DELETE` is shown writing what its `INSERT` branch writes.
+- **The write footprint reports every path of the code it reads**, so it can list more than one run does (checked on AdventureWorks against what the server really modifies: no table it wrote was missed). It does not know which branch runs: the `CATCH` of a trigger (`dbo.ErrorLog`), a condition on the updated column (`IF UPDATE(SubTotal)`), or what a trigger declared for several kinds of write does for one of them (`iduSalesOrderDetail`, for `INSERT`, `UPDATE` and `DELETE`, is read whole). A `DELETE` is shown writing what its `INSERT` branch writes.
 - Not tested in a real VS Code yet (native dialogs), nor on Azure SQL; Windows and Entra sign-in have seen limited testing.
 
 ## [0.13.0] - 2026-11-03
