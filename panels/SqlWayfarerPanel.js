@@ -642,6 +642,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));
         html = html.replace('{{OBJECTS_TAB_MANAGER_URI}}', u('webview', 'objectsTabManager.js'));
+        html = html.replace('{{INDEXING_MODAL_MANAGER_URI}}', u('webview', 'indexingModalManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('webview', 'vendor', 'viz.full.render.js'));
         html = html.replace('{{GRAPH_LIBS_URI}}',           u('dist', 'webview', 'graphLibs.js'));
