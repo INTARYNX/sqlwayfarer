@@ -51,7 +51,7 @@ No analytics, no crash reports. It only talks to the SQL Server you point it at 
 
 ## Limits
 
-It is young: tested on AdventureWorks, a generated 700-table database and a live SQL Server in CI, not on enough real production schemas. Entra ID is beta and untested on a live Azure SQL; Windows authentication has seen little testing. Dynamic SQL is only name-scanned. The footprint lists every path of the code it reads, so it can show more than one run does: the `CATCH` of a trigger, a branch chosen by `IF UPDATE(column)`, or the `INSERT` part of a trigger that covers `INSERT`, `UPDATE` and `DELETE`. On AdventureWorks it never missed a table the server really modified. A wrong result on your database is the most useful bug report.
+It is young: tested on AdventureWorks, a generated 700-table database and a live SQL Server in CI, not on enough real production schemas. Entra ID is beta and untested on a live Azure SQL; Windows authentication has seen little testing. Dynamic SQL is only name-scanned. The footprint lists every path of the code it reads, so it can show more than one run does. A table written only in a `CATCH`, or in a trigger branch chosen by `IF UPDATE(column)` or by a test on `inserted` / `deleted`, is drawn with a dotted border: it is not written on every run. On AdventureWorks it never missed a table the server really modified. A wrong result on your database is the most useful bug report.
 
 ## Author
 
