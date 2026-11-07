@@ -34,6 +34,24 @@ function temporaryPath(file) {
     return `${file}.tmp-${process.pid}-${temporaryCounter}`;
 }
 
+// Renames a temporary file over its target. On Windows, a rename onto a file
+// that another rename is replacing at that very moment fails with EPERM (or
+// EBUSY / EACCES) for a few milliseconds: it is tried again, and the error
+// of the last attempt is the one that is thrown.
+const RENAME_BUSY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const RENAME_ATTEMPTS = 6;
+
+async function renameOver(from, to) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await fs.rename(from, to);
+        } catch (error) {
+            if (attempt >= RENAME_ATTEMPTS || !RENAME_BUSY_CODES.has(error.code)) throw error;
+            await new Promise(resolve => setTimeout(resolve, 15 * attempt));
+        }
+    }
+}
+
 class IndexService {
     // How many objects' dependency queries run concurrently during a build.
     // mssql's default pool allows up to 10 simultaneous requests; this leaves
@@ -888,7 +906,7 @@ class IndexService {
             const temporary = temporaryPath(file);
             try {
                 await fs.writeFile(temporary, JSON.stringify(addRun(history, run), null, 2), 'utf8');
-                await fs.rename(temporary, file);
+                await renameOver(temporary, file);
             } catch (error) {
                 // The temporary file must not be left behind.
                 await fs.unlink(temporary).catch(() => {});
@@ -920,7 +938,7 @@ class IndexService {
             const temporary = temporaryPath(indexFile);
             try {
                 await fs.writeFile(temporary, JSON.stringify(index, null, 2), 'utf8');
-                await fs.rename(temporary, indexFile);
+                await renameOver(temporary, indexFile);
                 debug(`Saved index for ${index.database}: ${Object.keys(index.objects || {}).length} objects`);
             } catch (error) {
                 // The temporary file must not be left behind.
