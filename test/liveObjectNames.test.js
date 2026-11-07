@@ -33,7 +33,7 @@ suite('live SQL Server: object names with a dot or a bracket', function () {
 	});
 	suiteTeardown(async () => {
 		if (!manager) return;
-		try { await manager.executeQuery(`ALTER DATABASE ${DB} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${DB}`); } catch { /* ignore */ }
+		try { await manager.executeQuery(`USE master; ALTER DATABASE ${DB} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${DB}`); } catch { /* ignore */ }
 		await manager.dispose();
 	});
 

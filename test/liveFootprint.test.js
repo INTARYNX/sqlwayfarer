@@ -53,7 +53,7 @@ suite('live SQL Server: write footprint and triggers', function () {
 		if (indexService) await indexService.dispose();
 		if (indexDir) await fs.rm(indexDir, { recursive: true, force: true }).catch(() => {});
 		if (!manager) return;
-		try { await manager.executeQuery(`ALTER DATABASE ${DB} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${DB}`); } catch { /* ignore */ }
+		try { await manager.executeQuery(`USE master; ALTER DATABASE ${DB} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${DB}`); } catch { /* ignore */ }
 		await manager.dispose();
 	});
 
