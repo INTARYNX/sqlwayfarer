@@ -36,7 +36,7 @@ suite('live SQL Server: descriptions of columns and of indexes', function () {
 	});
 	suiteTeardown(async () => {
 		if (!manager) return;
-		try { await manager.executeQuery(`ALTER DATABASE ${DB} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${DB}`); } catch { /* ignore */ }
+		try { await manager.executeQuery(`USE master; ALTER DATABASE ${DB} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${DB}`); } catch { /* ignore */ }
 		await manager.dispose();
 	});
 
