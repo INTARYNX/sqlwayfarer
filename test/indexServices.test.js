@@ -686,10 +686,14 @@ suite('IndexService.diffAgainstSchema', () => {
 suite('IndexService checksums do not depend on the time zone', () => {
 	const service = new IndexService({ getServerName: () => 'testserver' }, {});
 	const object = modifyDate => ({ object_id: 1, qualified_name: 'dbo.T', type: 'U', modify_date: modifyDate });
+	// On Windows, deleting TZ leaves the process in UTC instead of the system
+	// zone, which shifts the dates of the suites that run after this one. The
+	// zone is put back by name, not by deleting the variable.
+	const systemZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const inZone = (zone, fn) => {
 		const before = process.env.TZ;
 		process.env.TZ = zone;
-		try { return fn(); } finally { if (before === undefined) delete process.env.TZ; else process.env.TZ = before; }
+		try { return fn(); } finally { process.env.TZ = before === undefined ? systemZone : before; }
 	};
 
 	test('the same date gives the same checksums in Paris and in UTC', () => {
