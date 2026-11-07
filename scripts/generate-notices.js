@@ -106,7 +106,7 @@ function build() {
         return { name: pkg.name, version: pkg.version, license: licenseOf(pkg), parts: [...entry.parts].sort(), files: licenseFiles(dir, pkg.name), home: (pkg.repository && (pkg.repository.url || pkg.repository)) || pkg.homepage || '' };
     }).sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
 
-    const apache = fs.readFileSync(path.join(__dirname, 'licenses', 'Apache-2.0.txt'), 'utf8').trim();
+    const apache = fs.readFileSync(path.join(__dirname, 'licenses', 'Apache-2.0.txt'), 'utf8').replace(/\r\n/g, '\n').trim();
     const clean = url => String(url).replace(/^git\+/, '').replace(/\.git$/, '').replace(/^git:\/\//, 'https://');
 
     const out = [];
