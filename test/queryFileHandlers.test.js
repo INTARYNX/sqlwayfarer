@@ -312,6 +312,27 @@ suite('QueryFileHandlers', () => {
 		assert.deepStrictEqual(posts.map(p => p.id), [2]);
 	});
 
+	test('line ends: a CRLF file is reported as such and written back with CRLF; an LF file stays LF', async () => {
+		assert.strictEqual(QueryFileHandlers.detectEol('a\r\nb'), 'crlf');
+		assert.strictEqual(QueryFileHandlers.detectEol('a\nb'), 'lf');
+		assert.strictEqual(QueryFileHandlers.applyEol('a\nb\r\nc', 'crlf'), 'a\r\nb\r\nc');
+		assert.strictEqual(QueryFileHandlers.applyEol('a\nb', 'lf'), 'a\nb');
+
+		for (const [name, text, eol] of [['crlf', 'SELECT 1\r\nFROM a', 'crlf'], ['lf', 'SELECT 1\nFROM a', 'lf']]) {
+			const filePath = path.join(tmpDir, `eol-${name}.sql`);
+			await fs.writeFile(filePath, text);
+			const posts = [];
+			const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+			handlers._isInsideWorkspace = () => true;
+			await handlers.handleOpenSqlFile(filePath);
+			assert.strictEqual(posts.find(p => p.command === 'sqlFileOpened').eol, eol);
+
+			// The editor sends the text with "\n" only.
+			await handlers.handleSaveSqlFile(filePath, 'SELECT 2\nFROM b', 'utf8', eol);
+			assert.strictEqual(await fs.readFile(filePath, 'utf8'), eol === 'crlf' ? 'SELECT 2\r\nFROM b' : 'SELECT 2\nFROM b');
+		}
+	});
+
 	test('opening a file found by a search carries the line to go to', async () => {
 		const filePath = path.join(tmpDir, 'q.sql');
 		await fs.writeFile(filePath, 'a\nb\nc');

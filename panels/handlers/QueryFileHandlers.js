@@ -184,6 +184,15 @@ class QueryFileHandlers {
         }
     }
 
+    // The line ends of a text: the editor holds "\n" only, the file keeps its own.
+    static detectEol(text) {
+        return text.includes('\r\n') ? 'crlf' : 'lf';
+    }
+
+    static applyEol(text, eol) {
+        return eol === 'crlf' ? text.replace(/\r?\n/g, '\r\n') : text;
+    }
+
     // The bytes of a text in the encoding the file was opened with.
     static encode(text, encoding) {
         switch (encoding) {
@@ -203,19 +212,19 @@ class QueryFileHandlers {
             const buffer = await fs.readFile(filePath);
             const encoding = QueryFileHandlers.detectEncoding(buffer);
             const content = QueryFileHandlers.decode(buffer);
-            this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content, encoding, line });
+            this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content, encoding, eol: QueryFileHandlers.detectEol(content), line });
         } catch (error) {
             this._post({ command: 'sqlFileError', message: `Could not open ${path.basename(filePath)}: ${error.message}` });
         }
     }
 
-    async handleSaveSqlFile(filePath, content, encoding) {
+    async handleSaveSqlFile(filePath, content, encoding, eol) {
         if (!this._isInsideWorkspace(filePath)) {
             this._post({ command: 'sqlFileSaved', path: filePath, success: false, message: `Refusing to save a file outside the workspace: ${filePath}` });
             return;
         }
         try {
-            await fs.writeFile(filePath, QueryFileHandlers.encode(content, encoding));
+            await fs.writeFile(filePath, QueryFileHandlers.encode(QueryFileHandlers.applyEol(content, eol), encoding));
             this._post({ command: 'sqlFileSaved', path: filePath, success: true });
         } catch (error) {
             this._post({ command: 'sqlFileSaved', path: filePath, success: false, message: error.message });
