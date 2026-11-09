@@ -4,6 +4,30 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.2] - 2026-11-09
+
+### Added
+
+- **Files panel: search in the contents of the `.sql` files.** A toggle next to the filter searches the text in the files instead of filtering their names (plain text, or a regular expression with the second toggle; never case sensitive). The tree keeps the files that contain it, with their number of matches, and a click opens the file on the line of the first one. Files over 2 MB are skipped and the search stops at 500 files.
+- **Objects can be dragged into the editor** as `database.schema.object`, from the Explorer list and from the Instance tree. The Explorer list always shows its schema headers (`dbo` too) and the Instance tree names its objects `schema.object`.
+- **Query files: the encoding of the active query is shown** and can be changed.
+- **Script as** a procedure, view or function gives `DROP` and `CREATE`, which works on every SQL Server version.
+- **Instance: a spinner turns** while a database, or the list of them, is being read, and picking an object brings the Explorer to its database.
+
+### Changed
+
+- **Autocompletion always writes the schema**, the default one too.
+- **Query history and drafts** are kept per user, not per open folder, so they follow the connection; the ones kept per folder are moved once.
+- **Migration script**: the progress of the batches lives in the session context instead of a `#wf` table of tempdb.
+- **Compare, Modified since**: a snapshot of the database is a period, from the moment it was taken; a snapshot that was just taken is the reference, and the field names it in full.
+
+### Fixed
+
+- **Query files: a file with CRLF line ends did not open** (the editor counted `
+` as two characters, so placing the caret threw). It now opens and is saved with the line ends it had.
+- **Query files: UTF-16 and UTF-8 files with a byte order mark** open, and saving keeps the encoding the file was opened with.
+- **A file shown in the list opens even when it lives outside the workspace.**
+
 ## [0.99.1] - 2026-11-03
 
 Release candidate of 1.0.0. No new feature: the features of 0.13.0 are corrected, and what runs a query is made safer.
