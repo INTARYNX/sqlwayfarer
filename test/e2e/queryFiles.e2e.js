@@ -327,4 +327,23 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('a script made from a definition with Windows line ends (Script as CREATE) reaches the editor', async () => {
+		const check = checker();
+		const p = await openPage();
+		const crlf = 'CREATE PROCEDURE dbo.p\r\nAS\r\nBEGIN\r\n  SELECT 1\r\nEND';
+		await p.evaluate(m => window.postMessage(m, '*'), { command: 'scriptGenerated', objectName: 'dbo.p', scriptType: 'create', script: crlf, preview: false });
+		await p.waitForTimeout(150);
+		check((await editorText(p)) === 'CREATE PROCEDURE dbo.p\nAS\nBEGIN\n  SELECT 1\nEND', 'the script is in the editor (' + JSON.stringify(await editorText(p)) + ')');
+		check((await p.locator('.cm-line').count()) === 5, 'on five lines');
+
+		// From the instance tree, on another database: the USE line comes first.
+		await p.evaluate(m => window.postMessage(m, '*'), { command: 'scriptGenerated', objectName: 'dbo.p', scriptType: 'create', script: crlf, preview: false, database: 'master' });
+		await p.waitForTimeout(150);
+		check((await editorText(p)).startsWith('USE [master]\nGO\n\nCREATE PROCEDURE dbo.p\nAS'), 'with its USE line');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
