@@ -48,7 +48,9 @@ suite('Autocompletion scenarios (CTE, temp tables, table variables, functions)',
 			};
 			const inserts = SqlAutocomplete.compute(text, caret, env).items.map(i => i.insert);
 			for (const m of must) {
-				assert.ok(inserts.some(i => i === m || i.startsWith(m + ' ') || i.toLowerCase() === m.toLowerCase()), `${m} missing in: ${inserts.slice(0, 15)}`);
+				// The default schema is written too: dbo.Employees is Employees.
+				const bare = inserts.map(i => i.replace(/^dbo\./i, ''));
+				assert.ok(bare.some(i => i === m || i.startsWith(m + ' ') || i.toLowerCase() === m.toLowerCase()), `${m} missing in: ${inserts.slice(0, 15)}`);
 			}
 			for (const m of mustNot) assert.ok(!inserts.includes(m), `${m} must not be offered`);
 		});
