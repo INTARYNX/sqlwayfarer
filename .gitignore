@@ -24,3 +24,6 @@ database/tsql-grammar/antlr.jar
 
 # The coverage of a test run (scripts/coverage-check.js)
 coverage/
+
+# Database backups used to try the extension on a real database
+bak/

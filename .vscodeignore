@@ -76,3 +76,6 @@ helper/**
 # bootstrap script relative to its own package folder at runtime (not bundled
 # by webpack - see webpack.config.js externals), so it must ship as-is.
 !node_modules/piscina/**
+
+# Database backups (hundreds of MB) kept in the working folder
+bak/**
