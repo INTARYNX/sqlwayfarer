@@ -117,6 +117,24 @@ suite('QueryFileHandlers', () => {
 		assert.strictEqual(QueryFileHandlers.decode(Buffer.from(text, 'utf8')), text);
 	});
 
+	test('saving keeps the encoding the file was opened with', async () => {
+		for (const [name, bom] of [['le', [0xFF, 0xFE]], ['be', [0xFE, 0xFF]], ['bom8', [0xEF, 0xBB, 0xBF]], ['plain', []]]) {
+			const filePath = path.join(tmpDir, `enc-${name}.sql`);
+			const original = QueryFileHandlers.encode('SELECT 1;', name === 'le' ? 'utf16le' : name === 'be' ? 'utf16be' : name === 'bom8' ? 'utf8bom' : 'utf8');
+			assert.deepStrictEqual([...original.subarray(0, bom.length)], bom);
+			await fs.writeFile(filePath, original);
+
+			const handlers = new QueryFileHandlers(() => {}, makeState());
+			handlers._isInsideWorkspace = () => true;
+			await handlers.handleOpenSqlFile(filePath);
+			await handlers.handleSaveSqlFile(filePath, 'SELECT 2 AS é;');
+
+			const saved = await fs.readFile(filePath);
+			assert.deepStrictEqual([...saved.subarray(0, bom.length)], bom, `${name}: the mark is kept`);
+			assert.strictEqual(QueryFileHandlers.decode(saved), 'SELECT 2 AS é;', `${name}: the text round-trips`);
+		}
+	});
+
 	test('reports an error when opening a file that no longer exists', async () => {
 		const posts = [];
 		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
