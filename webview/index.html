@@ -388,7 +388,11 @@
                             </span>
                         </div>
                         <div id="sqlFilesView" class="panel-view" role="tabpanel" aria-labelledby="panelTabFiles">
-                            <input type="text" id="sqlFilesFilterInput" class="sql-files-filter" placeholder="Filter files…" spellcheck="false">
+                            <div class="sql-files-search">
+                                <input type="text" id="sqlFilesFilterInput" class="sql-files-filter" placeholder="Filter files…" spellcheck="false">
+                                <button id="sqlFilesContentBtn" class="icon-btn" aria-pressed="false" title="Search in the contents of the files, instead of filtering their names"><i class="codicon codicon-search"></i></button>
+                                <button id="sqlFilesRegexBtn" class="icon-btn" aria-pressed="false" disabled title="Regular expression (searching in the contents)"><i class="codicon codicon-regex"></i></button>
+                            </div>
                             <div id="sqlFilesTree" class="sql-files-tree">
                                 <p class="placeholder-text">Loading…</p>
                             </div>

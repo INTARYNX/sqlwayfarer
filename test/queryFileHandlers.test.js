@@ -272,6 +272,56 @@ suite('QueryFileHandlers', () => {
 	// connection - maybeOfferRecoveryForCurrentIdentity is the re-check fired
 	// after a successful connect, so a crashed session's drafts on that same
 	// server are still found once the identity is actually known.
+	test('searches the contents of the files: plain text, regex, UTF-16, first line, and a stale request stops', async () => {
+		await fs.mkdir(path.join(tmpDir, 'sub'));
+		await fs.writeFile(path.join(tmpDir, 'a.sql'), 'SELECT 1;\nselect * from Orders;\nSELECT * FROM orders;\n');
+		await fs.writeFile(path.join(tmpDir, 'sub', 'b.sql'), QueryFileHandlers.encode('-- x\nDROP TABLE (orders)', 'utf16le'));
+		await fs.writeFile(path.join(tmpDir, 'c.sql'), 'nothing here');
+
+		const search = async (query, regex, id = 1) => {
+			const posts = [];
+			const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+			await handlers.handleSearchSqlFiles(query, regex, id, tmpDir);
+			return posts.find(p => p.command === 'sqlFilesSearched');
+		};
+		const names = r => r.results.map(x => path.basename(x.path)).sort();
+
+		const plain = await search('orders', false, 7);
+		assert.strictEqual(plain.id, 7);
+		assert.deepStrictEqual(names(plain), ['a.sql', 'b.sql']);
+		const a = plain.results.find(x => x.path.endsWith('a.sql'));
+		assert.deepStrictEqual([a.count, a.line], [2, 2], 'two matches, the first on line 2 (any case)');
+		assert.strictEqual(plain.results.find(x => x.path.endsWith('b.sql')).line, 2, 'found in a UTF-16 file');
+
+		// The parenthesis is text when it is not a regular expression.
+		assert.deepStrictEqual(names(await search('(orders)', false)), ['b.sql']);
+		assert.deepStrictEqual(names(await search('^orders', true)), []);
+		assert.deepStrictEqual(names(await search('^DROP', true)), ['b.sql'], '^ is the start of a line');
+		assert.deepStrictEqual(names(await search('SELECT \\d', true)), ['a.sql']);
+
+		const bad = await search('(', true);
+		assert.ok(/Invalid regular expression/.test(bad.error));
+		assert.deepStrictEqual((await search('', false)).results, []);
+
+		// A newer search replaces this one: no answer for the old id.
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		const first = handlers.handleSearchSqlFiles('orders', false, 1, tmpDir);
+		const second = handlers.handleSearchSqlFiles('nothing', false, 2, tmpDir);
+		await Promise.all([first, second]);
+		assert.deepStrictEqual(posts.map(p => p.id), [2]);
+	});
+
+	test('opening a file found by a search carries the line to go to', async () => {
+		const filePath = path.join(tmpDir, 'q.sql');
+		await fs.writeFile(filePath, 'a\nb\nc');
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		handlers._isInsideWorkspace = () => true;
+		await handlers.handleOpenSqlFile(filePath, 3);
+		assert.strictEqual(posts.find(p => p.command === 'sqlFileOpened').line, 3);
+	});
+
 	test('drafts kept per folder before are moved to the global state, once', async () => {
 		const state = makeState();
 		const legacy = makeState();

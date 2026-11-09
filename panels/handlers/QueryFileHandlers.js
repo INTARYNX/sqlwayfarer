@@ -80,6 +80,68 @@ class QueryFileHandlers {
         }
     }
 
+    // The search in the files: a file bigger than this is not read, and the
+    // list stops at this many files (the panel says so).
+    static get SEARCH_MAX_BYTES() { return 2 * 1024 * 1024; }
+    static get SEARCH_MAX_FILES() { return 500; }
+
+    // The pattern of a search: the text as typed, or a regular expression.
+    // Never case sensitive, and ^ / $ are those of a line. Throws on an
+    // invalid regular expression.
+    static searchPattern(query, isRegex) {
+        const source = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(source, 'gim');
+    }
+
+    // How many times the pattern matches, and the line (from 1) of the first.
+    static findMatches(text, pattern) {
+        let count = 0;
+        let line = 1;
+        for (const match of text.matchAll(pattern)) {
+            if (count === 0) line = text.slice(0, match.index).split('\n').length;
+            count++;
+        }
+        return { count, line };
+    }
+
+    // Looks for a text in the .sql files of the workspace. The answer carries
+    // the id of the request, so the page ignores one that a newer search has
+    // replaced; a search that is replaced stops reading.
+    async handleSearchSqlFiles(query, isRegex, id, root = this._workspaceRoot()) {
+        this._latestSearch = id;
+        const answer = extra => this._post({ command: 'sqlFilesSearched', id, ...extra });
+        if (!root || !query) { answer({ results: [] }); return; }
+
+        let pattern;
+        try {
+            pattern = QueryFileHandlers.searchPattern(query, !!isRegex);
+        } catch (error) {
+            answer({ results: [], error: `Invalid regular expression: ${error.message}` });
+            return;
+        }
+
+        const files = [];
+        await this._walkSqlFiles(root, root, files, 0);
+        const results = [];
+        let truncated = false;
+        for (const file of files) {
+            if (this._latestSearch !== id) return;
+            let buffer;
+            try {
+                buffer = await fs.readFile(file.path);
+            } catch {
+                continue;
+            }
+            if (buffer.length > QueryFileHandlers.SEARCH_MAX_BYTES) continue;
+            const { count, line } = QueryFileHandlers.findMatches(QueryFileHandlers.decode(buffer), pattern);
+            if (count === 0) continue;
+            results.push({ path: file.path, count, line });
+            if (results.length >= QueryFileHandlers.SEARCH_MAX_FILES) { truncated = true; break; }
+        }
+        if (this._latestSearch !== id) return;
+        answer({ results, truncated });
+    }
+
     // Recurses into subdirectories so the side panel can show the whole
     // workspace tree, not just the root - skips node_modules/dotfolders
     // (noise, and potentially huge) and caps depth against symlink loops.
@@ -132,7 +194,7 @@ class QueryFileHandlers {
         }
     }
 
-    async handleOpenSqlFile(filePath) {
+    async handleOpenSqlFile(filePath, line) {
         if (!this._isInsideWorkspace(filePath)) {
             this._post({ command: 'sqlFileError', message: `Refusing to open a file outside the workspace: ${filePath}` });
             return;
@@ -141,7 +203,7 @@ class QueryFileHandlers {
             const buffer = await fs.readFile(filePath);
             const encoding = QueryFileHandlers.detectEncoding(buffer);
             const content = QueryFileHandlers.decode(buffer);
-            this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content, encoding });
+            this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content, encoding, line });
         } catch (error) {
             this._post({ command: 'sqlFileError', message: `Could not open ${path.basename(filePath)}: ${error.message}` });
         }
