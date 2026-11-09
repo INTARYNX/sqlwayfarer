@@ -20,6 +20,8 @@ class QueryFileHandlers {
         // link in the workspace can lead to another drive, and a file the
         // list shows must open wherever it really is.
         this._listed = new Set();
+        // The encoding each opened file had (resolved path), kept on save.
+        this._encodings = new Map();
     }
 
     // Scoped per connection so two tabs on different servers never share, or
@@ -97,13 +99,32 @@ class QueryFileHandlers {
         }
     }
 
-    // The text of a file, by its byte order mark: SSMS saves UTF-16 by default.
-    // Without a mark the file is UTF-8.
+    // The encoding of a file, by its byte order mark: SSMS saves UTF-16 by
+    // default. Without a mark the file is UTF-8.
+    static detectEncoding(buffer) {
+        if (buffer[0] === 0xFF && buffer[1] === 0xFE) return 'utf16le';
+        if (buffer[0] === 0xFE && buffer[1] === 0xFF) return 'utf16be';
+        if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) return 'utf8bom';
+        return 'utf8';
+    }
+
     static decode(buffer) {
-        if (buffer[0] === 0xFF && buffer[1] === 0xFE) return buffer.subarray(2).toString('utf16le');
-        if (buffer[0] === 0xFE && buffer[1] === 0xFF) return Buffer.from(buffer.subarray(2)).swap16().toString('utf16le');
-        if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) return buffer.subarray(3).toString('utf8');
-        return buffer.toString('utf8');
+        switch (QueryFileHandlers.detectEncoding(buffer)) {
+            case 'utf16le': return buffer.subarray(2).toString('utf16le');
+            case 'utf16be': return Buffer.from(buffer.subarray(2)).swap16().toString('utf16le');
+            case 'utf8bom': return buffer.subarray(3).toString('utf8');
+            default: return buffer.toString('utf8');
+        }
+    }
+
+    // The bytes of a text in the encoding the file was opened with.
+    static encode(text, encoding) {
+        switch (encoding) {
+            case 'utf16le': return Buffer.concat([Buffer.from([0xFF, 0xFE]), Buffer.from(text, 'utf16le')]);
+            case 'utf16be': return Buffer.concat([Buffer.from([0xFE, 0xFF]), Buffer.from(text, 'utf16le').swap16()]);
+            case 'utf8bom': return Buffer.concat([Buffer.from([0xEF, 0xBB, 0xBF]), Buffer.from(text, 'utf8')]);
+            default: return Buffer.from(text, 'utf8');
+        }
     }
 
     async handleOpenSqlFile(filePath) {
@@ -112,7 +133,9 @@ class QueryFileHandlers {
             return;
         }
         try {
-            const content = QueryFileHandlers.decode(await fs.readFile(filePath));
+            const buffer = await fs.readFile(filePath);
+            this._encodings.set(path.resolve(filePath), QueryFileHandlers.detectEncoding(buffer));
+            const content = QueryFileHandlers.decode(buffer);
             this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content });
         } catch (error) {
             this._post({ command: 'sqlFileError', message: `Could not open ${path.basename(filePath)}: ${error.message}` });
@@ -125,7 +148,7 @@ class QueryFileHandlers {
             return;
         }
         try {
-            await fs.writeFile(filePath, content, 'utf8');
+            await fs.writeFile(filePath, QueryFileHandlers.encode(content, this._encodings.get(path.resolve(filePath))));
             this._post({ command: 'sqlFileSaved', path: filePath, success: true });
         } catch (error) {
             this._post({ command: 'sqlFileSaved', path: filePath, success: false, message: error.message });
