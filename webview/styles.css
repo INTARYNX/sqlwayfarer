@@ -1546,6 +1546,12 @@ body.vscode-high-contrast .qp-tt-header {
     text-overflow: ellipsis;
 }
 
+/* The encoding of the file of the active query, at the right of the footer. */
+.query-encoding-select {
+    flex: 0 0 auto;
+    font-size: 12px;
+}
+
 /* Only there while a script has left a transaction open. */
 .query-transaction {
     flex: 0 0 auto;

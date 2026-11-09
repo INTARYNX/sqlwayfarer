@@ -558,8 +558,8 @@ class SqlWayfarerPanel {
             // Query tool - file-backed tabs
             case 'listSqlFiles':                await qf.handleListSqlFiles(); break;
             case 'openSqlFile':                  await qf.handleOpenSqlFile(message.path); break;
-            case 'saveSqlFile':                  await qf.handleSaveSqlFile(message.path, message.content); break;
-            case 'saveSqlFileAs':                await qf.handleSaveSqlFileAs(message.content, message.suggestedName); break;
+            case 'saveSqlFile':                  await qf.handleSaveSqlFile(message.path, message.content, message.encoding); break;
+            case 'saveSqlFileAs':                await qf.handleSaveSqlFileAs(message.content, message.suggestedName, message.encoding); break;
             case 'getDraftRecovery':            await qf.handleGetDraftRecovery(); break;
             case 'saveDraftRecovery':           qf.handleSaveDraftRecovery(message.drafts); break;
             case 'confirmDiscardChanges':       await qf.handleConfirmDiscardChanges(message.name); break;
