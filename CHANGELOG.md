@@ -6,20 +6,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ## [0.99.3] - 2026-11-09
 
-### Changed
-
-- **The script of a comparison is plain again**: the statements, each tested on the state it changes (so the script can still be run twice), and nothing else. The `SET NOEXEC` wrappers, the progress kept in the session context and the check after each module are gone. Applying the script from the extension stops at the first batch that fails.
-
-### Fixed
-
-- **Dragging an object into the editor wrote the database name even when it was the one the query runs on.** The name is now `schema.object` for the database of the query, and `database.schema.object` for another one (or when the query runs on another connection).
-
-## [0.99.2] - 2026-11-09
-
 ### Added
 
 - **Files panel: search in the contents of the `.sql` files.** A toggle next to the filter searches the text in the files instead of filtering their names (plain text, or a regular expression with the second toggle; never case sensitive). The tree keeps the files that contain it, with their number of matches, and a click opens the file on the line of the first one. Files over 2 MB are skipped and the search stops at 500 files.
-- **Objects can be dragged into the editor** as `database.schema.object`, from the Explorer list and from the Instance tree. The Explorer list always shows its schema headers (`dbo` too) and the Instance tree names its objects `schema.object`.
+- **Objects can be dragged into the editor**, from the Explorer list and from the Instance tree: the name is dropped as `schema.object` when the object is in the database the query runs on, and as `database.schema.object` otherwise. The Explorer list always shows its schema headers (`dbo` too) and the Instance tree names its objects `schema.object`.
 - **Query files: the encoding of the active query is shown** and can be changed.
 - **Script as** a procedure, view or function gives `DROP` and `CREATE`, which works on every SQL Server version.
 - **Instance: a spinner turns** while a database, or the list of them, is being read, and picking an object brings the Explorer to its database.
@@ -28,13 +18,12 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 - **Autocompletion always writes the schema**, the default one too.
 - **Query history and drafts** are kept per user, not per open folder, so they follow the connection; the ones kept per folder are moved once.
-- **Migration script**: the progress of the batches lives in the session context instead of a `#wf` table of tempdb.
+- **The script of a comparison is only the statements**, each tested on the state it changes (so it can be run twice). No `SET NOEXEC` wrapper, no progress kept in the session, no check after each module. Applying it from the extension stops at the first batch that fails.
 - **Compare, Modified since**: a snapshot of the database is a period, from the moment it was taken; a snapshot that was just taken is the reference, and the field names it in full.
 
 ### Fixed
 
-- **Query files: a file with CRLF line ends did not open** (the editor counted `
-` as two characters, so placing the caret threw). It now opens and is saved with the line ends it had.
+- **Query files: a file with CRLF line ends did not open** (the editor counted `\r\n` as two characters, so placing the caret threw). It now opens and is saved with the line ends it had.
 - **Query files: UTF-16 and UTF-8 files with a byte order mark** open, and saving keeps the encoding the file was opened with.
 - **A file shown in the list opens even when it lives outside the workspace.**
 
