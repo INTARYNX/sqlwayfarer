@@ -4,6 +4,16 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.3] - 2026-11-09
+
+### Changed
+
+- **The script of a comparison is plain again**: the statements, each tested on the state it changes (so the script can still be run twice), and nothing else. The `SET NOEXEC` wrappers, the progress kept in the session context and the check after each module are gone. Applying the script from the extension stops at the first batch that fails.
+
+### Fixed
+
+- **Dragging an object into the editor wrote the database name even when it was the one the query runs on.** The name is now `schema.object` for the database of the query, and `database.schema.object` for another one (or when the query runs on another connection).
+
 ## [0.99.2] - 2026-11-09
 
 ### Added
