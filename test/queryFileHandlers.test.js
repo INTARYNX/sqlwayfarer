@@ -154,6 +154,25 @@ suite('QueryFileHandlers', () => {
 		}
 	});
 
+	test('a file the list showed opens even when it lives outside the workspace (another drive); another path still cannot', async () => {
+		const listed = path.join(tmpDir, 'listed.sql');
+		const other = path.join(tmpDir, 'other-unlisted.sql');
+		await fs.writeFile(listed, 'SELECT 1;');
+		await fs.writeFile(other, 'SELECT 2;');
+
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
+		handlers._isInsideWorkspace = QueryFileHandlers.prototype._isInsideWorkspace;
+		// What the list shows: a file the workspace root does not contain.
+		handlers._listed.add(path.resolve(listed));
+
+		await handlers.handleOpenSqlFile(listed);
+		assert.ok(posts.some(p => p.command === 'sqlFileOpened' && p.path === listed), 'the listed file opens');
+
+		await handlers.handleOpenSqlFile(other);
+		assert.ok(posts.some(p => p.command === 'sqlFileError'), 'an unlisted file outside the workspace is still refused');
+	});
+
 	test('a file chosen in Save As can be saved again, even outside the workspace; another path still cannot', async () => {
 		const chosen = path.join(tmpDir, 'chosen.sql');
 		const other = path.join(tmpDir, 'other.sql');

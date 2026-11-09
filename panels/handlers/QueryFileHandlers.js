@@ -16,6 +16,10 @@ class QueryFileHandlers {
         this._getConnectionIdentity = getConnectionIdentity;
         // Files chosen in the Save As dialog (resolved paths), outside the workspace or not.
         this._savedAs = new Set();
+        // Files the extension itself listed (resolved paths): a junction or a
+        // link in the workspace can lead to another drive, and a file the
+        // list shows must open wherever it really is.
+        this._listed = new Set();
     }
 
     // Scoped per connection so two tabs on different servers never share, or
@@ -40,7 +44,7 @@ class QueryFileHandlers {
         const folders = vscode.workspace.workspaceFolders || [];
         const resolved = path.resolve(filePath);
         // A file the user picked in the Save As dialog is theirs, wherever it is.
-        if (this._savedAs.has(resolved)) return true;
+        if (this._savedAs.has(resolved) || this._listed.has(resolved)) return true;
         return folders.some(folder => {
             const root = path.resolve(folder.uri.fsPath);
             return resolved === root || resolved.startsWith(root + path.sep);
@@ -61,6 +65,7 @@ class QueryFileHandlers {
             const files = [];
             await this._walkSqlFiles(root, root, files, 0);
             files.sort((a, b) => a.relativeDir.localeCompare(b.relativeDir) || a.name.localeCompare(b.name));
+            this._listed = new Set(files.map(f => path.resolve(f.path)));
             this._post({ command: 'sqlFilesListed', files });
         } catch (error) {
             console.error('Failed to list SQL files:', error);
