@@ -90,7 +90,7 @@ class InstanceTree {
             rows.push({ key: dbKey, kind: 'db', depth: 0, database, open });
             if (!open) continue;
             if (!loaded) {
-                rows.push({ key: `${dbKey}:note`, kind: 'note', depth: 1, text: entry && entry.error ? entry.error : 'Loading…', error: !!(entry && entry.error) });
+                rows.push({ key: `${dbKey}:note`, kind: 'note', depth: 1, text: entry && entry.error ? entry.error : 'Loading…', error: !!(entry && entry.error), loading: !(entry && entry.error) });
                 continue;
             }
             const shown = nameMatches ? entry : hits;
@@ -130,7 +130,7 @@ class InstanceTree {
     }
 
     load() {
-        this.tree.innerHTML = '<p class="placeholder-text">Loading…</p>';
+        this.tree.innerHTML = '<p class="placeholder-text"><span class="instance-spinner"></span>Loading…</p>';
         vscode.postMessage({ command: 'getInstanceDatabases' });
     }
 
@@ -240,7 +240,12 @@ class InstanceTree {
         el.style.setProperty('--depth', row.depth);
         if (row.kind === 'note') {
             el.className = 'instance-note' + (row.error ? ' error' : '');
-            el.textContent = row.text;
+            if (row.loading) {
+                const spinner = document.createElement('span');
+                spinner.className = 'instance-spinner';
+                el.appendChild(spinner);
+            }
+            el.appendChild(document.createTextNode(row.text));
             return el;
         }
         el.className = 'instance-row' + (row.key === this.selected ? ' selected' : '');

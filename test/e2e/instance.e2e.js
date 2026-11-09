@@ -42,6 +42,7 @@ suite('e2e: the instance tree', function () {
 			await p.click('.instance-row[data-key="db:AppDb"]');
 			check((await sent()).some(m => m.command === 'getInstanceObjects' && m.database === 'AppDb'), `${theme}: opening a database reads its objects`);
 			check((await p.textContent('#instanceTree')).includes('Loading'), `${theme}: says it is loading`);
+			check((await p.locator('#instanceTree .instance-spinner').count()) > 0, `${theme}: a spinner turns while it loads`);
 			await post({ command: 'instanceObjects', database: 'AppDb', objects: OBJECTS });
 			check(JSON.stringify(await rows()) === '["db:AppDb","group:Tables","group:Views","group:Procedures","group:Functions","db:Archive"]', `${theme}: groups under the database (${JSON.stringify(await rows())})`);
 			check(await p.$eval('.instance-row[data-key="db:AppDb"] .instance-chevron', e => e.classList.contains('codicon-chevron-down')), `${theme}: open chevron`);
