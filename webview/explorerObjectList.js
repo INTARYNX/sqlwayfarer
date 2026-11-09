@@ -41,15 +41,21 @@ class ExplorerObjectListMethods {
             ];
             case 'View': return [
                 { type: 'select', label: 'SELECT (all columns)' },
-                { type: 'create', label: 'CREATE (definition)' }
+                { type: 'create', label: 'CREATE (definition)' },
+                { type: 'alter', label: 'ALTER (keeps the permissions)' },
+                { type: 'dropcreate', label: 'DROP and CREATE' }
             ];
             case 'Procedure': return [
                 { type: 'exec', label: 'EXEC template' },
-                { type: 'create', label: 'CREATE (definition)' }
+                { type: 'create', label: 'CREATE (definition)' },
+                { type: 'alter', label: 'ALTER (keeps the permissions)' },
+                { type: 'dropcreate', label: 'DROP and CREATE' }
             ];
             case 'Function': return [
                 { type: 'select', label: 'SELECT (call)' },
-                { type: 'create', label: 'CREATE (definition)' }
+                { type: 'create', label: 'CREATE (definition)' },
+                { type: 'alter', label: 'ALTER (keeps the permissions)' },
+                { type: 'dropcreate', label: 'DROP and CREATE' }
             ];
             default: return [];
         }
