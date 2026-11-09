@@ -129,4 +129,37 @@ suite('e2e: the instance tree', function () {
 		check.done();
 		await p.close();
 	});
+
+	test('picking an object brings the explorer to its database', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 700 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		const sent = () => p.evaluate(() => window.__sent.slice());
+		const explorerDb = () => p.inputValue('#databaseSelect');
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['AppDb', 'Archive'], currentDatabase: 'AppDb' });
+		check((await explorerDb()) === 'AppDb', 'the explorer starts on AppDb');
+
+		await p.click('#queryFilesBtn');
+		await p.click('#panelTabInstance');
+		await post({ command: 'instanceDatabases', databases: ['AppDb', 'Archive'] });
+		await p.click('.instance-row[data-key="db:Archive"]');
+		check((await explorerDb()) === 'AppDb', 'opening a database does not change it');
+		await post({ command: 'instanceObjects', database: 'Archive', objects: [{ qualified_name: 'dbo.Old', schema_name: 'dbo', object_name: 'Old', name: 'Old', object_type: 'Table' }] });
+		await p.click('.instance-row[data-key="grp:Archive:Table"]');
+
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('.instance-row[data-name="dbo.Old"]');
+		check((await explorerDb()) === 'Archive', 'picking an object of Archive brings the explorer to it (' + (await explorerDb()) + ')');
+		check((await sent()).some(m => m.command === 'setCurrentDatabase' && m.database === 'Archive'), 'the extension is told');
+
+		// Already on it: nothing is read again.
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('.instance-row[data-name="dbo.Old"]');
+		check(!(await sent()).some(m => m.command === 'getObjects'), 'on the same database, nothing is loaded again');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
