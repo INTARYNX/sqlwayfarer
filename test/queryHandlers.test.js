@@ -234,6 +234,22 @@ suite('QueryHandlers', () => {
 		assert.strictEqual(cancelMsg.cancelled, true);
 	});
 
+	test('a history kept per folder before is moved to the global state, once', async () => {
+		const state = makeState();
+		const legacy = makeState();
+		const key = 'sqlwayfarer.queryHistory::(disconnected)';
+		const old = [{ query: 'SELECT 1', database: 'Db1', success: true, durationMs: 1, timestamp: 1 }];
+		await legacy.update(key, old);
+
+		const posts = [];
+		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(() => {})), state, null, () => null, () => false, legacy);
+		await handlers.handleGetQueryHistory();
+		assert.deepStrictEqual(posts.pop().history, old);
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepStrictEqual(state.get(key), old, 'copied to the global state');
+		assert.strictEqual(legacy.get(key), undefined, 'removed from the old one');
+	});
+
 	test('history dedupes identical queries, newest first, and can be cleared', async () => {
 		const posts = [];
 		const handlers = new QueryHandlers(m => posts.push(m), connMock(() => new FakeRequest(req => { req.emit('rowsaffected', 1); })), makeState());
