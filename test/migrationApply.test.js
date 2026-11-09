@@ -39,19 +39,18 @@ suite('migrationApply.applyScript', () => {
 		const result = await applyScript(manager(log), 'My]Db', SCRIPT, { onProgress: (done, total) => progress.push(`${done}/${total}`) });
 		assert.deepStrictEqual(log.slice(0, 4), ['USE [My]]Db]', 'SELECT 1;\n', 'SELECT 2;\n', 'SELECT 3;']);
 		// What the script may have left in the pooled connection is cleared, and it goes back to master.
-		assert.strictEqual(log[4], 'SET NOEXEC OFF');
-		assert.ok(log[5].includes("sp_set_session_context N'wf_n', NULL") && !log[5].includes('tempdb') && log[5].includes('SET QUOTED_IDENTIFIER ON') && log[5].includes('USE [master]'));
-		assert.strictEqual(log[6], 'release');
+		assert.ok(log[4].includes('SET ANSI_NULLS ON') && log[4].includes('SET QUOTED_IDENTIFIER ON') && log[4].includes('USE [master]'));
+		assert.strictEqual(log[5], 'release');
 		assert.deepStrictEqual(progress, ['1/3', '2/3', '3/3']);
 		assert.deepStrictEqual([result.batches, result.ran, result.errors, result.stopped], [3, 3, [], false]);
 	});
 
-	test('a batch that fails is reported with its number and line, and the next ones still run (the script stops itself)', async () => {
+	test('a batch that fails is reported with its number and line, and the next ones do not run', async () => {
 		const log = [];
 		const result = await applyScript(manager(log, ['SELECT 2']), 'Db', SCRIPT);
 		assert.deepStrictEqual(result.errors.map(e => [e.batch, e.line]), [[2, 3]]);
-		assert.ok(log.includes('SELECT 3;'));
-		assert.strictEqual(result.ran, 3);
+		assert.ok(!log.includes('SELECT 3;'));
+		assert.strictEqual(result.ran, 2);
 	});
 
 	test('it can be stopped between batches, and still puts the connection back', async () => {
@@ -59,12 +58,12 @@ suite('migrationApply.applyScript', () => {
 		let asked = 0;
 		const result = await applyScript(manager(log), 'Db', SCRIPT, { shouldStop: () => asked++ >= 1 });
 		assert.deepStrictEqual([result.ran, result.stopped], [1, true]);
-		assert.ok(log.includes('SET NOEXEC OFF') && log.some(l => l.includes('USE [master]')) && log.includes('release'));
+		assert.ok(log.some(l => l.includes('USE [master]')) && log.includes('release'));
 	});
 
 	test('a connection that is gone does not hide the result', async () => {
 		const log = [];
-		const result = await applyScript({ acquireConnection: async () => ({ createRequest: () => ({ batch: async sql => { if (sql.startsWith('SET NOEXEC')) throw new Error('gone'); return {}; } }), release: () => log.push('release') }) }, 'Db', SCRIPT);
+		const result = await applyScript({ acquireConnection: async () => ({ createRequest: () => ({ batch: async sql => { if (sql.startsWith('SET ANSI_NULLS')) throw new Error('gone'); return {}; } }), release: () => log.push('release') }) }, 'Db', SCRIPT);
 		assert.strictEqual(result.ran, 3);
 		assert.deepStrictEqual(log, ['release']);
 	});

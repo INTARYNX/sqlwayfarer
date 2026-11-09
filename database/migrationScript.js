@@ -13,8 +13,7 @@ const { parseType } = require('./schemaDiff');
 //   - every step tests the state it is about to change, never a version number,
 //     so a second run changes nothing and a run on a database that is already
 //     ahead does no harm;
-//   - one statement per batch, and a batch that fails stops the script (SET
-//     NOEXEC), so it is fixed and run again, from the top;
+//   - one statement per batch;
 //   - the steps are ordered: what blocks first (foreign keys, indexes), then
 //     tables and columns, keys and indexes, checks, foreign keys, then the code.
 // What loses data is left out unless it was asked for, and said.
@@ -193,21 +192,9 @@ function dropModule(module) {
     return batch(`IF ${moduleExists(module)}\n    DROP ${KIND_KEYWORD[module.type]} ${tableName(module.schema, module.name)};`);
 }
 
-// The SET options the module was made with, before it; "pre" batches check the
-// script is still running and note the time, the module is checked after.
+// The SET options the module was made with, before it.
 function setOptions(module) {
-    return { sql: `SET ANSI_NULLS ${module.ansiNulls ? 'ON' : 'OFF'};\nSET QUOTED_IDENTIFIER ${module.quotedIdentifier ? 'ON' : 'OFF'};`, pre: true };
-}
-
-// What the script remembers from one batch to the next lives in the session
-// context (the number of the last batch that finished, and the time a module
-// started): it needs no table, so tempdb is not touched. It goes with the
-// session, and PROGRESS_CLEAR removes it.
-const PROGRESS_CLEAR = "EXEC sp_set_session_context N'wf_n', NULL;\nEXEC sp_set_session_context N'wf_t', NULL;";
-
-// Done when the module was written since the "pre" batch noted the time.
-function verified(module) {
-    return { verify: `IF EXISTS (SELECT 1 FROM sys.objects o WHERE o.object_id = OBJECT_ID(${N(tableName(module.schema, module.name))}) AND o.modify_date >= CONVERT(datetime, SESSION_CONTEXT(N'wf_t')))\n    EXEC sp_set_session_context N'wf_n', {n};` };
+    return batch(`SET ANSI_NULLS ${module.ansiNulls ? 'ON' : 'OFF'};\nSET QUOTED_IDENTIFIER ${module.quotedIdentifier ? 'ON' : 'OFF'};`);
 }
 
 // The definition with another header: CREATE OR ALTER, ALTER or CREATE.
@@ -223,16 +210,16 @@ function withHeader(definition, keyword) {
 // and created again.
 function moduleBatches(module, createOrAlter) {
     const text = createOrAlter ? withHeader(module.definition, 'CREATE OR ALTER') : null;
-    if (createOrAlter) return text ? [setOptions(module), { sql: text, first: true }, verified(module)] : null;
+    if (createOrAlter) return text ? [setOptions(module), { sql: text, first: true }] : null;
 
     if (module.type === 'procedure' || module.type === 'view') {
         const alter = withHeader(module.definition, 'ALTER');
         if (!alter) return null;
         const stub = module.type === 'procedure' ? 'CREATE PROCEDURE ' + tableName(module.schema, module.name) + ' AS RETURN 0' : 'CREATE VIEW ' + tableName(module.schema, module.name) + ' AS SELECT 1 AS stub';
-        return [setOptions(module), batch(`IF NOT ${moduleExists(module)}\n    EXEC (N'${escapeLiteral(stub)}');`), { sql: alter, first: true }, verified(module)];
+        return [setOptions(module), batch(`IF NOT ${moduleExists(module)}\n    EXEC (N'${escapeLiteral(stub)}');`), { sql: alter, first: true }];
     }
     const create = withHeader(module.definition, 'CREATE');
-    return create ? [setOptions(module), dropModule(module), { sql: create, first: true }, verified(module)] : null;
+    return create ? [setOptions(module), dropModule(module), { sql: create, first: true }] : null;
 }
 
 // What the code of a module mentions of the other modules that change in the
@@ -358,40 +345,28 @@ function buildMigrationScript(diff, options = {}) {
 
     steps.sort((a, b) => a.phase - b.phase);
 
-    // One batch per statement. A batch runs only if the one before it finished
-    // (wf_n holds the number of the last that did), so a batch that fails, at
-    // run time or already when it is compiled, stops the ones after it.
+    // One batch per statement.
     const blocks = [];
     let lastLabel = null;
-    let done = 0;
-    const requires = n => `IF ISNULL(CONVERT(int, SESSION_CONTEXT(N'wf_n')), -1) <> ${n} SET NOEXEC ON;`;
     for (const step of steps) {
         if (step.label !== lastLabel) { blocks.push(`-- ${step.label}${step.risk === 'caution' ? '   (caution: can fail on the data that is there)' : ''}`); lastLabel = step.label; }
-        for (const b of step.batches) {
-            if (b.first) blocks.push(b.sql);
-            else if (b.pre) blocks.push(`${requires(done)}\n${b.sql}\nDECLARE @t datetime = GETDATE();\nEXEC sp_set_session_context N'wf_t', @t;`);
-            else if (b.verify) { done++; blocks.push(`${requires(done - 1)}\n${b.verify.replace('{n}', String(done))}`); }
-            else { done++; blocks.push(`${requires(done - 1)}\n${b.sql}\nIF @@ERROR = 0 EXEC sp_set_session_context N'wf_n', ${done};`); }
-        }
+        for (const b of step.batches) blocks.push(b.sql);
     }
 
     const header = [
         '-- SQL Wayfarer: the changes between two states of a database',
         `-- From: ${reference || '(reference)'}   To: ${current || '(current)'}   Generated: ${now.toISOString()}`,
         '-- Re-entrant: every step tests the state it changes, so the script can be run again,',
-        '-- on a database that is already up to date or half way. It stops at the first error.',
+        '-- on a database that is already up to date or half way.',
         `-- ${steps.length} step(s)${skipped.length > 0 ? `, ${skipped.length} left out (see below)` : ''}.`
     ];
     const leftOut = skipped.map(s => `-- Left out: ${s.label}. ${s.reason}`);
     const parts = [header.join('\n')];
     if (leftOut.length > 0) parts.push(leftOut.join('\n'));
     if (steps.length > 0) {
-        parts.push('SET NOEXEC OFF;');
-        parts.push("SET NOCOUNT ON;\nEXEC sp_set_session_context N'wf_n', 0;\nEXEC sp_set_session_context N'wf_t', NULL;");
         parts.push(...blocks);
         // The session goes back to its defaults: a module can have been created with an option off.
-        parts.push('SET NOEXEC OFF;');
-        parts.push(`${PROGRESS_CLEAR}\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;`);
+        parts.push('SET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;');
     }
     return {
         script: `${parts.join('\nGO\n')}\n`,
@@ -485,4 +460,4 @@ function tableSteps(change, add, warnings, noteTypes) {
     }
 }
 
-module.exports = { PROGRESS_CLEAR, buildMigrationScript, changeId, supportsCreateOrAlter, withHeader, orderModules, typeMatches };
+module.exports = { buildMigrationScript, changeId, supportsCreateOrAlter, withHeader, orderModules, typeMatches };
