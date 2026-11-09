@@ -32,6 +32,7 @@ class QueryFileManager {
         this.activeTabLabel = document.getElementById('queryActiveTabLabel');
         this.tabsDropdown = document.getElementById('queryTabsDropdown');
         this.saveBtn = document.getElementById('saveQueryFileBtn');
+        this.encodingSelect = document.getElementById('queryEncodingSelect');
         this.databaseSelect = document.getElementById('databaseSelect');
 
         this.folderBtn = document.getElementById('queryFilesBtn');
@@ -63,6 +64,15 @@ class QueryFileManager {
 
     initEventListeners() {
         this.saveBtn.addEventListener('click', () => this.saveActiveTab());
+        // The encoding is the tab's own: a change makes a file modified (it has
+        // to be saved again to be written in it).
+        this.encodingSelect.addEventListener('change', () => {
+            const tab = this._activeTab();
+            if (!tab) return;
+            tab.encoding = this.encodingSelect.value;
+            this.render();
+            this.persistDraftsNow();
+        });
         this.input.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
                 e.preventDefault();
@@ -149,8 +159,17 @@ class QueryFileManager {
             draftLabel: `Draft ${this.draftCounter}`,
             content,
             savedContent: null,
+            encoding: 'utf8',
+            savedEncoding: 'utf8',
             database: null
         };
+    }
+
+    // A file is modified when its text or its encoding differs from the disk;
+    // a draft when it holds text.
+    _isDirty(tab, content) {
+        if (!tab.fileName) return (content || '').trim() !== '';
+        return content !== tab.savedContent || tab.encoding !== tab.savedEncoding;
     }
 
     _activeTab() {
@@ -232,7 +251,7 @@ class QueryFileManager {
         if (id === this.activeTabId) tab.content = this.queryManager.getEditorContent();
 
         // A file with changes, or a draft with something in it: closing loses text.
-        const dirty = tab.fileName ? tab.content !== tab.savedContent : !!(tab.content || '').trim();
+        const dirty = this._isDirty(tab, tab.content);
         if (dirty) {
             this._pendingCloseTabId = id;
             vscode.postMessage({ command: 'confirmDiscardChanges', name: tab.fileName || tab.draftLabel });
@@ -455,6 +474,8 @@ class QueryFileManager {
                 fileName: message.name,
                 content: message.content,
                 savedContent: message.content,
+                encoding: message.encoding || 'utf8',
+                savedEncoding: message.encoding || 'utf8',
                 database: null
             };
             this.tabs.push(tab);
@@ -480,15 +501,14 @@ class QueryFileManager {
 
         // Mirrors the Save button's disabled state - Ctrl+S on a clean tab
         // (or an empty draft) is a no-op instead of a pointless write/prompt.
-        const dirty = tab.fileName ? tab.content !== tab.savedContent : tab.content.trim() !== '';
-        if (!dirty) return;
+        if (!this._isDirty(tab, tab.content)) return;
 
         if (tab.fileName) {
-            vscode.postMessage({ command: 'saveSqlFile', path: tab.filePath, content: tab.content });
+            vscode.postMessage({ command: 'saveSqlFile', path: tab.filePath, content: tab.content, encoding: tab.encoding });
         } else {
             this._pendingSaveAsTabId = tab.id;
             const suggested = tab.draftLabel.toLowerCase().replace(/\s+/g, '-') + '.sql';
-            vscode.postMessage({ command: 'saveSqlFileAs', content: tab.content, suggestedName: suggested });
+            vscode.postMessage({ command: 'saveSqlFileAs', content: tab.content, suggestedName: suggested, encoding: tab.encoding });
         }
     }
 
@@ -500,6 +520,7 @@ class QueryFileManager {
         const tab = this.tabs.find(t => t.filePath === message.path);
         if (tab) {
             tab.savedContent = tab.content;
+            tab.savedEncoding = tab.encoding;
             this.render();
         }
         this.queryManager.setStatus(`Saved to ${tab ? tab.fileName : message.path}`, 'success');
@@ -519,6 +540,7 @@ class QueryFileManager {
             tab.filePath = message.path;
             tab.fileName = message.name;
             tab.savedContent = tab.content;
+            tab.savedEncoding = tab.encoding;
             this.render();
             this.persistDraftsNow();
         }
@@ -541,8 +563,8 @@ class QueryFileManager {
         if (active) active.content = this.queryManager.getEditorContent();
 
         const drafts = this.tabs
-            .filter(t => (!t.fileName && (t.content || '').trim() !== '') || (t.fileName && t.content !== t.savedContent))
-            .map(t => ({ content: t.content, database: t.database, filePath: t.filePath, fileName: t.fileName }));
+            .filter(t => this._isDirty(t, t.content))
+            .map(t => ({ content: t.content, database: t.database, filePath: t.filePath, fileName: t.fileName, encoding: t.encoding, savedEncoding: t.savedEncoding }));
         vscode.postMessage({ command: 'saveDraftRecovery', drafts });
     }
 
@@ -576,10 +598,13 @@ class QueryFileManager {
                     // Unknown vs. the current disk content until re-saved or
                     // re-opened - treated as modified, which is the safe guess.
                     savedContent: null,
+                    encoding: d.encoding || 'utf8',
+                    savedEncoding: d.savedEncoding || 'utf8',
                     database: d.database || null
                 };
             }
             const tab = this._makeDraftTab(content);
+            if (typeof d === 'object' && d.encoding) tab.encoding = tab.savedEncoding = d.encoding;
             tab.database = typeof d === 'object' && d.database ? d.database : null;
             return tab;
         });
@@ -598,6 +623,7 @@ class QueryFileManager {
         this.activeTabLabel.textContent = active ? (active.fileName || active.draftLabel) : '';
         // The list of open queries is one click away - and how many there are
         // shows on its button as soon as there is more than one.
+        if (active) this.encodingSelect.value = active.encoding;
         this.queryTabsCount.hidden = this.tabs.length < 2;
         this.queryTabsCount.textContent = String(this.tabs.length);
         this.activeTabLabel.title = 'Frame of the editor - purple: draft, not in a file; orange: file with unsaved changes; blue: saved file';
@@ -611,8 +637,7 @@ class QueryFileManager {
         const tab = this._activeTab();
         if (!tab) { this.saveBtn.disabled = true; return; }
         const content = this.queryManager.getEditorContent();
-        const dirty = tab.fileName ? content !== tab.savedContent : content.trim() !== '';
-        this.saveBtn.disabled = !dirty;
+        this.saveBtn.disabled = !this._isDirty(tab, content);
         this.updateEditorState(tab, content);
     }
 
@@ -623,7 +648,7 @@ class QueryFileManager {
     updateEditorState(tab, content) {
         if (!this.inputWrap) return;
         let state = '';
-        if (tab) state = !tab.fileName ? 'draft' : (content !== tab.savedContent ? 'modified' : 'saved');
+        if (tab) state = !tab.fileName ? 'draft' : (this._isDirty(tab, content) ? 'modified' : 'saved');
         this.inputWrap.dataset.queryState = state;
     }
 
@@ -631,7 +656,7 @@ class QueryFileManager {
         const itemsHtml = this.tabs.map(tab => {
             const active = tab.id === this.activeTabId;
             const label = tab.fileName || tab.draftLabel;
-            const dirty = !!(tab.fileName && tab.content !== tab.savedContent);
+            const dirty = !!tab.fileName && this._isDirty(tab, tab.content);
             const preview = QueryManager.truncate(tab.content || '(empty)', 180);
             return `<div class="query-tabs-dropdown-item${active ? ' active' : ''}" `
                 + `data-qtab-id="${tab.id}" role="menuitemradio" title="${this.escapeHtml(preview)}">`

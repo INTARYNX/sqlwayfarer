@@ -20,8 +20,6 @@ class QueryFileHandlers {
         // link in the workspace can lead to another drive, and a file the
         // list shows must open wherever it really is.
         this._listed = new Set();
-        // The encoding each opened file had (resolved path), kept on save.
-        this._encodings = new Map();
     }
 
     // Scoped per connection so two tabs on different servers never share, or
@@ -134,21 +132,21 @@ class QueryFileHandlers {
         }
         try {
             const buffer = await fs.readFile(filePath);
-            this._encodings.set(path.resolve(filePath), QueryFileHandlers.detectEncoding(buffer));
+            const encoding = QueryFileHandlers.detectEncoding(buffer);
             const content = QueryFileHandlers.decode(buffer);
-            this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content });
+            this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content, encoding });
         } catch (error) {
             this._post({ command: 'sqlFileError', message: `Could not open ${path.basename(filePath)}: ${error.message}` });
         }
     }
 
-    async handleSaveSqlFile(filePath, content) {
+    async handleSaveSqlFile(filePath, content, encoding) {
         if (!this._isInsideWorkspace(filePath)) {
             this._post({ command: 'sqlFileSaved', path: filePath, success: false, message: `Refusing to save a file outside the workspace: ${filePath}` });
             return;
         }
         try {
-            await fs.writeFile(filePath, QueryFileHandlers.encode(content, this._encodings.get(path.resolve(filePath))));
+            await fs.writeFile(filePath, QueryFileHandlers.encode(content, encoding));
             this._post({ command: 'sqlFileSaved', path: filePath, success: true });
         } catch (error) {
             this._post({ command: 'sqlFileSaved', path: filePath, success: false, message: error.message });
@@ -160,7 +158,7 @@ class QueryFileHandlers {
         return vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(defaultPath), filters: { SQL: ['sql'] } });
     }
 
-    async handleSaveSqlFileAs(content, suggestedName) {
+    async handleSaveSqlFileAs(content, suggestedName, encoding) {
         const root = this._workspaceRoot();
         const defaultDir = root || require('os').homedir();
         try {
@@ -169,7 +167,7 @@ class QueryFileHandlers {
                 this._post({ command: 'sqlFileSavedAs', cancelled: true });
                 return;
             }
-            await fs.writeFile(uri.fsPath, content, 'utf8');
+            await fs.writeFile(uri.fsPath, QueryFileHandlers.encode(content, encoding));
             this._savedAs.add(path.resolve(uri.fsPath));
             this._post({ command: 'sqlFileSavedAs', path: uri.fsPath, name: path.basename(uri.fsPath), success: true });
         } catch (error) {

@@ -201,4 +201,46 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('the encoding of a file is shown, can be changed, and is sent when the file is saved', async () => {
+		const check = checker();
+		const p = await openPage();
+		const encoding = () => p.evaluate(() => document.getElementById('queryEncodingSelect').value);
+		const saveEnabled = () => p.evaluate(() => !document.getElementById('saveQueryFileBtn').disabled);
+
+		check((await encoding()) === 'utf8', 'a draft is UTF-8');
+
+		await p.evaluate(() => window.postMessage({
+			command: 'sqlFileOpened', path: '/w/app.sql', name: 'app.sql', content: 'SELECT 1', encoding: 'utf16le'
+		}, '*'));
+		await p.waitForTimeout(150);
+		check((await encoding()) === 'utf16le', 'the file shows the encoding it was opened with (' + (await encoding()) + ')');
+		check(!(await saveEnabled()), 'an unchanged file has nothing to save');
+
+		// Another encoding is a change of the file: it can be saved.
+		await p.selectOption('#queryEncodingSelect', 'utf8bom');
+		await p.waitForTimeout(100);
+		check(await saveEnabled(), 'changing the encoding makes the file saveable');
+		await p.click('#saveQueryFileBtn');
+		await p.waitForTimeout(100);
+		const save = (await sent(p)).filter(m => m.command === 'saveSqlFile').pop();
+		check(save && save.encoding === 'utf8bom', 'the save carries the chosen encoding');
+
+		await p.evaluate(() => window.postMessage({ command: 'sqlFileSaved', path: '/w/app.sql', success: true }, '*'));
+		await p.waitForTimeout(100);
+		check(!(await saveEnabled()), 'saved: nothing left to save');
+
+		// Each tab has its own encoding.
+		await p.click('#queryTabsBtn');
+		await p.click('[data-qtab-add]');
+		await p.waitForTimeout(100);
+		check((await encoding()) === 'utf8', 'a new tab is UTF-8');
+		await p.evaluate(() => window.queryFileManager.switchTab(window.queryFileManager.tabs.find(t => t.fileName).id));
+		await p.waitForTimeout(100);
+		check((await encoding()) === 'utf8bom', 'back on the file: its encoding is back');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
