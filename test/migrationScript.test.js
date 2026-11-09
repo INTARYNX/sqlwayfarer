@@ -32,9 +32,10 @@ suite('migrationScript: shape of the script', () => {
 		assert.ok(result.script.includes('Re-entrant'));
 		const parts = batches(result);
 		assert.ok(parts[1].startsWith('SET NOEXEC OFF;'));
-		assert.ok(parts[2].includes('CREATE TABLE #wf'));
+		assert.ok(parts[2].includes("sp_set_session_context N'wf_n', 0"));
+		assert.ok(!result.script.includes('#wf') && !result.script.includes('tempdb'), 'no table, tempdb is not touched');
 		assert.ok(parts[parts.length - 2].startsWith('SET NOEXEC OFF;'));
-		assert.ok(parts[parts.length - 1].includes('DROP TABLE #wf') && parts[parts.length - 1].includes('SET QUOTED_IDENTIFIER ON;'));
+		assert.ok(parts[parts.length - 1].includes("sp_set_session_context N'wf_n', NULL") && parts[parts.length - 1].includes('SET QUOTED_IDENTIFIER ON;'));
 		assert.ok(parts.some(p => p.includes('ALTER TABLE [dbo].[T] ADD [a] int NULL;')));
 	});
 
@@ -42,10 +43,10 @@ suite('migrationScript: shape of the script', () => {
 		const result = script({ tables: [table('T')] }, { tables: [table('T', { columns: [column('id'), column('a', { nullable: true }), column('b', { nullable: true })] })] });
 		const steps = batches(result).filter(p => p.includes('ADD ['));
 		assert.strictEqual(steps.length, 2);
-		assert.ok(steps[0].startsWith('IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = 0) SET NOEXEC ON;\n'));
-		assert.ok(steps[0].endsWith('IF @@ERROR = 0 UPDATE #wf SET n = 1;'));
-		assert.ok(steps[1].startsWith('IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = 1) SET NOEXEC ON;\n'));
-		assert.ok(steps[1].endsWith('IF @@ERROR = 0 UPDATE #wf SET n = 2;'));
+		assert.ok(steps[0].startsWith("IF ISNULL(CONVERT(int, SESSION_CONTEXT(N'wf_n')), -1) <> 0 SET NOEXEC ON;\n"));
+		assert.ok(steps[0].endsWith("IF @@ERROR = 0 EXEC sp_set_session_context N'wf_n', 1;"));
+		assert.ok(steps[1].startsWith("IF ISNULL(CONVERT(int, SESSION_CONTEXT(N'wf_n')), -1) <> 1 SET NOEXEC ON;\n"));
+		assert.ok(steps[1].endsWith("IF @@ERROR = 0 EXEC sp_set_session_context N'wf_n', 2;"));
 	});
 
 	test('a column is added only if it is not there: the state is tested, not a version', () => {
@@ -244,10 +245,10 @@ suite('migrationScript: code objects', () => {
 		const create = parts.findIndex(p => p.startsWith('CREATE OR ALTER PROC dbo.p'));
 		assert.ok(create > 1, parts.join('|'));
 		assert.ok(parts[create - 1].includes('SET ANSI_NULLS OFF;') && parts[create - 1].includes('SET QUOTED_IDENTIFIER OFF;'));
-		assert.ok(parts[create - 1].startsWith('IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = 0) SET NOEXEC ON;'));
-		assert.ok(parts[create - 1].endsWith('UPDATE #wf SET t = GETDATE();'));
-		assert.ok(!parts[create].includes('#wf'));
-		assert.ok(parts[create + 1].includes('o.modify_date >= w.t') && parts[create + 1].endsWith('UPDATE #wf SET n = 1;'));
+		assert.ok(parts[create - 1].startsWith("IF ISNULL(CONVERT(int, SESSION_CONTEXT(N'wf_n')), -1) <> 0 SET NOEXEC ON;"));
+		assert.ok(parts[create - 1].endsWith("EXEC sp_set_session_context N'wf_t', @t;"));
+		assert.ok(!parts[create].includes('sp_set_session_context'));
+		assert.ok(parts[create + 1].includes("o.modify_date >= CONVERT(datetime, SESSION_CONTEXT(N'wf_t'))") && parts[create + 1].endsWith("EXEC sp_set_session_context N'wf_n', 1;"));
 		assert.ok(parts[parts.length - 1].includes('SET QUOTED_IDENTIFIER ON;'));
 	});
 
