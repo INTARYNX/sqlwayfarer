@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { fileURLToPath } = require('url');
 
 const root = path.join(__dirname, '..');
 const coverageDir = process.argv[2];
@@ -45,7 +46,7 @@ function sourceFiles() {
                     if (entry.name === 'generated') continue;
                     walk(full);
                 } else if (entry.name.endsWith('.js')) {
-                    out.push(path.relative(root, full));
+                    out.push(path.relative(root, full).split(path.sep).join('/'));
                 }
             }
         };
@@ -67,7 +68,7 @@ function loadedFiles() {
             continue;
         }
         for (const entry of data.result || []) {
-            if (entry.url && entry.url.startsWith('file://')) loaded.add(entry.url.slice(7));
+            if (entry.url && entry.url.startsWith('file://')) loaded.add(path.relative(root, fileURLToPath(entry.url)).split(path.sep).join('/'));
         }
     }
     return loaded;
@@ -75,7 +76,7 @@ function loadedFiles() {
 
 const loaded = loadedFiles();
 const uncovered = sourceFiles()
-    .filter(file => !loaded.has(path.join(root, file)))
+    .filter(file => !loaded.has(file))
     .sort();
 
 const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
