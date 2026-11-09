@@ -10,9 +10,9 @@ const DRAFTS_KEY = 'sqlwayfarer.queryDrafts';
 // file-backed sub-tabs, plus a crash-recovery snapshot for unsaved drafts
 // (file-backed tabs don't need it - their content already lives on disk).
 class QueryFileHandlers {
-    constructor(postMessage, workspaceState, getConnectionIdentity = () => null) {
+    constructor(postMessage, state, getConnectionIdentity = () => null) {
         this._post = postMessage;
-        this._workspaceState = workspaceState;
+        this._state = state;
         this._getConnectionIdentity = getConnectionIdentity;
         // Files chosen in the Save As dialog (resolved paths), outside the workspace or not.
         this._savedAs = new Set();
@@ -188,11 +188,11 @@ class QueryFileHandlers {
     }
 
     async handleGetDraftRecovery() {
-        this._post({ command: 'draftRecoveryLoaded', drafts: this._workspaceState.get(this._draftsKey(), []) });
+        this._post({ command: 'draftRecoveryLoaded', drafts: this._state.get(this._draftsKey(), []) });
     }
 
     async handleSaveDraftRecovery(drafts) {
-        await this._workspaceState.update(this._draftsKey(), Array.isArray(drafts) ? drafts : []);
+        await this._state.update(this._draftsKey(), Array.isArray(drafts) ? drafts : []);
     }
 
     // Called after a successful connect (see SqlWayfarerPanel's
@@ -204,7 +204,7 @@ class QueryFileHandlers {
     // recoverable. The webview only applies this if its tabs are still
     // pristine, so it can never clobber SQL the user already typed.
     async maybeOfferRecoveryForCurrentIdentity() {
-        const drafts = this._workspaceState.get(this._draftsKey(), []);
+        const drafts = this._state.get(this._draftsKey(), []);
         if (drafts.length === 0) return;
         this._post({ command: 'draftRecoveryLoaded', drafts });
     }

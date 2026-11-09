@@ -122,10 +122,10 @@ function splitTopLevelStatements(sql) {
 }
 
 class QueryHandlers {
-    constructor(postMessage, connectionManager, workspaceState, riskAnalyzer = null, getConnectionIdentity = () => null, isProduction = () => false) {
+    constructor(postMessage, connectionManager, state, riskAnalyzer = null, getConnectionIdentity = () => null, isProduction = () => false) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
-        this._workspaceState = workspaceState;
+        this._state = state;
         this._riskAnalyzer = riskAnalyzer;
         // True while the connection of this tab is marked as production.
         this._isProduction = isProduction;
@@ -594,7 +594,7 @@ class QueryHandlers {
     }
 
     async handleClearQueryHistory() {
-        await this._workspaceState.update(this._historyKey(), []);
+        await this._state.update(this._historyKey(), []);
         this._post({ command: 'queryHistoryLoaded', history: [] });
     }
 
@@ -630,7 +630,7 @@ class QueryHandlers {
     }
 
     _getHistory() {
-        return this._workspaceState.get(this._historyKey(), []);
+        return this._state.get(this._historyKey(), []);
     }
 
     // Prepend the query, dropping any older identical entry so re-runs don't pile up.
@@ -638,7 +638,7 @@ class QueryHandlers {
         const history = this._getHistory().filter(e => !(e.query === query && e.database === database));
         history.unshift({ query, database, success, durationMs, timestamp: Date.now() });
         if (history.length > HISTORY_LIMIT) history.length = HISTORY_LIMIT;
-        await this._workspaceState.update(this._historyKey(), history);
+        await this._state.update(this._historyKey(), history);
         this._post({ command: 'queryHistoryLoaded', history });
     }
 }

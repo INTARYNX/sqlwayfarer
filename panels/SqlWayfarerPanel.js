@@ -141,8 +141,8 @@ class SqlWayfarerPanel {
         this._idx = new IndexHandlers(post, this._indexService, this._dependencyService, getDb);
         const riskParser = new BabelfishSqlParser();
         riskParser.setEnabled(true);
-        this._query = new QueryHandlers(post, this._connectionManager, context.workspaceState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._isProduction());
-        this._queryFiles = new QueryFileHandlers(post, context.workspaceState, getConnectionIdentity);
+        this._query = new QueryHandlers(post, this._connectionManager, context.globalState, new QueryRiskAnalyzer(riskParser), getConnectionIdentity, () => this._isProduction());
+        this._queryFiles = new QueryFileHandlers(post, context.globalState, getConnectionIdentity);
         this._export = new ExportHandlers(post, this._dataDictionaryService);
         this._script = new ScriptHandlers(post, new ScriptGeneratorService(this._schemaRouter, this._databaseService));
         // The instance tree is always the connection the queries run on - never a schema source -
