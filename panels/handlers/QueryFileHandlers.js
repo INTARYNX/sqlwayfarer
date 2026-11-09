@@ -97,13 +97,22 @@ class QueryFileHandlers {
         }
     }
 
+    // The text of a file, by its byte order mark: SSMS saves UTF-16 by default.
+    // Without a mark the file is UTF-8.
+    static decode(buffer) {
+        if (buffer[0] === 0xFF && buffer[1] === 0xFE) return buffer.subarray(2).toString('utf16le');
+        if (buffer[0] === 0xFE && buffer[1] === 0xFF) return Buffer.from(buffer.subarray(2)).swap16().toString('utf16le');
+        if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) return buffer.subarray(3).toString('utf8');
+        return buffer.toString('utf8');
+    }
+
     async handleOpenSqlFile(filePath) {
         if (!this._isInsideWorkspace(filePath)) {
             this._post({ command: 'sqlFileError', message: `Refusing to open a file outside the workspace: ${filePath}` });
             return;
         }
         try {
-            const content = await fs.readFile(filePath, 'utf8');
+            const content = QueryFileHandlers.decode(await fs.readFile(filePath));
             this._post({ command: 'sqlFileOpened', path: filePath, name: path.basename(filePath), content });
         } catch (error) {
             this._post({ command: 'sqlFileError', message: `Could not open ${path.basename(filePath)}: ${error.message}` });
