@@ -395,6 +395,10 @@ class MessageHandler {
                 if (this.queryFileManager) this.queryFileManager.onSqlFilesListed(message);
                 break;
 
+            case 'sqlFilesSearched':
+                if (this.queryFileManager) this.queryFileManager.onSqlFilesSearched(message);
+                break;
+
             case 'sqlFileOpened':
                 if (this.queryFileManager) this.queryFileManager.onSqlFileOpened(message);
                 break;

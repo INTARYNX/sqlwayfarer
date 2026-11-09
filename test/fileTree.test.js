@@ -111,4 +111,12 @@ suite('FileTree.renderFileTree', () => {
 		assert.ok(html.includes('a&amp;b.sql'));
 		assert.ok(!html.includes('x"y'), 'a quote in the path cannot break out of the attribute');
 	});
+
+	test('a file found by a search shows its matches and the line to open on', () => {
+		const files = [{ name: 'a.sql', path: '/w/a.sql', relativeDir: '', matches: 3, line: 12 }, { name: 'b.sql', path: '/w/b.sql', relativeDir: '' }];
+		const html = FileTree.renderFileTree(FileTree.buildFileTree(files));
+		assert.ok(html.includes('data-file-path="/w/a.sql" data-line="12"'));
+		assert.ok(html.includes('title="3 matches">3</span>'));
+		assert.ok(!html.includes('data-file-path="/w/b.sql" data-line'), 'a file that was not searched has no line');
+	});
 });

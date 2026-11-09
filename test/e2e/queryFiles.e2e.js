@@ -243,4 +243,67 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('the files can be searched by their contents: the matching files, their counts, and the line to open on', async () => {
+		const check = checker();
+		const p = await openPage();
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(80); };
+		const rows = () => p.$$eval('.sql-file-item', els => els.map(e => e.dataset.filePath));
+
+		await p.click('#queryFilesBtn');
+		await post({ command: 'sqlFilesListed', files: [
+			{ name: 'a.sql', path: '/w/a.sql', relativeDir: '' },
+			{ name: 'b.sql', path: '/w/sub/b.sql', relativeDir: 'sub' },
+			{ name: 'orders.sql', path: '/w/orders.sql', relativeDir: '' }
+		] });
+		check((await p.locator('#sqlFilesRegexBtn').isDisabled()), 'the regex toggle waits for the search in the contents');
+
+		// Names first: the filter works as before.
+		await p.fill('#sqlFilesFilterInput', 'orders');
+		check(JSON.stringify(await rows()) === '["/w/orders.sql"]', 'the filter is on the names');
+
+		await p.click('#sqlFilesContentBtn');
+		await p.waitForTimeout(500);
+		const search = (await sent(p)).filter(m => m.command === 'searchSqlFiles').pop();
+		check(search && search.query === 'orders' && search.regex === false, 'the contents are searched (' + JSON.stringify(search) + ')');
+		check((await p.textContent('#sqlFilesTree')).includes('Searching'), 'it says it is searching');
+		check((await p.locator('#sqlFilesTree .panel-spinner').count()) === 1, 'with a spinner');
+
+		// A stale answer is ignored.
+		await post({ command: 'sqlFilesSearched', id: search.id - 1, results: [{ path: '/w/a.sql', count: 9, line: 1 }] });
+		check((await p.textContent('#sqlFilesTree')).includes('Searching'), 'a stale answer changes nothing');
+
+		await post({ command: 'sqlFilesSearched', id: search.id, results: [{ path: '/w/sub/b.sql', count: 3, line: 7 }] });
+		check(JSON.stringify(await rows()) === '["/w/sub/b.sql"]', 'only the files that contain it');
+		check((await p.textContent('.sql-file-item .sql-file-count')) === '3', 'with their number of matches');
+
+		await p.click('.sql-file-item');
+		const open = (await sent(p)).filter(m => m.command === 'openSqlFile').pop();
+		check(open && open.path === '/w/sub/b.sql' && open.line === 7, 'it opens on the first match (' + JSON.stringify(open) + ')');
+
+		// The regular expression is the extension's to read; its error is shown.
+		await p.click('#sqlFilesRegexBtn');
+		await p.fill('#sqlFilesFilterInput', '(');
+		await p.waitForTimeout(500);
+		const bad = (await sent(p)).filter(m => m.command === 'searchSqlFiles').pop();
+		check(bad.regex === true && bad.query === '(', 'the search is a regular expression');
+		await post({ command: 'sqlFilesSearched', id: bad.id, results: [], error: 'Invalid regular expression: x' });
+		check((await p.textContent('#sqlFilesTree')).includes('Invalid regular expression'), 'the error is shown');
+
+		// Nothing found.
+		await p.fill('#sqlFilesFilterInput', 'zzz');
+		await p.waitForTimeout(500);
+		const none = (await sent(p)).filter(m => m.command === 'searchSqlFiles').pop();
+		await post({ command: 'sqlFilesSearched', id: none.id, results: [] });
+		check((await p.textContent('#sqlFilesTree')).includes('No file contains this text'), 'says so when nothing contains it');
+
+		// Switching it off brings the names back.
+		await p.click('#sqlFilesContentBtn');
+		await p.fill('#sqlFilesFilterInput', '');
+		check((await rows()).length === 3, 'all the files are back');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });

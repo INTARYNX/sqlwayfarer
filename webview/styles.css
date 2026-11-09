@@ -2049,6 +2049,27 @@ body.vscode-high-contrast .qp-tt-header {
     font-size: 12px;
 }
 
+.sql-files-search {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--vscode-input-border);
+    background: var(--vscode-input-background);
+}
+
+.sql-files-search .sql-files-filter {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    border-bottom: none;
+}
+
+.sql-files-search .icon-btn[aria-pressed="true"] {
+    background: var(--vscode-inputOption-activeBackground);
+    outline: 1px solid var(--vscode-inputOption-activeBorder, transparent);
+    outline-offset: -1px;
+}
+
 .sql-files-tree {
     flex: 1;
     overflow-y: auto;
@@ -3556,7 +3577,7 @@ table.fp-cols .fp-center { text-align: center; }
 }
 
 /* Turns while a database (or the list of them) is being read. */
-.instance-spinner {
+.panel-spinner {
     display: inline-block;
     width: 10px;
     height: 10px;

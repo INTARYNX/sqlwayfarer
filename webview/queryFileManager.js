@@ -44,9 +44,17 @@ class QueryFileManager {
         this.filesCollapseAllBtn = document.getElementById('sqlFilesCollapseAllBtn');
         this.filesHideBtn = document.getElementById('sqlFilesHideBtn');
         this.filesFilterInput = document.getElementById('sqlFilesFilterInput');
+        this.filesContentBtn = document.getElementById('sqlFilesContentBtn');
+        this.filesRegexBtn = document.getElementById('sqlFilesRegexBtn');
         this._collapsedDirs = new Set();
         this._allFiles = [];
         this._filterText = '';
+        // The search in the contents of the files: off, the filter is on the names.
+        this._contentSearch = false;
+        this._regexSearch = false;
+        this._searchId = 0;
+        this._searchTimer = null;
+        this._search = null;        // null: none; { searching } | { error } | { results: Map, truncated }
 
         this.nextId = 1;
         this.draftCounter = 0;
@@ -138,15 +146,27 @@ class QueryFileManager {
         this.filesRefreshBtn.addEventListener('click', () => (window.instanceTree && window.instanceTree.active ? window.instanceTree.refresh() : this.loadFilesTree()));
         this.filesCollapseAllBtn.addEventListener('click', () => (window.instanceTree && window.instanceTree.active ? window.instanceTree.toggleCollapseAll() : this.toggleCollapseAllDirs()));
         this.filesHideBtn.addEventListener('click', () => this._setFilesPanel(false));
-        this.filesFilterInput.addEventListener('input', () => {
-            this._filterText = this.filesFilterInput.value.trim().toLowerCase();
-            this.renderFilesTree();
+        this.filesFilterInput.addEventListener('input', () => this._onFilterChanged());
+        this.filesContentBtn.addEventListener('click', () => {
+            this._contentSearch = !this._contentSearch;
+            this.filesContentBtn.setAttribute('aria-pressed', String(this._contentSearch));
+            this.filesRegexBtn.disabled = !this._contentSearch;
+            this.filesFilterInput.placeholder = this._contentSearch ? 'Search in the files…' : 'Filter files…';
+            this._onFilterChanged();
+        });
+        this.filesRegexBtn.addEventListener('click', () => {
+            this._regexSearch = !this._regexSearch;
+            this.filesRegexBtn.setAttribute('aria-pressed', String(this._regexSearch));
+            this._onFilterChanged();
         });
         this.filesTree.addEventListener('click', (e) => {
             const header = e.target.closest('[data-dir-toggle]');
             if (header) { this._toggleDirCollapse(header.dataset.dirToggle); return; }
             const fileRow = e.target.closest('[data-file-path]');
-            if (fileRow) vscode.postMessage({ command: 'openSqlFile', path: fileRow.dataset.filePath });
+            if (!fileRow) return;
+            // A file found by a search opens on the line of its first match.
+            const line = Number(fileRow.dataset.line) || undefined;
+            vscode.postMessage({ command: 'openSqlFile', path: fileRow.dataset.filePath, line });
         });
     }
 
@@ -327,7 +347,47 @@ class QueryFileManager {
         this.renderFilesTree();
     }
 
+    // The filter changed, or the way it searches: the names are filtered at
+    // once; the contents are searched by the extension, after a short pause.
+    _onFilterChanged() {
+        this._filterText = this.filesFilterInput.value.trim().toLowerCase();
+        clearTimeout(this._searchTimer);
+        this._searchId++;
+        this._search = null;
+        const query = this.filesFilterInput.value.trim();
+        if (this._contentSearch && query) {
+            this._search = { searching: true };
+            const id = this._searchId;
+            this._searchTimer = setTimeout(() => {
+                vscode.postMessage({ command: 'searchSqlFiles', query, regex: this._regexSearch, id });
+            }, 300);
+        }
+        this.renderFilesTree();
+    }
+
+    onSqlFilesSearched(message) {
+        if (message.id !== this._searchId || !this._search) return;
+        this._search = message.error
+            ? { error: message.error }
+            : { results: new Map((message.results || []).map(r => [r.path, r])), truncated: !!message.truncated };
+        this.renderFilesTree();
+    }
+
     renderFilesTree() {
+        if (this._search && this._search.searching) {
+            this.filesTree.innerHTML = '<p class="placeholder-text"><span class="panel-spinner"></span>Searching…</p>';
+            this._updateFilesTotal(null);
+            return;
+        }
+        if (this._search && this._search.error) {
+            this.filesTree.textContent = '';
+            const p = document.createElement('p');
+            p.className = 'placeholder-text';
+            p.textContent = this._search.error;
+            this.filesTree.appendChild(p);
+            this._updateFilesTotal(null);
+            return;
+        }
         if (this._allFiles.length === 0) {
             this.filesTree.innerHTML = '<p class="placeholder-text">No .sql files found in this workspace.</p>';
             this._updateFilesTotal(null);
@@ -335,10 +395,15 @@ class QueryFileManager {
         }
 
         const filtering = this._filterText !== '';
-        const visibleFiles = FileTree.filterFiles(this._allFiles, this._filterText);
+        const found = this._search && this._search.results;
+        const visibleFiles = found
+            ? this._allFiles.filter(f => found.has(f.path)).map(f => ({ ...f, matches: found.get(f.path).count, line: found.get(f.path).line }))
+            : FileTree.filterFiles(this._allFiles, this._filterText);
 
         if (visibleFiles.length === 0) {
-            this.filesTree.innerHTML = '<p class="placeholder-text">No files match this filter.</p>';
+            this.filesTree.innerHTML = found
+                ? '<p class="placeholder-text">No file contains this text.</p>'
+                : '<p class="placeholder-text">No files match this filter.</p>';
             this._updateFilesTotal(null);
             return;
         }
@@ -351,6 +416,7 @@ class QueryFileManager {
             filtering
         });
         this._updateFilesTotal(tree);
+        if (found && this._search.truncated) this.filesTotalEl.textContent += '+';
     }
 
     // "N files in M folders" in the panel header: the tree only shows the
@@ -486,6 +552,8 @@ class QueryFileManager {
         this.queryManager.loadEditorContent(active.content);
         this._applyTabDatabase(active);
         this.render();
+        // Found by a search: on the line of the first match.
+        if (message.line && typeof this.queryManager.input.goToLine === 'function') this.queryManager.input.goToLine(message.line);
     }
 
     onSqlFileError(message) {

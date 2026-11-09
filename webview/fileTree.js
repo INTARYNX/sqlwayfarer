@@ -135,11 +135,15 @@ function folderHtml(folder, depth, collapsed, filtering) {
 
 function fileRowHtml(file, depth) {
     const fullPath = file.path || '';
-    return `<div class="sql-file-item" data-file-path="${escapeHtml(fullPath)}" title="${escapeHtml(fullPath)}" style="--depth:${depth}">`
+    // A file found by a search in the contents carries the number of its
+    // matches and the line of the first one.
+    const found = typeof file.matches === 'number';
+    return `<div class="sql-file-item" data-file-path="${escapeHtml(fullPath)}"${found ? ` data-line="${Number(file.line) || 1}"` : ''} title="${escapeHtml(fullPath)}" style="--depth:${depth}">`
         + '<span class="sql-file-item-name">'
         + '<i class="codicon codicon-file"></i>'
         + `<span class="sql-file-text">${escapeHtml(file.name)}</span>`
         + '</span>'
+        + (found ? `<span class="sql-file-count" title="${file.matches} match${file.matches === 1 ? '' : 'es'}">${file.matches}</span>` : '')
         + '</div>';
 }
 

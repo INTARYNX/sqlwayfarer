@@ -130,7 +130,7 @@ class InstanceTree {
     }
 
     load() {
-        this.tree.innerHTML = '<p class="placeholder-text"><span class="instance-spinner"></span>Loading…</p>';
+        this.tree.innerHTML = '<p class="placeholder-text"><span class="panel-spinner"></span>Loading…</p>';
         vscode.postMessage({ command: 'getInstanceDatabases' });
     }
 
@@ -242,7 +242,7 @@ class InstanceTree {
             el.className = 'instance-note' + (row.error ? ' error' : '');
             if (row.loading) {
                 const spinner = document.createElement('span');
-                spinner.className = 'instance-spinner';
+                spinner.className = 'panel-spinner';
                 el.appendChild(spinner);
             }
             el.appendChild(document.createTextNode(row.text));
