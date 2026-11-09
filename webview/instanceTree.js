@@ -270,7 +270,8 @@ class InstanceTree {
         if (row.kind === 'db') name.textContent = row.database;
         else if (row.kind === 'group') { name.textContent = row.label; el.dataset.type = row.type; }
         else {
-            name.textContent = row.object.name;
+            name.textContent = row.object.qualified_name || row.object.name;
+            ObjectDrag.attach(el, () => ObjectDrag.fullName(row.database, row.object.schema_name, row.object.object_name || row.object.name));
             el.dataset.name = row.object.qualified_name;
             el.dataset.schema = row.object.schema_name;
             el.dataset.object = row.object.object_name;

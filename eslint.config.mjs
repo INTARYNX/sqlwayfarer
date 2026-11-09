@@ -55,6 +55,7 @@ export default [{
             appState: "readonly",
             BUILTIN_SNIPPETS: "readonly",
             FileTree: "readonly",
+            ObjectDrag: "readonly",
             SqlAutocomplete: "readonly",
             SqlContext: "readonly",
             SqlMatcher: "readonly",

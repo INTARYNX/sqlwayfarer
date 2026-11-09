@@ -317,22 +317,20 @@ class ExplorerObjectListMethods {
         const objectsBySchema = this._groupObjectsBySchema(objects);
 
         Object.keys(objectsBySchema).sort().forEach(schema => {
-            if (schema !== 'dbo' || Object.keys(objectsBySchema).length > 1) {
-                const schemaHeader = document.createElement('div');
-                schemaHeader.className = 'schema-header';
-                // dataset lets the filter update the badge and hide empty schemas
-                schemaHeader.dataset.schema = schema;
-                schemaHeader.dataset.total = objectsBySchema[schema].length;
-                schemaHeader.innerHTML = `
-                <span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${this.escapeHtml(schema)}</span>
-                <span class="schema-count">(${objectsBySchema[schema].length})</span>
-            `;
-                schemaHeader.tabIndex = -1;
-                schemaHeader.setAttribute('role', 'treeitem');
-                schemaHeader.setAttribute('aria-expanded', String(!this._collapsedSchemas.has(schema)));
-                schemaHeader.addEventListener('click', () => this._toggleSchemaCollapse(schema));
-                this.elements.objectList.appendChild(schemaHeader);
-            }
+            const schemaHeader = document.createElement('div');
+            schemaHeader.className = 'schema-header';
+            // dataset lets the filter update the badge and hide empty schemas
+            schemaHeader.dataset.schema = schema;
+            schemaHeader.dataset.total = objectsBySchema[schema].length;
+            schemaHeader.innerHTML = `
+            <span class="schema-name"><i class="codicon codicon-chevron-down schema-chevron"></i><i class="codicon codicon-folder"></i> ${this.escapeHtml(schema)}</span>
+            <span class="schema-count">(${objectsBySchema[schema].length})</span>
+        `;
+            schemaHeader.tabIndex = -1;
+            schemaHeader.setAttribute('role', 'treeitem');
+            schemaHeader.setAttribute('aria-expanded', String(!this._collapsedSchemas.has(schema)));
+            schemaHeader.addEventListener('click', () => this._toggleSchemaCollapse(schema));
+            this.elements.objectList.appendChild(schemaHeader);
 
             objectsBySchema[schema].forEach(obj => {
                 const div = document.createElement('div');
@@ -354,6 +352,7 @@ class ExplorerObjectListMethods {
                 div.dataset.qualifiedName = obj.qualified_name || obj.name;
                 div.dataset.type = obj.object_type;
                 div.dataset.schema = obj.schema_name || 'dbo';
+                ObjectDrag.attach(div, () => ObjectDrag.fullName(appState.currentDatabase, div.dataset.schema, objectDisplayName));
                 this._objectItemsByName.set(obj.name, div);
 
                 if (obj.object_type === 'Table') {
