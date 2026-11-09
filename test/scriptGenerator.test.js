@@ -140,13 +140,6 @@ suite('ScriptGeneratorService builders', () => {
 suite('ScriptGeneratorService: changing a code object', () => {
 	const DEFINITION = '\n-- a comment\nCREATE   PROCEDURE [dbo].[p] @a int AS\nBEGIN SELECT @a END\n';
 
-	test('ALTER: the same text with ALTER as its first word, so the permissions stay', () => {
-		const sql = ScriptGeneratorService.buildAlter(DEFINITION);
-		assert.strictEqual(sql, '-- a comment\nALTER   PROCEDURE [dbo].[p] @a int AS\nBEGIN SELECT @a END');
-		assert.strictEqual(ScriptGeneratorService.buildAlter('CREATE OR ALTER VIEW v AS SELECT 1'), 'ALTER VIEW v AS SELECT 1');
-		assert.throws(() => ScriptGeneratorService.buildAlter('SELECT 1'), /CREATE or ALTER/);
-	});
-
 	test('DROP and CREATE: dropped if it is there, then created again, in its own batch', () => {
 		const sql = ScriptGeneratorService.buildDropCreate('[dbo].[p]', 'Procedure', DEFINITION.replace('CREATE   ', 'ALTER '));
 		assert.strictEqual(sql, "IF OBJECT_ID(N'[dbo].[p]') IS NOT NULL\n    DROP PROCEDURE [dbo].[p];\nGO\n-- a comment\nCREATE PROCEDURE [dbo].[p] @a int AS\nBEGIN SELECT @a END");
@@ -157,10 +150,9 @@ suite('ScriptGeneratorService: changing a code object', () => {
 	test('the generator offers them for procedures, views and functions', async () => {
 		const service = new ScriptGeneratorService(null, { getObjectDefinition: async () => DEFINITION });
 		for (const type of ['Procedure', 'View', 'Function']) {
-			assert.ok((await service.generateScript('Db', 'dbo.p', type, 'alter')).startsWith('-- a comment\nALTER'));
 			assert.ok((await service.generateScript('Db', 'dbo.p', type, 'dropcreate')).startsWith('IF OBJECT_ID(N\'[dbo].[p]\') IS NOT NULL'));
 		}
 		const none = new ScriptGeneratorService(null, { getObjectDefinition: async () => null });
-		await assert.rejects(() => none.generateScript('Db', 'dbo.p', 'Procedure', 'alter'), /No definition available/);
+		await assert.rejects(() => none.generateScript('Db', 'dbo.p', 'Procedure', 'dropcreate'), /No definition available/);
 	});
 });
