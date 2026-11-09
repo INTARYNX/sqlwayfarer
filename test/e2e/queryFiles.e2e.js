@@ -306,4 +306,25 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('a file with Windows line ends (CRLF) opens, shows its lines, and is saved with the line ends it had', async () => {
+		const check = checker();
+		const p = await openPage();
+		await p.evaluate(() => window.postMessage({
+			command: 'sqlFileOpened', path: '/w/win.sql', name: 'win.sql', content: 'SELECT 1\r\nFROM a\r\nWHERE x = 1', encoding: 'utf8', eol: 'crlf'
+		}, '*'));
+		await p.waitForTimeout(150);
+		check((await editorText(p)) === 'SELECT 1\nFROM a\nWHERE x = 1', 'the text is in the editor (' + JSON.stringify(await editorText(p)) + ')');
+		check((await p.locator('.cm-line').count()) === 3, 'on three lines');
+
+		await type(p, ' AND y = 2');
+		await p.click('#saveQueryFileBtn');
+		await p.waitForTimeout(100);
+		const save = (await sent(p)).filter(m => m.command === 'saveSqlFile').pop();
+		check(save && save.eol === 'crlf', 'the save carries the line ends of the file');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
