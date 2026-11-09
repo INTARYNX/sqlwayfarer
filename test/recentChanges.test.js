@@ -45,6 +45,18 @@ suite('recentChanges.readRecentChanges', () => {
 		assert.deepStrictEqual([result.database, result.minutes, result.serverTime, result.items.length, result.truncated], ['My]Db', 180, '2026-11-03 11:00:00', 1, false]);
 	});
 
+	test('since a snapshot: the start is the creation date of the snapshot of this database, read by the server', async () => {
+		const log = [];
+		const result = await readRecentChanges(manager([[row()], [{ server_time: '2026-11-03 11:00:00', since: '2026-11-03 08:00:00' }]], log), 'My]Db', undefined, "Snap'1");
+		assert.ok(log[0].startsWith('USE [My]]Db];'));
+		assert.ok(log[0].includes("FROM sys.databases WHERE name = N'Snap''1' AND source_database_id = DB_ID(N'My]Db')"), 'the name is a literal, quotes doubled');
+		assert.ok(!log[0].includes('DATEADD'));
+		assert.ok(log[0].includes('THROW 50000'), 'a snapshot that is gone is an error');
+		assert.deepStrictEqual([result.snapshot, result.minutes, result.since, result.items.length], ["Snap'1", null, '2026-11-03 08:00:00', 1]);
+		// The last minutes do not need one.
+		assert.strictEqual((await readRecentChanges(manager([[], [{}]]), 'Db', 60)).snapshot, null);
+	});
+
 	test('a period that is not a whole positive number of minutes is refused, before anything is read', async () => {
 		const log = [];
 		for (const bad of [0, -5, 'x', NaN, null, 600000, '1; DROP TABLE t']) await assert.rejects(readRecentChanges(manager([[], []], log), 'Db', bad), /not valid/);
