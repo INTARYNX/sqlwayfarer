@@ -151,6 +151,20 @@ function baseExtensions(options, historyBox) {
         historyBox.of(history()),
         drawSelection(),
         dropCursor(),
+        // An object dragged from a list (ObjectDrag): its name goes where it is
+        // dropped, the caret after it and the keyboard in the editor. CodeMirror's
+        // own drop leaves the dropped text selected, so the next key replaces it.
+        EditorView.domEventHandlers({
+            drop(event, view) {
+                const text = event.dataTransfer && event.dataTransfer.getData('application/x-sqlwayfarer-object');
+                if (!text) return false;
+                event.preventDefault();
+                const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
+                view.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length }, userEvent: 'input.drop' });
+                view.focus();
+                return true;
+            }
+        }),
         bracketMatching(),
         indentOnInput(),
         rectangularSelection(),

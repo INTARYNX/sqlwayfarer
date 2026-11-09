@@ -782,6 +782,11 @@ label {
     font-weight: normal;
 }
 
+.object-item,
+.instance-row {
+    user-select: none;
+}
+
 .object-item {
     padding: 8px 12px;
     cursor: pointer;
