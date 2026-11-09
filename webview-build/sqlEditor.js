@@ -266,8 +266,13 @@ function attach(container, options = {}) {
     // Replaces the whole text. This is what the page does on its own (the
     // text of a script loaded, the text of another tab, the drafts being
     // recovered): the drafts must not follow it as if the user had typed it.
+    // The document stores every line break as one "\n" (a "\r\n" is one break,
+    // not two characters): a position computed from the raw text would point
+    // outside of the document.
+    const normalize = text => (text == null ? '' : String(text)).replace(/\r\n?/g, '\n');
+
     const setText = (text, source) => {
-        const str = text == null ? '' : String(text);
+        const str = normalize(text);
         dispatchText({
             changes: { from: 0, to: view.state.doc.length, insert: str },
             // A <textarea>'s value setter leaves the caret at the end of
@@ -317,7 +322,7 @@ function attach(container, options = {}) {
         const len = view.state.doc.length;
         const a = Math.max(0, Math.min(from, len));
         const b = Math.max(a, Math.min(to, len));
-        const str = text == null ? '' : String(text);
+        const str = normalize(text);
         view.dispatch({
             changes: { from: a, to: b, insert: str },
             // The caret lands right after the inserted text, like it does

@@ -181,6 +181,8 @@ class QueryFileManager {
             savedContent: null,
             encoding: 'utf8',
             savedEncoding: 'utf8',
+            // The line ends the file had ('lf' or 'crlf'): the editor holds "\n" only.
+            eol: 'lf',
             database: null
         };
     }
@@ -542,6 +544,7 @@ class QueryFileManager {
                 savedContent: message.content,
                 encoding: message.encoding || 'utf8',
                 savedEncoding: message.encoding || 'utf8',
+                eol: message.eol || 'lf',
                 database: null
             };
             this.tabs.push(tab);
@@ -572,7 +575,7 @@ class QueryFileManager {
         if (!this._isDirty(tab, tab.content)) return;
 
         if (tab.fileName) {
-            vscode.postMessage({ command: 'saveSqlFile', path: tab.filePath, content: tab.content, encoding: tab.encoding });
+            vscode.postMessage({ command: 'saveSqlFile', path: tab.filePath, content: tab.content, encoding: tab.encoding, eol: tab.eol });
         } else {
             this._pendingSaveAsTabId = tab.id;
             const suggested = tab.draftLabel.toLowerCase().replace(/\s+/g, '-') + '.sql';
@@ -632,7 +635,7 @@ class QueryFileManager {
 
         const drafts = this.tabs
             .filter(t => this._isDirty(t, t.content))
-            .map(t => ({ content: t.content, database: t.database, filePath: t.filePath, fileName: t.fileName, encoding: t.encoding, savedEncoding: t.savedEncoding }));
+            .map(t => ({ content: t.content, database: t.database, filePath: t.filePath, fileName: t.fileName, encoding: t.encoding, savedEncoding: t.savedEncoding, eol: t.eol }));
         vscode.postMessage({ command: 'saveDraftRecovery', drafts });
     }
 
@@ -668,6 +671,7 @@ class QueryFileManager {
                     savedContent: null,
                     encoding: d.encoding || 'utf8',
                     savedEncoding: d.savedEncoding || 'utf8',
+                    eol: d.eol || 'lf',
                     database: d.database || null
                 };
             }
