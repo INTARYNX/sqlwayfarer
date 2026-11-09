@@ -349,4 +349,32 @@ suite('e2e: the Compare tab', function () {
 		}
 		check.done();
 	});
+
+	test('a snapshot that was just taken is the reference, and its name stays in the field', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 600 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['Sales'], currentDatabase: 'Sales' });
+		await p.click('[data-tab=compare]');
+		const OLD = { name: 'Sales_ref_20261101_080000', source: 'Sales', createDate: '2026-11-01T08:00:00Z', state: 'ONLINE' };
+		const NEW = { name: 'Sales_ref_20261103_090507', source: 'Sales', createDate: '2026-11-03T09:05:07Z', state: 'ONLINE' };
+		await post({ command: 'compareSources', database: 'Sales', snapshots: [OLD], databases: ['SalesCopy'], support: { supported: true } });
+		await p.selectOption('#compareReference', 'SalesCopy');
+
+		// The extension answers a snapshot: the note, then the list with the new one.
+		await post({ command: 'compareSnapshotDone', name: NEW.name, action: 'taken' });
+		await post({ command: 'compareSources', database: 'Sales', snapshots: [NEW, OLD], databases: ['SalesCopy'], support: { supported: true } });
+		check((await p.inputValue('#compareReference')) === NEW.name, 'the new snapshot is the reference (' + (await p.inputValue('#compareReference')) + ')');
+		check((await p.getAttribute('#compareReference', 'title')).startsWith(NEW.name), 'the field names it in full when it is hovered');
+
+		// A snapshot dropped is not picked again by the next list.
+		await post({ command: 'compareSnapshotDone', name: OLD.name, action: 'dropped' });
+		await post({ command: 'compareSources', database: 'Sales', snapshots: [NEW], databases: ['SalesCopy'], support: { supported: true } });
+		check((await p.inputValue('#compareReference')) === NEW.name, 'the reference is still the one that is there');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
