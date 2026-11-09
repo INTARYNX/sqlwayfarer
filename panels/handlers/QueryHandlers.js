@@ -6,6 +6,7 @@ const { describeColumn } = require('../../database/columnTypes');
 const { uniqueColumnKeys } = require('../../database/resultColumns');
 const { splitBatches } = require('../../database/sqlBatches');
 const { QuerySession } = require('../../database/QuerySession');
+const { readMigrating } = require('../../storage/migrateState');
 
 const HISTORY_KEY = 'sqlwayfarer.queryHistory';
 const HISTORY_LIMIT = 50;
@@ -122,10 +123,12 @@ function splitTopLevelStatements(sql) {
 }
 
 class QueryHandlers {
-    constructor(postMessage, connectionManager, state, riskAnalyzer = null, getConnectionIdentity = () => null, isProduction = () => false) {
+    constructor(postMessage, connectionManager, state, riskAnalyzer = null, getConnectionIdentity = () => null, isProduction = () => false, legacyState = null) {
         this._post = postMessage;
         this._connectionManager = connectionManager;
         this._state = state;
+        // Where the history used to be kept (per folder): read once, then moved.
+        this._legacyState = legacyState;
         this._riskAnalyzer = riskAnalyzer;
         // True while the connection of this tab is marked as production.
         this._isProduction = isProduction;
@@ -630,7 +633,7 @@ class QueryHandlers {
     }
 
     _getHistory() {
-        return this._state.get(this._historyKey(), []);
+        return readMigrating(this._state, this._legacyState, this._historyKey(), []);
     }
 
     // Prepend the query, dropping any older identical entry so re-runs don't pile up.

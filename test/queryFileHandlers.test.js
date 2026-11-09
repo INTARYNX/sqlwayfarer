@@ -272,6 +272,26 @@ suite('QueryFileHandlers', () => {
 	// connection - maybeOfferRecoveryForCurrentIdentity is the re-check fired
 	// after a successful connect, so a crashed session's drafts on that same
 	// server are still found once the identity is actually known.
+	test('drafts kept per folder before are moved to the global state, once', async () => {
+		const state = makeState();
+		const legacy = makeState();
+		const key = 'sqlwayfarer.queryDrafts::(disconnected)';
+		await legacy.update(key, [{ content: 'SELECT 1' }]);
+
+		const posts = [];
+		const handlers = new QueryFileHandlers(m => posts.push(m), state, () => null, legacy);
+		await handlers.handleGetDraftRecovery();
+		assert.deepStrictEqual(posts[0].drafts, [{ content: 'SELECT 1' }]);
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepStrictEqual(state.get(key), [{ content: 'SELECT 1' }], 'copied to the global state');
+		assert.strictEqual(legacy.get(key), undefined, 'removed from the old one');
+
+		// What the global state holds wins over the old one.
+		await legacy.update(key, [{ content: 'OLD' }]);
+		await handlers.handleGetDraftRecovery();
+		assert.deepStrictEqual(posts[1].drafts, [{ content: 'SELECT 1' }]);
+	});
+
 	test('maybeOfferRecoveryForCurrentIdentity re-offers drafts once the connection identity is known', async () => {
 		const posts = [];
 		const state = makeState();

@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const fs = require('fs').promises;
 const path = require('path');
+const { readMigrating } = require('../../storage/migrateState');
 
 const DRAFTS_KEY = 'sqlwayfarer.queryDrafts';
 
@@ -10,9 +11,11 @@ const DRAFTS_KEY = 'sqlwayfarer.queryDrafts';
 // file-backed sub-tabs, plus a crash-recovery snapshot for unsaved drafts
 // (file-backed tabs don't need it - their content already lives on disk).
 class QueryFileHandlers {
-    constructor(postMessage, state, getConnectionIdentity = () => null) {
+    constructor(postMessage, state, getConnectionIdentity = () => null, legacyState = null) {
         this._post = postMessage;
         this._state = state;
+        // Where the drafts used to be kept (per folder): read once, then moved.
+        this._legacyState = legacyState;
         this._getConnectionIdentity = getConnectionIdentity;
         // Files chosen in the Save As dialog (resolved paths), outside the workspace or not.
         this._savedAs = new Set();
@@ -29,6 +32,10 @@ class QueryFileHandlers {
     // round trip can possibly have resolved yet).
     _draftsKey() {
         return `${DRAFTS_KEY}::${this._getConnectionIdentity() || '(disconnected)'}`;
+    }
+
+    _drafts() {
+        return readMigrating(this._state, this._legacyState, this._draftsKey(), []);
     }
 
     _workspaceRoot() {
@@ -188,7 +195,7 @@ class QueryFileHandlers {
     }
 
     async handleGetDraftRecovery() {
-        this._post({ command: 'draftRecoveryLoaded', drafts: this._state.get(this._draftsKey(), []) });
+        this._post({ command: 'draftRecoveryLoaded', drafts: this._drafts() });
     }
 
     async handleSaveDraftRecovery(drafts) {
@@ -204,7 +211,7 @@ class QueryFileHandlers {
     // recoverable. The webview only applies this if its tabs are still
     // pristine, so it can never clobber SQL the user already typed.
     async maybeOfferRecoveryForCurrentIdentity() {
-        const drafts = this._state.get(this._draftsKey(), []);
+        const drafts = this._drafts();
         if (drafts.length === 0) return;
         this._post({ command: 'draftRecoveryLoaded', drafts });
     }
