@@ -3555,6 +3555,20 @@ table.fp-cols .fp-center { text-align: center; }
     color: var(--vscode-descriptionForeground);
 }
 
+/* Turns while a database (or the list of them) is being read. */
+.instance-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    box-sizing: border-box;
+    vertical-align: -1px;
+    border: 2px solid var(--vscode-progressBar-background, #3794ff);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: sqlwayfarer-spin 0.8s linear infinite;
+}
+
 .instance-note.error {
     color: var(--vscode-errorForeground);
 }
