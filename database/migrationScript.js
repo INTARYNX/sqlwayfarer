@@ -199,9 +199,15 @@ function setOptions(module) {
     return { sql: `SET ANSI_NULLS ${module.ansiNulls ? 'ON' : 'OFF'};\nSET QUOTED_IDENTIFIER ${module.quotedIdentifier ? 'ON' : 'OFF'};`, pre: true };
 }
 
+// What the script remembers from one batch to the next lives in the session
+// context (the number of the last batch that finished, and the time a module
+// started): it needs no table, so tempdb is not touched. It goes with the
+// session, and PROGRESS_CLEAR removes it.
+const PROGRESS_CLEAR = "EXEC sp_set_session_context N'wf_n', NULL;\nEXEC sp_set_session_context N'wf_t', NULL;";
+
 // Done when the module was written since the "pre" batch noted the time.
 function verified(module) {
-    return { verify: `IF EXISTS (SELECT 1 FROM sys.objects o CROSS JOIN #wf w WHERE o.object_id = OBJECT_ID(${N(tableName(module.schema, module.name))}) AND o.modify_date >= w.t)\n    UPDATE #wf SET n = {n};` };
+    return { verify: `IF EXISTS (SELECT 1 FROM sys.objects o WHERE o.object_id = OBJECT_ID(${N(tableName(module.schema, module.name))}) AND o.modify_date >= CONVERT(datetime, SESSION_CONTEXT(N'wf_t')))\n    EXEC sp_set_session_context N'wf_n', {n};` };
 }
 
 // The definition with another header: CREATE OR ALTER, ALTER or CREATE.
@@ -353,19 +359,19 @@ function buildMigrationScript(diff, options = {}) {
     steps.sort((a, b) => a.phase - b.phase);
 
     // One batch per statement. A batch runs only if the one before it finished
-    // (#wf holds the number of the last that did), so a batch that fails, at
+    // (wf_n holds the number of the last that did), so a batch that fails, at
     // run time or already when it is compiled, stops the ones after it.
     const blocks = [];
     let lastLabel = null;
     let done = 0;
-    const requires = n => `IF NOT EXISTS (SELECT 1 FROM #wf WHERE n = ${n}) SET NOEXEC ON;`;
+    const requires = n => `IF ISNULL(CONVERT(int, SESSION_CONTEXT(N'wf_n')), -1) <> ${n} SET NOEXEC ON;`;
     for (const step of steps) {
         if (step.label !== lastLabel) { blocks.push(`-- ${step.label}${step.risk === 'caution' ? '   (caution: can fail on the data that is there)' : ''}`); lastLabel = step.label; }
         for (const b of step.batches) {
             if (b.first) blocks.push(b.sql);
-            else if (b.pre) blocks.push(`${requires(done)}\n${b.sql}\nUPDATE #wf SET t = GETDATE();`);
+            else if (b.pre) blocks.push(`${requires(done)}\n${b.sql}\nDECLARE @t datetime = GETDATE();\nEXEC sp_set_session_context N'wf_t', @t;`);
             else if (b.verify) { done++; blocks.push(`${requires(done - 1)}\n${b.verify.replace('{n}', String(done))}`); }
-            else { done++; blocks.push(`${requires(done - 1)}\n${b.sql}\nIF @@ERROR = 0 UPDATE #wf SET n = ${done};`); }
+            else { done++; blocks.push(`${requires(done - 1)}\n${b.sql}\nIF @@ERROR = 0 EXEC sp_set_session_context N'wf_n', ${done};`); }
         }
     }
 
@@ -381,11 +387,11 @@ function buildMigrationScript(diff, options = {}) {
     if (leftOut.length > 0) parts.push(leftOut.join('\n'));
     if (steps.length > 0) {
         parts.push('SET NOEXEC OFF;');
-        parts.push("SET NOCOUNT ON;\nIF OBJECT_ID(N'tempdb..#wf') IS NOT NULL DROP TABLE #wf;\nCREATE TABLE #wf (n int NOT NULL, t datetime NULL);\nINSERT #wf (n) VALUES (0);");
+        parts.push("SET NOCOUNT ON;\nEXEC sp_set_session_context N'wf_n', 0;\nEXEC sp_set_session_context N'wf_t', NULL;");
         parts.push(...blocks);
         // The session goes back to its defaults: a module can have been created with an option off.
         parts.push('SET NOEXEC OFF;');
-        parts.push('IF OBJECT_ID(N\'tempdb..#wf\') IS NOT NULL DROP TABLE #wf;\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;');
+        parts.push(`${PROGRESS_CLEAR}\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;`);
     }
     return {
         script: `${parts.join('\nGO\n')}\n`,
@@ -479,4 +485,4 @@ function tableSteps(change, add, warnings, noteTypes) {
     }
 }
 
-module.exports = { buildMigrationScript, changeId, supportsCreateOrAlter, withHeader, orderModules, typeMatches };
+module.exports = { PROGRESS_CLEAR, buildMigrationScript, changeId, supportsCreateOrAlter, withHeader, orderModules, typeMatches };
