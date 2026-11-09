@@ -10,6 +10,25 @@ suite('ObjectDrag', () => {
 		assert.strictEqual(ObjectDrag.fullName(null, 'dbo', 'T'), 'dbo.T');
 	});
 
+	test('the database is left out when it is the one the query runs on', () => {
+		const queries = { target: 'AppDb', other: false, targetDatabase() { return this.target; }, runsOnOtherConnection() { return this.other; } };
+		global.window = { queryManager: queries };
+		try {
+			assert.strictEqual(ObjectDrag.forEditor('AppDb', 'dbo', 'Orders'), 'dbo.Orders');
+			assert.strictEqual(ObjectDrag.forEditor('appdb', 'dbo', 'Orders'), 'dbo.Orders');
+			assert.strictEqual(ObjectDrag.forEditor('Other', 'dbo', 'Orders'), 'Other.dbo.Orders');
+			queries.other = true;
+			assert.strictEqual(ObjectDrag.forEditor('AppDb', 'dbo', 'Orders'), 'AppDb.dbo.Orders');
+			queries.other = false;
+			queries.target = null;
+			assert.strictEqual(ObjectDrag.forEditor('AppDb', 'dbo', 'Orders'), 'AppDb.dbo.Orders');
+		} finally {
+			delete global.window;
+		}
+		// No query editor yet: the full name.
+		assert.strictEqual(ObjectDrag.forEditor('AppDb', 'dbo', 'Orders'), 'AppDb.dbo.Orders');
+	});
+
 	test('an element becomes draggable and carries the name as text', () => {
 		const handlers = {};
 		const element = { addEventListener: (type, fn) => { handlers[type] = fn; } };

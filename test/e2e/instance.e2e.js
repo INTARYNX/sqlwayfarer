@@ -182,14 +182,14 @@ suite('e2e: the instance tree', function () {
 		check((await p.textContent('.instance-row[data-name="dbo.Orders"] .instance-name')) === 'dbo.Orders', 'the schema is in the name, the default one too');
 
 		await p.dragAndDrop('.instance-row[data-name="dbo.Orders"]', '.cm-content');
-		check((await editor()) === 'AppDb.dbo.Orders', 'dropped as database.schema.object (' + JSON.stringify(await editor()) + ')');
+		check((await editor()) === 'dbo.Orders', 'dropped as schema.object: the database is the one of the query (' + JSON.stringify(await editor()) + ')');
 
 		// The editor takes the keyboard straight away: no click beside the text first.
 		await p.keyboard.type(' x');
-		check((await editor()).endsWith('AppDb.dbo.Orders x'), 'typing works right after the drop (' + JSON.stringify(await editor()) + ')');
+		check((await editor()).endsWith('dbo.Orders x'), 'typing works right after the drop (' + JSON.stringify(await editor()) + ')');
 
 		await p.dragAndDrop('.instance-row[data-name="Sales.vOrders"]', '.cm-content');
-		check((await editor()).includes('AppDb.Sales.vOrders'), 'a view of another schema (' + JSON.stringify(await editor()) + ')');
+		check((await editor()).includes('Sales.vOrders') && !(await editor()).includes('AppDb.'), 'a view of another schema (' + JSON.stringify(await editor()) + ')');
 
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
 		await p.close();
