@@ -106,6 +106,17 @@ suite('QueryFileHandlers', () => {
 		assert.strictEqual(result.content, 'SELECT * FROM dbo.Foo;');
 	});
 
+	test('opens UTF-16 (both byte orders) and UTF-8 with a mark as plain text', async () => {
+		const text = 'SELECT 1 AS é;';
+		const le = Buffer.concat([Buffer.from([0xFF, 0xFE]), Buffer.from(text, 'utf16le')]);
+		const be = Buffer.concat([Buffer.from([0xFE, 0xFF]), Buffer.from(text, 'utf16le').swap16()]);
+		const bom8 = Buffer.concat([Buffer.from([0xEF, 0xBB, 0xBF]), Buffer.from(text, 'utf8')]);
+		assert.strictEqual(QueryFileHandlers.decode(le), text);
+		assert.strictEqual(QueryFileHandlers.decode(be), text);
+		assert.strictEqual(QueryFileHandlers.decode(bom8), text);
+		assert.strictEqual(QueryFileHandlers.decode(Buffer.from(text, 'utf8')), text);
+	});
+
 	test('reports an error when opening a file that no longer exists', async () => {
 		const posts = [];
 		const handlers = new QueryFileHandlers(m => posts.push(m), makeState());
