@@ -9,8 +9,8 @@ const DROP_KEYWORD = { View: 'VIEW', Procedure: 'PROCEDURE', Function: 'FUNCTION
 
 // Generates ready-to-edit SQL scripts for the Explorer "Script" button:
 // SELECT / INSERT / UPDATE / CREATE for tables, SELECT / CREATE for views,
-// EXEC / CREATE for procedures, SELECT / CREATE for functions; ALTER (which
-// keeps the permissions) and DROP and CREATE for the code objects, to change them.
+// EXEC / CREATE for procedures, SELECT / CREATE for functions; DROP and CREATE
+// for the code objects, to change them (it works on every version of SQL Server).
 // Table DDL is rebuilt from metadata; code objects reuse OBJECT_DEFINITION.
 class ScriptGeneratorService {
     constructor(connectionManager, databaseService) {
@@ -49,9 +49,6 @@ class ScriptGeneratorService {
             case 'View:create':
             case 'Procedure:create':
             case 'Function:create':
-            case 'View:alter':
-            case 'Procedure:alter':
-            case 'Function:alter':
             case 'View:dropcreate':
             case 'Procedure:dropcreate':
             case 'Function:dropcreate': {
@@ -59,7 +56,6 @@ class ScriptGeneratorService {
                 if (!definition) {
                     throw new Error(`No definition available for ${objectName} (the object may be encrypted).`);
                 }
-                if (scriptType === 'alter') return ScriptGeneratorService.buildAlter(definition);
                 if (scriptType === 'dropcreate') return ScriptGeneratorService.buildDropCreate(bracketed, objectType, definition);
                 return definition.trim();
             }
@@ -68,17 +64,8 @@ class ScriptGeneratorService {
         }
     }
 
-    // The definition with ALTER as its first word: it changes the object where
-    // it is, so its permissions stay.
-    static buildAlter(definition) {
-        const text = definition.trim();
-        const header = parseHeader(text);
-        if (!header) throw new Error('The definition does not start with CREATE or ALTER.');
-        return `${text.slice(0, header.start)}ALTER${text.slice(header.end)}`;
-    }
-
-    // The object is dropped if it is there, then created again. The drop
-    // takes its permissions with it - ALTER does not.
+    // The object is dropped if it is there, then created again (its
+    // permissions go with the drop).
     static buildDropCreate(bracketed, objectType, definition) {
         const text = definition.trim();
         const header = parseHeader(text);
