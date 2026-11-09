@@ -73,7 +73,11 @@ class CompareManager {
         this.running = false;
         this.chosen = new Map();  // database -> the reference picked last
 
-        this.el.reference.addEventListener('change', () => { this.chosen.set(this.database, this.el.reference.value); this.updateButtons(); });
+        this.el.reference.addEventListener('change', () => {
+            this.chosen.set(this.database, this.el.reference.value);
+            this.el.reference.title = this.el.reference.selectedOptions[0] ? this.el.reference.selectedOptions[0].textContent : '';
+            this.updateButtons();
+        });
         this.el.run.addEventListener('click', () => this.compare());
         this.el.snapshot.addEventListener('click', () => vscode.postMessage({ command: 'takeSnapshot', database: this.database }));
         this.el.dropSnapshot.addEventListener('click', () => vscode.postMessage({ command: 'dropSnapshot', database: this.database, name: this.el.reference.value }));
@@ -279,6 +283,8 @@ class CompareManager {
             if (values.includes(kept)) select.value = kept;
             else if (sources.snapshots.length > 0) select.value = sources.snapshots[0].name;
         }
+        // The whole name, when the field is too narrow to show it.
+        select.title = select.selectedOptions[0] ? select.selectedOptions[0].textContent : '';
         if (!select.firstChild) {
             const o = document.createElement('option');
             o.value = '';
@@ -345,6 +351,9 @@ class CompareManager {
 
     onSnapshotDone(message) {
         this.setNote(`Snapshot ${message.name} ${message.action}.`, 'success');
+        // The snapshot that was just taken is the reference to compare with: it is picked
+        // when the list comes back, so its name stays in the field.
+        if (message.action === 'taken') this.chosen.set(this.database, message.name);
     }
 
     // === The result =========================================================
