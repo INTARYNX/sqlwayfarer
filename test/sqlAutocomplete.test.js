@@ -143,13 +143,13 @@ suite('SqlAutocomplete.buildSuggestions', () => {
 	test('suggests stored procedures right after EXEC', () => {
 		const ctx = { base: '', partial: 'usp', precedingKeyword: 'exec' };
 		const { items } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
-		assert.ok(items.some(i => i.insert === 'uspGetEmployees'), 'procedure should be offered after EXEC');
+		assert.ok(items.some(i => i.insert === 'dbo.uspGetEmployees'), 'procedure should be offered after EXEC');
 	});
 
 	test('suggests stored procedures right after EXECUTE', () => {
 		const ctx = { base: '', partial: 'usp', precedingKeyword: 'execute' };
 		const { items } = SqlAutocomplete.buildSuggestions(ctx, objects, {}, noColumns);
-		assert.ok(items.some(i => i.insert === 'uspGetEmployees'), 'procedure should be offered after EXECUTE');
+		assert.ok(items.some(i => i.insert === 'dbo.uspGetEmployees'), 'procedure should be offered after EXECUTE');
 	});
 
 	test('procedure prefix yields no column suggestions', () => {
@@ -185,7 +185,7 @@ suite('SqlAutocomplete.buildSuggestions', () => {
 			ctx, objects, {}, noColumns,
 			{ databases: ['ReportingDb'], currentDatabase: 'MainDb', getDatabaseObjects: () => otherObjects }
 		);
-		assert.deepStrictEqual(items.map(i => i.insert), ['Metric']);
+		assert.deepStrictEqual(items.map(i => i.insert), ['dbo.Metric']);
 	});
 
 	test('"Database.Schema." lists that schema\'s objects in the other database', () => {
@@ -370,7 +370,7 @@ suite('SqlAutocomplete object index', () => {
 		const ctx = { base: '', partial: 'emp', partialStart: 0, precedingKeyword: 'select' };
 		const { items } = SqlAutocomplete.buildSuggestions(ctx, list, {}, () => undefined, { minLength: 2 });
 
-		assert.ok(items.some(i => i.label === 'Employee'));
+		assert.ok(items.some(i => i.label.endsWith('Employee')));
 	});
 });
 

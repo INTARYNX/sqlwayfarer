@@ -687,8 +687,8 @@ class SqlAutocomplete {
             const obj = entry.obj;
             if (obj.object_type === 'Procedure' && !execContext) continue;
             if ((partial && entry.bare.startsWith(partial)) || entry.qualified.startsWith(partial)) {
-                // obj.name is already schema-qualified except for dbo - exactly what we want to insert
-                items.push({ label: obj.name, insert: obj.name, kind: obj.object_type, detail: obj.object_type });
+                const qualified = obj.qualified_name || obj.name;
+                items.push({ label: qualified, insert: qualified, kind: obj.object_type, detail: obj.object_type });
             }
         }
         return items;
@@ -1198,9 +1198,10 @@ class SqlAutocomplete {
     }
 
     static _objectItem(obj, priority) {
-        const parts = obj.schema_name && obj.schema_name.toLowerCase() !== 'dbo' ? [obj.schema_name, obj.object_name || obj.name] : [obj.object_name || obj.name];
+        // The schema is always written, the default one too: an object is known by its schema.
+        const parts = obj.schema_name ? [obj.schema_name, obj.object_name || obj.name] : [obj.object_name || obj.name];
         return {
-            label: obj.name, parts, kind: obj.object_type, detail: obj.object_type, priority,
+            label: obj.qualified_name || obj.name, parts, kind: obj.object_type, detail: obj.object_type, priority,
             match: [obj.object_name || obj.name, obj.qualified_name || obj.name],
             info: `${obj.object_type} · ${obj.qualified_name || obj.name}`,
             usageKey: `obj|${(obj.qualified_name || obj.name).toLowerCase()}`
