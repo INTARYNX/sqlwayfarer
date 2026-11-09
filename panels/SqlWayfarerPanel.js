@@ -504,7 +504,7 @@ class SqlWayfarerPanel {
             case 'getObjectParameters':          await d.handleGetObjectParameters(message.database, message.objectName); break;
             case 'getAutocompleteSettings':      this._postAutocompleteSettings(); this._postDiagnosticsSettings(); break;
             case 'endTransaction':               await this._query.handleEndTransaction(message.action); break;
-            case 'getRecentChanges':             await this._recent.handleGetRecent(message.database, message.minutes); break;
+            case 'getRecentChanges':             await this._recent.handleGetRecent(message.database, message.minutes, message.snapshot); break;
             case 'getRecentDefinition':          await this._recent.handleGetDefinition(message.database, message.schema, message.name); break;
             case 'getCompareSources':            await this._compare.handleGetSources(message.database); break;
             case 'runCompare':                   await this._compare.handleCompare(message.database, message.reference); break;

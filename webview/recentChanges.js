@@ -24,6 +24,9 @@ class RecentChanges {
         this.filter = '';
         this.loading = false;
 
+        // What the period can also be: the moment a snapshot of the database was taken.
+        this.snapshotGroup = document.createElement('optgroup');
+        this.snapshotGroup.label = 'Since a snapshot of this database';
         this.el.period.addEventListener('change', () => this.load());
         this.el.refresh.addEventListener('click', () => this.load());
         this.el.filter.addEventListener('input', () => { this.filter = this.el.filter.value.trim().toLowerCase(); this.renderList(); });
@@ -66,6 +69,37 @@ class RecentChanges {
 
     // === Loading ============================================================
 
+    // The period the select stands on: the last minutes, or since a snapshot.
+    selection() {
+        const value = this.el.period.value;
+        return value.startsWith('snapshot:') ? { snapshot: value.slice('snapshot:'.length) } : { minutes: Number(value) };
+    }
+
+    // The snapshots of the database of the tab ([{ name, createDate }]), offered
+    // after the fixed periods. One that was dropped is no longer a period.
+    setSnapshots(snapshots) {
+        const previous = this.el.period.value;
+        this.snapshotGroup.textContent = '';
+        for (const s of snapshots || []) {
+            const option = document.createElement('option');
+            option.value = `snapshot:${s.name}`;
+            option.textContent = `${s.name}  (${new Date(s.createDate).toLocaleString()})`;
+            this.snapshotGroup.appendChild(option);
+        }
+        if (this.snapshotGroup.firstChild) this.el.period.appendChild(this.snapshotGroup);
+        else this.snapshotGroup.remove();
+
+        if (previous.startsWith('snapshot:') && ![...this.el.period.options].some(o => o.value === previous)) {
+            this.el.period.value = this.el.period.querySelector('option[selected]').value;
+            this.data = null;
+            this.active = null;
+            this.render();
+            if (!this.el.period.closest('.compare-view').hidden) this.load();
+        } else {
+            this.el.period.value = previous;
+        }
+    }
+
     onActivated(database) {
         if (database !== this.database) {
             this.database = database;
@@ -87,7 +121,7 @@ class RecentChanges {
         if (!this.database) return;
         this.loading = true;
         this.setNote('Reading the dates of the objects…');
-        vscode.postMessage({ command: 'getRecentChanges', database: this.database, minutes: Number(this.el.period.value) });
+        vscode.postMessage({ command: 'getRecentChanges', database: this.database, ...this.selection() });
     }
 
     setNote(text, kind = '') {
@@ -136,7 +170,9 @@ class RecentChanges {
         this.el.summary.textContent = '';
         const heading = document.createElement('div');
         heading.className = 'compare-heading';
-        heading.textContent = `${data.items.length} object(s) in the last ${this.el.period.selectedOptions[0].textContent.toLowerCase()}`;
+        heading.textContent = data.snapshot
+            ? `${data.items.length} object(s) since the snapshot ${data.snapshot}${data.since ? ` (taken ${data.since})` : ''}`
+            : `${data.items.length} object(s) in the last ${this.el.period.selectedOptions[0].textContent.toLowerCase()}`;
         const counts = document.createElement('div');
         counts.className = 'compare-counts';
         counts.textContent = RecentChanges.summaryText(data.items);

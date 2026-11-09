@@ -11,10 +11,10 @@ class RecentHandlers {
         this._connectionManager = connectionManager;
     }
 
-    async handleGetRecent(database, minutes) {
+    async handleGetRecent(database, minutes, snapshot) {
         if (!database) { this._post({ command: 'recentFailed', message: 'Select a database first.' }); return; }
         try {
-            this._post({ command: 'recentChanges', ...(await readRecentChanges(this._connectionManager, database, minutes)) });
+            this._post({ command: 'recentChanges', ...(await readRecentChanges(this._connectionManager, database, minutes, snapshot)) });
         } catch (error) {
             this._post({ command: 'recentFailed', message: error.message });
         }

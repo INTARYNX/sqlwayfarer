@@ -22,6 +22,13 @@ suite('RecentHandlers', () => {
 		assert.deepStrictEqual([posts[0].database, posts[0].minutes, posts[0].serverTime, posts[0].items.length], ['Db', 60, '2026-11-03 11:00:00', 1]);
 	});
 
+	test('with a snapshot, the answer says which and from when', async () => {
+		const { handlers, posts, log } = setup([[row], [{ server_time: '2026-11-03 11:00:00', since: '2026-11-03 08:00:00' }]]);
+		await handlers.handleGetRecent('Db', undefined, 'Snap1');
+		assert.ok(log[0].includes("name = N'Snap1'"));
+		assert.deepStrictEqual([posts[0].command, posts[0].snapshot, posts[0].since], ['recentChanges', 'Snap1', '2026-11-03 08:00:00']);
+	});
+
 	test('no database, a bad period or a failure to read is said, never thrown', async () => {
 		const none = setup([[], []]);
 		await none.handlers.handleGetRecent('', 60);
