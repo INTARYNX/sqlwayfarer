@@ -3,10 +3,14 @@
 const parseObjectName = require('./parseObjectName');
 const DataDictionaryService = require('./DataDictionaryService');
 const { bracketIdentifier } = require('./sqlIdentifier');
+const { parseHeader } = require('./sqlHeader');
+
+const DROP_KEYWORD = { View: 'VIEW', Procedure: 'PROCEDURE', Function: 'FUNCTION' };
 
 // Generates ready-to-edit SQL scripts for the Explorer "Script" button:
 // SELECT / INSERT / UPDATE / CREATE for tables, SELECT / CREATE for views,
-// EXEC / CREATE for procedures, SELECT / CREATE for functions.
+// EXEC / CREATE for procedures, SELECT / CREATE for functions; ALTER (which
+// keeps the permissions) and DROP and CREATE for the code objects, to change them.
 // Table DDL is rebuilt from metadata; code objects reuse OBJECT_DEFINITION.
 class ScriptGeneratorService {
     constructor(connectionManager, databaseService) {
@@ -44,16 +48,43 @@ class ScriptGeneratorService {
             }
             case 'View:create':
             case 'Procedure:create':
-            case 'Function:create': {
+            case 'Function:create':
+            case 'View:alter':
+            case 'Procedure:alter':
+            case 'Function:alter':
+            case 'View:dropcreate':
+            case 'Procedure:dropcreate':
+            case 'Function:dropcreate': {
                 const definition = await this._databaseService.getObjectDefinition(database, `${schema}.${name}`);
                 if (!definition) {
                     throw new Error(`No definition available for ${objectName} (the object may be encrypted).`);
                 }
+                if (scriptType === 'alter') return ScriptGeneratorService.buildAlter(definition);
+                if (scriptType === 'dropcreate') return ScriptGeneratorService.buildDropCreate(bracketed, objectType, definition);
                 return definition.trim();
             }
             default:
                 throw new Error(`Unsupported script type '${scriptType}' for object type '${objectType}'.`);
         }
+    }
+
+    // The definition with ALTER as its first word: it changes the object where
+    // it is, so its permissions stay.
+    static buildAlter(definition) {
+        const text = definition.trim();
+        const header = parseHeader(text);
+        if (!header) throw new Error('The definition does not start with CREATE or ALTER.');
+        return `${text.slice(0, header.start)}ALTER${text.slice(header.end)}`;
+    }
+
+    // The object is dropped if it is there, then created again. The drop
+    // takes its permissions with it - ALTER does not.
+    static buildDropCreate(bracketed, objectType, definition) {
+        const text = definition.trim();
+        const header = parseHeader(text);
+        if (!header) throw new Error('The definition does not start with CREATE or ALTER.');
+        const create = `${text.slice(0, header.start)}CREATE${text.slice(header.end)}`;
+        return `IF OBJECT_ID(N'${bracketed.replace(/'/g, "''")}') IS NOT NULL\n    DROP ${DROP_KEYWORD[objectType]} ${bracketed};\nGO\n${create}`;
     }
 
     async _getParameters(database, schema, name) {
