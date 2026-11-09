@@ -142,6 +142,17 @@ class ExplorerManager {
         return obj.name;
     }
 
+    // The database the explorer works on, picked from elsewhere (the instance
+    // tree): the same as choosing it in the select. False when it is already
+    // the one, or the select does not list it.
+    switchToDatabase(database) {
+        const select = this.elements.databaseSelect;
+        if (!database || select.value === database || ![...select.options].some(o => o.value === database)) return false;
+        select.value = database;
+        select.dispatchEvent(new Event('change'));
+        return true;
+    }
+
     handleDatabaseChange() {
         const database = this.elements.databaseSelect.value;
         appState.currentDatabase = database;

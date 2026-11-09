@@ -32,6 +32,7 @@ class InstanceTree {
             if (!row) return;
             this.select(row.dataset.key);
             if (row.dataset.kind !== 'object') this.toggle(row.dataset.key);
+            else this.followDatabase(row.dataset.database);
         });
         this.tree.addEventListener('dblclick', (e) => {
             const row = e.target.closest('.instance-row[data-kind="object"]');
@@ -294,9 +295,15 @@ class InstanceTree {
         return Array.isArray(list) ? list.find(o => o.qualified_name === row.dataset.name) : null;
     }
 
+    // An object that is picked brings the explorer to its database.
+    followDatabase(database) {
+        if (window.explorerManager) window.explorerManager.switchToDatabase(database);
+    }
+
     showDetails(row) {
         const object = this._objectOf(row);
         if (!object || !window.explorerManager) return;
+        this.followDatabase(row.dataset.database);
         window.explorerManager.revealExternalObject(row.dataset.database, object.schema_name || 'dbo', object.object_name);
     }
 
