@@ -11,8 +11,8 @@ const vscodeApi = () => require('vscode');
 const SNIPPETS_KEY = 'sqlwayfarer.customSnippets';
 
 // Custom snippets are personal productivity templates, not tied to a single
-// project, so they're stored in globalState (unlike query history, which is
-// workspaceState-scoped on purpose).
+// project, so they're stored in globalState (like the query history and the
+// drafts, which follow the connection, not the folder that is open).
 class SnippetHandlers {
     constructor(postMessage, globalState, broadcast = postMessage, importUi = null) {
         this._post = postMessage;
