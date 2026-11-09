@@ -40,7 +40,7 @@ suite('migrationApply.applyScript', () => {
 		assert.deepStrictEqual(log.slice(0, 4), ['USE [My]]Db]', 'SELECT 1;\n', 'SELECT 2;\n', 'SELECT 3;']);
 		// What the script may have left in the pooled connection is cleared, and it goes back to master.
 		assert.strictEqual(log[4], 'SET NOEXEC OFF');
-		assert.ok(log[5].includes('DROP TABLE #wf') && log[5].includes('SET QUOTED_IDENTIFIER ON') && log[5].includes('USE [master]'));
+		assert.ok(log[5].includes("sp_set_session_context N'wf_n', NULL") && !log[5].includes('tempdb') && log[5].includes('SET QUOTED_IDENTIFIER ON') && log[5].includes('USE [master]'));
 		assert.strictEqual(log[6], 'release');
 		assert.deepStrictEqual(progress, ['1/3', '2/3', '3/3']);
 		assert.deepStrictEqual([result.batches, result.ran, result.errors, result.stopped], [3, 3, [], false]);

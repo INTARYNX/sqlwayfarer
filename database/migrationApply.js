@@ -2,6 +2,7 @@
 
 const { splitBatches } = require('./sqlBatches');
 const { bracketIdentifier } = require('./sqlIdentifier');
+const { PROGRESS_CLEAR } = require('./migrationScript');
 
 // === Applying the script of a comparison to a database ===
 //
@@ -56,10 +57,10 @@ async function applyScript(connectionManager, database, script, { onProgress = (
         }
     } finally {
         // A pooled connection keeps what the script left: NOEXEC when it stopped itself, its
-        // marker table and the SET options of the last module when it was stopped half way.
+        // progress marks and the SET options of the last module when it was stopped half way.
         try {
             await conn.createRequest().batch('SET NOEXEC OFF');
-            await conn.createRequest().batch("IF OBJECT_ID(N'tempdb..#wf') IS NOT NULL DROP TABLE #wf;\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;\nUSE [master];");
+            await conn.createRequest().batch(`${PROGRESS_CLEAR}\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;\nUSE [master];`);
         } catch { /* the connection is gone */ }
         conn.release();
     }
