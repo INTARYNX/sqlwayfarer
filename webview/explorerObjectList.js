@@ -352,7 +352,7 @@ class ExplorerObjectListMethods {
                 div.dataset.qualifiedName = obj.qualified_name || obj.name;
                 div.dataset.type = obj.object_type;
                 div.dataset.schema = obj.schema_name || 'dbo';
-                ObjectDrag.attach(div, () => ObjectDrag.fullName(appState.currentDatabase, div.dataset.schema, objectDisplayName));
+                ObjectDrag.attach(div, () => ObjectDrag.forEditor(appState.currentDatabase, div.dataset.schema, objectDisplayName));
                 this._objectItemsByName.set(obj.name, div);
 
                 if (obj.object_type === 'Table') {

@@ -22,6 +22,17 @@ const ObjectDrag = {
         return [database, schema, name].filter(Boolean).map(ObjectDrag.part).join('.');
     },
 
+    // The name to drop in the query editor: the database is left out when it
+    // is the one the query runs on (the name is then schema.object).
+    forEditor(database, schema, name) {
+        const queries = typeof window !== 'undefined' ? window.queryManager : null;
+        const onOtherConnection = queries && queries.runsOnOtherConnection();
+        const target = queries ? queries.targetDatabase() : null;
+        const sameDatabase = !onOtherConnection && target && database
+            && String(target).toLowerCase() === String(database).toLowerCase();
+        return ObjectDrag.fullName(sameDatabase ? null : database, schema, name);
+    },
+
     // The element can be dragged from anywhere on it; getName gives what is dropped.
     attach(element, getName) {
         element.draggable = true;
