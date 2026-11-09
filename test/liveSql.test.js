@@ -231,7 +231,7 @@ suite('live SQL Server: autocompletion queries and index lifecycle', function ()
 
 		test('system objects are not offered, the user objects are', () => {
 			const items = suggest('SELECT * FROM |').items;
-			assert.ok(items.some(i => i.insert === 'Employees'));
+			assert.ok(items.some(i => i.insert === 'dbo.Employees'));
 			assert.ok(!items.some(i => /^sys\./i.test(i.insert)));
 		});
 	});

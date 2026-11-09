@@ -256,7 +256,7 @@ suite('SqlAutocomplete.compute - settings', () => {
 
 	test('matching: prefix does not offer initials', () => {
 		assert.deepStrictEqual(inserts(suggest('SELECT * FROM ho|', { matching: 'prefix' })), []);
-		assert.ok(inserts(suggest('SELECT * FROM ho|', { matching: 'fuzzy' })).includes('HumanOrders'));
+		assert.ok(inserts(suggest('SELECT * FROM ho|', { matching: 'fuzzy' })).includes('dbo.HumanOrders'));
 	});
 
 	test('keywordCase: upper, lower and match', () => {
@@ -272,8 +272,8 @@ suite('SqlAutocomplete.compute - settings', () => {
 	});
 
 	test('addAlias appends an alias after FROM and JOIN only', () => {
-		assert.ok(inserts(suggest('SELECT * FROM hum|', { addAlias: true })).includes('HumanOrders ho'));
-		assert.ok(inserts(suggest('SELECT * FROM Employees e JOIN hum|', { addAlias: true })).includes('HumanOrders ho'));
+		assert.ok(inserts(suggest('SELECT * FROM hum|', { addAlias: true })).includes('dbo.HumanOrders ho'));
+		assert.ok(inserts(suggest('SELECT * FROM Employees e JOIN hum|', { addAlias: true })).includes('dbo.HumanOrders ho'));
 		const columns = suggest('SELECT na| FROM Employees e', { addAlias: true }).items.filter(i => i.kind === 'column');
 		assert.ok(columns.length > 0 && columns.every(i => !i.insert.includes(' ')));
 	});
@@ -286,7 +286,7 @@ suite('SqlAutocomplete.compute - settings', () => {
 	});
 
 	test('a bracket opened by the user is kept', () => {
-		assert.ok(inserts(suggest('SELECT * FROM [Emp|', { minChars: 1 })).includes('[Employees]'));
+		assert.ok(inserts(suggest('SELECT * FROM [Emp|', { minChars: 1 })).includes('dbo.[Employees]'));
 	});
 
 	test('showTypes hides the data type', () => {
@@ -345,7 +345,7 @@ suite('SqlAutocomplete.compute - context', () => {
 
 	test('a schema lists its objects with bare names, not bracketed qualified ones', () => {
 		assert.deepStrictEqual(inserts(suggest('SELECT * FROM Sales.|', {}, { databases: ['AppDb'], currentDatabase: 'AppDb' })), ['Orders', 'OrderLines', 'vOrderTotals']);
-		assert.deepStrictEqual(inserts(suggest('SELECT * FROM AppDb.|', {}, { databases: ['AppDb'], currentDatabase: 'AppDb' })).slice(0, 3), ['Employees', 'HumanOrders', 'Sales.Orders']);
+		assert.deepStrictEqual(inserts(suggest('SELECT * FROM AppDb.|', {}, { databases: ['AppDb'], currentDatabase: 'AppDb' })).slice(0, 3), ['dbo.Employees', 'dbo.HumanOrders', 'Sales.Orders']);
 	});
 
 	test('a schema suggestion keeps going with a dot', () => {

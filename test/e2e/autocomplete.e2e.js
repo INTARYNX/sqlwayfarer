@@ -46,7 +46,7 @@ suite('e2e: SQL autocompletion in the real query editor', function () {
 			await fresh(); await type('SELECT * FROM ho');
 			check(await open() && (await items())[0].includes('HumanOrders'), theme + ': initials "ho" -> HumanOrders (' + (await items()).slice(0, 3) + ')');
 			await p.keyboard.press('Tab');
-			check((await p.evaluate(() => window.queryManager.input.value)) === 'SELECT * FROM HumanOrders', theme + ': Tab accepts');
+			check((await p.evaluate(() => window.queryManager.input.value)) === 'SELECT * FROM dbo.HumanOrders', theme + ': Tab accepts (the schema is written)');
 
 			await fresh(); await type('SELECT * FROM Employees e JOIN ');
 			if (0) console.log('DBG', await open(), (await items()).slice(0,3), await p.evaluate(() => [appState.foreignKeys.length, appState.currentDatabase, window.queryManager.input.value, window.queryManager.autocomplete.isOpen()]));
