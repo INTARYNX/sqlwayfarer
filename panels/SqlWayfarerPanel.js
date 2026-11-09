@@ -633,6 +633,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{QUERY_SNIPPETS_HISTORY_URI}}', u('webview', 'querySnippetsHistory.js'));
         html = html.replace('{{QUERY_MANAGER_URI}}',        u('webview', 'queryManager.js'));
         html = html.replace('{{FILE_TREE_URI}}',            u('webview', 'fileTree.js'));
+        html = html.replace('{{OBJECT_DRAG_URI}}',          u('webview', 'objectDrag.js'));
         html = html.replace('{{QUERY_FILE_MANAGER_URI}}',   u('webview', 'queryFileManager.js'));
         html = html.replace('{{INSTANCE_TREE_URI}}',        u('webview', 'instanceTree.js'));
         html = html.replace('{{LINE_DIFF_URI}}',            u('webview', 'lineDiff.js'));

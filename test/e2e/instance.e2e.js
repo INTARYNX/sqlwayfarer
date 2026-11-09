@@ -162,4 +162,37 @@ suite('e2e: the instance tree', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('an object is dragged from the tree into the editor as database.schema.object, and the editor keeps working', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 700 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		const editor = () => p.evaluate(() => window.queryManager.input.value);
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['AppDb'], currentDatabase: 'AppDb' });
+		await p.click('#queryFilesBtn');
+		await p.click('#panelTabInstance');
+		await post({ command: 'instanceDatabases', databases: ['AppDb'] });
+		await p.click('.instance-row[data-key="db:AppDb"]');
+		await post({ command: 'instanceObjects', database: 'AppDb', objects: OBJECTS });
+		await p.click('.instance-row[data-key="grp:AppDb:Table"]');
+		await p.click('.instance-row[data-key="grp:AppDb:View"]');
+
+		check((await p.getAttribute('.instance-row[data-name="dbo.Orders"]', 'draggable')) === 'true', 'the rows of objects can be dragged');
+		check((await p.textContent('.instance-row[data-name="dbo.Orders"] .instance-name')) === 'dbo.Orders', 'the schema is in the name, the default one too');
+
+		await p.dragAndDrop('.instance-row[data-name="dbo.Orders"]', '.cm-content');
+		check((await editor()) === 'AppDb.dbo.Orders', 'dropped as database.schema.object (' + JSON.stringify(await editor()) + ')');
+
+		// The editor takes the keyboard straight away: no click beside the text first.
+		await p.keyboard.type(' x');
+		check((await editor()).endsWith('AppDb.dbo.Orders x'), 'typing works right after the drop (' + JSON.stringify(await editor()) + ')');
+
+		await p.dragAndDrop('.instance-row[data-name="Sales.vOrders"]', '.cm-content');
+		check((await editor()).includes('AppDb.Sales.vOrders'), 'a view of another schema (' + JSON.stringify(await editor()) + ')');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
