@@ -225,6 +225,8 @@ class CompareManager {
             this.sources = null;
             this.renderResult();
             this.setNote('');
+            // The snapshots of the other database are not periods of this one.
+            if (window.recentChanges) window.recentChanges.setSnapshots([]);
         }
         vscode.postMessage({ command: 'getCompareSources', database: database || null });
         if (this.mode === 'recent' && window.recentChanges) window.recentChanges.onActivated(database);
@@ -244,12 +246,14 @@ class CompareManager {
         this.renderSources();
         this.renderResult();
         this.setNote('');
+        if (window.recentChanges) window.recentChanges.setSnapshots([]);
     }
 
     onSources(message) {
         if (message.database !== this.database) return;
         this.sources = message;
         this.renderSources();
+        if (window.recentChanges) window.recentChanges.setSnapshots(message.snapshots);
     }
 
     renderSources() {

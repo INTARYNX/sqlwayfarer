@@ -21,8 +21,21 @@ const KINDS = {
 };
 const TYPE_CODES = Object.keys(KINDS).map(code => `'${code}'`).join(', ');
 
-function query(minutes) {
-    return `DECLARE @since datetime = DATEADD(MINUTE, -${minutes}, GETDATE());
+// `since` is the start of the period, as the SQL that gives it: the last
+// minutes, or the moment a snapshot of the database was taken (read from the
+// server itself, so its clock and its time zone are the ones of the dates compared).
+function sinceMinutes(minutes) {
+    return `DATEADD(MINUTE, -${minutes}, GETDATE())`;
+}
+
+function sinceSnapshot(database, snapshot) {
+    const literal = text => `N'${String(text).replace(/'/g, "''")}'`;
+    return `(SELECT create_date FROM sys.databases WHERE name = ${literal(snapshot)} AND source_database_id = DB_ID(${literal(database)}))`;
+}
+
+function query(since) {
+    return `DECLARE @since datetime = ${since};
+IF @since IS NULL THROW 50000, N'That snapshot is not there any more.', 1;
 SELECT TOP (${MAX_ITEMS + 1}) s.name AS schema_name, o.name AS object_name, o.type AS type_code,
        CONVERT(varchar(19), o.create_date, 120) AS created, CONVERT(varchar(19), o.modify_date, 120) AS modified,
        DATEDIFF(SECOND, o.create_date, GETDATE()) AS created_age, DATEDIFF(SECOND, o.modify_date, GETDATE()) AS modified_age,
@@ -35,10 +48,10 @@ LEFT JOIN sys.objects po ON po.object_id = o.parent_object_id
 LEFT JOIN sys.schemas ps ON ps.schema_id = po.schema_id
 WHERE o.is_ms_shipped = 0 AND o.type IN (${TYPE_CODES}) AND (o.modify_date >= @since OR o.create_date >= @since)
 ORDER BY o.modify_date DESC, o.name;
-SELECT CONVERT(varchar(19), GETDATE(), 120) AS server_time`;
+SELECT CONVERT(varchar(19), GETDATE(), 120) AS server_time, CONVERT(varchar(19), @since, 120) AS since`;
 }
 
-// The objects created or altered in the last `minutes`, the newest first.
+// The objects created or altered in a period, the newest first.
 function buildItems(rows) {
     return rows.filter(r => KINDS[String(r.type_code).trim()]).map(r => ({
         kind: KINDS[String(r.type_code).trim()],
@@ -55,17 +68,27 @@ function buildItems(rows) {
     }));
 }
 
-async function readRecentChanges(connectionManager, database, minutes) {
-    const span = Math.floor(Number(minutes));
-    if (!Number.isFinite(span) || span < 1 || span > MAX_MINUTES) throw new Error('The period is not valid.');
+// The period is the last `minutes`, or, with a `snapshot` of the database, what
+// came after it was taken.
+async function readRecentChanges(connectionManager, database, minutes, snapshot = null) {
+    let since;
+    let span = null;
+    if (snapshot) {
+        since = sinceSnapshot(database, snapshot);
+    } else {
+        span = Math.floor(Number(minutes));
+        if (!Number.isFinite(span) || span < 1 || span > MAX_MINUTES) throw new Error('The period is not valid.');
+        since = sinceMinutes(span);
+    }
     // A connection of its own, put back in master: a pooled connection stays in the database it was used in.
     const conn = await connectionManager.acquireConnection();
     try {
-        const sets = (await conn.createRequest().batch(`USE ${bracketIdentifier(database)};\n${query(span)}`)).recordsets;
+        const sets = (await conn.createRequest().batch(`USE ${bracketIdentifier(database)};\n${query(since)}`)).recordsets;
         const rows = sets[0];
         return {
-            database, minutes: span,
+            database, minutes: span, snapshot: snapshot || null,
             serverTime: sets[1] && sets[1][0] ? sets[1][0].server_time : null,
+            since: sets[1] && sets[1][0] ? sets[1][0].since : null,
             items: buildItems(rows.slice(0, MAX_ITEMS)),
             truncated: rows.length > MAX_ITEMS
         };

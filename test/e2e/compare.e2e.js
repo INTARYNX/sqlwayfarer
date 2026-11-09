@@ -323,6 +323,24 @@ suite('e2e: the Compare tab', function () {
 			await post({ command: 'recentFailed', message: 'The period is not valid.' });
 			check((await p.getAttribute('#recentNote', 'class')).includes('error'), `${theme}: a failure is shown`);
 
+			// The snapshots of the database are periods too: since the moment one was taken.
+			const SNAPSHOT = 'Sales_ref_20261103_090507';
+			await post({ command: 'compareSources', database: 'Sales', snapshots: [{ name: SNAPSHOT, source: 'Sales', createDate: '2026-11-03T09:05:07Z', state: 'ONLINE' }], databases: [], support: { supported: true } });
+			check((await p.$$eval('#recentPeriod optgroup option', os => os.map(o => o.value))).join() === `snapshot:${SNAPSHOT}`, `${theme}: the snapshot is offered as a period`);
+			await clear();
+			await p.selectOption('#recentPeriod', `snapshot:${SNAPSHOT}`);
+			const sinceAsked = (await sent()).find(m => m.command === 'getRecentChanges');
+			check(sinceAsked && sinceAsked.snapshot === SNAPSHOT && sinceAsked.minutes === undefined, `${theme}: choosing it reads what came after it (${JSON.stringify(sinceAsked)})`);
+			await post({ command: 'recentChanges', database: 'Sales', minutes: null, snapshot: SNAPSHOT, since: '2026-11-03 09:05:07', serverTime: '2026-11-03 11:00:00', items: [items[0]], truncated: false });
+			check((await p.textContent('#recentSummary')).includes(`1 object(s) since the snapshot ${SNAPSHOT} (taken 2026-11-03 09:05:07)`), `${theme}: the summary says since when`);
+
+			// The snapshot is dropped: it is no longer a period, and the view goes back to the last hours.
+			await clear();
+			await post({ command: 'compareSources', database: 'Sales', snapshots: [], databases: [], support: { supported: true } });
+			check((await p.$$eval('#recentPeriod optgroup', os => os.length)) === 0, `${theme}: no snapshot, no group`);
+			check((await p.inputValue('#recentPeriod')) === '180', `${theme}: back to 3 hours`);
+			check((await sent()).some(m => m.command === 'getRecentChanges' && m.minutes === 180 && !m.snapshot), `${theme}: and it reads them again`);
+
 			// Back to the comparison: nothing of it was lost.
 			await p.click('#compareModeRef');
 			check(await p.isVisible('#compareRefView') && !(await p.isVisible('#compareRecentView')), `${theme}: back to the comparison`);
