@@ -2,14 +2,12 @@
 
 const { splitBatches } = require('./sqlBatches');
 const { bracketIdentifier } = require('./sqlIdentifier');
-const { PROGRESS_CLEAR } = require('./migrationScript');
 
 // === Applying the script of a comparison to a database ===
 //
 // classifyTarget says where a database stands against the changes of a script,
 // applyScript runs the script on it the way the editor does (every batch, in
-// order, on one connection; a batch that fails does not stop the next, the
-// script stops itself, see migrationScript.js).
+// order, on one connection; the first batch that fails stops it).
 
 const idOf = change => `${change.kind}:${change.name}`;
 
@@ -50,17 +48,17 @@ async function applyScript(connectionManager, database, script, { onProgress = (
                     await conn.createRequest().batch(batch.sql);
                 } catch (error) {
                     errors.push({ batch: ran + 1, line: batch.startLine, message: error.message });
+                    break;
                 }
             }
             ran++;
             onProgress(ran, batches.length);
+            if (errors.length > 0) break;
         }
     } finally {
-        // A pooled connection keeps what the script left: NOEXEC when it stopped itself, its
-        // progress marks and the SET options of the last module when it was stopped half way.
+        // A pooled connection keeps the SET options of the last module when it stopped half way.
         try {
-            await conn.createRequest().batch('SET NOEXEC OFF');
-            await conn.createRequest().batch(`${PROGRESS_CLEAR}\nSET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;\nUSE [master];`);
+            await conn.createRequest().batch('SET ANSI_NULLS ON;\nSET QUOTED_IDENTIFIER ON;\nUSE [master];');
         } catch { /* the connection is gone */ }
         conn.release();
     }
