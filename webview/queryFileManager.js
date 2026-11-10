@@ -419,6 +419,23 @@ class QueryFileManager {
         });
         this._updateFilesTotal(tree);
         if (found && this._search.truncated) this.filesTotalEl.textContent += '+';
+        this._markOpenFiles();
+    }
+
+    // Highlights, in the files tree, the files that are open in a query tab
+    // ("open") and the one of the tab being edited ("active"). The paths are
+    // compared without regard to the slash and the case, as Windows does.
+    _markOpenFiles() {
+        if (!this.filesTree) return;
+        const norm = p => String(p || '').replace(/\\/g, '/').toLowerCase();
+        const open = new Set(this.tabs.filter(t => t.filePath).map(t => norm(t.filePath)));
+        const current = this._activeTab();
+        const active = current && current.filePath ? norm(current.filePath) : null;
+        this.filesTree.querySelectorAll('.sql-file-item[data-file-path]').forEach(row => {
+            const path = norm(row.dataset.filePath);
+            row.classList.toggle('open', open.has(path));
+            row.classList.toggle('active', path === active);
+        });
     }
 
     // "N files in M folders" in the panel header: the tree only shows the
@@ -700,6 +717,7 @@ class QueryFileManager {
         this.queryTabsCount.textContent = String(this.tabs.length);
         this.activeTabLabel.title = 'Frame of the editor - purple: draft, not in a file; orange: file with unsaved changes; blue: saved file';
         if (this.tabsDropdown.classList.contains('visible')) this.renderTabsDropdown();
+        this._markOpenFiles();
         this.updateSaveButtonState();
     }
 
