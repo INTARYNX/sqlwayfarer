@@ -2123,7 +2123,8 @@ body.vscode-high-contrast .qp-tt-header {
     align-items: center;
     gap: 6px;
     box-sizing: border-box;
-    padding: 4px 8px 4px calc(8px + var(--depth, 0) * 12px);
+    padding: 1px 8px 1px calc(8px + var(--depth, 0) * 12px);
+    line-height: 18px;
     font-size: 12px;
     cursor: pointer;
     min-width: 0;
@@ -2148,8 +2149,11 @@ body.vscode-high-contrast .qp-tt-header {
 
 .sql-file-folder {
     font-weight: 600;
-    border-top: 1px solid var(--vscode-input-border);
 }
+
+/* Coloured icons, and no rule between the rows: the list stays compact. */
+.sql-file-folder .codicon-folder { color: var(--vscode-symbolIcon-folderForeground, #dcb67a); }
+.sql-file-item .codicon-file { color: var(--vscode-symbolIcon-fileForeground, #519aba); }
 
 .sql-file-folder-name,
 .sql-file-item-name {
