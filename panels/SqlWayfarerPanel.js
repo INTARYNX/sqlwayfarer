@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const debug = require('../database/debugLog');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 
 const ConnectionManager = require('../database/ConnectionManager');
@@ -158,7 +159,15 @@ class SqlWayfarerPanel {
                 createVsCodeTokenFetcher(vscode),
                 path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
             ),
-            confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action
+            confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action,
+            saveFile: async (defaultName) => {
+                const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+                const uri = await vscode.window.showSaveDialog({
+                    defaultUri: vscode.Uri.file(path.join(folder ? folder.uri.fsPath : os.homedir(), defaultName)),
+                    filters: { Zip: ['zip'] }
+                });
+                return uri ? uri.fsPath : null;
+            }
         });
         this._instance = new InstanceHandlers(post, {
             databaseService: this._targetDatabaseService,
@@ -513,6 +522,7 @@ class SqlWayfarerPanel {
             case 'getCompareSources':            await this._compare.handleGetSources(message.database); break;
             case 'runCompare':                   await this._compare.handleCompare(message.database, message.reference); break;
             case 'buildCompareScript':           this._compare.handleBuildScript(message.ids, message.allowDestructive, message.legacy); break;
+            case 'exportCompareZip':             this._compare.handleExportZip(message.ids, message.allowDestructive, message.legacy); break;
             case 'takeSnapshot':                 await this._compare.handleTakeSnapshot(message.database); break;
             case 'dropSnapshot':                 await this._compare.handleDropSnapshot(message.database, message.name); break;
             case 'getCompareTargets':            this._compare.handleGetTargets(); break;

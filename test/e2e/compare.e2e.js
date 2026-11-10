@@ -171,6 +171,14 @@ suite('e2e: the Compare tab', function () {
 		check((await p.$$eval('.compare-line-text', els => els.map(e => e.textContent))).join() === 'column id int NOT NULL,column total decimal(10,2) NOT NULL', 'its After lists the whole table');
 		await p.click('.compare-row[data-id="table:dbo.Log"]');
 		check(await p.isDisabled('.compare-view-tab[data-view=after]') && (await p.$$eval('.compare-op', els => els.length)) === 1, 'a removed table has no After, and falls back to its changes');
+		// The zip of what is picked.
+		check(!(await p.isDisabled('#compareExportBtn')), 'Export zip is on while something is picked');
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('#compareExportBtn');
+		const exportMsg = (await p.evaluate(() => window.__sent.slice())).find(m => m.command === 'exportCompareZip');
+		check(exportMsg && exportMsg.ids.length === 4 && exportMsg.allowDestructive === false, 'it sends the picked changes');
+		await post({ command: 'compareExported', path: 'C:/out/x.zip', count: 4, files: 9 });
+		check((await p.textContent('#compareNote')).includes('Exported 4 changes (9 files) to C:/out/x.zip'), 'and says where the zip is');
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
 		check.done();
 		await p.close();
