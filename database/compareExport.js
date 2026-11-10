@@ -7,10 +7,11 @@ const { buildMigrationScript } = require('./migrationScript');
 //
 //   changes.csv           one line per picked change: kind, name, status, risk, files
 //   script.sql            the migration script of those changes (as "Script to editor" writes it)
-//   before/<kind>/<name>.sql   the whole code of the object in the reference
-//   after/<kind>/<name>.sql    the whole code of the object in the current database
+//   README.txt            which folder is which database
+//   reference/<kind>/<name>.sql   the whole code of the object in the reference (the "before")
+//   current/<kind>/<name>.sql     the whole code of the object in the current database (the "after")
 //
-// A side that does not exist (before of an added object, after of a removed one)
+// A side that does not exist (the reference of an added object, the current of a removed one)
 // has no file. A table has no code: its file is the CREATE TABLE script (with its
 // indexes and constraints) of that side. Pure: no connection, no disk.
 
@@ -33,9 +34,9 @@ function tableText(table) {
 
 // The text of one side of a change, or null when there is none.
 function sideText(change, side) {
-    const object = change[side === 'before' ? 'reference' : 'current'];
+    const object = change[side];
     if (change.kind === 'schema') {
-        const exists = side === 'before' ? change.status !== 'added' : change.status !== 'removed';
+        const exists = side === 'reference' ? change.status !== 'added' : change.status !== 'removed';
         return exists ? `CREATE SCHEMA [${change.name}];\n` : null;
     }
     if (!object) return null;
@@ -50,22 +51,32 @@ function buildExportFiles(last, { ids, allowDestructive = false, legacy = false,
     const selected = new Set(Array.isArray(ids) ? ids : []);
     const picked = diff.changes.filter(change => selected.has(`${change.kind}:${change.name}`));
     const files = [];
-    const rows = [['kind', 'name', 'status', 'risk', 'before', 'after']];
+    const rows = [['kind', 'name', 'status', 'risk', 'reference', 'current']];
     for (const change of picked) {
         const paths = {};
-        for (const side of ['before', 'after']) {
+        for (const side of ['reference', 'current']) {
             const text = sideText(change, side);
             if (text === null) continue;
             paths[side] = `${side}/${change.kind}/${fileName(change.name)}.sql`;
             files.push({ path: paths[side], content: text });
         }
-        rows.push([change.kind, change.name, change.status, worstRisk(change.ops), paths.before || '', paths.after || '']);
+        rows.push([change.kind, change.name, change.status, worstRisk(change.ops), paths.reference || '', paths.current || '']);
     }
     const script = buildMigrationScript(diff, {
         selected, allowDestructive: allowDestructive === true, createOrAlter: legacy === true ? false : createOrAlter,
         reference, current: database, now
     });
+    const readme = [
+        'SQL Wayfarer: the changes picked in a comparison',
+        '',
+        `reference/  the code as it is in the reference ${reference} (the "before")`,
+        `current/    the code as it is in the database ${database} that was compared (the "after")`,
+        'changes.csv  one line per change; the script.sql repeats them on another database',
+        'A table has no code: its file is the CREATE TABLE script, with its indexes and constraints.',
+        'An object that was added has no file in reference/, one that was removed has none in current/.'
+    ].join('\r\n');
     files.unshift(
+        { path: 'README.txt', content: `${readme}\r\n` },
         { path: 'changes.csv', content: `﻿${rows.map(row => row.map(csvCell).join(',')).join('\r\n')}\r\n` },
         { path: 'script.sql', content: script.script }
     );
