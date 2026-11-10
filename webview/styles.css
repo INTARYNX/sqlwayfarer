@@ -1551,10 +1551,17 @@ body.vscode-high-contrast .qp-tt-header {
     text-overflow: ellipsis;
 }
 
-/* The encoding of the file of the active query, at the right of the footer. */
+/* The encoding of the file of the active query, at the right of the drag bar.
+   The row keeps the 6px of the bar: the select is taller and overflows into
+   the gaps above and below. */
 .query-encoding-select {
     flex: 0 0 auto;
-    font-size: 12px;
+    font-size: 10px;
+    width: auto;
+    height: 16px;
+    margin: 0;
+    padding: 0 2px;
+    line-height: 1;
 }
 
 /* Only there while a script has left a transaction open. */
@@ -1676,9 +1683,17 @@ body.vscode-high-contrast .qp-tt-header {
     z-index: 201;
 }
 
-/* Drag bar between the SQL editor and the results grid */
-.query-splitter {
+/* Drag bar between the SQL editor and the results grid, with the encoding at its right */
+.query-splitter-row {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 6px;
+}
+
+.query-splitter {
+    flex: 1 1 auto;
     height: 6px;
     background-color: var(--vscode-input-border);
     cursor: ns-resize;
