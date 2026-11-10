@@ -35,6 +35,7 @@ class CompareManager {
             result: document.getElementById('compareResult'),
             summary: document.getElementById('compareSummary'),
             filter: document.getElementById('compareFilter'),
+            statusFilter: document.getElementById('compareStatusFilter'),
             list: document.getElementById('compareList'),
             detail: document.getElementById('compareDetail'),
             footer: document.getElementById('compareFooter'),
@@ -70,6 +71,8 @@ class CompareManager {
         this.selected = new Set();
         this.active = null;       // the id of the change shown on the right
         this.filter = '';
+        this.status = '';         // '' (all), or the one status that is listed
+        this.view = 'changes';    // what the right side shows: the changes, the code before, or after
         this.running = false;
         this.chosen = new Map();  // database -> the reference picked last
 
@@ -82,6 +85,20 @@ class CompareManager {
         this.el.snapshot.addEventListener('click', () => vscode.postMessage({ command: 'takeSnapshot', database: this.database }));
         this.el.dropSnapshot.addEventListener('click', () => vscode.postMessage({ command: 'dropSnapshot', database: this.database, name: this.el.reference.value }));
         this.el.filter.addEventListener('input', () => { this.filter = this.el.filter.value.trim().toLowerCase(); this.renderList(); });
+        this.el.statusFilter.addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-status]');
+            if (!chip) return;
+            // A second click on the chip that is on goes back to everything.
+            this.status = chip.dataset.status === this.status ? '' : chip.dataset.status;
+            this.renderStatusFilter();
+            this.renderList();
+        });
+        this.el.detail.addEventListener('click', (e) => {
+            const tab = e.target.closest('[data-view]');
+            if (!tab || tab.disabled) return;
+            this.view = tab.dataset.view;
+            this.renderDetail();
+        });
         this.el.destructive.addEventListener('change', () => this.renderFooter());
         this.el.script.addEventListener('click', () => this.buildScript());
         this.el.list.addEventListener('click', (e) => {
@@ -127,9 +144,9 @@ class CompareManager {
     }
 
     // The changes by kind, those that match the filter, and a count per group.
-    static group(changes, filter) {
+    static group(changes, filter, status) {
         return COMPARE_GROUPS
-            .map(group => ({ ...group, changes: changes.filter(c => c.kind === group.kind && (!filter || c.name.toLowerCase().includes(filter))) }))
+            .map(group => ({ ...group, changes: changes.filter(c => c.kind === group.kind && (!status || c.status === status) && (!filter || c.name.toLowerCase().includes(filter))) }))
             .filter(group => group.changes.length > 0);
     }
 
@@ -341,6 +358,7 @@ class CompareManager {
         this.selected = new Set(message.diff.changes.map(CompareManager.idOf));
         this.active = message.diff.changes.length > 0 ? CompareManager.idOf(message.diff.changes[0]) : null;
         this.filter = '';
+        this.status = '';
         this.el.filter.value = '';
         // Before 2016 SP1 there is no CREATE OR ALTER: the script is told which to write.
         this.el.target.value = message.createOrAlter ? 'modern' : 'legacy';
@@ -393,16 +411,36 @@ class CompareManager {
             note.title = diff.skipped.map(s => s.name).join('\n');
             summary.appendChild(note);
         }
+        this.renderStatusFilter();
         this.renderList();
         this.renderFooter();
         this.renderDetail();
+    }
+
+    // One chip per status, with how many changes it holds; the one that is on narrows the list.
+    renderStatusFilter() {
+        const box = this.el.statusFilter;
+        box.textContent = '';
+        const diff = this.result && this.result.diff;
+        box.hidden = !diff || diff.identical;
+        if (box.hidden) return;
+        for (const status of ['added', 'modified', 'removed']) {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.dataset.status = status;
+            chip.className = `compare-chip ${status}${this.status === status ? ' on' : ''}`;
+            chip.setAttribute('aria-pressed', String(this.status === status));
+            chip.title = COMPARE_STATUS[status].title;
+            chip.textContent = `${status[0].toUpperCase()}${status.slice(1)} ${diff.summary[status]}`;
+            box.appendChild(chip);
+        }
     }
 
     renderList() {
         const list = this.el.list;
         list.textContent = '';
         if (!this.result) return;
-        const groups = CompareManager.group(this.result.diff.changes, this.filter);
+        const groups = CompareManager.group(this.result.diff.changes, this.filter, this.status);
         if (groups.length === 0) {
             const p = document.createElement('p');
             p.className = 'placeholder-text';
@@ -501,9 +539,72 @@ class CompareManager {
         title.textContent = `${change.kind} ${change.name} — ${change.status}`;
         detail.appendChild(title);
 
+        if (change.kind !== 'schema') {
+            const view = this.renderViews(detail, change);
+            if (view !== 'changes') { this.renderFullCode(detail, change, view); return; }
+        }
         if (change.kind === 'table') this.renderTableDetail(detail, change);
         else if (change.kind === 'schema') this.renderLines(detail, change.ops.map(op => ({ ...CompareManager.describeOp(op), risk: op.risk })));
         else this.renderModuleDetail(detail, change);
+    }
+
+    // The whole text of a side: the code of a module, or the lines that describe a table.
+    static fullText(change, side) {
+        const object = change[side === 'before' ? 'reference' : 'current'];
+        if (!object) return '';
+        if (change.kind === 'table') return CompareManager.describeTable(object).join('\n');
+        return object.definition === null ? null : LineDiff.normalize(object.definition);
+    }
+
+    // The tabs Changes / Before / After; a side that does not exist (added: no before) is off.
+    // Returns the view to show, which falls back to the changes when the one asked for is off.
+    renderViews(parent, change) {
+        const sides = { before: change.status !== 'added', after: change.status !== 'removed' };
+        const view = this.view !== 'changes' && !sides[this.view] ? 'changes' : this.view;
+        const bar = document.createElement('div');
+        bar.className = 'compare-views';
+        bar.setAttribute('role', 'tablist');
+        for (const [name, label, enabled] of [['changes', 'Changes', true], ['before', 'Before', sides.before], ['after', 'After', sides.after]]) {
+            const tab = document.createElement('button');
+            tab.type = 'button';
+            tab.dataset.view = name;
+            tab.disabled = !enabled;
+            tab.className = `compare-view-tab${view === name ? ' active' : ''}`;
+            tab.setAttribute('role', 'tab');
+            tab.setAttribute('aria-selected', String(view === name));
+            tab.title = name === 'changes' ? 'What differs' : name === 'before' ? 'The whole code in the reference' : 'The whole code in the current database';
+            tab.textContent = label;
+            bar.appendChild(tab);
+        }
+        parent.appendChild(bar);
+        return view;
+    }
+
+    renderFullCode(parent, change, view) {
+        const text = CompareManager.fullText(change, view);
+        if (text === null) {
+            const p = document.createElement('p');
+            p.className = 'placeholder-text';
+            p.textContent = 'The definition cannot be read (encrypted, or VIEW DEFINITION is missing).';
+            parent.appendChild(p);
+            return;
+        }
+        const code = document.createElement('div');
+        code.className = 'compare-code';
+        text.split('\n').forEach((line, i) => {
+            const el = document.createElement('div');
+            el.className = 'compare-line same';
+            const number = document.createElement('span');
+            number.className = 'compare-lineno';
+            number.textContent = String(i + 1);
+            el.appendChild(number);
+            const content = document.createElement('span');
+            content.className = 'compare-line-text';
+            content.textContent = line;
+            el.appendChild(content);
+            code.appendChild(el);
+        });
+        parent.appendChild(code);
     }
 
     renderLines(parent, lines) {

@@ -1,5 +1,6 @@
 const assert = require('assert');
 const { CompareManager } = require('../webview/compareManager');
+global.LineDiff = require('../webview/lineDiff'); // a global of the page
 
 const column = (name, extra) => Object.assign({ name, type: 'int', nullable: false, identity: null, computed: null, default: null, collation: null }, extra);
 
@@ -11,6 +12,24 @@ suite('CompareManager (what it shows)', () => {
 		assert.deepStrictEqual(CompareManager.group(changes, '').map(g => `${g.label}:${g.changes.length}`), ['Tables:2', 'Views:1', 'Procedures:1']);
 		assert.deepStrictEqual(CompareManager.group(changes, 'order').map(g => `${g.label}:${g.changes.map(c => c.name)}`), ['Tables:dbo.Orders', 'Views:dbo.vOrders']);
 		assert.deepStrictEqual(CompareManager.group(changes, 'zzz'), []);
+	});
+
+	test('the changes can be narrowed to one status', () => {
+		const changes = [
+			{ kind: 'table', name: 'dbo.A', status: 'added' }, { kind: 'table', name: 'dbo.B', status: 'removed' },
+			{ kind: 'view', name: 'dbo.vA', status: 'added' }, { kind: 'procedure', name: 'dbo.p', status: 'modified' }
+		];
+		assert.deepStrictEqual(CompareManager.group(changes, '', 'added').map(g => `${g.label}:${g.changes.map(c => c.name)}`), ['Tables:dbo.A', 'Views:dbo.vA']);
+		assert.deepStrictEqual(CompareManager.group(changes, 'p', 'modified').map(g => g.label), ['Procedures']);
+		assert.deepStrictEqual(CompareManager.group(changes, '', 'removed').map(g => g.changes.length), [1]);
+	});
+
+	test('the whole text of a side is the code, or the lines of the table; a missing side is empty', () => {
+		const module = { kind: 'view', status: 'modified', reference: { definition: 'a\r\nb' }, current: { definition: 'a\nc' } };
+		assert.strictEqual(CompareManager.fullText(module, 'before'), 'a\nb');
+		assert.strictEqual(CompareManager.fullText(module, 'after'), 'a\nc');
+		assert.strictEqual(CompareManager.fullText({ kind: 'view', status: 'added', current: { definition: 'x' } }, 'before'), '');
+		assert.strictEqual(CompareManager.fullText({ kind: 'view', status: 'modified', reference: { definition: null }, current: { definition: 'x' } }, 'before'), null);
 	});
 
 	test('a change is as risky as its worst operation', () => {
