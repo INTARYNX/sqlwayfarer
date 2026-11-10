@@ -619,7 +619,26 @@ class CompareManager {
         return object.definition === null ? null : LineDiff.normalize(object.definition);
     }
 
-    // The tabs Changes / Before / After; a side that does not exist (added: no before) is off.
+    // What the three tabs and the line above the code say: the reference and the current database by their names.
+    static viewTexts(reference, database, change) {
+        const what = change.kind === 'table' ? 'The table, as a list of its columns, keys, indexes and constraints,' : 'The complete code';
+        const missing = (where, why) => `${change.name} does not exist in ${where}: it was ${why}.`;
+        return {
+            changes: { label: 'Differences', title: `What differs between the reference (${reference}) and the current database (${database})` },
+            before: {
+                label: `Reference (${reference})`,
+                title: change.status === 'added' ? missing(`the reference ${reference}`, 'added since') : `${what} as it is in the reference ${reference}: the "before"`,
+                caption: `${what} as it is in the reference ${reference} (the "before").`
+            },
+            after: {
+                label: `Current (${database})`,
+                title: change.status === 'removed' ? missing(database, 'removed since') : `${what} as it is now in ${database}, the database you compare: the "after"`,
+                caption: `${what} as it is now in ${database}, the database you compare (the "after").`
+            }
+        };
+    }
+
+    // The tabs Differences / Reference / Current; a side that does not exist (added: no reference) is off.
     // Returns the view to show, which falls back to the changes when the one asked for is off.
     renderViews(parent, change) {
         const sides = { before: change.status !== 'added', after: change.status !== 'removed' };
@@ -627,7 +646,8 @@ class CompareManager {
         const bar = document.createElement('div');
         bar.className = 'compare-views';
         bar.setAttribute('role', 'tablist');
-        for (const [name, label, enabled] of [['changes', 'Changes', true], ['before', 'Before', sides.before], ['after', 'After', sides.after]]) {
+        const texts = CompareManager.viewTexts(this.result.reference, this.result.database, change);
+        for (const [name, enabled] of [['changes', true], ['before', sides.before], ['after', sides.after]]) {
             const tab = document.createElement('button');
             tab.type = 'button';
             tab.dataset.view = name;
@@ -635,8 +655,8 @@ class CompareManager {
             tab.className = `compare-view-tab${view === name ? ' active' : ''}`;
             tab.setAttribute('role', 'tab');
             tab.setAttribute('aria-selected', String(view === name));
-            tab.title = name === 'changes' ? 'What differs' : name === 'before' ? 'The whole code in the reference' : 'The whole code in the current database';
-            tab.textContent = label;
+            tab.title = texts[name].title;
+            tab.textContent = texts[name].label;
             bar.appendChild(tab);
         }
         parent.appendChild(bar);
@@ -652,6 +672,10 @@ class CompareManager {
             parent.appendChild(p);
             return;
         }
+        const caption = document.createElement('div');
+        caption.className = 'compare-caption';
+        caption.textContent = CompareManager.viewTexts(this.result.reference, this.result.database, change)[view].caption;
+        parent.appendChild(caption);
         const code = document.createElement('div');
         code.className = 'compare-code';
         text.split('\n').forEach((line, i) => {
@@ -721,6 +745,12 @@ class CompareManager {
             return;
         }
         if (change.status === 'modified' && before === after) return;
+        if (change.status === 'modified') {
+            const legend = document.createElement('div');
+            legend.className = 'compare-caption';
+            legend.textContent = `− only in the reference ${this.result.reference} · + only in the current ${this.result.database}`;
+            parent.appendChild(legend);
+        }
         const lines = LineDiff.diff(before, after);
         const code = document.createElement('div');
         code.className = 'compare-code';

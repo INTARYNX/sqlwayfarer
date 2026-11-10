@@ -163,7 +163,9 @@ suite('e2e: the Compare tab', function () {
 
 		await p.click('.compare-row[data-id="procedure:dbo.usp_Load"]');
 		check(await p.isDisabled('.compare-view-tab[data-view=changes]') === false, 'the Changes tab is on');
+		check((await p.$$eval('.compare-view-tab', els => els.map(e => e.textContent))).join() === 'Differences,Reference (R),Current (Sales)', 'the tabs name the reference and the database, not before and after');
 		await p.click('.compare-view-tab[data-view=before]');
+		check((await p.textContent('.compare-caption')) === 'The complete code as it is in the reference R (the "before").', 'a line says what is shown');
 		let code = await p.$$eval('.compare-line-text', els => els.map(e => e.textContent));
 		check(code.length === 6 && code[0] === 'CREATE PROC dbo.usp_Load AS' && code.includes('    SELECT 3'), `Before shows the whole reference code (${code.length} lines)`);
 		await p.click('.compare-view-tab[data-view=after]');

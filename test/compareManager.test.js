@@ -37,6 +37,15 @@ suite('CompareManager (what it shows)', () => {
 		assert.strictEqual(CompareManager.fullText({ kind: 'view', status: 'modified', reference: { definition: null }, current: { definition: 'x' } }, 'before'), null);
 	});
 
+	test('the tabs of a change name the reference and the database, and say why one is off', () => {
+		const modified = CompareManager.viewTexts('Ref', 'Db', { kind: 'view', name: 'dbo.v', status: 'modified' });
+		assert.deepStrictEqual([modified.changes.label, modified.before.label, modified.after.label], ['Differences', 'Reference (Ref)', 'Current (Db)']);
+		assert.ok(modified.before.caption.includes('reference Ref') && modified.after.caption.includes('now in Db'));
+		assert.strictEqual(CompareManager.viewTexts('Ref', 'Db', { kind: 'table', name: 'dbo.T', status: 'added' }).before.title, 'dbo.T does not exist in the reference Ref: it was added since.');
+		assert.strictEqual(CompareManager.viewTexts('Ref', 'Db', { kind: 'table', name: 'dbo.T', status: 'removed' }).after.title, 'dbo.T does not exist in Db: it was removed since.');
+		assert.ok(CompareManager.viewTexts('Ref', 'Db', { kind: 'table', name: 'dbo.T', status: 'modified' }).before.caption.startsWith('The table, as a list'));
+	});
+
 	test('a change is as risky as its worst operation', () => {
 		assert.strictEqual(CompareManager.worstRisk([{ risk: 'safe' }, { risk: 'caution' }, { risk: 'safe' }]), 'caution');
 		assert.strictEqual(CompareManager.worstRisk([{ risk: 'caution' }, { risk: 'destructive' }, { risk: 'manual' }]), 'manual');

@@ -3847,6 +3847,8 @@ table.fp-cols .fp-center { text-align: center; }
     border-bottom: 2px solid transparent;
     border-radius: 0;
 }
+.compare-view-tab { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compare-caption { margin-top: 10px; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .compare-view-tab.active { border-bottom-color: var(--vscode-focusBorder); font-weight: 600; }
 .compare-view-tab:disabled { opacity: 0.4; cursor: default; }
 
