@@ -55,6 +55,19 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 		check(JSON.stringify(tree.links) === JSON.stringify([['OtherDb', 'Orders', 'OtherDb.dbo.Orders']]), 'a node of another database is a link: ' + JSON.stringify(tree.links));
 		check(tree.text.includes('dbo.R&D <x>') && !tree.text.includes('&amp;'), 'a name is escaped once: ' + JSON.stringify(tree.text));
 
+		// A click on such a link brings the tab that is showing (here the tree) to that object, in its database.
+		await p.evaluate(() => { appState.activeDetailsTab = 'tree'; });
+		await clear();
+		await p.evaluate(() => document.querySelector('#treeContainer .dep-link').click());
+		check((await sent()).some(m => m.command === 'getObjectDetailsAuto' && m.database === 'OtherDb' && m.objectName === 'dbo.Orders'), 'the link asks for the object in its own database');
+		check((await p.textContent('#treeContainer')).includes('Loading OtherDb.dbo.Orders'), 'the tree says it is loading it');
+		await post({ command: 'tableDetailsLoaded', database: 'OtherDb', tableName: 'dbo.Orders', columns: [], indexes: [], foreignKeys: [], dependencies: [], stats: null });
+		check((await sent()).some(m => m.command === 'getDependencyTree' && m.database === 'OtherDb' && m.objectName === 'dbo.Orders'), 'once the object is known, the tree of it is asked for');
+		await post({ command: 'dependencyTreeResult', database: 'OtherDb', objectName: 'dbo.Orders', dependencyTree: { name: 'dbo.Orders', external: null, dependencies: [{ name: 'dbo.OrderLines', external: null, dependencies: [] }] } });
+		check((await p.textContent('#treeContainer')).includes('dbo.OrderLines'), 'and the tree shows it');
+		await p.evaluate(() => { appState.activeDetailsTab = 'details'; });
+		await p.click('[data-tab=query]');
+
 		// ---- Code tab: Format is a way of looking, the code of the server stays
 		const codeText = () => p.evaluate(() => [...document.querySelectorAll('#codeContainer .cm-line')].map(l => l.textContent).join('\n'));
 		const press = action => p.evaluate(a => document.querySelector(`#codeContainer [data-action=${a}]`).click(), action);
