@@ -4,6 +4,20 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.4] - 2026-11-10
+
+### Changed
+
+- **Explorer: "Script" opens in a new query tab** instead of replacing the text of the query being edited.
+- **Query: the file encoding select** moved to the right of the bar that resizes the editor, and is much smaller.
+- **Result grid: compact cells** (less vertical padding), column names keep the case the server returned, and NULL cells have a background of their own.
+- **Query tabs list: each query shows the database it runs on** as a tag.
+
+### Fixed
+
+- **Index status: a table was reported out of date after maintenance** that leaves what the analysis reads untouched (an index created or rebuilt, a foreign key added), because the modification date of a table moves for all of these. A table now counts as changed only when its computed columns, CHECK constraints or defaults changed. Once, after this update, every index is reported out of date: "Update index" re-analyzes the tables only.
+- **Index window: the Stats view did not scroll**, so the end of it (slowest objects, previous builds) was cut off. Long object names now wrap.
+
 ## [0.99.3] - 2026-11-09
 
 ### Added
