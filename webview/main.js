@@ -145,7 +145,9 @@ class MessageHandler {
                     // From the instance tree, on a database that is not the one the editor runs on.
                     const runsOn = this.queryManager.targetDatabase();
                     const useLine = message.database && message.database !== runsOn ? `USE [${message.database.replace(/]/g, ']]')}]\nGO\n\n` : '';
-                    this.queryManager.setQueryText(useLine + message.script);
+                    // A new tab: the query being edited is not overwritten.
+                    if (this.queryManager.openScriptInNewTab) this.queryManager.openScriptInNewTab(useLine + message.script);
+                    else this.queryManager.setQueryText(useLine + message.script);
                 }
                 break;
 
