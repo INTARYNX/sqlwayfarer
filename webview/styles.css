@@ -2151,9 +2151,10 @@ body.vscode-high-contrast .qp-tt-header {
     font-weight: 600;
 }
 
-/* Coloured icons, and no rule between the rows: the list stays compact. */
-.sql-file-folder .codicon-folder { color: var(--vscode-symbolIcon-folderForeground, #dcb67a); }
-.sql-file-item .codicon-file { color: var(--vscode-symbolIcon-fileForeground, #519aba); }
+/* Coloured icons, and no rule between the rows: the list stays compact. The
+   colours are fixed: the theme's own symbolIcon colours are grey in most themes. */
+.sql-file-folder .codicon-folder { color: #dcb67a; }
+.sql-file-item .codicon-file { color: #519aba; }
 
 .sql-file-folder-name,
 .sql-file-item-name {
