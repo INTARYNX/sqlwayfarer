@@ -43,6 +43,7 @@ class CompareManager {
             target: document.getElementById('compareTarget'),
             selected: document.getElementById('compareSelected'),
             script: document.getElementById('compareScriptBtn'),
+            exportZip: document.getElementById('compareExportBtn'),
             apply: document.getElementById('compareApplyBtn'),
             overlay: document.getElementById('compareApplyOverlay'),
             applyConnection: document.getElementById('compareApplyConnection'),
@@ -101,6 +102,7 @@ class CompareManager {
         });
         this.el.destructive.addEventListener('change', () => this.renderFooter());
         this.el.script.addEventListener('click', () => this.buildScript());
+        this.el.exportZip.addEventListener('click', () => vscode.postMessage({ command: 'exportCompareZip', ...this.choice() }));
         this.el.list.addEventListener('click', (e) => {
             const row = e.target.closest('.compare-row');
             if (!row) return;
@@ -703,6 +705,7 @@ class CompareManager {
         if (manual > 0) parts.push(`${manual} to do by hand`);
         this.el.selected.textContent = parts.join(' · ');
         this.el.script.disabled = picked.length === 0;
+        this.el.exportZip.disabled = picked.length === 0;
         this.el.apply.disabled = picked.length === 0;
     }
 
@@ -867,6 +870,11 @@ class CompareManager {
             this.el.applyResult.appendChild(el);
         }
         this.updateApplyButtons();
+    }
+
+    onExported(message) {
+        if (message.cancelled) return;
+        this.setNote(`Exported ${message.count} change${message.count > 1 ? 's' : ''} (${message.files} files) to ${message.path}`, 'success');
     }
 
     onScript(message) {

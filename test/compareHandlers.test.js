@@ -60,6 +60,8 @@ function setup(options = {}, answers = {}) {
 		connectionManager: manager,
 		confirm: async (message, detail, action) => { confirmed.push({ message, detail, action }); return answers.confirm !== false; },
 		now: () => NOW,
+		saveFile: options.saveFile,
+		writeFile: options.writeFile,
 		connectionStorage: { getSavedConnections: () => [{ name: 'Me', server: 'srv' }, { name: 'Prod', server: 'prod-sql' }] },
 		getOwnName: () => 'Me',
 		createManager: () => {
@@ -99,6 +101,38 @@ suite('CompareHandlers', () => {
 		assert.strictEqual(result.diff.changes[0].ops[0].op, 'addColumn');
 		assert.strictEqual(result.createOrAlter, true);
 		assert.ok(result.durationMs >= 0);
+	});
+
+	test('the picked changes are exported as a zip: the list, the script, and each object before and after', async () => {
+		const saved = [];
+		let written = null;
+		const { handlers, posts } = setup({
+			saveFile: async name => { saved.push(name); return 'C:/out/x.zip'; },
+			writeFile: async (target, data) => { written = { target, data }; }
+		});
+		handlers.handleExportZip(['table:dbo.T'], false, false);
+		await handlers.handleExportZip(['table:dbo.T'], false, false);
+		assert.strictEqual(posts[0].command, 'compareFailed', 'compare first');
+		await handlers.handleCompare('Db', 'Ref');
+		posts.length = 0;
+		await handlers.handleExportZip([], false, false);
+		assert.ok(posts[0].message.includes('Nothing is selected'));
+		await handlers.handleExportZip(['table:dbo.T'], false, false);
+		assert.deepStrictEqual(saved, ['compare_Ref_to_Db_2026-11-03.zip']);
+		assert.strictEqual(written.target, 'C:/out/x.zip');
+		assert.strictEqual(written.data.subarray(0, 2).toString(), 'PK', 'a zip');
+		for (const name of ['changes.csv', 'script.sql', 'before/table/dbo.T.sql', 'after/table/dbo.T.sql']) assert.ok(written.data.includes(Buffer.from(name)), `${name} is in the zip`);
+		assert.deepStrictEqual(posts[1], { command: 'compareExported', path: 'C:/out/x.zip', count: 1, files: 4 });
+	});
+
+	test('a cancelled save dialog writes nothing', async () => {
+		let written = false;
+		const { handlers, posts } = setup({ saveFile: async () => null, writeFile: async () => { written = true; } });
+		await handlers.handleCompare('Db', 'Ref');
+		posts.length = 0;
+		await handlers.handleExportZip(['table:dbo.T'], false, false);
+		assert.deepStrictEqual(posts, [{ command: 'compareExported', cancelled: true }]);
+		assert.strictEqual(written, false);
 	});
 
 	test('an old server is told to write the code without CREATE OR ALTER', async () => {

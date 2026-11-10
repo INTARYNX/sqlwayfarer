@@ -319,6 +319,10 @@ class MessageHandler {
                 if (window.compareManager) window.compareManager.onScript(message);
                 break;
 
+            case 'compareExported':
+                if (window.compareManager) window.compareManager.onExported(message);
+                break;
+
             case 'compareTargets':
                 if (window.compareManager) window.compareManager.onTargets(message);
                 break;

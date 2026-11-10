@@ -4,6 +4,7 @@ const { readSchemaModel } = require('../../database/schemaCatalog');
 const { diffModels } = require('../../database/schemaDiff');
 const { buildMigrationScript, supportsCreateOrAlter } = require('../../database/migrationScript');
 const { classifyTarget, applyScript } = require('../../database/migrationApply');
+const { buildExportFiles, zipFiles, fileName } = require('../../database/compareExport');
 const { getSnapshotSupport, listSnapshots, listComparableDatabases, planSnapshot, createSnapshot, dropSnapshot } = require('../../database/dbSnapshots');
 
 // The Compare tab: the database the queries run on against a reference (a
@@ -19,8 +20,10 @@ const { getSnapshotSupport, listSnapshots, listComparableDatabases, planSnapshot
 // this stays testable. createManager() opens a connection of its own (another
 // saved connection), connectionStorage lists them, getOwnName() names this tab's.
 class CompareHandlers {
-    constructor(post, { connectionManager, confirm, now = () => new Date(), connectionStorage = null, createManager = null, getOwnName = () => null }) {
+    constructor(post, { connectionManager, confirm, now = () => new Date(), connectionStorage = null, createManager = null, getOwnName = () => null, saveFile = async () => null, writeFile = (target, data) => require('fs').promises.writeFile(target, data) }) {
         this._post = post;
+        this._saveFile = saveFile;
+        this._writeFile = writeFile;
         this._connectionManager = connectionManager;
         this._confirm = confirm;
         this._now = now;
@@ -98,6 +101,24 @@ class CompareHandlers {
             reference, current: database, now: this._now()
         });
         this._post({ command: 'compareScript', script: result.script, steps: result.steps, skipped: result.skipped, warnings: result.warnings });
+    }
+
+    // The picked changes as a zip: the list, the script, and the whole code of each object before and after.
+    // saveFile(defaultName) -> path or null (the panel's save dialog), writeFile(path, buffer) the disk.
+    async handleExportZip(ids, allowDestructive, legacy) {
+        if (!this._last) { this._fail('Compare first.'); return; }
+        const { database, reference } = this._last;
+        const exported = buildExportFiles(this._last, { ids, allowDestructive, legacy, now: this._now() });
+        if (exported.count === 0) { this._fail('Nothing is selected to export.'); return; }
+        try {
+            const stamp = this._now().toISOString().slice(0, 10);
+            const target = await this._saveFile(`compare_${fileName(reference)}_to_${fileName(database)}_${stamp}.zip`);
+            if (!target) { this._post({ command: 'compareExported', cancelled: true }); return; }
+            await this._writeFile(target, await zipFiles(exported.files, this._now()));
+            this._post({ command: 'compareExported', path: target, count: exported.count, files: exported.files.length });
+        } catch (error) {
+            this._fail(`The zip could not be written: ${error.message}`);
+        }
     }
 
     async handleTakeSnapshot(database) {
