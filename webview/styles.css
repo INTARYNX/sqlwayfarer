@@ -2191,10 +2191,12 @@ body.vscode-high-contrast .qp-tt-header {
     font-size: 12px;
 }
 
-/* Result grid: vertical separators too, so it reads as a grid. */
+/* Result grid: vertical separators too, so it reads as a grid. The cells are
+   compact (the global 6px of padding is for the tables of the inspector). */
 .result-set-table-wrap th,
 .result-set-table-wrap td {
     border-right: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+    padding: 1px 10px;
 }
 
 .result-set-table-wrap th:last-child,
