@@ -734,6 +734,7 @@ class QueryFileManager {
                 + `data-qtab-id="${tab.id}" role="menuitemradio" title="${this.escapeHtml(preview)}">`
                 + (dirty ? '<span class="qtab-dirty-dot"></span>' : '')
                 + `<span class="qtab-name">${this.escapeHtml(label)}</span>`
+                + (tab.database ? `<span class="qtab-db" title="Database this query runs on">${this.escapeHtml(tab.database)}</span>` : '')
                 + `<span class="qtab-close" data-qtab-close="${tab.id}">×</span>`
                 + '</div>';
         }).join('');
