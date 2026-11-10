@@ -146,15 +146,20 @@ suite('e2e: the Compare tab', function () {
 		await post({ command: 'databasesLoaded', databases: ['Sales'], currentDatabase: 'Sales' });
 		await p.click('[data-tab=compare]');
 		await post({ command: 'compareResult', database: 'Sales', reference: 'R', diff: DIFF, createOrAlter: true, durationMs: 100 });
-		check((await p.$$eval('.compare-chip', els => els.map(e => e.textContent))).join() === 'Added 1,Modified 2,Removed 1', 'a chip per status, with its count');
+		check((await p.$$eval('.compare-chip', els => els.map(e => e.textContent))).join() === 'Added 1,Modified 2,Removed 1,Tables 3,Procedures 1', 'a tag per status and per kind, with its count');
 		await p.click('.compare-chip.added');
 		check(await names() === 'dbo.Invoices', 'Added keeps the added ones');
 		await p.click('.compare-chip.removed');
-		check(await names() === 'dbo.Log', 'Removed replaces it');
+		check(await names() === 'dbo.Invoices,dbo.Log', 'Removed adds to it: the tags add up');
+		await p.click('.compare-chip.added');
+		check(await names() === 'dbo.Log', 'a click on a tag that is on turns it off');
 		await p.click('.compare-chip.removed');
-		check((await names()).split(',').length === 4, 'a second click on the chip that is on shows everything again');
+		check((await names()).split(',').length === 4, 'no tag on lists everything');
 		await p.click('.compare-chip.modified');
 		check(await names() === 'dbo.Customers,dbo.usp_Load', 'Modified keeps the modified ones');
+		await p.click('.compare-chip.kind[data-kind=procedure]');
+		check(await names() === 'dbo.usp_Load', 'a kind tag narrows it more: modified procedures');
+		await p.click('.compare-chip.kind[data-kind=procedure]');
 
 		await p.click('.compare-row[data-id="procedure:dbo.usp_Load"]');
 		check(await p.isDisabled('.compare-view-tab[data-view=changes]') === false, 'the Changes tab is on');
@@ -171,12 +176,34 @@ suite('e2e: the Compare tab', function () {
 		check((await p.$$eval('.compare-line-text', els => els.map(e => e.textContent))).join() === 'column id int NOT NULL,column total decimal(10,2) NOT NULL', 'its After lists the whole table');
 		await p.click('.compare-row[data-id="table:dbo.Log"]');
 		check(await p.isDisabled('.compare-view-tab[data-view=after]') && (await p.$$eval('.compare-op', els => els.length)) === 1, 'a removed table has no After, and falls back to its changes');
-		// The zip of what is picked.
+		// The zip of what is picked, and shown.
+		const exported = async () => {
+			await p.evaluate(() => { window.__sent.length = 0; });
+			await p.click('#compareExportBtn');
+			return (await p.evaluate(() => window.__sent.slice())).find(m => m.command === 'exportCompareZip');
+		};
 		check(!(await p.isDisabled('#compareExportBtn')), 'Export zip is on while something is picked');
-		await p.evaluate(() => { window.__sent.length = 0; });
-		await p.click('#compareExportBtn');
-		const exportMsg = (await p.evaluate(() => window.__sent.slice())).find(m => m.command === 'exportCompareZip');
-		check(exportMsg && exportMsg.ids.length === 4 && exportMsg.allowDestructive === false, 'it sends the picked changes');
+		check((await exported()).ids.length === 4, 'with nothing filtered it sends everything that is picked');
+		await p.click('.compare-chip.added');
+		await p.click('.compare-chip.removed');
+		check((await exported()).ids.join() === 'table:dbo.Invoices,table:dbo.Log', 'with tags on it sends only the changes shown (the tags add up)');
+		check((await p.textContent('#compareSelected')).includes('the changes shown only'), 'and the footer says so');
+		await p.fill('#compareFilter', 'log');
+		check((await exported()).ids.join() === 'table:dbo.Log', 'the filter by name narrows it too');
+		await p.fill('#compareFilter', '');
+		await p.uncheck('#compareShownOnly');
+		check((await exported()).ids.length === 4, 'without "only the changes shown" every change that is picked goes');
+		await p.check('#compareShownOnly');
+		// The box of a group.
+		await p.uncheck('.compare-group input');
+		check(await p.isDisabled('#compareExportBtn') && (await p.$$eval('.compare-row input', els => els.every(e => !e.checked))), 'the box of a group drops all its changes');
+		await p.check('.compare-group input');
+		check((await exported()).ids.join() === 'table:dbo.Invoices,table:dbo.Log', 'and picks them again');
+		await p.click('.compare-row[data-id="table:dbo.Log"] input');
+		check(await p.$eval('.compare-group input', e => e.indeterminate), 'the box of a group is half on when some are picked');
+		await p.click('.compare-row[data-id="table:dbo.Log"] input');
+		await p.click('.compare-chip.added');
+		await p.click('.compare-chip.removed');
 		await post({ command: 'compareExported', path: 'C:/out/x.zip', count: 4, files: 9 });
 		check((await p.textContent('#compareNote')).includes('Exported 4 changes (9 files) to C:/out/x.zip'), 'and says where the zip is');
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));

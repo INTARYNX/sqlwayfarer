@@ -22,6 +22,11 @@ suite('CompareManager (what it shows)', () => {
 		assert.deepStrictEqual(CompareManager.group(changes, '', 'added').map(g => `${g.label}:${g.changes.map(c => c.name)}`), ['Tables:dbo.A', 'Views:dbo.vA']);
 		assert.deepStrictEqual(CompareManager.group(changes, 'p', 'modified').map(g => g.label), ['Procedures']);
 		assert.deepStrictEqual(CompareManager.group(changes, '', 'removed').map(g => g.changes.length), [1]);
+		// Several at once: the statuses add up, and the kinds narrow what is left.
+		const listed = groups => groups.map(g => `${g.label}:${g.changes.map(c => c.name)}`);
+		assert.deepStrictEqual(listed(CompareManager.group(changes, '', new Set(['added', 'removed']))), ['Tables:dbo.A,dbo.B', 'Views:dbo.vA']);
+		assert.deepStrictEqual(listed(CompareManager.group(changes, '', ['added', 'modified'], new Set(['view', 'procedure']))), ['Views:dbo.vA', 'Procedures:dbo.p']);
+		assert.deepStrictEqual(CompareManager.group(changes, '', new Set(), new Set(['table'])).map(g => g.label), ['Tables']);
 	});
 
 	test('the whole text of a side is the code, or the lines of the table; a missing side is empty', () => {
