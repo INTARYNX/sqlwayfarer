@@ -130,6 +130,13 @@ class ExplorerManager {
         this.elements.detailsContent.innerHTML =
             `<p class="placeholder-text">Loading ${this.escapeHtml(database)}.${this.escapeHtml(qualifiedName)}…</p>`;
 
+        // The tree shows the object that was left until the new one is read.
+        const tree = document.getElementById('treeContainer');
+        if (appState.activeDetailsTab === 'tree' && tree) {
+            tree.innerHTML = `<p class="placeholder-text">Loading ${this.escapeHtml(database)}.${this.escapeHtml(qualifiedName)}…</p>`;
+        }
+        this._externalPending = qualifiedName;
+
         vscode.postMessage({ command: 'getObjectDetailsAuto', database, objectName: qualifiedName });
     }
 
@@ -244,30 +251,29 @@ class ExplorerManager {
             });
         }
 
-        // Update active tab content
+        this._refreshActiveDetailsTab(appState.currentDatabase, objectNameForBackend, obj.object_type);
+    }
+
+    // The tab of the details that is showing (comments, code, tree) is filled for the
+    // object that was just selected. The graph is drawn when the details arrive.
+    _refreshActiveDetailsTab(database, objectName, objectType) {
         if (appState.activeDetailsTab === 'comments') {
-            window.commentsManager.loadCommentsForObject(
-                appState.currentDatabase,
-                objectNameForBackend,
-                obj.object_type
-            );
+            window.commentsManager.loadCommentsForObject(database, objectName, objectType);
         } else if (appState.activeDetailsTab === 'code') {
-            window.codeViewManager.loadCodeForObject(
-                appState.currentDatabase,
-                objectNameForBackend,
-                obj.object_type
-            );
+            window.codeViewManager.loadCodeForObject(database, objectName, objectType);
         } else if (appState.activeDetailsTab === 'tree') {
-            vscode.postMessage({
-                command: 'getDependencyTree',
-                database: appState.currentDatabase,
-                objectName: objectNameForBackend,
-                maxDepth: 3
-            });
-        } else if (appState.activeDetailsTab === 'graph') {
-            // NEW: Update graph when object is selected and graph tab is active
-            // The graph will be updated when objectDetailsLoaded is received
+            vscode.postMessage({ command: 'getDependencyTree', database, objectName, maxDepth: 3 });
         }
+    }
+
+    // The details of an object of another database have arrived, so its type is known: the
+    // tab that is showing (the tree, the code, the comments) follows the object, which the
+    // click on a link alone did not do - on the Tree tab, nothing seemed to happen.
+    _onExternalResolved(objectName, objectType) {
+        if (this._externalPending !== objectName) return;
+        this._externalPending = null;
+        if (appState.selectedObject) appState.selectedObject.object_type = objectType;
+        this._refreshActiveDetailsTab(this._currentDetailsDatabase, objectName, objectType);
     }
 
     handleShowDependencies(objectName, event) {

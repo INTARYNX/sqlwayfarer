@@ -26,6 +26,7 @@ class ExplorerDetailsMethods {
         if (!this._isAwaitedDetails(database, tableName)) return;
         appState.currentDependencies = dependencies;
         this._currentDetailsTable = tableName;
+        this._onExternalResolved(tableName, 'Table');
 
         // Column lineage comes from the in-memory index - fetched separately
         // so the details view never waits on it. Uses the database these
@@ -59,6 +60,7 @@ class ExplorerDetailsMethods {
     onObjectDetailsLoaded(objectName, objectType, dependencies, definition, database) {
         if (!this._isAwaitedDetails(database, objectName)) return;
         appState.currentDependencies = dependencies;
+        this._onExternalResolved(objectName, objectType);
 
         if (appState.selectedObject) {
             appState.selectedObject.definition = definition;
