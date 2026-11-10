@@ -740,6 +740,123 @@ suite('IndexService: a table is not stale because of its maintenance', () => {
 	});
 });
 
+// A date that moves with no change of the text is not a change: the text of the
+// module is the second control, read only for the modules whose date moved.
+suite('IndexService: a modified date is confirmed by the text of the module', () => {
+	let tempDir;
+	let analyses;
+	let textReads;
+
+	setup(async () => {
+		tempDir = path.join(os.tmpdir(), `sqlwayfarer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		await fs.mkdir(tempDir, { recursive: true });
+		analyses = 0;
+		textReads = 0;
+	});
+
+	teardown(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	});
+
+	// The server as the service sees it: `state.objects` is the schema, `state.text` the text of each module.
+	function makeService(state) {
+		const cm = {
+			getServerName: () => 'testserver',
+			executeQueryInDatabase: async (database, query, params) => {
+				if (params) {
+					analyses++;
+					const text = state.text[params.objectName.replace(/[[\]]/g, '')];
+					return { recordset: [], recordsets: [[], text ? [{ definition: text }] : []] };
+				}
+				if (query.includes('sys.sql_modules')) {
+					textReads++;
+					return { recordset: state.objects.filter(o => state.text[o.qualified_name] !== undefined).map(o => ({ object_id: o.object_id, definition: state.text[o.qualified_name] })) };
+				}
+				return { recordset: state.objects };
+			}
+		};
+		const service = new IndexService(cm, { analyzeDefinition: async () => ({ columns: {}, writes: [], errors: [] }) });
+		service._indexDir = tempDir;
+		return service;
+	}
+
+	const touch = (state, name, date) => { state.objects = state.objects.map(o => o.qualified_name === name ? { ...o, modify_date: date } : o); };
+
+	test('a date that moved alone leaves the index ready, and an update analyzes nothing', async () => {
+		const state = { objects: [makeObject('dbo', 'T', 'U'), makeObject('dbo', 'P', 'P')], text: { 'dbo.P': 'SELECT 1' } };
+		const service = makeService(state);
+		await service.getIndex('Db');
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'ready');
+		assert.strictEqual(textReads, 0, 'nothing is read while the dates are the same');
+
+		touch(state, 'dbo.P', '2026-09-09');
+		const status = await service.getIndexStatus('Db');
+		assert.strictEqual(status.state, 'ready');
+		assert.strictEqual(textReads, 1);
+
+		analyses = 0;
+		await service.getIndex('Db'); // the user's "Update index"
+		assert.strictEqual(analyses, 0, 'the procedure is not analyzed again');
+		const entry = (await service.peekIndex('Db')).objects['dbo.P'];
+		assert.strictEqual(entry.modifyDate, '2026-09-09');
+		textReads = 0;
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'ready');
+		assert.strictEqual(textReads, 0, 'the index caught up with the date: no text to read any more');
+	});
+
+	test('a change of the text is stale, and the update analyzes that module only', async () => {
+		const state = { objects: [makeObject('dbo', 'P', 'P'), makeObject('dbo', 'Q', 'P')], text: { 'dbo.P': 'SELECT 1', 'dbo.Q': 'SELECT 2' } };
+		const service = makeService(state);
+		await service.getIndex('Db');
+
+		touch(state, 'dbo.P', '2026-09-09');
+		touch(state, 'dbo.Q', '2026-09-09');
+		state.text['dbo.P'] = 'SELECT 3';
+		const status = await service.getIndexStatus('Db');
+		assert.strictEqual(status.state, 'stale');
+		assert.deepStrictEqual(status.changes.modified, ['dbo.P']);
+
+		analyses = 0;
+		await service.getIndex('Db');
+		assert.strictEqual(analyses, 1);
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'ready');
+	});
+
+	test('a new or dropped module is a change whatever the text', async () => {
+		const state = { objects: [makeObject('dbo', 'P', 'P')], text: { 'dbo.P': 'SELECT 1' } };
+		const service = makeService(state);
+		await service.getIndex('Db');
+		state.objects = [...state.objects, makeObject('dbo', 'Q', 'P')];
+		state.text['dbo.Q'] = 'SELECT 2';
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'stale');
+		state.objects = [];
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'stale');
+	});
+
+	test('an index with no hash of the text (an older one) counts the moved date as a change', async () => {
+		const state = { objects: [makeObject('dbo', 'P', 'P')], text: { 'dbo.P': 'SELECT 1' } };
+		const service = makeService(state);
+		await service.getIndex('Db');
+		const index = await service.peekIndex('Db');
+		delete index.objects['dbo.P'].definitionHash;
+		touch(state, 'dbo.P', '2026-09-09');
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'stale');
+	});
+
+	test('a failed read of the text keeps the module as modified', async () => {
+		const state = { objects: [makeObject('dbo', 'P', 'P')], text: { 'dbo.P': 'SELECT 1' } };
+		const service = makeService(state);
+		await service.getIndex('Db');
+		touch(state, 'dbo.P', '2026-09-09');
+		const execute = service._connectionManager.executeQueryInDatabase;
+		service._connectionManager.executeQueryInDatabase = async (db, query, params) => {
+			if (!params && query.includes('sys.sql_modules')) throw new Error('permission denied');
+			return execute(db, query, params);
+		};
+		assert.strictEqual((await service.getIndexStatus('Db')).state, 'stale');
+	});
+});
+
 suite('IndexService: the index file stays where it belongs', () => {
 	let tempDir;
 

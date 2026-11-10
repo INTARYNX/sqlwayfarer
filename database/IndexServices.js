@@ -160,7 +160,13 @@ class IndexService {
         try {
             const live = await this._getLiveObjects(database);
             stale = index.schemaChecksum !== this._checksumFromObjects(live);
-            if (stale) changes = this.diffAgainstSchema(index.objects || {}, live);
+            if (stale) {
+                // The date is the first control (free). It moves for reasons that leave the
+                // text alone, so a module whose date moved is confirmed by its text.
+                const confirmed = await this._confirmUnchanged(database, index.objects || {}, live);
+                stale = this._hasChanges(index.objects || {}, live, confirmed);
+                if (stale) changes = this.diffAgainstSchema(index.objects || {}, live, confirmed);
+            }
         } catch (error) {
             console.warn('Could not compare the index with the schema:', error.message);
         }
@@ -177,7 +183,7 @@ class IndexService {
     // with the live objects (the same rule _updateIndexIncrementally applies):
     // { modified: [qualifiedName], added: [...], removed: [...] }, sorted.
     // An entry whose last analysis was incomplete counts as modified.
-    diffAgainstSchema(cachedObjects, liveObjects) {
+    diffAgainstSchema(cachedObjects, liveObjects, confirmed = new Set()) {
         const modified = [];
         const added = [];
         const seen = new Set();
@@ -186,11 +192,58 @@ class IndexService {
             seen.add(key);
             const cached = cachedObjects[key];
             if (!cached) added.push(key);
-            else if (cached.checksum !== this._entryChecksum(obj) || cached.dependenciesIncomplete) modified.push(key);
+            else if ((cached.checksum !== this._entryChecksum(obj) && !confirmed.has(key)) || cached.dependenciesIncomplete) modified.push(key);
         }
         const removed = Object.keys(cachedObjects).filter(key => !seen.has(key));
         const sort = list => list.sort((a, b) => a.localeCompare(b));
         return { modified: sort(modified), added: sort(added), removed: sort(removed) };
+    }
+
+    // Whether something other than a confirmed date differs between the cache and the schema.
+    _hasChanges(cachedObjects, liveObjects, confirmed) {
+        const seen = new Set();
+        for (const obj of liveObjects) {
+            const key = this._removeBrackets(obj.qualified_name);
+            seen.add(key);
+            const cached = cachedObjects[key];
+            if (!cached || (cached.checksum !== this._entryChecksum(obj) && !confirmed.has(key))) return true;
+        }
+        return Object.keys(cachedObjects).some(key => !seen.has(key));
+    }
+
+    // The keys of the modules whose modify_date moved while their text is the one
+    // that was analyzed: the second control, run only for those (the text of a few
+    // modules is read, not the whole schema). A module the cache holds no hash of
+    // (an older index), an encrypted one, or a failed read is not confirmed: it
+    // counts as modified, as it did before the hash existed.
+    async _confirmUnchanged(database, cachedObjects, liveObjects) {
+        const confirmed = new Set();
+        const candidates = [];
+        for (const obj of liveObjects) {
+            const key = this._removeBrackets(obj.qualified_name);
+            const cached = cachedObjects[key];
+            if (!cached || obj.type === 'U' || !cached.definitionHash || cached.dependenciesIncomplete) continue;
+            if (cached.checksum !== this._entryChecksum(obj) && Number.isInteger(obj.object_id)) candidates.push({ key, obj, hash: cached.definitionHash });
+        }
+        const BATCH = 200;
+        try {
+            for (let i = 0; i < candidates.length; i += BATCH) {
+                const batch = candidates.slice(i, i + BATCH);
+                const result = await this._connectionManager.executeQueryInDatabase(database,
+                    `SELECT object_id, definition FROM sys.sql_modules WHERE object_id IN (${batch.map(c => c.obj.object_id).join(',')})`);
+                const live = new Map();
+                for (const row of result.recordset || []) if (row.definition) live.set(row.object_id, IndexService._hash(row.definition));
+                for (const c of batch) if (live.get(c.obj.object_id) === c.hash) confirmed.add(c.key);
+            }
+        } catch (error) {
+            console.warn('Could not confirm the modified modules by their text:', error.message);
+            return new Set();
+        }
+        return confirmed;
+    }
+
+    static _hash(text) {
+        return crypto.createHash('md5').update(text).digest('hex');
     }
 
     _entryChecksum(obj) {
@@ -476,13 +529,14 @@ class IndexService {
         const parseErrors = {};
         const nameMap = this._buildNameMap(objects);
         const analysisStart = IndexBuildStats.now();
-        const { dependencies, failedKeys } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors, stats);
+        const { dependencies, failedKeys, definitionHashes } = await this._analyzeDependencies(database, objects, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors, stats);
         if (stats) stats.phase('analysisMs', IndexBuildStats.now() - analysisStart);
         this._attachDependencies(index.objects, dependencies);
         this._attachColumnRefs(index.objects, columnRefs);
         this._attachTableWrites(index.objects, tableWrites);
         this._attachParseErrors(index.objects, parseErrors);
         this._attachPossibleRefs(index.objects, possibleRefs);
+        this._attachDefinitionHashes(index.objects, definitionHashes);
         this._markIncompleteDependencies(index.objects, failedKeys);
 
         index.totalObjects = Object.keys(index.objects).length;
@@ -497,6 +551,7 @@ class IndexService {
         const objects = {};
         const objectsByType = {};
         const changed = [];
+        const confirmed = await this._confirmUnchanged(database, cachedIndex.objects, liveObjects);
 
         for (const obj of liveObjects) {
             const key = this._removeBrackets(obj.qualified_name);
@@ -511,6 +566,9 @@ class IndexService {
             // update until a run actually succeeds.
             if (cached && cached.checksum === checksum && !cached.dependenciesIncomplete) {
                 objects[key] = cached;
+            } else if (confirmed.has(key)) {
+                // The date moved, the text did not: nothing to analyze again.
+                objects[key] = { ...cached, checksum, modifyDate: obj.modify_date, createDate: obj.create_date };
             } else {
                 objects[key] = this._makeIndexEntry(obj);
                 changed.push(obj);
@@ -528,13 +586,14 @@ class IndexService {
         // Name map spans ALL live objects so mentions of unchanged tables are caught.
         const nameMap = this._buildNameMap(liveObjects);
         const analysisStart = IndexBuildStats.now();
-        const { dependencies, failedKeys } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors, stats);
+        const { dependencies, failedKeys, definitionHashes } = await this._analyzeDependencies(database, changed, columnRefs, nameMap, possibleRefs, tableWrites, parseErrors, stats);
         if (stats) stats.phase('analysisMs', IndexBuildStats.now() - analysisStart);
         this._attachDependencies(objects, dependencies);
         this._attachColumnRefs(objects, columnRefs);
         this._attachTableWrites(objects, tableWrites);
         this._attachParseErrors(objects, parseErrors);
         this._attachPossibleRefs(objects, possibleRefs);
+        this._attachDefinitionHashes(objects, definitionHashes);
         this._markIncompleteDependencies(objects, failedKeys);
 
         return {
@@ -581,6 +640,14 @@ class IndexService {
         }
     }
 
+    // The hash of the text of a module, kept to tell a real change from a date
+    // that moved on its own (see _confirmUnchanged).
+    _attachDefinitionHashes(indexObjects, hashesByKey) {
+        for (const [key, hash] of Object.entries(hashesByKey)) {
+            if (indexObjects[key]) indexObjects[key].definitionHash = hash;
+        }
+    }
+
     _attachPossibleRefs(indexObjects, possibleRefsByKey) {
         for (const [key, refs] of Object.entries(possibleRefsByKey)) {
             if (indexObjects[key]) indexObjects[key].possibleRefs = refs;
@@ -617,6 +684,7 @@ class IndexService {
     async _analyzeDependencies(database, objects, columnRefsOut = null, nameMap = null, possibleRefsOut = null, tableWritesOut = null, parseErrorsOut = null, stats = null) {
         const dependencies = [];
         const failedKeys = new Set();
+        const definitionHashes = {};
         const total = objects.length;
         this._reportProgress(database, 0, total, 'Analyzing dependencies...');
 
@@ -630,8 +698,9 @@ class IndexService {
                 batch.map(obj => this._analyzeOneObject(database, obj, columnRefsOut, nameMap, possibleRefsOut, tableWritesOut, parseErrorsOut, stats))
             );
             batch.forEach((obj, idx) => {
-                const { dependencies: objDependencies, depsFailed } = batchResults[idx];
+                const { dependencies: objDependencies, depsFailed, definitionHash } = batchResults[idx];
                 dependencies.push(...objDependencies);
+                if (definitionHash) definitionHashes[this._removeBrackets(obj.qualified_name)] = definitionHash;
                 if (depsFailed) failedKeys.add(this._removeBrackets(obj.qualified_name));
             });
 
@@ -639,7 +708,7 @@ class IndexService {
             this._reportProgress(database, i + batch.length, total, `${last.schema_name}.${last.name}`);
         }
 
-        return { dependencies, failedKeys };
+        return { dependencies, failedKeys, definitionHashes };
     }
 
     // One object's worth of the old per-object loop body - independent of any
@@ -752,7 +821,7 @@ class IndexService {
         }
 
         if (stats) stats.recordObject(measured);
-        return { dependencies, depsFailed };
+        return { dependencies, depsFailed, definitionHash: wantsDefinition && definition ? IndexService._hash(definition) : null };
     }
 
     /**
