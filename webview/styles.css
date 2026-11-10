@@ -2134,6 +2134,18 @@ body.vscode-high-contrast .qp-tt-header {
     background: var(--vscode-list-hoverBackground);
 }
 
+/* A file open in a query tab, and the one being edited. */
+.sql-file-item.open {
+    background: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+    font-weight: 600;
+}
+
+.sql-file-item.active {
+    background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-list-activeSelectionForeground, inherit);
+    box-shadow: inset 2px 0 0 var(--vscode-focusBorder);
+}
+
 .sql-file-folder {
     font-weight: 600;
     border-top: 1px solid var(--vscode-input-border);
