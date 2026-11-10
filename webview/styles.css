@@ -2199,6 +2199,12 @@ body.vscode-high-contrast .qp-tt-header {
     padding: 1px 10px;
 }
 
+/* A column name is shown as the server returns it. */
+.result-set-table-wrap th {
+    text-transform: none;
+    letter-spacing: normal;
+}
+
 .result-set-table-wrap th:last-child,
 .result-set-table-wrap td:last-child,
 .result-set-table-wrap table.rs-fixed th:nth-last-child(2),
