@@ -3257,6 +3257,22 @@ table.fp-cols .fp-center { text-align: center; }
     border-bottom-color: var(--vscode-focusBorder);
 }
 
+/* Like the JSON block, it owns the scrollbar: the modal body does not scroll. */
+.index-stats-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* A long object name wraps instead of widening the table. */
+.stats-table td:first-child {
+    overflow-wrap: anywhere;
+}
+
+.stats-table td:not(:first-child) {
+    white-space: nowrap;
+}
+
 .index-stats-content h4 {
     margin: 16px 0 6px;
     font-weight: 600;
