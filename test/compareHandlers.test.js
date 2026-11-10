@@ -103,7 +103,7 @@ suite('CompareHandlers', () => {
 		assert.ok(result.durationMs >= 0);
 	});
 
-	test('the picked changes are exported as a zip: the list, the script, and each object before and after', async () => {
+	test('the picked changes are exported as a zip: the list, the script, and each object in the reference and in the current database', async () => {
 		const saved = [];
 		let written = null;
 		const { handlers, posts } = setup({
@@ -121,8 +121,8 @@ suite('CompareHandlers', () => {
 		assert.deepStrictEqual(saved, ['compare_Ref_to_Db_2026-11-03.zip']);
 		assert.strictEqual(written.target, 'C:/out/x.zip');
 		assert.strictEqual(written.data.subarray(0, 2).toString(), 'PK', 'a zip');
-		for (const name of ['changes.csv', 'script.sql', 'before/table/dbo.T.sql', 'after/table/dbo.T.sql']) assert.ok(written.data.includes(Buffer.from(name)), `${name} is in the zip`);
-		assert.deepStrictEqual(posts[1], { command: 'compareExported', path: 'C:/out/x.zip', count: 1, files: 4 });
+		for (const name of ['README.txt', 'changes.csv', 'script.sql', 'reference/table/dbo.T.sql', 'current/table/dbo.T.sql']) assert.ok(written.data.includes(Buffer.from(name)), `${name} is in the zip`);
+		assert.deepStrictEqual(posts[1], { command: 'compareExported', path: 'C:/out/x.zip', count: 1, files: 5 });
 	});
 
 	test('a cancelled save dialog writes nothing', async () => {
