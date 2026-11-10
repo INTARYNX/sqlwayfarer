@@ -334,6 +334,7 @@
                         </div>
                         <div id="compareFooter" class="compare-footer" hidden>
                             <span id="compareSelected" class="compare-selected"></span>
+                            <label class="compare-option" title="The script, the zip and Apply take only the changes that are shown: the tags and the filter that are on narrow them. Off, they take every change that is ticked."><input type="checkbox" id="compareShownOnly" checked> Only the changes shown</label>
                             <label class="compare-option" title="Drop columns and tables, narrow a type: what loses data. Off, they are left out and named in the script."><input type="checkbox" id="compareDestructive"> Include destructive changes</label>
                             <label class="compare-option" title="CREATE OR ALTER exists from SQL Server 2016 SP1; before, the code is written with a stand-in and ALTER."><span>Script for</span>
                                 <select id="compareTarget"><option value="modern">SQL Server 2016 SP1 and later</option><option value="legacy">Older versions</option></select>

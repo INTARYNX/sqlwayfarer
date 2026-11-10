@@ -36,6 +36,7 @@ class CompareManager {
             summary: document.getElementById('compareSummary'),
             filter: document.getElementById('compareFilter'),
             statusFilter: document.getElementById('compareStatusFilter'),
+            shownOnly: document.getElementById('compareShownOnly'),
             list: document.getElementById('compareList'),
             detail: document.getElementById('compareDetail'),
             footer: document.getElementById('compareFooter'),
@@ -72,7 +73,8 @@ class CompareManager {
         this.selected = new Set();
         this.active = null;       // the id of the change shown on the right
         this.filter = '';
-        this.status = '';         // '' (all), or the one status that is listed
+        this.statuses = new Set(); // the statuses that are listed; none: all of them
+        this.kinds = new Set();    // the kinds that are listed; none: all of them
         this.view = 'changes';    // what the right side shows: the changes, the code before, or after
         this.running = false;
         this.chosen = new Map();  // database -> the reference picked last
@@ -86,13 +88,26 @@ class CompareManager {
         this.el.snapshot.addEventListener('click', () => vscode.postMessage({ command: 'takeSnapshot', database: this.database }));
         this.el.dropSnapshot.addEventListener('click', () => vscode.postMessage({ command: 'dropSnapshot', database: this.database, name: this.el.reference.value }));
         this.el.filter.addEventListener('input', () => { this.filter = this.el.filter.value.trim().toLowerCase(); this.renderList(); });
+        // The tags add up: a click turns one on or off, and none on lists everything.
         this.el.statusFilter.addEventListener('click', (e) => {
-            const chip = e.target.closest('[data-status]');
+            const chip = e.target.closest('.compare-chip');
             if (!chip) return;
-            // A second click on the chip that is on goes back to everything.
-            this.status = chip.dataset.status === this.status ? '' : chip.dataset.status;
+            const set = chip.dataset.status ? this.statuses : this.kinds;
+            const value = chip.dataset.status || chip.dataset.kind;
+            if (set.has(value)) set.delete(value); else set.add(value);
             this.renderStatusFilter();
             this.renderList();
+        });
+        this.el.shownOnly.addEventListener('change', () => this.renderFooter());
+        // The box of a group picks or drops all its changes that are shown.
+        this.el.list.addEventListener('click', (e) => {
+            const box = e.target.closest('.compare-group input[type="checkbox"]');
+            if (!box) return;
+            for (const id of box.closest('.compare-group').dataset.ids.split('\n')) {
+                if (box.checked) this.selected.add(id); else this.selected.delete(id);
+            }
+            this.syncBoxes();
+            this.renderFooter();
         });
         this.el.detail.addEventListener('click', (e) => {
             const tab = e.target.closest('[data-view]');
@@ -108,6 +123,7 @@ class CompareManager {
             if (!row) return;
             if (e.target.closest('input[type="checkbox"]')) {
                 if (e.target.checked) this.selected.add(row.dataset.id); else this.selected.delete(row.dataset.id);
+                this.syncBoxes();
                 this.renderFooter();
                 return;
             }
@@ -146,9 +162,14 @@ class CompareManager {
     }
 
     // The changes by kind, those that match the filter, and a count per group.
-    static group(changes, filter, status) {
+    // statuses and kinds: one, or several (an array or a Set); none means all.
+    static group(changes, filter, statuses, kinds) {
+        const wanted = value => new Set([].concat(value instanceof Set ? [...value] : (value || [])));
+        const byStatus = wanted(statuses);
+        const byKind = wanted(kinds);
         return COMPARE_GROUPS
-            .map(group => ({ ...group, changes: changes.filter(c => c.kind === group.kind && (!status || c.status === status) && (!filter || c.name.toLowerCase().includes(filter))) }))
+            .filter(group => byKind.size === 0 || byKind.has(group.kind))
+            .map(group => ({ ...group, changes: changes.filter(c => c.kind === group.kind && (byStatus.size === 0 || byStatus.has(c.status)) && (!filter || c.name.toLowerCase().includes(filter))) }))
             .filter(group => group.changes.length > 0);
     }
 
@@ -360,7 +381,8 @@ class CompareManager {
         this.selected = new Set(message.diff.changes.map(CompareManager.idOf));
         this.active = message.diff.changes.length > 0 ? CompareManager.idOf(message.diff.changes[0]) : null;
         this.filter = '';
-        this.status = '';
+        this.statuses.clear();
+        this.kinds.clear();
         this.el.filter.value = '';
         // Before 2016 SP1 there is no CREATE OR ALTER: the script is told which to write.
         this.el.target.value = message.createOrAlter ? 'modern' : 'legacy';
@@ -419,22 +441,29 @@ class CompareManager {
         this.renderDetail();
     }
 
-    // One chip per status, with how many changes it holds; the one that is on narrows the list.
+    // One tag per status and one per kind, with how many changes each holds; the tags that are on narrow the list.
     renderStatusFilter() {
         const box = this.el.statusFilter;
         box.textContent = '';
         const diff = this.result && this.result.diff;
         box.hidden = !diff || diff.identical;
         if (box.hidden) return;
+        const chip = (dataName, value, label, count, on, title, cls) => {
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.dataset[dataName] = value;
+            el.className = `compare-chip ${cls}${on ? ' on' : ''}`;
+            el.setAttribute('aria-pressed', String(on));
+            el.title = title;
+            el.textContent = `${label} ${count}`;
+            box.appendChild(el);
+        };
         for (const status of ['added', 'modified', 'removed']) {
-            const chip = document.createElement('button');
-            chip.type = 'button';
-            chip.dataset.status = status;
-            chip.className = `compare-chip ${status}${this.status === status ? ' on' : ''}`;
-            chip.setAttribute('aria-pressed', String(this.status === status));
-            chip.title = COMPARE_STATUS[status].title;
-            chip.textContent = `${status[0].toUpperCase()}${status.slice(1)} ${diff.summary[status]}`;
-            box.appendChild(chip);
+            chip('status', status, `${status[0].toUpperCase()}${status.slice(1)}`, diff.summary[status], this.statuses.has(status), COMPARE_STATUS[status].title, status);
+        }
+        for (const group of COMPARE_GROUPS) {
+            const count = diff.changes.filter(c => c.kind === group.kind).length;
+            if (count > 0) chip('kind', group.kind, group.label, count, this.kinds.has(group.kind), `Only ${group.label.toLowerCase()}, with the other tags that are on`, 'kind');
         }
     }
 
@@ -442,7 +471,7 @@ class CompareManager {
         const list = this.el.list;
         list.textContent = '';
         if (!this.result) return;
-        const groups = CompareManager.group(this.result.diff.changes, this.filter, this.status);
+        const groups = CompareManager.group(this.result.diff.changes, this.filter, this.statuses, this.kinds);
         if (groups.length === 0) {
             const p = document.createElement('p');
             p.className = 'placeholder-text';
@@ -453,10 +482,42 @@ class CompareManager {
         for (const group of groups) {
             const header = document.createElement('div');
             header.className = 'compare-group';
-            header.textContent = `${group.label} (${group.changes.length})`;
+            header.dataset.ids = group.changes.map(CompareManager.idOf).join('\n');
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.setAttribute('aria-label', `Include all the ${group.label.toLowerCase()} shown`);
+            header.appendChild(box);
+            const label = document.createElement('span');
+            label.textContent = `${group.label} (${group.changes.length})`;
+            header.appendChild(label);
             list.appendChild(header);
             for (const change of group.changes) list.appendChild(this.rowNode(change));
         }
+        this.syncBoxes();
+        this.renderFooter();
+    }
+
+    // The box of a group is on when all its changes are picked, half on when some are.
+    syncBoxes() {
+        for (const header of this.el.list.querySelectorAll('.compare-group')) {
+            const ids = header.dataset.ids.split('\n');
+            const n = ids.filter(id => this.selected.has(id)).length;
+            const box = header.querySelector('input');
+            box.checked = n === ids.length;
+            box.indeterminate = n > 0 && n < ids.length;
+        }
+        for (const row of this.el.list.querySelectorAll('.compare-row')) row.querySelector('input').checked = this.selected.has(row.dataset.id);
+    }
+
+    // The ids the footer acts on: those picked, and with "only the changes shown", those of the view.
+    pickedIds() {
+        if (!this.result) return [];
+        let changes = this.result.diff.changes;
+        if (this.el.shownOnly.checked) {
+            const shown = new Set(CompareManager.group(changes, this.filter, this.statuses, this.kinds).flatMap(g => g.changes.map(CompareManager.idOf)));
+            changes = changes.filter(c => shown.has(CompareManager.idOf(c)));
+        }
+        return changes.map(CompareManager.idOf).filter(id => this.selected.has(id));
     }
 
     rowNode(change) {
@@ -508,7 +569,7 @@ class CompareManager {
         else if (event.key === ' ' && row && event.target === row) {
             const id = row.dataset.id;
             if (this.selected.has(id)) this.selected.delete(id); else this.selected.add(id);
-            row.querySelector('input').checked = this.selected.has(id);
+            this.syncBoxes();
             this.renderFooter();
         } else return;
         event.preventDefault();
@@ -697,10 +758,11 @@ class CompareManager {
     renderFooter() {
         if (!this.result) return;
         const changes = this.result.diff.changes;
-        const picked = changes.filter(c => this.selected.has(CompareManager.idOf(c)));
+        const ids = new Set(this.pickedIds());
+        const picked = changes.filter(c => ids.has(CompareManager.idOf(c)));
         const left = this.el.destructive.checked ? 0 : picked.reduce((n, c) => n + c.ops.filter(op => op.risk === 'destructive').length, 0);
         const manual = picked.reduce((n, c) => n + c.ops.filter(op => op.risk === 'manual').length, 0);
-        const parts = [`${picked.length} of ${changes.length} selected`];
+        const parts = [`${picked.length} of ${changes.length} selected${this.el.shownOnly.checked ? ' (the changes shown only)' : ''}`];
         if (left > 0) parts.push(`${left} destructive step(s) left out`);
         if (manual > 0) parts.push(`${manual} to do by hand`);
         this.el.selected.textContent = parts.join(' · ');
@@ -711,7 +773,7 @@ class CompareManager {
 
     // What the footer says is wanted: the changes picked, and how to write them.
     choice() {
-        return { ids: [...this.selected], allowDestructive: this.el.destructive.checked, legacy: this.el.target.value === 'legacy' };
+        return { ids: this.pickedIds(), allowDestructive: this.el.destructive.checked, legacy: this.el.target.value === 'legacy' };
     }
 
     buildScript() {
