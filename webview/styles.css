@@ -2085,12 +2085,20 @@ body.vscode-high-contrast .qp-tt-header {
     font-size: 12px;
 }
 
+/* The box is drawn by the container, all around, so the focus ring is not
+   clipped on the panel's left edge (the input alone sat flush against it). */
 .sql-files-search {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    border-bottom: 1px solid var(--vscode-input-border);
+    margin: 6px 8px;
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 3px;
     background: var(--vscode-input-background);
+}
+
+.sql-files-search:focus-within {
+    border-color: var(--vscode-focusBorder);
 }
 
 .sql-files-search .sql-files-filter {
@@ -2098,6 +2106,7 @@ body.vscode-high-contrast .qp-tt-header {
     min-width: 0;
     width: auto;
     border-bottom: none;
+    outline: none;
 }
 
 .sql-files-search .icon-btn[aria-pressed="true"] {
