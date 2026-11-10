@@ -4,6 +4,23 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.5] - 2026-11-10
+
+### Added
+
+- **Compare: filter the changes by status.** Three chips above the list (Added, Modified, Removed, each with its count) narrow it; a second click on the chip that is on shows everything again.
+- **Compare: the tabs Changes / Before / After** in the detail show the whole code of an object in the reference and in the current database (for a table, its CREATE script lines). A side that does not exist is greyed out.
+- **Compare: export the selected changes in a zip.** The list (`changes.csv`), the migration script (`script.sql`) and, for each selected object, its whole code before and after (`before/` and `after/`). Only the objects that are ticked are exported.
+- **Files panel: the `.sql` files that are open are highlighted**, and the one of the active query tab more strongly.
+
+### Changed
+
+- **The editor tab shows the extension icon** instead of the generic webview one.
+
+### Fixed
+
+- **Index status: a procedure, view or function whose modification date moved without any change of code** (an identical `ALTER`, for example) is no longer reported out of date: the date is confirmed by comparing the text of the module, and only a different text counts.
+
 ## [0.99.4] - 2026-11-10
 
 ### Changed
