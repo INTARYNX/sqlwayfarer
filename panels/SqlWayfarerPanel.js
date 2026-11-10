@@ -228,6 +228,10 @@ class SqlWayfarerPanel {
             { enableScripts: true, localResourceRoots: [extensionUri], enableFindWidget: true, retainContextWhenHidden: true }
         );
 
+        // The extension's own icon on the editor tab, instead of the generic webview one.
+        // icon.png is part of the package (.vscodeignore keeps it).
+        panel.iconPath = vscode.Uri.joinPath(extensionUri, 'icon.png');
+
         return new SqlWayfarerPanel(panel, extensionUri, context, panelRegistry, connectionStorage, connectionName);
     }
 
