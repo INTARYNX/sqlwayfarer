@@ -4,6 +4,13 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.8] - 2026-11-10
+
+### Fixed
+
+- **Files panel: the icons are coloured** (folders amber, files blue) whatever the theme: the theme's own icon colours are grey.
+- **Files panel: the search box has a border all around**, so its focus ring is no longer cut on the left.
+
 ## [0.99.7] - 2026-11-10
 
 ### Changed
