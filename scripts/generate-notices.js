@@ -25,7 +25,7 @@ const OUTPUT = path.join(root, 'THIRD_PARTY_NOTICES.md');
 // What each part of the package gets from npm. The extension host bundle holds
 // the runtime dependencies (piscina is shipped as a folder next to it); the
 // page holds the editor, the formatter, the graph libraries and the icons.
-const EXTENSION_ROOTS = ['antlr4', 'mssql', 'piscina'];
+const EXTENSION_ROOTS = ['antlr4', 'mssql', 'piscina', 'yazl'];
 const PAGE_ROOTS = [
     '@codemirror/autocomplete', '@codemirror/commands', '@codemirror/lang-sql', '@codemirror/language',
     '@codemirror/lint', '@codemirror/search', '@codemirror/state', '@codemirror/view', '@lezer/highlight',
