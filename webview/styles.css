@@ -1887,6 +1887,21 @@ body.vscode-high-contrast .qp-tt-header {
     white-space: nowrap;
 }
 
+/* The database the query runs on, as a tag. */
+.query-tabs-dropdown-item .qtab-db {
+    flex: 0 1 auto;
+    max-width: 40%;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+}
+
 .query-tabs-dropdown-item .qtab-dirty-dot {
     width: 6px;
     height: 6px;
