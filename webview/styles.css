@@ -1002,6 +1002,7 @@ tr:hover > td {
 }
 
 td.rs-null {
+    background: var(--vscode-textCodeBlock-background);
     color: var(--vscode-descriptionForeground);
     font-style: italic;
 }
