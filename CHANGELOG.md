@@ -4,6 +4,18 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.6] - 2026-11-10
+
+### Changed
+
+- **Compare: the tags add up.** Several statuses (Added, Modified, Removed) can be on at once, and a tag per kind of object (Tables, Views, Procedures…) narrows the list further. No tag on lists everything.
+- **Compare: the script, the zip and Apply take only the changes shown** (the tags and the filter that are on narrow them). The footer option "Only the changes shown" is on by default; off, every change that is ticked is taken.
+- **Compare: each group has a box** that ticks or unticks all its changes that are shown.
+
+### Fixed
+
+- **Explorer: a link to an object of another database did nothing on the Tree tab** (also on Code and Comments): only the structure was loaded. The tab that is showing now follows the object, and says it is loading it.
+
 ## [0.99.5] - 2026-11-10
 
 ### Added
