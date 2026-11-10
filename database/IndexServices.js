@@ -194,7 +194,7 @@ class IndexService {
     }
 
     _entryChecksum(obj) {
-        return this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${IndexService._stamp(obj.modify_date)}`);
+        return this._calculateChecksum(`${obj.qualified_name}_${obj.type}_${IndexService._version(obj)}`);
     }
 
     // BUILDS (or updates) the index: only for an explicit user action - the
@@ -375,9 +375,22 @@ class IndexService {
                 s.name AS schema_name,
                 s.name + '.' + o.name AS qualified_name,
                 RTRIM(o.type) AS type, o.type_desc, o.create_date, o.modify_date,
+                CASE WHEN o.type = 'U' THEN ISNULL(t.signature, 0) END AS table_signature,
                 DB_NAME() as database_name
             FROM sys.objects o
             INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+            -- What the analysis of a table can see: the expressions of its computed
+            -- columns, CHECK constraints and defaults. The modify_date of a table
+            -- moves for much more (an index created or rebuilt, a foreign key added).
+            LEFT JOIN (
+                SELECT parent_object_id, SUM(CAST(CHECKSUM(name, definition) AS bigint)) AS signature
+                FROM (
+                    SELECT parent_object_id, name, definition FROM sys.check_constraints
+                    UNION ALL SELECT parent_object_id, name, definition FROM sys.default_constraints
+                    UNION ALL SELECT object_id, name, definition FROM sys.computed_columns
+                ) expressions
+                GROUP BY parent_object_id
+            ) t ON t.parent_object_id = o.object_id
             WHERE o.is_ms_shipped = 0 AND o.type IN ('U', 'P', 'FN', 'IF', 'TF', 'TR', 'V')
             ORDER BY o.type, s.name, o.name;
         `);
@@ -386,8 +399,16 @@ class IndexService {
             object_id: row.object_id, name: row.name, schema_name: row.schema_name,
             qualified_name: row.qualified_name, type: (row.type || '').trim(),
             type_desc: row.type_desc, create_date: row.create_date,
-            modify_date: row.modify_date, database_name: row.database_name
+            modify_date: row.modify_date, table_signature: row.table_signature,
+            database_name: row.database_name
         }));
+    }
+
+    // What tells that an object changed: its modify_date, except for a table that
+    // comes with a signature (see _getLiveObjects).
+    static _version(obj) {
+        if (obj.type === 'U' && obj.table_signature !== undefined && obj.table_signature !== null) return `sig${obj.table_signature}`;
+        return IndexService._stamp(obj.modify_date);
     }
 
     // The date of a modification as text. A Date is written in UTC, to the
@@ -400,7 +421,7 @@ class IndexService {
     _checksumFromObjects(objects) {
         const raw = [...objects]
             .sort((a, b) => a.object_id - b.object_id)
-            .map(o => `${o.object_id}:${IndexService._stamp(o.modify_date)}`)
+            .map(o => `${o.object_id}:${IndexService._version(o)}`)
             .join('|');
         return crypto.createHash('md5').update(raw).digest('hex');
     }
