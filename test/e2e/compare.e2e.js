@@ -137,6 +137,45 @@ suite('e2e: the Compare tab', function () {
 		await p.close();
 	});
 
+	test('status chips narrow the list, and Before / After show the whole code', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 720 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		const names = () => p.$$eval('.compare-row .compare-name', els => els.map(e => e.textContent).join());
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['Sales'], currentDatabase: 'Sales' });
+		await p.click('[data-tab=compare]');
+		await post({ command: 'compareResult', database: 'Sales', reference: 'R', diff: DIFF, createOrAlter: true, durationMs: 100 });
+		check((await p.$$eval('.compare-chip', els => els.map(e => e.textContent))).join() === 'Added 1,Modified 2,Removed 1', 'a chip per status, with its count');
+		await p.click('.compare-chip.added');
+		check(await names() === 'dbo.Invoices', 'Added keeps the added ones');
+		await p.click('.compare-chip.removed');
+		check(await names() === 'dbo.Log', 'Removed replaces it');
+		await p.click('.compare-chip.removed');
+		check((await names()).split(',').length === 4, 'a second click on the chip that is on shows everything again');
+		await p.click('.compare-chip.modified');
+		check(await names() === 'dbo.Customers,dbo.usp_Load', 'Modified keeps the modified ones');
+
+		await p.click('.compare-row[data-id="procedure:dbo.usp_Load"]');
+		check(await p.isDisabled('.compare-view-tab[data-view=changes]') === false, 'the Changes tab is on');
+		await p.click('.compare-view-tab[data-view=before]');
+		let code = await p.$$eval('.compare-line-text', els => els.map(e => e.textContent));
+		check(code.length === 6 && code[0] === 'CREATE PROC dbo.usp_Load AS' && code.includes('    SELECT 3'), `Before shows the whole reference code (${code.length} lines)`);
+		await p.click('.compare-view-tab[data-view=after]');
+		code = await p.$$eval('.compare-line-text', els => els.map(e => e.textContent));
+		check(code.length === 6 && code.includes('    SELECT 33') && !code.includes('    SELECT 3'), 'After shows the whole current code');
+
+		await p.click('.compare-chip.modified');
+		await p.click('.compare-row[data-id="table:dbo.Invoices"]');
+		check(await p.isDisabled('.compare-view-tab[data-view=before]') && !(await p.isDisabled('.compare-view-tab[data-view=after]')), 'an added table has no Before');
+		check((await p.$$eval('.compare-line-text', els => els.map(e => e.textContent))).join() === 'column id int NOT NULL,column total decimal(10,2) NOT NULL', 'its After lists the whole table');
+		await p.click('.compare-row[data-id="table:dbo.Log"]');
+		check(await p.isDisabled('.compare-view-tab[data-view=after]') && (await p.$$eval('.compare-op', els => els.length)) === 1, 'a removed table has no After, and falls back to its changes');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
 	test('an identical comparison says so, and offers no script', async () => {
 		const check = checker();
 		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 720 });
