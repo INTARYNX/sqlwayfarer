@@ -4,6 +4,14 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.7] - 2026-11-10
+
+### Changed
+
+- **Compare: the tabs say what they show.** Differences / Reference (name) / Current (name), with a line above the code saying which side is the "before" and which the "after".
+- **Compare export: the folders are `reference/` and `current/`** (they were `before/` and `after/`), with a `README.txt` that says which database each one is, and matching columns in `changes.csv`.
+- **Files panel: coloured icons** (folders, files), no rule between the rows, and tighter rows so more files fit.
+
 ## [0.99.6] - 2026-11-10
 
 ### Changed
