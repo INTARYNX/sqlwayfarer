@@ -715,6 +715,31 @@ suite('IndexService checksums do not depend on the time zone', () => {
 	});
 });
 
+suite('IndexService: a table is not stale because of its maintenance', () => {
+	const service = new IndexService({ getServerName: () => 'testserver' }, {});
+	// A rebuilt index or a new foreign key moves the modify_date of a table, not its signature.
+	const table = (modifyDate, signature) => ({ object_id: 1, qualified_name: 'dbo.T', type: 'U', modify_date: modifyDate, table_signature: signature });
+
+	test('a new modify_date with the same signature is not a change', () => {
+		assert.strictEqual(service._entryChecksum(table('2026-01-01', 7)), service._entryChecksum(table('2026-02-02', 7)));
+		assert.strictEqual(service._checksumFromObjects([table('2026-01-01', 7)]), service._checksumFromObjects([table('2026-02-02', 7)]));
+	});
+
+	test('a new signature is a change', () => {
+		assert.notStrictEqual(service._entryChecksum(table('2026-01-01', 7)), service._entryChecksum(table('2026-01-01', 8)));
+		assert.notStrictEqual(service._checksumFromObjects([table('2026-01-01', 0)]), service._checksumFromObjects([table('2026-01-01', 8)]));
+	});
+
+	test('a view or a procedure still goes by its modify_date', () => {
+		const view = modifyDate => ({ object_id: 2, qualified_name: 'dbo.V', type: 'V', modify_date: modifyDate, table_signature: null });
+		assert.notStrictEqual(service._entryChecksum(view('2026-01-01')), service._entryChecksum(view('2026-02-02')));
+	});
+
+	test('a table without a signature goes by its modify_date', () => {
+		assert.notStrictEqual(service._entryChecksum(table('2026-01-01', undefined)), service._entryChecksum(table('2026-02-02', undefined)));
+	});
+});
+
 suite('IndexService: the index file stays where it belongs', () => {
 	let tempDir;
 
