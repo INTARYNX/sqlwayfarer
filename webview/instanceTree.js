@@ -262,6 +262,8 @@ class InstanceTree {
         el.appendChild(chevron);
 
         const icon = document.createElement('span');
+        icon.className = 'instance-icon';
+        icon.dataset.icon = row.kind === 'db' ? 'Database' : row.kind === 'group' ? 'Folder' : row.object.object_type;
         icon.innerHTML = row.kind === 'db' ? swObjectIcon('Database') : row.kind === 'group' ? '<i class="codicon codicon-folder"></i>' : swObjectIcon(row.object.object_type);
         el.appendChild(icon);
 
