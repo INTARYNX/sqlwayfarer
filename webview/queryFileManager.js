@@ -484,7 +484,7 @@ class QueryFileManager {
         const panel = this.filesPanel;
         if (!splitter || !panel) return;
 
-        const MIN_WIDTH = 180;
+        const MIN_WIDTH = 150;
         const DEFAULT_WIDTH = 260;
         const STORAGE_KEY = 'sqlwayfarer.sqlFilesPanelWidth';
 

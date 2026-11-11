@@ -1955,7 +1955,7 @@ body.vscode-high-contrast .qp-tt-header {
     display: none;
     flex-direction: column;
     width: 260px;
-    min-width: 180px;
+    min-width: 150px;
     flex-shrink: 0;
     border-right: 1px solid var(--vscode-input-border);
     background: var(--vscode-sideBar-background, var(--vscode-editor-background));
@@ -2020,6 +2020,54 @@ body.vscode-high-contrast .qp-tt-header {
 .panel-tab:focus-visible {
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: -1px;
+}
+
+/* A narrow panel keeps the icons of the tabs only (the titles are in their
+   tooltips), so the header never wraps or cuts a word. */
+.sql-files-panel { container-type: inline-size; }
+
+/* The files total goes first, then the titles: the Instance tab is never cut. */
+@container (max-width: 320px) {
+    .sql-files-total {
+        display: none;
+    }
+}
+
+@container (max-width: 240px) {
+    .panel-tab-label {
+        display: none;
+    }
+
+    /* Tight header: the two tabs and the three actions fit side by side. */
+    .sql-files-panel-header {
+        gap: 2px;
+        padding: 6px 4px;
+    }
+
+    .panel-tab {
+        padding: 2px 4px;
+        flex: none;
+    }
+
+    .sql-files-panel-title {
+        flex-shrink: 0;
+    }
+
+    .sql-files-panel-actions {
+        gap: 0;
+    }
+
+    .sql-files-panel-actions .icon-btn {
+        padding: 5px 6px;
+    }
+}
+
+/* Too narrow for the three actions beside the two tabs: the tabs keep their
+   room, "collapse all" is the one to go. */
+@container (max-width: 190px) {
+    #sqlFilesCollapseAllBtn {
+        display: none;
+    }
 }
 
 .sql-files-panel-title {
@@ -2192,15 +2240,16 @@ body.vscode-high-contrast .qp-tt-header {
     transform: rotate(-90deg);
 }
 
+/* Plain grey "(n)" - the same as the groups of the Instance tree. */
 .sql-file-count {
     flex-shrink: 0;
     font-size: 11px;
     font-weight: normal;
-    color: var(--vscode-badge-foreground);
-    background: var(--vscode-badge-background);
-    padding: 1px 6px;
-    border-radius: 10px;
+    color: var(--vscode-descriptionForeground);
 }
+
+.sql-file-count::before { content: '('; }
+.sql-file-count::after { content: ')'; }
 
 .result-set-actions {
     display: flex;
@@ -3655,6 +3704,22 @@ table.fp-cols .fp-center { text-align: center; }
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
 }
+
+/* Coloured icons, like the Files tree: fixed colours, since the theme's own
+   are grey (the SVG icons draw with currentColor). */
+.instance-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--vscode-foreground);
+}
+.instance-icon[data-icon="Database"],
+.instance-icon[data-icon="Folder"] { color: #dcb67a; }
+.instance-icon[data-icon="Table"] { color: #519aba; }
+.instance-icon[data-icon="View"] { color: #b180d7; }
+.instance-icon[data-icon="Procedure"] { color: #89d185; }
+.instance-icon[data-icon="Function"] { color: #4ec9b0; }
+.instance-icon[data-icon="Trigger"] { color: #d18616; }
+.instance-icon .sw-icon { opacity: 1; }
 
 .instance-note {
     padding: 3px 8px 3px calc(26px + var(--depth, 0) * 14px);
