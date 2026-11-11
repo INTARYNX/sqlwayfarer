@@ -2226,7 +2226,7 @@ body.vscode-high-contrast .qp-tt-header {
     display: flex;
     align-items: center;
     gap: 4px;
-    flex: 1 1 auto;
+    flex: 0 1 auto; /* the count follows the name, as in the Instance tree */
     min-width: 0;
 }
 
