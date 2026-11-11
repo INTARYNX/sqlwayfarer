@@ -123,12 +123,45 @@ const vsCodeTheme = EditorView.theme({
         color: 'var(--vscode-editorWidget-foreground, var(--vscode-editor-foreground))'
     },
     '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--vscode-editorWidget-border, transparent)' },
+    // One compact wrapping row of controls (CodeMirror lays them out with <br>
+    // and fixed margins, which overflows in a short editor).
+    '.cm-panels .cm-panel.cm-search': {
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '4px 6px',
+        padding: '6px 32px 6px 8px',
+        fontSize: 'var(--vscode-font-size, 13px)',
+        fontFamily: 'var(--vscode-font-family)',
+        position: 'relative'
+    },
+    '.cm-panels .cm-panel.cm-search input, .cm-panels .cm-panel.cm-search button, .cm-panels .cm-panel.cm-search label': {
+        fontSize: 'inherit',
+        fontFamily: 'inherit',
+        margin: '0'
+    },
+    '.cm-panels .cm-panel.cm-search button': { padding: '3px 10px' },
+    '.cm-panels .cm-panel.cm-search br': { display: 'none' },
+    '.cm-panels .cm-panel.cm-search input[type=text]': { width: '220px', minWidth: '0', flex: '0 1 220px', padding: '3px 6px' },
+    '.cm-panels .cm-panel.cm-search label': { display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' },
+    '.cm-panels .cm-panel.cm-search [name=close]': {
+        position: 'absolute',
+        top: '3px',
+        right: '4px',
+        border: 'none',
+        backgroundColor: 'transparent',
+        color: 'inherit',
+        fontSize: '16px',
+        lineHeight: '1',
+        padding: '0 4px'
+    },
     '.cm-search input, .cm-search button': {
         backgroundColor: 'var(--vscode-input-background)',
         color: 'var(--vscode-input-foreground)',
         border: '1px solid var(--vscode-input-border, transparent)',
         borderRadius: '2px'
     },
+    '.cm-search input:focus': { outline: '1px solid var(--vscode-focusBorder)', outlineOffset: '-1px' },
     '.cm-search button': { backgroundImage: 'none', cursor: 'pointer' },
     '.cm-search button:hover': { backgroundColor: 'var(--vscode-toolbar-hoverBackground)' },
     '.cm-searchMatch': { backgroundColor: 'var(--vscode-editor-findMatchHighlightBackground)' },
@@ -174,9 +207,14 @@ function baseExtensions(options, historyBox) {
         // (queryManager.js). CodeMirror's default binding for it inserts a
         // blank line, which would happen *and* run the query - so that one
         // entry is dropped and the shortcut is left to the extension.
-        // Ctrl+F stays the page's own search; Ctrl+H opens find / replace here.
+        // Ctrl+F and Ctrl+H open the find / replace panel of this editor, so
+        // the page's own search never reaches past the query text.
         search({ top: true }),
-        keymap.of([{ key: 'Mod-h', run: openSearchPanel, preventDefault: true }, ...searchKeymap.filter(binding => binding.key !== 'Mod-f')]),
+        keymap.of([
+            { key: 'Mod-h', run: openSearchPanel, preventDefault: true },
+            { key: 'Mod-f', run: openSearchPanel, preventDefault: true },
+            ...searchKeymap.filter(binding => binding.key !== 'Mod-f')
+        ]),
         keymap.of([...defaultKeymap.filter(binding => binding.key !== 'Mod-Enter'), ...historyKeymap, indentWithTab]),
         sql({ dialect: MSSQL }),
         syntaxHighlighting(sqlHighlightStyle),
@@ -209,6 +247,13 @@ function attach(container, options = {}) {
     };
     // The undo history sits in a compartment so it can be emptied (resetHistory).
     const historyBox = new Compartment();
+
+    // VS Code forwards every key of the webview to its own shortcuts, and
+    // Ctrl+F opens its find widget over the whole page. Once the editor has
+    // handled Ctrl+F / Ctrl+H (its own panel), the key goes no further.
+    container.addEventListener('keydown', event => {
+        if (event.defaultPrevented && (event.ctrlKey || event.metaKey) && !event.altKey && ['f', 'h'].includes(event.key.toLowerCase())) event.stopPropagation();
+    });
 
     const view = new EditorView({
         parent: container,
