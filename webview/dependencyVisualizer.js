@@ -157,7 +157,7 @@ class DependencyVisualizer {
             node.classList.add('dep-node-external');
             node.addEventListener('click', () => {
                 if (window.explorerManager) {
-                    window.explorerManager.revealExternalObject(dep.external_database, dep.schema_name || 'dbo', dep.object_name);
+                    window.explorerManager.revealExternalObject(dep.external_database, dep.schema_name || 'dbo', dep.object_name, { newTab: true });
                 }
             });
         });
