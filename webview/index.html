@@ -107,7 +107,12 @@
                     <button id="queryTabsBtn" class="tab-icon-button" title="Open queries - switch between them or start a new draft (also: double-click the Query tab; Ctrl+Alt+PageUp / PageDown to go to the previous / next one)"><i class="codicon codicon-chevron-down"></i><span id="queryTabsCount" class="qtab-count" hidden></span></button>
                     <div id="queryTabsDropdown" class="query-tabs-dropdown" role="menu"></div>
                 </span>
-                <button class="tab-button" data-tab="explorer">Explorer</button>
+                <span class="query-tab-wrap">
+                    <button class="tab-button" data-tab="explorer" title="Double-click to switch between the open objects">Explorer<span id="explorerActiveTabLabel" class="query-active-tab-label"></span></button>
+                    <button id="explorerActiveClose" class="tab-icon-button" title="Close this object" hidden><i class="codicon codicon-close"></i></button>
+                    <button id="explorerTabsBtn" class="tab-icon-button" title="Open objects - switch between them or start a new tab (also: double-click the Explorer tab)"><i class="codicon codicon-chevron-down"></i><span id="explorerTabsCount" class="qtab-count" hidden></span></button>
+                    <div id="explorerTabsDropdown" class="query-tabs-dropdown" role="menu"></div>
+                </span>
                 <button class="tab-button" data-tab="compare" title="What changed in this database since a snapshot, and the script to repeat it elsewhere">Compare</button>
             </div>
             <div class="header-actions">

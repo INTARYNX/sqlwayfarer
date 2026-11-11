@@ -27,6 +27,11 @@ class ExplorerManager {
         // loop, an O(n) DOM scan per object, i.e. O(n^2) overall, which is what
         // froze the Explorer on a database with a lot of objects.
         this._objectItemsByName = new Map();
+        // The objects open in the Explorer: { id, database, schema, object, label, objectType }.
+        this._objectTabs = [];
+        this._activeObjectTabId = null;
+        this._nextObjectTabId = 1;
+        this._activatingObjectTab = false;
     }
 
     initDOMElements() {
@@ -55,8 +60,139 @@ class ExplorerManager {
             const db = link.dataset.db;
             const name = link.dataset.name;
             if (!db || !name) return;
-            this.revealExternalObject(db, link.dataset.schema || 'dbo', name);
+            this.revealExternalObject(db, link.dataset.schema || 'dbo', name, { newTab: true });
         });
+
+        // The Explorer tab works like the Query one: it names the active object,
+        // with its cross, an arrow for the list of the others and a way to start
+        // another one.
+        this.objectTabsDropdown = document.getElementById('explorerTabsDropdown');
+        const tabsBtn = document.getElementById('explorerTabsBtn');
+        const explorerTab = document.querySelector('.tab-button[data-tab="explorer"]');
+        tabsBtn.addEventListener('click', (e) => { e.stopPropagation(); this.toggleObjectTabsDropdown(); });
+        explorerTab.addEventListener('dblclick', (e) => { e.stopPropagation(); this.toggleObjectTabsDropdown(); });
+        document.getElementById('explorerActiveClose').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeObjectTab(this._activeObjectTabId);
+        });
+        this.objectTabsDropdown.addEventListener('click', (e) => {
+            const close = e.target.closest('[data-qtab-close]');
+            if (close) { e.stopPropagation(); this.closeObjectTab(Number(close.dataset.qtabClose)); return; }
+            if (e.target.closest('[data-qtab-add]')) { this.addObjectTab(); this.closeObjectTabsDropdown(); return; }
+            const item = e.target.closest('.query-tabs-dropdown-item');
+            if (item) { this.activateObjectTab(Number(item.dataset.qtabId)); this.closeObjectTabsDropdown(); }
+        });
+        document.addEventListener('click', (e) => {
+            if (!this.objectTabsDropdown.classList.contains('visible')) return;
+            if (this.objectTabsDropdown.contains(e.target) || tabsBtn.contains(e.target) || explorerTab.contains(e.target)) return;
+            this.closeObjectTabsDropdown();
+        });
+    }
+
+    // === Object tabs ========================================================
+    // One tab per inspected object. A link (dependency, tree, graph, editor)
+    // opens a tab of its own; a click in the object list or the instance tree
+    // reuses the active one. Showing a tab reads its object again.
+
+    toggleObjectTabsDropdown() {
+        if (this.objectTabsDropdown.classList.contains('visible')) this.closeObjectTabsDropdown();
+        else { this.renderObjectTabsDropdown(); this.objectTabsDropdown.classList.add('visible'); }
+    }
+
+    closeObjectTabsDropdown() {
+        this.objectTabsDropdown.classList.remove('visible');
+    }
+
+    _trackObjectTab(target, { newTab }) {
+        if (this._activatingObjectTab) return;
+        const lower = text => (text || '').toLowerCase();
+        const existing = this._objectTabs.find(t => !t.empty && t.database === target.database
+            && lower(t.schema) === lower(target.schema) && lower(t.object) === lower(target.object));
+        const active = this._objectTabs.find(t => t.id === this._activeObjectTabId);
+        if (existing) {
+            this._activeObjectTabId = existing.id;
+            if (target.objectType) existing.objectType = target.objectType;
+        } else if (active && (!newTab || active.empty)) {
+            Object.assign(active, target, { empty: false });
+        } else {
+            const tab = { id: this._nextObjectTabId++, empty: false, ...target };
+            this._objectTabs.push(tab);
+            this._activeObjectTabId = tab.id;
+        }
+        this.renderObjectTabs();
+    }
+
+    // A tab with no object yet: the next one picked fills it.
+    addObjectTab() {
+        const tab = { id: this._nextObjectTabId++, empty: true, database: appState.currentDatabase, schema: '', object: '', label: 'New', objectType: null };
+        this._objectTabs.push(tab);
+        this._activeObjectTabId = tab.id;
+        this._showNoObject();
+        if (window.tabManager) window.tabManager.switchTab('explorer');
+        this.renderObjectTabs();
+    }
+
+    _showNoObject() {
+        appState.selectedObject = null;
+        const prevSelected = this.elements.objectList.querySelector('.selected');
+        if (prevSelected) prevSelected.classList.remove('selected');
+        this.elements.detailsContent.innerHTML = '<p>Select an object to view its details.</p>';
+    }
+
+    renderObjectTabs() {
+        const active = this._objectTabs.find(t => t.id === this._activeObjectTabId);
+        document.getElementById('explorerActiveTabLabel').textContent = active ? active.label : '';
+        document.getElementById('explorerActiveClose').hidden = !active;
+        const count = document.getElementById('explorerTabsCount');
+        count.hidden = this._objectTabs.length < 2;
+        count.textContent = String(this._objectTabs.length);
+        if (this.objectTabsDropdown.classList.contains('visible')) this.renderObjectTabsDropdown();
+    }
+
+    // The list is the other tabs: the active one is on the Explorer tab, with its own cross.
+    renderObjectTabsDropdown() {
+        const items = this._objectTabs.filter(t => t.id !== this._activeObjectTabId).map(tab => {
+            const full = tab.empty ? 'An empty tab' : `${tab.database}.${tab.schema}.${tab.object}`;
+            return `<div class="query-tabs-dropdown-item" data-qtab-id="${tab.id}" role="menuitem" title="${this.escapeHtml(full)}">`
+                + `<span class="qtab-name">${this.escapeHtml(tab.label)}</span>`
+                + (!tab.empty && tab.database ? `<span class="qtab-db" title="Database of this object">${this.escapeHtml(tab.database)}</span>` : '')
+                + `<span class="qtab-close" data-qtab-close="${tab.id}">×</span>`
+                + '</div>';
+        }).join('');
+        this.objectTabsDropdown.innerHTML = items
+            + '<button type="button" class="query-tabs-dropdown-add" data-qtab-add="1"><i class="codicon codicon-add"></i> New tab</button>';
+    }
+
+    activateObjectTab(id) {
+        const tab = this._objectTabs.find(t => t.id === id);
+        if (!tab) return;
+        this._activeObjectTabId = id;
+        this.renderObjectTabs();
+        if (tab.empty) { this._showNoObject(); return; }
+        this._activatingObjectTab = true;
+        try {
+            // The database belongs to the tab: showing it puts the Explorer on that database.
+            const sameDatabase = tab.database === appState.currentDatabase;
+            if (!sameDatabase) this.switchToDatabase(tab.database);
+            const element = sameDatabase ? this._objectItemsByName.get(tab.label) : null;
+            const obj = element && (appState.allObjects || []).find(o => o.name === tab.label);
+            if (element && obj) this.handleObjectClick(element, obj);
+            else this.revealExternalObject(tab.database, tab.schema, tab.object);
+        } finally {
+            this._activatingObjectTab = false;
+        }
+    }
+
+    closeObjectTab(id) {
+        const index = this._objectTabs.findIndex(t => t.id === id);
+        if (index === -1) return;
+        this._objectTabs.splice(index, 1);
+        if (id !== this._activeObjectTabId) { this.renderObjectTabs(); return; }
+        const next = this._objectTabs[Math.min(index, this._objectTabs.length - 1)];
+        if (next) { this.activateObjectTab(next.id); return; }
+        this._activeObjectTabId = null;
+        this._showNoObject();
+        this.renderObjectTabs();
     }
 
     // Generate and save the Markdown data dictionary for the selected database
@@ -108,7 +244,7 @@ class ExplorerManager {
         const element = this._objectItemsByName.get(obj.name);
         if (element) {
             element.scrollIntoView({ block: 'center' });
-            this.handleObjectClick(element, obj);
+            this.handleObjectClick(element, obj, { newTab: true });
         }
     }
 
@@ -117,10 +253,11 @@ class ExplorerManager {
     // That database's object list was never loaded into the tree, so there's
     // no node to select/scroll to and the object's type isn't known yet -
     // ask the backend to resolve it and fetch its details in one round trip.
-    revealExternalObject(database, schema, name) {
+    revealExternalObject(database, schema, name, { newTab = false } = {}) {
         if (window.tabManager) {
             window.tabManager.switchTab('explorer');
         }
+        this._trackObjectTab({ database, schema, object: name, label: `${schema}.${name}`, objectType: null }, { newTab });
         const prevSelected = this.elements.objectList.querySelector('.selected');
         if (prevSelected) prevSelected.classList.remove('selected');
 
@@ -222,7 +359,7 @@ class ExplorerManager {
         }
     }
 
-    handleObjectClick(element, obj) {
+    handleObjectClick(element, obj, { newTab = false } = {}) {
         const prevSelected = this.elements.objectList.querySelector('.selected');
         if (prevSelected) {
             prevSelected.classList.remove('selected');
@@ -235,6 +372,14 @@ class ExplorerManager {
         this._currentDetailsDatabase = appState.currentDatabase;
 
         const objectNameForBackend = this._getQualifiedName(obj);
+        const dot = objectNameForBackend.indexOf('.');
+        this._trackObjectTab({
+            database: appState.currentDatabase,
+            schema: obj.schema_name || (dot > 0 ? objectNameForBackend.slice(0, dot) : 'dbo'),
+            object: obj.object_name || (dot > 0 ? objectNameForBackend.slice(dot + 1) : objectNameForBackend),
+            label: obj.name,
+            objectType: obj.object_type
+        }, { newTab });
 
         if (obj.object_type === 'Table') {
             vscode.postMessage({
@@ -273,6 +418,8 @@ class ExplorerManager {
         if (this._externalPending !== objectName) return;
         this._externalPending = null;
         if (appState.selectedObject) appState.selectedObject.object_type = objectType;
+        const tab = this._objectTabs.find(t => t.id === this._activeObjectTabId);
+        if (tab && !tab.objectType) { tab.objectType = objectType; this.renderObjectTabs(); }
         this._refreshActiveDetailsTab(this._currentDetailsDatabase, objectName, objectType);
     }
 

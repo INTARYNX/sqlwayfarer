@@ -281,7 +281,7 @@ class RecentChanges {
 
     reveal(item) {
         const target = item && this.explorerTarget(item);
-        if (target && window.explorerManager) window.explorerManager.revealExternalObject(this.database, target.schema, target.name);
+        if (target && window.explorerManager) window.explorerManager.revealExternalObject(this.database, target.schema, target.name, { newTab: true });
     }
 
     requestDefinition() {

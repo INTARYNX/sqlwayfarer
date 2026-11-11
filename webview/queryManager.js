@@ -191,7 +191,7 @@ class QueryManager {
 
         if (database && database.toLowerCase() !== (appState.currentDatabase || '').toLowerCase()) {
             if (window.explorerManager) {
-                window.explorerManager.revealExternalObject(database, schema || 'dbo', name);
+                window.explorerManager.revealExternalObject(database, schema || 'dbo', name, { newTab: true });
             } else {
                 this.setStatus(`Can't resolve '${clean}' from here.`, 'error');
             }
