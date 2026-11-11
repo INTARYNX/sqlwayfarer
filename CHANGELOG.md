@@ -4,6 +4,23 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.9] - 2026-11-11
+
+### Added
+
+- **Explorer: one tab per object**, like the Query tabs. The Explorer tab names the active object, with its cross, the list of the other ones (with their database) and a "New tab" entry. A link (dependencies, graph, Ctrl+click in the editor, recent changes) opens an object in a tab of its own; a pick in the object list or the instance tree reuses the active one. Showing a tab puts the Explorer on its database.
+- **Query tabs: a cross on the active one**, and the list shows only the other queries. A draft is named after the start of what is typed in it.
+
+### Changed
+
+- **Query editor: Ctrl+F and Ctrl+H open the editor's own find and replace panel**, in one compact row, instead of VS Code's find widget over the whole page.
+- **Side panel: the Instance tree has coloured icons and the same filter box as Files**, and both lists show their counts as plain grey "(n)". The Files and Instance tabs keep their icon only when the panel is narrow, and the panel can be dragged down to 150px.
+
+### Fixed
+
+- **A file with CRLF line ends is no longer "modified" as soon as it opens.**
+- **A long draft name no longer stretches the Query tab.**
+
 ## [0.99.8] - 2026-11-10
 
 ### Fixed
