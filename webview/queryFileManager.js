@@ -553,12 +553,16 @@ class QueryFileManager {
         if (existing) {
             this.activeTabId = existing.id;
         } else {
+            // The editor holds "\n" only (the file's own line ends come back in
+            // `eol`): the text compared with the editor's must be in that form
+            // too, or a CRLF file is "modified" from the moment it is opened.
+            const text = message.content.replace(/\r\n?/g, '\n');
             const tab = {
                 id: this.nextId++,
                 filePath: message.path,
                 fileName: message.name,
-                content: message.content,
-                savedContent: message.content,
+                content: text,
+                savedContent: text,
                 encoding: message.encoding || 'utf8',
                 savedEncoding: message.encoding || 'utf8',
                 eol: message.eol || 'lf',
