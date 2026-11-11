@@ -116,6 +116,11 @@ class QueryFileManager {
             e.stopPropagation();
             this.toggleTabsDropdown();
         });
+        // The cross of the active query: the other ones close from the list.
+        document.getElementById('queryActiveClose').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeTab(this.activeTabId);
+        });
         this.tabsDropdown.addEventListener('click', (e) => {
             const closeBtn = e.target.closest('[data-qtab-close]');
             if (closeBtn) { e.stopPropagation(); this.closeTab(Number(closeBtn.dataset.qtabClose)); return; }
@@ -196,6 +201,16 @@ class QueryFileManager {
 
     _activeTab() {
         return this.tabs.find(t => t.id === this.activeTabId);
+    }
+
+    // What a tab is called: the file's name, or for a draft the start of what
+    // is typed in it ("Draft N" while it is empty).
+    _tabLabel(tab, content) {
+        if (tab.fileName) return tab.fileName;
+        const firstLine = (content || '').split('\n').map(line => line.trim()).find(line => line !== '');
+        if (!firstLine) return tab.draftLabel;
+        const text = firstLine.replace(/\s+/g, ' ');
+        return text.length > 20 ? `${text.slice(0, 20)}…` : text;
     }
 
     // === Tabs dropdown ===
@@ -713,7 +728,7 @@ class QueryFileManager {
 
     render() {
         const active = this._activeTab();
-        this.activeTabLabel.textContent = active ? (active.fileName || active.draftLabel) : '';
+        this.activeTabLabel.textContent = active ? this._tabLabel(active, this.queryManager.getEditorContent()) : '';
         // The list of open queries is one click away - and how many there are
         // shows on its button as soon as there is more than one.
         if (active) this.encodingSelect.value = active.encoding;
@@ -732,6 +747,7 @@ class QueryFileManager {
         if (!tab) { this.saveBtn.disabled = true; return; }
         const content = this.queryManager.getEditorContent();
         this.saveBtn.disabled = !this._isDirty(tab, content);
+        this.activeTabLabel.textContent = this._tabLabel(tab, content);
         this.updateEditorState(tab, content);
     }
 
@@ -747,9 +763,10 @@ class QueryFileManager {
     }
 
     renderTabsDropdown() {
-        const itemsHtml = this.tabs.map(tab => {
-            const active = tab.id === this.activeTabId;
-            const label = tab.fileName || tab.draftLabel;
+        // The active query is the one in the Query tab (with its own cross): the list is the other ones.
+        const itemsHtml = this.tabs.filter(tab => tab.id !== this.activeTabId).map(tab => {
+            const active = false;
+            const label = this._tabLabel(tab, tab.content);
             const dirty = !!tab.fileName && this._isDirty(tab, tab.content);
             const preview = QueryManager.truncate(tab.content || '(empty)', 180);
             return `<div class="query-tabs-dropdown-item${active ? ' active' : ''}" `
