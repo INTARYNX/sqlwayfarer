@@ -1840,6 +1840,13 @@ body.vscode-high-contrast .qp-tt-header {
     opacity: 0.7;
     font-weight: normal;
     font-size: 11px;
+    /* A long first line must not stretch the tab (and push the toolbar). */
+    display: inline-block;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
 }
 
 .query-tabs-dropdown {
@@ -1847,7 +1854,8 @@ body.vscode-high-contrast .qp-tt-header {
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 240px;
+    /* At least as wide as the Query tab with its cross and its arrow. */
+    min-width: max(240px, 100%);
     max-width: 360px;
     z-index: 50;
     background: var(--vscode-dropdown-background, var(--vscode-editor-background));
