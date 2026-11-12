@@ -169,7 +169,20 @@ class FootprintManager {
             // line between them: a gap that is too short hides it behind the nodes.
             layout: { name: 'dagre', rankDir: 'LR', nodeSep: 40, rankSep: Math.max(90, FootprintManager._joinLabelWidth(graph.joins || []) + 40), animate: false }
         });
-        this._cy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('name')));
+        // A double click opens the table in the Explorer (a single click only
+        // selects it, to move or read it): cytoscape has no double click event,
+        // two taps on the same node in a row are one.
+        let lastTap = { id: null, at: 0 };
+        this._cy.on('tap', 'node', (evt) => {
+            const now = Date.now();
+            const id = evt.target.id();
+            if (lastTap.id === id && now - lastTap.at < 400) {
+                lastTap = { id: null, at: 0 };
+                this._revealTable(evt.target.data('name'));
+            } else {
+                lastTap = { id, at: now };
+            }
+        });
         this._cy.fit(this._cy.elements(), 30);
         this._renderQueryMeta(graph);
     }
