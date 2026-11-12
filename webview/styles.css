@@ -1661,16 +1661,32 @@ body.vscode-high-contrast .qp-tt-header {
     /* Whatever the height set by the splitter, the bar stays on screen. */
     max-height: calc(100% - 30px);
     min-height: 80px;
-    /* The colour of the focus frame tells what state the query is in. */
-    --query-frame: var(--vscode-focusBorder, #007fd4);
 }
 
-.query-input-wrap[data-query-state="modified"] {
-    --query-frame: var(--vscode-charts-orange, #d18616);
+/* The state of the active query: a dot before its name, in the Query tab. */
+.query-state-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-left: 8px;
+    border-radius: 50%;
+    background: var(--vscode-focusBorder, #007fd4);
 }
 
-.query-input-wrap[data-query-state="draft"] {
-    --query-frame: var(--vscode-charts-purple, #b180d7);
+.tab-button .query-state-dot {
+    margin-left: 0;
+}
+
+.query-state-dot[data-query-state="modified"] {
+    background: var(--vscode-charts-orange, #d18616);
+}
+
+.query-state-dot[data-query-state="draft"] {
+    background: var(--vscode-charts-purple, #b180d7);
+}
+
+.query-state-dot[data-query-state=""] {
+    display: none;
 }
 
 /* Layout only - font, colors and padding are owned by sqlEditor.js's own
@@ -1698,7 +1714,9 @@ body.vscode-high-contrast .qp-tt-header {
     content: '';
     position: absolute;
     inset: 0;
-    border: 1px solid var(--query-frame);
+    /* The theme's focus colour, toned down towards the editor: a frame that
+       says where the cursor is without shouting. */
+    border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 40%, var(--vscode-editor-background));
     border-radius: 2px;
     pointer-events: none;
     z-index: 201;
@@ -1870,6 +1888,14 @@ body.vscode-high-contrast .qp-tt-header {
     vertical-align: bottom;
 }
 
+/* The Query tab has no title of its own: the name of the query is it. */
+#queryActiveTabLabel {
+    opacity: 1;
+    font-weight: 500;
+    font-size: 13px;
+    margin-left: 6px;
+}
+
 .query-tabs-dropdown {
     display: none;
     position: absolute;
@@ -1931,12 +1957,8 @@ body.vscode-high-contrast .qp-tt-header {
     color: var(--vscode-badge-foreground);
 }
 
-.query-tabs-dropdown-item .qtab-dirty-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--vscode-button-background);
-    flex-shrink: 0;
+.query-tabs-dropdown-item .query-state-dot {
+    margin-left: 0;
 }
 
 .query-tabs-dropdown-item .qtab-close {
@@ -3622,8 +3644,12 @@ table.fp-cols .fp-center { text-align: center; }
 /* Compact: the labels go (their title says what they are) and the gaps tighten. */
 @media (min-width: 769px) and (max-width: 1180px) {
     .query-option-label,
-    .query-active-tab-label {
+    #explorerActiveTabLabel {
         display: none;
+    }
+
+    #queryActiveTabLabel {
+        max-width: 90px;
     }
 
     .query-database-option {

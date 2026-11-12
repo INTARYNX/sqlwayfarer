@@ -20,8 +20,8 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 		const sent = () => p.evaluate(() => window.__sent);
 		const clear = () => p.evaluate(() => { window.__sent.length = 0; });
 		const last = async () => { const s = await sent(); return s[s.length - 1]; };
-		const frame = () => p.evaluate(() => getComputedStyle(document.querySelector('.query-input-wrap')).getPropertyValue('--query-frame').trim());
-		const state = () => p.evaluate(() => document.querySelector('.query-input-wrap').dataset.queryState);
+		const dot = () => p.evaluate(() => getComputedStyle(document.getElementById('queryStateDot')).backgroundColor);
+		const state = () => p.evaluate(() => document.getElementById('queryStateDot').dataset.queryState);
 
 		await post({ command: 'connectionStatus', success: true, message: 'ok' });
 		check(await p.locator('#productionBanner').isHidden(), 'no production banner on an ordinary connection');
@@ -88,20 +88,23 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 		check((await codeText()) === 'select from from (((' && await p.evaluate(() => window.codeViewManager._isFormatted) === false, 'code that cannot be parsed is left as it is');
 		await p.evaluate(() => window.codeViewManager.showPlaceholder());
 
-		// ---- focus frame colours
+		// ---- the dot of the query state
 		await p.click('.cm-content'); await p.keyboard.type('SELECT 1');
-		check((await state()) === 'draft' && /b180d7/i.test(await frame()), 'a query without a file has the purple frame (' + await frame() + ')');
+		const purple = await dot();
+		check((await state()) === 'draft', 'a query without a file has the draft dot (' + purple + ')');
 		await post({ command: 'sqlFileOpened', path: '/w/a.sql', name: 'a.sql', content: 'SELECT 42' });
-		check((await state()) === 'saved' && /007fd4|focus/i.test(await frame()) , 'a saved file has the normal focus colour (' + await frame() + ')');
+		const blue = await dot();
+		check((await state()) === 'saved' && blue !== purple, 'a saved file has its own dot (' + blue + ')');
 		await p.click('.cm-content'); await p.keyboard.press('End'); await p.keyboard.type(' ');
-		check((await state()) === 'modified' && /d18616/i.test(await frame()), 'a file with unsaved changes has the orange frame (' + await frame() + ')');
+		const orange = await dot();
+		check((await state()) === 'modified' && orange !== blue && orange !== purple, 'a file with unsaved changes has the orange dot (' + orange + ')');
 		await p.click('#saveQueryFileBtn'); await post({ command: 'sqlFileSaved', success: true, path: '/w/a.sql' });
-		check((await state()) === 'saved', 'saving brings the normal colour back');
+		check((await state()) === 'saved', 'saving brings the saved dot back');
 		await p.evaluate(() => window.queryManager.setQueryText('SELECT 43'));
 		check((await state()) === 'modified' && await p.locator('#saveQueryFileBtn').isEnabled(), 'a change made by the code (a script, a history entry) counts as an edit of the file');
 		await p.click('#saveQueryFileBtn'); await post({ command: 'sqlFileSaved', success: true, path: '/w/a.sql' });
 		await p.evaluate(() => window.queryFileManager.addDraftTab());
-		check((await state()) === 'draft', 'a new draft is purple');
+		check((await state()) === 'draft', 'a new draft has the draft dot');
 
 		// ---- closing a draft that holds text asks first; a blank one does not
 		await p.evaluate(() => window.queryFileManager.addDraftTab());
@@ -115,7 +118,7 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 		await clear();
 		await p.evaluate(id => window.queryFileManager.closeTab(id), filledId);
 		const asked = (await sent()).find(m => m.command === 'confirmDiscardChanges');
-		check(asked && /^Draft \d+$/.test(asked.name) && await p.evaluate(id => window.queryFileManager.tabs.some(t => t.id === id), filledId), 'a draft with text asks first, and stays open meanwhile');
+		check(asked && /^Query \d+$/.test(asked.name) && await p.evaluate(id => window.queryFileManager.tabs.some(t => t.id === id), filledId), 'a draft with text asks first, and stays open meanwhile');
 		await post({ command: 'discardConfirmed', discard: false });
 		check(await p.evaluate(id => window.queryFileManager.tabs.some(t => t.id === id), filledId), 'refusing keeps it');
 		await p.evaluate(id => window.queryFileManager.closeTab(id), filledId);

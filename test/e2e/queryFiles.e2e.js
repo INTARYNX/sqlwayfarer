@@ -114,6 +114,20 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		check.done();
 	});
 
+	test('the list of the queries shows the state of each one with the same dot', async () => {
+		const check = checker();
+		const p = await openPage();
+		await type(p, 'select 1');
+		await p.evaluate(() => { window.queryFileManager.addDraftTab(); });
+		await p.waitForTimeout(100);
+		await p.click('#queryTabsBtn');
+		const states = await p.evaluate(() => [...document.querySelectorAll('.query-tabs-dropdown-item .query-state-dot')].map(d => d.dataset.queryState));
+		check(JSON.stringify(states) === '["draft"]', 'a draft has its dot in the list (' + states + ')');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
 	test('right click on the Save button offers Save As, for a draft with text and for a clean file', async () => {
 		const check = checker();
 		const p = await openPage();
