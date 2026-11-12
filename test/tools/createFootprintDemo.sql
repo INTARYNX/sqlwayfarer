@@ -13,8 +13,8 @@
 -- What a text search gets wrong is in there too: a CTE named like a table,
 -- inserted / deleted in the triggers, and (usp_Notes) names that sit in a comment
 -- (ignored) or in a string (listed as possible).
--- usp_CloseDay builds its statement as a string: that one is not followed
--- (a static analysis cannot), and the tool says so.
+-- usp_CloseDay writes its statement as a literal string: the tool finds the table.
+-- usp_Purge builds it from a parameter: nothing can be found, and the tool says so.
 USE master;
 GO
 IF DB_ID('WayfarerDemo') IS NOT NULL
@@ -134,12 +134,21 @@ BEGIN
     SELECT N'see dbo.StockMovements' AS Note;   -- a string
 END
 GO
--- Dynamic SQL: the statement is a string, so it is not followed (and it says so).
+-- Dynamic SQL written as a literal: the table can be read in the text.
 CREATE PROCEDURE dbo.usp_CloseDay AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @sql nvarchar(max) = N'DELETE FROM dbo.AuditLog WHERE At < DATEADD(day, -30, SYSDATETIME())';
     EXEC sp_executesql @sql;
+END
+GO
+-- Dynamic SQL built at run time: the table is a parameter. No static analysis can
+-- know which table this touches, and the tool does not pretend it does.
+CREATE PROCEDURE dbo.usp_Purge @Table sysname, @Days int AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @sql nvarchar(max) = N'DELETE FROM dbo.' + QUOTENAME(@Table) + N' WHERE At < DATEADD(day, -@Days, SYSDATETIME())';
+    EXEC sp_executesql @sql, N'@Days int', @Days = @Days;
 END
 GO
 CREATE VIEW dbo.vw_OrderTotals AS
