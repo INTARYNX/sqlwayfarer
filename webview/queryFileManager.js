@@ -516,12 +516,15 @@ class QueryFileManager {
 
     // Drag the bar on the right edge of the panel to widen it; double-click
     // puts it back to the default. The width is remembered between sessions.
+    // Dragged well under the minimum width, the panel closes, as a side bar
+    // does in VS Code (its width is kept for the next time it is opened).
     initSplitter() {
         const splitter = this.filesSplitter;
         const panel = this.filesPanel;
         if (!splitter || !panel) return;
 
         const MIN_WIDTH = 150;
+        const COLLAPSE_BELOW = 100;
         const DEFAULT_WIDTH = 260;
         const STORAGE_KEY = 'sqlwayfarer.sqlFilesPanelWidth';
 
@@ -552,10 +555,20 @@ class QueryFileManager {
             splitter.classList.add('dragging');
             document.body.style.userSelect = 'none';
 
+            const wasVisible = panel.classList.contains('visible');
+            let collapsed = false;
             const onMove = (ev) => {
+                const wanted = startWidth + (ev.clientX - startX);
+                // Closed while it is dragged that far, open again if the bar comes back.
+                const collapse = wanted < COLLAPSE_BELOW;
+                if (collapse !== collapsed) {
+                    collapsed = collapse;
+                    this._setFilesPanel(wasVisible && !collapsed);
+                }
+                if (collapsed) return;
                 const host = panel.parentElement;
                 const maxWidth = host ? Math.max(MIN_WIDTH, host.clientWidth * 0.6) : 900;
-                const next = Math.min(Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)), maxWidth);
+                const next = Math.min(Math.max(MIN_WIDTH, wanted), maxWidth);
                 panel.style.width = `${next}px`;
             };
             const onUp = () => {
@@ -563,7 +576,7 @@ class QueryFileManager {
                 document.removeEventListener('mouseup', onUp);
                 splitter.classList.remove('dragging');
                 document.body.style.userSelect = '';
-                storeWidth(panel.getBoundingClientRect().width);
+                if (!collapsed) storeWidth(panel.getBoundingClientRect().width);
             };
 
             document.addEventListener('mousemove', onMove);

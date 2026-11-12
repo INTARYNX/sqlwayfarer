@@ -202,6 +202,36 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		check.done();
 	});
 
+	test('the side panel closes when its bar is dragged well under the minimum width, and keeps its width', async () => {
+		const check = checker();
+		const p = await openPage();
+		const visible = () => p.evaluate(() => document.getElementById('sqlFilesPanel').classList.contains('visible'));
+		const width = () => p.evaluate(() => Math.round(document.getElementById('sqlFilesPanel').getBoundingClientRect().width));
+		await p.click('#queryFilesBtn');
+		check(await visible(), 'the panel is open');
+		const before = await width();
+		const box = await p.locator('#sqlFilesSplitter').boundingBox();
+		const y = box.y + box.height / 2;
+
+		await p.mouse.move(box.x + 2, y);
+		await p.mouse.down();
+		await p.mouse.move(box.x - (before - 140), y, { steps: 4 });
+		check(await visible() && Math.abs((await width()) - 150) <= 1, 'down to the minimum it only narrows (' + await width() + ')');
+		await p.mouse.move(box.x - before, y, { steps: 4 });
+		check(!(await visible()), 'well under it, the panel closes');
+		await p.mouse.move(box.x - (before - 200), y, { steps: 4 });
+		check(await visible(), 'the bar coming back opens it again');
+		await p.mouse.move(box.x - before, y, { steps: 4 });
+		await p.mouse.up();
+		check(!(await visible()), 'released under the limit: closed');
+
+		await p.click('#queryFilesBtn');
+		check(await visible() && Math.abs((await width()) - 150) <= 1, 'opened again, at the width it had (' + await width() + ')');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
 	test('right click on the Save button offers Save As, for a draft with text and for a clean file', async () => {
 		const check = checker();
 		const p = await openPage();
