@@ -114,6 +114,41 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		check.done();
 	});
 
+	test('each tab keeps its own results, and the answer of a run goes to the tab that ran it', async () => {
+		const check = checker();
+		const p = await openPage();
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		const set = value => ({ columns: ['v'], rows: [{ v: value }], totalRows: 1 });
+		const grid = () => p.evaluate(() => document.getElementById('queryResultsContainer').textContent);
+		const status = () => p.evaluate(() => document.getElementById('queryStatus').textContent);
+
+		await type(p, "select 'A'");
+		await p.click('#runQueryBtn');
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [set('result-A')] });
+		check((await grid()).includes('result-A'), 'the first tab shows its result');
+		const statusA = await status();
+
+		await p.evaluate(() => window.queryFileManager.addDraftTab());
+		await p.waitForTimeout(100);
+		check(!(await grid()).includes('result-A') && (await grid()).includes('Run a query'), 'a new tab starts with an empty pane');
+
+		// A run started here, left for another tab, answers into its own tab.
+		await type(p, "select 'B'");
+		await p.click('#runQueryBtn');
+		await p.evaluate(() => window.queryFileManager.switchTab(window.queryFileManager.tabs[0].id));
+		await p.waitForTimeout(100);
+		check((await grid()).includes('result-A') && (await status()) === statusA, 'back on the first tab: its result and its status');
+		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [set('result-B')] });
+		check((await grid()).includes('result-A') && !(await grid()).includes('result-B'), 'the late answer did not land on the tab on screen');
+		await p.evaluate(() => window.queryFileManager.switchTab(window.queryFileManager.tabs[1].id));
+		await p.waitForTimeout(100);
+		check((await grid()).includes('result-B'), 'it is in the tab that ran it');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
 	test('the list of the queries shows the state of each one with the same dot', async () => {
 		const check = checker();
 		const p = await openPage();

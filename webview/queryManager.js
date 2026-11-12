@@ -401,6 +401,7 @@ class QueryManager {
         }
 
         this._runLineOffset = offset;
+        this.runTabId = window.queryFileManager ? window.queryFileManager.activeTabId : null;
         this.setRunning(true);
         this.setStatus((this.includeActualPlan ? 'Running with actual execution plan' : 'Running') + (isSelection ? ' (selection)...' : '...'), '');
         this.setResultsHtml('<p class="placeholder-text">Running query...</p>');
@@ -438,6 +439,7 @@ class QueryManager {
         }
 
         this._runLineOffset = offset;
+        this.runTabId = window.queryFileManager ? window.queryFileManager.activeTabId : null;
         this.setRunning(true, false);
         this.setStatus('Generating estimated plan...', '');
         this.setResultsHtml('<p class="placeholder-text">Generating estimated plan...</p>');
