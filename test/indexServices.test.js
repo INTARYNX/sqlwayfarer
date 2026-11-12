@@ -941,3 +941,24 @@ suite('IndexService: the index file stays where it belongs', () => {
 		assert.deepStrictEqual(leftovers, [], 'no temporary file must survive the writes');
 	});
 });
+
+// The scan of the text for names that may be dynamic SQL: what is in a comment is
+// not code, what is in a string may be.
+suite('IndexService._scanPossibleRefs', () => {
+	const names = new Map([['dbo.auditlog', 'dbo.AuditLog'], ['dbo.stock', 'dbo.Stock']]);
+	const scan = text => IndexService.prototype._scanPossibleRefs(text, names, 'dbo.self', new Set());
+
+	test('finds a name written in a string, the place dynamic SQL lives', () => {
+		assert.deepStrictEqual(scan("EXEC sp_executesql N'DELETE FROM dbo.AuditLog'"), ['dbo.AuditLog']);
+	});
+
+	test('ignores a name in a line comment or a block comment', () => {
+		assert.deepStrictEqual(scan('SELECT 1; -- DELETE FROM dbo.AuditLog'), []);
+		assert.deepStrictEqual(scan('SELECT 1; /* UPDATE dbo.Stock SET OnHand = 0 */'), []);
+	});
+
+	test('a double dash inside a string is not a comment', () => {
+		assert.deepStrictEqual(scan("EXEC('DELETE FROM dbo.AuditLog -- older than 30 days')"), ['dbo.AuditLog']);
+		assert.deepStrictEqual(scan("SELECT '--'; EXEC('UPDATE dbo.Stock SET OnHand = 0')"), ['dbo.Stock']);
+	});
+});

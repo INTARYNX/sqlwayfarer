@@ -7,6 +7,7 @@ const os = require('os');
 const crypto = require('crypto');
 const ParserWorkerPool = require('./ParserWorkerPool');
 const { IndexBuildStats, addRun } = require('./IndexStats');
+const { stripCommentsAndStrings } = require('./QueryRiskAnalyzer');
 
 // Bumped when the index entry shape changes (2 = columnRefs for column lineage,
 // 3 = possibleRefs from the dynamic-SQL name scan, 4 = tableWrites for the
@@ -862,8 +863,10 @@ class IndexService {
     // that were not resolved confidently — catches names that only appear inside
     // dynamic-SQL strings. Bracket-insensitive; qualified-only to limit false
     // positives (a bare word collides with columns/aliases/variables).
+    // The comments are taken out first: a name there is not code, while a name
+    // in a string may be dynamic SQL, which is what this scan is for.
     _scanPossibleRefs(definition, nameMap, selfKey, confidentSet) {
-        const text = definition.replace(/[[\]]/g, '');
+        const text = stripCommentsAndStrings(definition, true).replace(/[[\]]/g, '');
         const re = /[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*/g;
         const found = new Set();
         let m;
