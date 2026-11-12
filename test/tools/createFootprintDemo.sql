@@ -12,7 +12,7 @@
 --
 -- What a text search gets wrong is in there too: a CTE named like a table,
 -- inserted / deleted in the triggers, and (usp_Notes) names that sit in a comment
--- or in a string.
+-- (ignored) or in a string (listed as possible).
 -- usp_CloseDay builds its statement as a string: that one is not followed
 -- (a static analysis cannot), and the tool says so.
 USE master;
@@ -125,8 +125,8 @@ BEGIN
     RETURN @OrderID;
 END
 GO
--- Names that are only text: in a comment, in a string. Not writes; the tool lists
--- them as "possible" (a name may be the start of some dynamic SQL), never as a write.
+-- Names that are only text. A comment is not code: it is ignored. A string may be
+-- dynamic SQL: a name in one is listed as "possible", never as a write.
 CREATE PROCEDURE dbo.usp_Notes AS
 BEGIN
     SET NOCOUNT ON;
