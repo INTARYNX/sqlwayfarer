@@ -72,6 +72,10 @@ class QueryFileManager {
 
     initEventListeners() {
         this.saveBtn.addEventListener('click', () => this.saveActiveTab());
+        document.getElementById('saveQueryFileWrap').addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.openSaveMenu({ x: e.clientX, y: e.clientY });
+        });
         // The encoding is the tab's own: a change makes a file modified (it has
         // to be saved again to be written in it).
         this.encodingSelect.addEventListener('change', () => {
@@ -619,6 +623,31 @@ class QueryFileManager {
         }
     }
 
+    // Save As is there for a file (to write a copy under another name, the tab
+    // follows it) and for a draft with some text; never for an empty draft.
+    canSaveAs(tab) {
+        return !!tab && (!!tab.fileName || this.queryManager.getEditorContent().trim() !== '');
+    }
+
+    saveActiveTabAs() {
+        const tab = this._activeTab();
+        if (!this.canSaveAs(tab)) return;
+        tab.content = this.queryManager.getEditorContent();
+        this._pendingSaveAsTabId = tab.id;
+        const suggested = tab.filePath || (tab.draftLabel.toLowerCase().replace(/\s+/g, '-') + '.sql');
+        vscode.postMessage({ command: 'saveSqlFileAs', content: tab.content, suggestedName: suggested, encoding: tab.encoding });
+    }
+
+    // Right click on the Save button.
+    openSaveMenu(at) {
+        const tab = this._activeTab();
+        if (!this.canSaveAs(tab) || !window.explorerManager) return;
+        const items = [];
+        if (!this.saveBtn.disabled) items.push({ label: 'Save', onClick: () => this.saveActiveTab() });
+        items.push({ label: 'Save As…', onClick: () => this.saveActiveTabAs() });
+        window.explorerManager._openPopupMenu(this.saveBtn, items, { at });
+    }
+
     onSqlFileSaved(message) {
         if (!message.success) {
             this.queryManager.setStatus(`Save failed: ${message.message}`, 'error');
@@ -650,6 +679,8 @@ class QueryFileManager {
             tab.savedEncoding = tab.encoding;
             this.render();
             this.persistDraftsNow();
+            // The new file belongs to the Files list, marked as open.
+            vscode.postMessage({ command: 'listSqlFiles' });
         }
         this.queryManager.setStatus(`Saved to ${message.name}`, 'success');
     }

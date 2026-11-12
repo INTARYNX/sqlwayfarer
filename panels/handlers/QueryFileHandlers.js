@@ -240,7 +240,8 @@ class QueryFileHandlers {
         const root = this._workspaceRoot();
         const defaultDir = root || require('os').homedir();
         try {
-            const uri = await this._pickSaveFile(path.join(defaultDir, suggestedName || 'query.sql'));
+            const name = suggestedName || 'query.sql';
+            const uri = await this._pickSaveFile(path.isAbsolute(name) ? name : path.join(defaultDir, name));
             if (!uri) {
                 this._post({ command: 'sqlFileSavedAs', cancelled: true });
                 return;

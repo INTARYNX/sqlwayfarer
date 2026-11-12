@@ -88,6 +88,52 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		check.done();
 	});
 
+	test('a draft that was saved is a file: Save is off until a change, then writes to that file', async () => {
+		const check = checker();
+		const p = await openPage();
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		const saveEnabled = () => p.evaluate(() => !document.getElementById('saveQueryFileBtn').disabled);
+
+		await type(p, 'SELECT 1');
+		await p.keyboard.press('Control+s');
+		await p.waitForTimeout(100);
+		await post({ command: 'sqlFileSavedAs', success: true, path: '/w/draft-1.sql', name: 'draft-1.sql' });
+		check((await sent(p)).some(m => m.command === 'listSqlFiles'), 'the Files list is read again, the new file shows in it');
+		check(!(await saveEnabled()), 'saved: nothing left to save');
+		check((await p.evaluate(() => document.getElementById('queryStateDot').dataset.queryState)) === 'saved', 'the dot says saved');
+
+		await type(p, ' + 1');
+		check(await saveEnabled(), 'a change enables Save');
+		await p.click('#saveQueryFileBtn');
+		await p.waitForTimeout(100);
+		const save = (await sent(p)).filter(m => m.command === 'saveSqlFile').pop();
+		check(save && save.path === '/w/draft-1.sql', 'Save writes to the file, no dialog (' + JSON.stringify(save) + ')');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
+	test('right click on the Save button offers Save As, for a draft with text and for a clean file', async () => {
+		const check = checker();
+		const p = await openPage();
+		const menu = () => p.evaluate(() => [...document.querySelectorAll('.script-menu-item')].map(i => i.textContent));
+
+		await p.click('#saveQueryFileWrap', { button: 'right' });
+		check((await menu()).length === 0, 'an empty draft has no menu');
+
+		await type(p, 'SELECT 1');
+		await p.click('#saveQueryFileWrap', { button: 'right' });
+		check(JSON.stringify(await menu()) === JSON.stringify(['Save', 'Save As…']), 'a draft: Save and Save As (' + (await menu()) + ')');
+		await p.click('.script-menu-item:has-text("Save As")');
+		await p.waitForTimeout(150);
+		check((await sent(p)).some(m => m.command === 'saveSqlFileAs' && m.content === 'SELECT 1'), 'Save As asks where to save');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
 	test('closing a tab that has text asks before dropping it', async () => {
 		const check = checker();
 		const p = await openPage();
