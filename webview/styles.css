@@ -1148,6 +1148,9 @@ td.rs-null {
    Code tab: an outer auto-scroll here would nest a second one under it. */
 #queryTab.tab-content.active {
     overflow: hidden;
+    /* The Query tab goes edge to edge: it takes back the body's side padding
+       and the gap under the toolbar. */
+    margin: -16px -20px 0;
 }
 
 .query-section {
@@ -1545,6 +1548,11 @@ body.vscode-high-contrast .qp-tt-header {
     white-space: nowrap;
 }
 
+/* Nothing to say (no query run yet) and no transaction open: no empty bar. */
+.query-result-footer:has(.query-status:empty):has(.query-transaction[hidden]) {
+    display: none;
+}
+
 .query-result-footer .query-status {
     flex: 1 1 auto;
     min-width: 0;
@@ -1560,7 +1568,7 @@ body.vscode-high-contrast .qp-tt-header {
     font-size: 10px;
     width: auto;
     height: 16px;
-    margin: 0;
+    margin: 0 4px 0 0;
     padding: 0 2px;
     line-height: 1;
 }
@@ -1640,6 +1648,8 @@ body.vscode-high-contrast .qp-tt-header {
        the two gaps around it (12px each) are set aside; dragging the splitter
        sets a height of its own. */
     height: calc((100% - 30px) * 2 / 3);
+    /* Whatever the height set by the splitter, the bar stays on screen. */
+    max-height: calc(100% - 30px);
     min-height: 80px;
     /* The colour of the focus frame tells what state the query is in. */
     --query-frame: var(--vscode-focusBorder, #007fd4);
@@ -1698,7 +1708,6 @@ body.vscode-high-contrast .qp-tt-header {
     height: 6px;
     background-color: var(--vscode-input-border);
     cursor: ns-resize;
-    border-radius: 3px;
 }
 
 .query-splitter:hover,
@@ -1711,11 +1720,13 @@ body.vscode-high-contrast .qp-tt-header {
     min-height: 0;
     display: flex;
     flex-direction: column;
+    /* The results can be dragged down to nothing. */
+    overflow: hidden;
 }
 
 #queryResultsContainer {
     flex: 1;
-    min-height: 100px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2120,6 +2131,11 @@ body.vscode-high-contrast .qp-tt-header {
     width: 4px;
     cursor: ew-resize;
     background: transparent;
+}
+
+/* No side panel: no handle either, the editor starts at the edge. */
+.sql-files-panel:not(.visible) + .sql-files-splitter {
+    display: none;
 }
 
 .sql-files-splitter:hover,
