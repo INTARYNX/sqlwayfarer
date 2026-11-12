@@ -102,7 +102,7 @@
             <div class="tab-nav">
                 <button id="queryFilesBtn" class="tab-icon-button" aria-expanded="false" aria-controls="sqlFilesPanel" title="Show the side panel: the .sql files of the workspace and the databases of the instance"><i class="codicon codicon-layout-sidebar-left-off"></i></button>
                 <span class="query-tab-wrap">
-                    <button class="tab-button active" data-tab="query" title="Double-click to switch between open queries">Query<span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
+                    <button class="tab-button active" data-tab="query" aria-label="Query" title="Query - double-click to switch between open queries"><span id="queryStateDot" class="query-state-dot" aria-hidden="true"></span><span id="queryActiveTabLabel" class="query-active-tab-label"></span></button>
                     <button id="queryActiveClose" class="tab-icon-button" title="Close this query"><i class="codicon codicon-close"></i></button>
                     <button id="queryTabsBtn" class="tab-icon-button" title="Open queries - switch between them or start a new draft (also: double-click the Query tab; Ctrl+Alt+PageUp / PageDown to go to the previous / next one)"><i class="codicon codicon-chevron-down"></i><span id="queryTabsCount" class="qtab-count" hidden></span></button>
                     <div id="queryTabsDropdown" class="query-tabs-dropdown" role="menu"></div>

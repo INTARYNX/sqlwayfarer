@@ -25,7 +25,7 @@ class QueryFileManager {
         this.input = document.getElementById('queryInput');
         // Carries the state of the active query for the stylesheet (the colour
         // of the focus frame), see updateEditorState().
-        this.inputWrap = this.input.closest('.query-input-wrap');
+        this.stateDot = document.getElementById('queryStateDot');
         this.queryTabButton = document.querySelector('.tab-button[data-tab="query"]');
         this.queryTabsBtn = document.getElementById('queryTabsBtn');
         this.queryTabsCount = document.getElementById('queryTabsCount');
@@ -185,7 +185,7 @@ class QueryFileManager {
             id: this.nextId++,
             filePath: null,
             fileName: null,
-            draftLabel: `Draft ${this.draftCounter}`,
+            draftLabel: `Query ${this.draftCounter}`,
             content,
             savedContent: null,
             encoding: 'utf8',
@@ -208,7 +208,7 @@ class QueryFileManager {
     }
 
     // What a tab is called: the file's name, or for a draft the start of what
-    // is typed in it ("Draft N" while it is empty).
+    // is typed in it ("Query N" while it is empty).
     _tabLabel(tab, content) {
         if (tab.fileName) return tab.fileName;
         const firstLine = (content || '').split('\n').map(line => line.trim()).find(line => line !== '');
@@ -765,7 +765,7 @@ class QueryFileManager {
         if (active) this.encodingSelect.value = active.encoding;
         this.queryTabsCount.hidden = this.tabs.length < 2;
         this.queryTabsCount.textContent = String(this.tabs.length);
-        this.activeTabLabel.title = 'Frame of the editor - purple: draft, not in a file; orange: file with unsaved changes; blue: saved file';
+        this.stateDot.title = this.activeTabLabel.title = 'Purple: draft, not in a file - orange: file with unsaved changes - blue: saved file';
         if (this.tabsDropdown.classList.contains('visible')) this.renderTabsDropdown();
         this._markOpenFiles();
         this.updateSaveButtonState();
@@ -782,15 +782,18 @@ class QueryFileManager {
         this.updateEditorState(tab, content);
     }
 
-    // What the colour of the editor's focus frame says about the active query:
+    // What the dot before the name of the active query says:
     //   draft     - not in a file (purple)
     //   modified  - a file with changes not saved yet (orange)
     //   saved     - a file, as on disk (the theme's focus colour)
     updateEditorState(tab, content) {
-        if (!this.inputWrap) return;
-        let state = '';
-        if (tab) state = !tab.fileName ? 'draft' : (this._isDirty(tab, content) ? 'modified' : 'saved');
-        this.inputWrap.dataset.queryState = state;
+        if (!this.stateDot) return;
+        this.stateDot.dataset.queryState = this._tabState(tab, content);
+    }
+
+    _tabState(tab, content) {
+        if (!tab) return '';
+        return !tab.fileName ? 'draft' : (this._isDirty(tab, content) ? 'modified' : 'saved');
     }
 
     renderTabsDropdown() {
@@ -798,11 +801,11 @@ class QueryFileManager {
         const itemsHtml = this.tabs.filter(tab => tab.id !== this.activeTabId).map(tab => {
             const active = false;
             const label = this._tabLabel(tab, tab.content);
-            const dirty = !!tab.fileName && this._isDirty(tab, tab.content);
+            const state = this._tabState(tab, tab.content);
             const preview = QueryManager.truncate(tab.content || '(empty)', 180);
             return `<div class="query-tabs-dropdown-item${active ? ' active' : ''}" `
                 + `data-qtab-id="${tab.id}" role="menuitemradio" title="${this.escapeHtml(preview)}">`
-                + (dirty ? '<span class="qtab-dirty-dot"></span>' : '')
+                + `<span class="query-state-dot" data-query-state="${state}"></span>`
                 + `<span class="qtab-name">${this.escapeHtml(label)}</span>`
                 + (tab.database ? `<span class="qtab-db" title="Database this query runs on">${this.escapeHtml(tab.database)}</span>` : '')
                 + `<span class="qtab-close" data-qtab-close="${tab.id}">×</span>`
