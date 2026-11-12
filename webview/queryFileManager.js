@@ -240,11 +240,22 @@ class QueryFileManager {
         const current = this._activeTab();
         if (current) current.content = this.queryManager.getEditorContent();
 
+        this._stashResults(current);
         this.activeTabId = id;
         const next = this._activeTab();
         this.queryManager.loadEditorContent(next.content || '');
         this._applyTabDatabase(next);
+        this._showResults(next);
         this.render();
+    }
+
+    // The results pane follows the tab: what a tab showed is kept on it.
+    _stashResults(tab) {
+        if (tab) tab.results = this.queryManager.captureResultsView();
+    }
+
+    _showResults(tab) {
+        this.queryManager.restoreResultsView(tab.results || null);
     }
 
     cycleTab(step) {
@@ -272,10 +283,12 @@ class QueryFileManager {
         if (current) current.content = this.queryManager.getEditorContent();
 
         const tab = this._makeDraftTab();
+        this._stashResults(current);
         this.tabs.push(tab);
         this.activeTabId = tab.id;
         this.queryManager.loadEditorContent('');
         this._applyTabDatabase(tab);
+        this._showResults(tab);
         this.render();
     }
 
@@ -316,9 +329,12 @@ class QueryFileManager {
 
         if (id === this.activeTabId) {
             const fallback = this.tabs[Math.max(0, index - 1)] || this.tabs[0];
+            // The closed tab's results go with it.
+            this.queryManager.captureResultsView();
             this.activeTabId = fallback.id;
             this.queryManager.loadEditorContent(fallback.content || '');
             this._applyTabDatabase(fallback);
+            this._showResults(fallback);
         }
         this.render();
         this.persistDraftsNow();
@@ -569,9 +585,11 @@ class QueryFileManager {
         // Already open - just switch to it. Reloading from disk here would
         // silently wipe any unsaved edits in that tab.
         const existing = this.tabs.find(t => t.filePath === message.path);
+        if (existing && existing.id !== this.activeTabId) this._stashResults(current);
         if (existing) {
             this.activeTabId = existing.id;
         } else {
+            this._stashResults(current);
             // The editor holds "\n" only (the file's own line ends come back in
             // `eol`): the text compared with the editor's must be in that form
             // too, or a CRLF file is "modified" from the moment it is opened.
@@ -594,6 +612,7 @@ class QueryFileManager {
         const active = this._activeTab();
         this.queryManager.loadEditorContent(active.content);
         this._applyTabDatabase(active);
+        if (active !== current) this._showResults(active);
         this.render();
         // Found by a search: on the line of the first match.
         if (message.line && typeof this.queryManager.input.goToLine === 'function') this.queryManager.input.goToLine(message.line);

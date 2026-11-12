@@ -62,7 +62,68 @@ class QueryResultsMethods {
         }
     }
 
-    onQueryResult(message) {
+    // === One results view per query tab ===
+    //
+    // The results pane belongs to the active tab: leaving a tab sets what it
+    // shows aside (the DOM itself, with the data behind it and the status), and
+    // coming back puts it as it was.
+
+    captureResultsView() {
+        const nodes = document.createDocumentFragment();
+        const scroll = this.resultsContainer.querySelector('.result-scroll');
+        const view = {
+            scrollTop: scroll ? scroll.scrollTop : 0,
+            scrollLeft: scroll ? scroll.scrollLeft : 0,
+            lastResultSets: this.lastResultSets,
+            gridState: this._gridState,
+            activeResultIndex: this.activeResultIndex,
+            statusText: this.status.textContent,
+            statusClass: this.status.className,
+            nodes
+        };
+        while (this.resultsContainer.firstChild) nodes.appendChild(this.resultsContainer.firstChild);
+        return view;
+    }
+
+    // `view` is null for a tab that never ran anything: the empty pane.
+    restoreResultsView(view) {
+        this.resultsContainer.textContent = '';
+        if (!view) {
+            this.lastResultSets = [];
+            this._gridState = [];
+            this.activeResultIndex = 0;
+            this.setResultsHtml('<p class="placeholder-text">Run a query to see results here.</p>');
+            this.setStatus(this.targetDatabase() ? '' : 'Select a database above to run queries.', '');
+            return;
+        }
+        this.lastResultSets = view.lastResultSets;
+        this._gridState = view.gridState;
+        this.activeResultIndex = view.activeResultIndex;
+        this.resultsContainer.appendChild(view.nodes);
+        this.status.textContent = view.statusText;
+        this.status.className = view.statusClass;
+        const scroll = this.resultsContainer.querySelector('.result-scroll');
+        if (scroll) { scroll.scrollTop = view.scrollTop; scroll.scrollLeft = view.scrollLeft; }
+    }
+
+    // The answer of a run goes to the tab that ran it, which may no longer be
+    // the one on screen: it is drawn in that tab's own view, then the view on
+    // screen comes back.
+    _inRunTab(show) {
+        const files = window.queryFileManager;
+        const owner = files && this.runTabId != null ? files.tabs.find(t => t.id === this.runTabId) : null;
+        if (!files || !owner || owner.id === files.activeTabId) { show(); return; }
+        const onScreen = this.captureResultsView();
+        this.restoreResultsView(owner.results || null);
+        try { show(); } finally {
+            owner.results = this.captureResultsView();
+            this.restoreResultsView(onScreen);
+        }
+    }
+
+    onQueryResult(message) { this._inRunTab(() => this._showQueryResult(message)); }
+
+    _showQueryResult(message) {
         this.setRunning(false);
         const resultSets = message.resultSets || [];
         this.lastResultSets = resultSets;
@@ -96,7 +157,9 @@ class QueryResultsMethods {
     // Response to getEstimatedPlan: never produces result sets or messages,
     // just the plan(s) - reuses displayResultSets so the Execution Plan tab
     // is built the exact same way as for an actual-plan run.
-    onPlanResult(message) {
+    onPlanResult(message) { this._inRunTab(() => this._showPlanResult(message)); }
+
+    _showPlanResult(message) {
         this.setRunning(false);
         const planXmls = message.planXmls || [];
         this.lastResultSets = [];
@@ -132,7 +195,9 @@ class QueryResultsMethods {
         this.input.goToLine(Number(reportedLine) + (this._runLineOffset || 0));
     }
 
-    onQueryError(message) {
+    onQueryError(message) { this._inRunTab(() => this._showQueryError(message)); }
+
+    _showQueryError(message) {
         this.setRunning(false);
         const errorHtml = `<pre class="query-error-box">${QueryManager.linkErrorLines(message.message, t => this.escapeHtml(t))}</pre>`;
 
