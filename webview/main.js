@@ -78,6 +78,7 @@ class MessageHandler {
 
             case 'databasesLoaded':
                 this.explorerManager.onDatabasesLoaded(message.databases, message.currentDatabase);
+                if (this.queryFileManager) this.queryFileManager.onDatabasesLoaded();
                 // Only worth a hint when nothing is selected yet - a
                 // connection saved with a database opens on it.
                 if (!appState.currentDatabase) this.databaseSelector.showReadyGlow();

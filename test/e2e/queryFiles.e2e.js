@@ -232,6 +232,38 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		check.done();
 	});
 
+	test('a recovered query comes back with its database, whether the list of databases is there yet or not', async () => {
+		const check = checker();
+		const selected = p => p.evaluate(() => document.getElementById('databaseSelect').value);
+		const recover = (p, database) => p.evaluate(x => window.postMessage(x, '*'), { command: 'draftRecoveryLoaded', drafts: [{ content: 'select 1', database }] });
+
+		// The list of databases arrives after the query.
+		let p = await openWebview(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1200, height: 800 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await recover(p, 'master');
+		await p.waitForTimeout(100);
+		await post({ command: 'databasesLoaded', databases: ['master', 'AppDb'], currentDatabase: 'AppDb' });
+		check((await selected(p)) === 'master', 'recovered before the list: its database is selected when the list arrives (' + await selected(p) + ')');
+		await p.close();
+
+		// The list is already there.
+		p = await openPage();
+		await recover(p, 'master');
+		await p.waitForTimeout(150);
+		check((await selected(p)) === 'master', 'recovered after the list: its database is selected (' + await selected(p) + ')');
+
+		// Changing the database of a tab that holds text updates the recovery snapshot.
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.selectOption('#databaseSelect', 'AppDb');
+		await p.waitForTimeout(150);
+		const snapshot = (await sent(p)).filter(m => m.command === 'saveDraftRecovery').pop();
+		check(snapshot && snapshot.drafts[0].database === 'AppDb', 'the snapshot follows the database (' + JSON.stringify(snapshot && snapshot.drafts) + ')');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
 	test('right click on the Save button offers Save As, for a draft with text and for a clean file', async () => {
 		const check = checker();
 		const p = await openPage();
