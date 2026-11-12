@@ -147,8 +147,13 @@ class QueryFileManager {
         // picking a database on Explorer doesn't silently reassign it.
         this.databaseSelect.addEventListener('change', () => {
             if (appState.activeTab !== 'query') return;
+            // The selector refilled for a connection is not a choice of the user: a
+            // recovered tab keeps its database until it has been put back.
+            if (this._pendingTabDatabase) return;
             const tab = this._activeTab();
             if (tab) tab.database = this.databaseSelect.value || null;
+            // The recovery snapshot holds the database of each tab: it follows a change.
+            if (tab && this._isDirty(tab, this.queryManager.getEditorContent())) this.persistDraftsNow();
         });
 
         this.folderBtn.addEventListener('click', () => this.toggleFilesPanel());
@@ -265,6 +270,23 @@ class QueryFileManager {
         const next = this.tabs[(index + step + this.tabs.length) % this.tabs.length];
         this.switchTab(next.id);
         this.queryManager.input.focus();
+    }
+
+    // The database of the recovered tab goes back in the selector once it lists it.
+    _restoreTabDatabase() {
+        const tab = this._activeTab();
+        if (!this._pendingTabDatabase || !tab || !tab.database) return;
+        const listed = [...this.databaseSelect.options].some(o => o.value === tab.database);
+        if (!listed) return;
+        this._pendingTabDatabase = false;
+        this._applyTabDatabase(tab);
+    }
+
+    // The selector has just been filled (a connection, a reconnection).
+    onDatabasesLoaded() {
+        this._restoreTabDatabase();
+        // A database that is gone from the list is not waited for any longer.
+        this._pendingTabDatabase = false;
     }
 
     // A brand-new tab adopts whatever database is currently selected (first
@@ -783,6 +805,10 @@ class QueryFileManager {
         });
         this.activeTabId = this.tabs[0].id;
         this.queryManager.loadEditorContent(this.tabs[0].content);
+        // The query comes back with its database: now if the list is there, else
+        // as soon as it arrives (see onDatabasesLoaded).
+        this._pendingTabDatabase = true;
+        this._restoreTabDatabase();
         this.render();
         this.queryManager.setStatus(
             `Recovered ${drafts.length} unsaved buffer${drafts.length > 1 ? 's' : ''} from a previous session.`, ''
