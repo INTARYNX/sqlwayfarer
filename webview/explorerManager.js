@@ -96,7 +96,12 @@ class ExplorerManager {
 
     toggleObjectTabsDropdown() {
         if (this.objectTabsDropdown.classList.contains('visible')) this.closeObjectTabsDropdown();
-        else { this.renderObjectTabsDropdown(); this.objectTabsDropdown.classList.add('visible'); }
+        else {
+            // One list at a time: the Query's closes.
+            if (window.queryFileManager) window.queryFileManager.closeTabsDropdown();
+            this.renderObjectTabsDropdown();
+            this.objectTabsDropdown.classList.add('visible');
+        }
     }
 
     closeObjectTabsDropdown() {

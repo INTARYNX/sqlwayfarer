@@ -225,6 +225,8 @@ class QueryFileManager {
     }
 
     openTabsDropdown() {
+        // One list at a time: the Explorer's closes.
+        if (window.explorerManager) window.explorerManager.closeObjectTabsDropdown();
         this.renderTabsDropdown();
         this.tabsDropdown.classList.add('visible');
     }
@@ -778,6 +780,8 @@ class QueryFileManager {
 
     render() {
         const active = this._activeTab();
+        // The tab on screen is the most recently used one: the list orders the others by it.
+        if (active) active.lastUsed = this._useClock = (this._useClock || 0) + 1;
         this.activeTabLabel.textContent = active ? this._tabLabel(active, this.queryManager.getEditorContent()) : '';
         // The list of open queries is one click away - and how many there are
         // shows on its button as soon as there is more than one.
@@ -817,7 +821,9 @@ class QueryFileManager {
 
     renderTabsDropdown() {
         // The active query is the one in the Query tab (with its own cross): the list is the other ones.
-        const itemsHtml = this.tabs.filter(tab => tab.id !== this.activeTabId).map(tab => {
+        const itemsHtml = this.tabs.filter(tab => tab.id !== this.activeTabId)
+            .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
+            .map(tab => {
             const active = false;
             const label = this._tabLabel(tab, tab.content);
             const state = this._tabState(tab, tab.content);

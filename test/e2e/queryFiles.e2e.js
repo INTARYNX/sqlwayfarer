@@ -149,6 +149,45 @@ suite('e2e: the open queries (tabs), the drafts and the files', function () {
 		check.done();
 	});
 
+	test('the list of the other queries starts with the one used last', async () => {
+		const check = checker();
+		const p = await openPage();
+		const names = () => p.evaluate(() => [...document.querySelectorAll('.query-tabs-dropdown-item .qtab-name')].map(n => n.textContent));
+		await type(p, 'select 1');
+		await p.evaluate(() => { window.queryFileManager.addDraftTab(); });
+		await type(p, 'select 2');
+		await p.evaluate(() => { window.queryFileManager.addDraftTab(); });
+		await type(p, 'select 3');
+		// Use the first, then the third: the list, from the second one's point of view, is 3 / 1.
+		await p.evaluate(() => window.queryFileManager.switchTab(window.queryFileManager.tabs[0].id));
+		await p.evaluate(() => window.queryFileManager.switchTab(window.queryFileManager.tabs[2].id));
+		await p.evaluate(() => window.queryFileManager.switchTab(window.queryFileManager.tabs[1].id));
+		await p.evaluate(() => window.queryFileManager.openTabsDropdown());
+		const list = await names();
+		check(JSON.stringify(list) === JSON.stringify(['select 3', 'select 1']), 'most recently used first (' + list + ')');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
+	test('the list of the queries and the list of the objects are never open together', async () => {
+		const check = checker();
+		const p = await openPage();
+		const open = () => p.evaluate(() => ({
+			query: document.getElementById('queryTabsDropdown').classList.contains('visible'),
+			explorer: document.getElementById('explorerTabsDropdown').classList.contains('visible')
+		}));
+		await p.click('#queryTabsBtn');
+		check(JSON.stringify(await open()) === '{"query":true,"explorer":false}', 'the Query list opens');
+		await p.click('#explorerTabsBtn');
+		check(JSON.stringify(await open()) === '{"query":false,"explorer":true}', 'the Explorer list replaces it');
+		await p.click('#queryTabsBtn');
+		check(JSON.stringify(await open()) === '{"query":true,"explorer":false}', 'and the other way round');
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
+
 	test('the list of the queries shows the state of each one with the same dot', async () => {
 		const check = checker();
 		const p = await openPage();
