@@ -257,7 +257,7 @@ class ExplorerDetailsMethods {
                <th>Type</th>
                <th>Nullable</th>
                <th>Default</th>
-               <th class="rs-num">Length</th>
+               <th>Length</th>
                <th>Extra</th>
                <th>Used by</th>
            </tr>`;
@@ -279,7 +279,7 @@ class ExplorerDetailsMethods {
                <td><code>${this.escapeHtml(typeDisplay)}</code></td>
                <td>${col.IS_NULLABLE}</td>
                <td>${this.escapeHtml(col.COLUMN_DEFAULT || '')}</td>
-               <td class="rs-num">${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
+               <td>${col.CHARACTER_MAXIMUM_LENGTH || ''}</td>
                <td>${extraInfo.join(', ')}</td>
                <td class="col-usage" data-column="${this.escapeHtml(col.COLUMN_NAME.toLowerCase()).replace(/"/g, '&quot;')}" data-column-label="${this.escapeHtml(col.COLUMN_NAME).replace(/"/g, '&quot;')}">…</td>
            </tr>`;
