@@ -363,7 +363,7 @@ class QueryResultsMethods {
         const limit = state.limit || QueryManager.MAX_RENDERED_ROWS;
         const drawn = rows.length > limit ? rows.slice(0, limit) : rows;
 
-        // A column of numbers (and NULLs) reads better aligned to the right.
+        // A column of numbers (and NULLs): tabular figures, left-aligned as the SQL Server tools do.
         const types = state.types || {};
         const numeric = new Set(columns.filter(col => (types[col] && types[col].kind === 'number')
             || (drawn.some(row => typeof row[col] === 'number')

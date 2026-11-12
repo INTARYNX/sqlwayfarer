@@ -60,7 +60,8 @@ suite('e2e: the result grid (progressive rows, JSON export, cell copy)', functio
 		await post({ command: 'queryResult', durationMs: 5, timeline: [], resultSets: [{ columns: ['big', 'd', 't'], types, rows, totalRows: 2 }] });
 		const cells = () => p.evaluate(() => [...document.querySelectorAll('.result-set-pane tbody tr')].map(tr => [...tr.children].map(td => td.textContent)));
 		check(JSON.stringify(await cells()) === JSON.stringify([['10', '2008-04-30', '13:45:09.123'], ['9', '2009-01-02', '08:00:00.000']]), 'date and time show only what they hold: ' + JSON.stringify(await cells()));
-		check(await p.evaluate(() => document.querySelector('.result-set-pane th[data-sort-col="big"]').classList.contains('rs-num') && document.querySelector('.result-set-pane tbody td').classList.contains('rs-num')), 'a bigint column is aligned as numbers');
+		check(await p.evaluate(() => document.querySelector('.result-set-pane th[data-sort-col="big"]').classList.contains('rs-num') && document.querySelector('.result-set-pane tbody td').classList.contains('rs-num')), 'a bigint column is marked as numbers');
+		check(await p.evaluate(() => getComputedStyle(document.querySelector('.result-set-pane tbody td.rs-num')).textAlign) === 'left', 'and, as in the SQL Server tools, its values stay on the left');
 		await p.click('th[data-sort-col="big"]', { position: { x: 8, y: 8 } });
 		check(JSON.stringify((await cells()).map(r => r[0])) === JSON.stringify(['9', '10']), 'and sorted as numbers (9 before 10)');
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
