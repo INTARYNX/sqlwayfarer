@@ -120,6 +120,22 @@ suite('WriteFootprintService.analyzeFootprint', () => {
 		const t = run().tables.find(x => x.qualifiedName === 'app.T');
 		assert.strictEqual(t.access, 'write', 'confident write wins over a name mention');
 	});
+
+	// A name in a comment or a string is only a mention: it must not make a
+	// table written by a trigger look as if the procedure wrote it itself.
+	test('a name mention does not hide that a table is reached through a trigger', () => {
+		const index = makeIndex();
+		index.objects['app.Q'] = obj('app.Q', 'P', {
+			columnRefs: { 'app.T': { c: { write: true } } },
+			dependencies: ['app.T'],
+			possibleRefs: ['app.A']
+		});
+		const r = WriteFootprintService.analyzeFootprint({ index, triggers, target: 'app.Q' });
+		const a = r.tables.find(x => x.qualifiedName === 'app.A');
+		assert.strictEqual(a.access, 'write');
+		assert.strictEqual(a.viaTriggerOnly, true, 'A is written by the trigger of T, the text only mentions it');
+		assert.deepStrictEqual(a.viaTriggerFrom, { table: 'app.T', trigger: 'app.trg' });
+	});
 });
 
 suite('WriteFootprintService table-level writes', () => {
