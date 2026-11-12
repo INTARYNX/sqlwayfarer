@@ -1002,9 +1002,9 @@ tr:hover > td {
     background: var(--vscode-list-hoverBackground);
 }
 
-/* Result grid: numbers on the right, NULL told apart from the text "NULL". */
+/* Result grid: numbers stay on the left, like in the SQL Server tools, in
+   tabular figures; NULL is told apart from the text "NULL". */
 .rs-num {
-    text-align: right;
     font-variant-numeric: tabular-nums;
 }
 
