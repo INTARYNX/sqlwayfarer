@@ -3178,7 +3178,7 @@ table.fp-cols .fp-center { text-align: center; }
     content: '';
     position: absolute;
     top: -5px;
-    right: 24px;
+    left: var(--arrow-left, calc(100% - 28px));
     width: 8px;
     height: 8px;
     background: inherit;

@@ -36,6 +36,7 @@ class DatabaseSelectorManager {
 
         const toolbar = document.querySelector('.app-toolbar');
         toolbar.appendChild(notification);
+        this.placeUnderSelect(notification, toolbar);
 
         setTimeout(() => {
             if (notification.parentNode) {
@@ -45,5 +46,19 @@ class DatabaseSelectorManager {
                 }, 300);
             }
         }, 4000);
+    }
+
+    // Under the database selector, its arrow pointing at the middle of it (kept
+    // inside the toolbar). The narrow layout pins it on top of the window instead.
+    placeUnderSelect(notification, toolbar) {
+        if (getComputedStyle(notification).position !== 'absolute') return;
+        const bar = toolbar.getBoundingClientRect();
+        const select = this.databaseSelect.getBoundingClientRect();
+        const width = notification.offsetWidth;
+        const middle = select.left + select.width / 2 - bar.left;
+        const left = Math.max(0, Math.min(select.left - bar.left, bar.width - width));
+        notification.style.left = `${left}px`;
+        notification.style.right = 'auto';
+        notification.style.setProperty('--arrow-left', `${Math.max(12, Math.min(middle - left, width - 12)) - 4}px`);
     }
 }
