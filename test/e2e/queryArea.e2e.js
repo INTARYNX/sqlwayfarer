@@ -34,6 +34,19 @@ suite('e2e: the editor takes two thirds of the Query tab', function () {
 			await p.mouse.up();
 			const dragged = await sizes();
 			check(dragged.editor < size.editor - 40, `${height}px: dragging the splitter resizes`);
+			const bar = await p.locator('#querySplitter').boundingBox();
+			await p.mouse.move(bar.x + bar.width / 2, bar.y + 3);
+			await p.mouse.down();
+			await p.mouse.move(bar.x + bar.width / 2, bar.y + 3000, { steps: 4 });
+			await p.mouse.up();
+			const down = await p.evaluate(() => ({
+				results: document.querySelector('.query-results-wrap').getBoundingClientRect().height,
+				select: document.getElementById('queryEncodingSelect').getBoundingClientRect().bottom,
+				bar: document.getElementById('querySplitter').getBoundingClientRect().top,
+				inner: window.innerHeight
+			}));
+			check(down.results < 2, `${height}px: the results go down to nothing (${Math.round(down.results)}px)`);
+			check(down.select <= down.inner && down.bar > down.inner - 40, `${height}px: the bar and the encoding stay on screen`);
 			await p.dblclick('#querySplitter');
 			const reset = await sizes();
 			check(Math.abs(reset.ratio - 2 / 3) < 0.02, `${height}px: double-click goes back to two thirds`);

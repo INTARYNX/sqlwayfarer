@@ -228,8 +228,9 @@ class QueryManager {
             document.body.style.userSelect = 'none';
 
             const onMove = (ev) => {
-                // keep at least 100px for the results pane below
-                const maxHeight = section.clientHeight - 100;
+                // The results can go down to nothing: the bar (and the encoding
+                // at its right) stays, with the two gaps of the section around it.
+                const maxHeight = section.clientHeight - this.splitter.parentElement.offsetHeight - 24;
                 const height = Math.min(Math.max(startHeight + ev.clientY - startY, MIN_HEIGHT), maxHeight);
                 wrap.style.height = `${height}px`;
             };
