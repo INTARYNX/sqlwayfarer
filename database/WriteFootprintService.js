@@ -252,10 +252,12 @@ class WriteFootprintService {
             if (cause) { rec.viaTrigger = true; if (!rec.viaCause) rec.viaCause = cause; } else rec.direct = true;
         };
         // Low-confidence table mentioned only via the dynamic-SQL name scan.
+        // A mention is not a reference: it never makes the table "direct", or a
+        // name in a comment would hide that a trigger is what writes it.
         const recordPossible = (entry, cause) => {
             const rec = ensureRec(entry);
             rec.possible = true;
-            if (cause) { rec.viaTrigger = true; if (!rec.viaCause) rec.viaCause = cause; } else rec.direct = true;
+            if (cause) { rec.viaTrigger = true; if (!rec.viaCause) rec.viaCause = cause; }
         };
 
         // BFS over code objects. An object may be reached both directly and via a
