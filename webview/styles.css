@@ -3738,6 +3738,46 @@ table.fp-cols .fp-center { text-align: center; }
     }
 }
 
+/* The tabs themselves tighten (buttons, name of the query) when the bar is full:
+   at 960px and under, and up to 1340px with the schema read from another connection. */
+@media (min-width: 769px) and (max-width: 960px) {
+    .tab-nav .tab-icon-button {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    #queryActiveTabLabel {
+        max-width: 70px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 860px) {
+    .tab-nav .tab-button {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    #queryActiveTabLabel {
+        max-width: 56px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1340px) {
+    .app-toolbar:has(.schema-source-inline:not([hidden])) .tab-nav .tab-icon-button {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .app-toolbar:has(.schema-source-inline:not([hidden])) .tab-button {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .app-toolbar:has(.schema-source-inline:not([hidden])) #queryActiveTabLabel {
+        max-width: 70px;
+    }
+}
+
 /* Too narrow for one line even in the compact form: the actions take a second line. */
 @media (min-width: 769px) and (max-width: 799px) {
     .app-toolbar {
