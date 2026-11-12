@@ -1272,6 +1272,16 @@ td.rs-null {
     background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
 }
 
+/* Holds the Save button: a disabled button swallows the right click, the
+   wrapper still gets it (Save As is there for a clean file too). */
+.save-query-wrap {
+    display: inline-flex;
+}
+
+#saveQueryFileBtn:disabled {
+    pointer-events: none;
+}
+
 /* Run is the one primary action of the toolbar. */
 #runQueryBtn:not(:disabled) {
     background: var(--vscode-button-background);

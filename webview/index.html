@@ -142,7 +142,7 @@
                 </div>
                 <!-- Shown only while the Query tab is active -->
                 <div id="queryToolbarActions" class="toolbar-actions" style="display: none;">
-                    <button id="saveQueryFileBtn" class="icon-btn" disabled title="Save (Ctrl+S)"><i class="codicon codicon-save"></i></button>
+                    <span id="saveQueryFileWrap" class="save-query-wrap" title="Save (Ctrl+S) - right click: Save As"><button id="saveQueryFileBtn" class="icon-btn" disabled aria-label="Save"><i class="codicon codicon-save"></i></button></span>
                     <button id="runQueryBtn" class="icon-btn" disabled title="Run Query (F5 / Ctrl+Enter) - the selection, if there is one"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-run"/></svg></button>
                     <button id="estimatedPlanBtn" class="icon-btn plan-btn" disabled title="Estimated Plan - show the plan without running the query"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-plan"/></svg></button>
                     <button id="includeActualPlanToggle" class="icon-btn plan-btn plan-toggle-btn" disabled title="Include Actual Execution Plan - when on, Run Query (F5 / Ctrl+Enter) also captures the real plan"><svg class="sw-icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#sw-plan-actual"/></svg></button>
