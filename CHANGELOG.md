@@ -4,6 +4,30 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.10] - 2026-11-12
+
+### Added
+
+- **Query: Save As.** A right click on the Save button offers Save and Save As, for a file and for a draft that holds text. The tab follows the new file, which shows in the Files list.
+- **Query tabs keep their own results**, with their status and where they were scrolled. An answer goes to the tab that ran it, even if another tab is on screen by then.
+- **A dot before the name of the query** says what state it is in: purple for a draft, orange for a file with unsaved changes, blue for a saved file. The list of the queries shows the same dots, and the frame of the editor is back to the theme's colour, toned down.
+- **Side panel: it closes when its bar is dragged well under the minimum width**, as a side bar does in VS Code, and comes back at the width it had.
+- **Query graph: a double click on a table opens it in the Explorer** (a single click only selects it).
+
+### Changed
+
+- **Query tab: edge to edge.** No padding at the top and at the sides, the results can be dragged down to nothing (the bar and the encoding stay), and there is no empty status bar when nothing has been run.
+- **The Query tab has no title of its own**: the name of the query is it. A draft is called "Query 1", "Query 2"... instead of "Draft N".
+- **Tab bar: one underline and one hover for the whole tab** (name, cross and list), the line under the bar runs from edge to edge, and the tabs tighten on a narrow window so that the bar stays on one line.
+- **The list of the queries starts with the one used last**, and it is never open together with the list of the Explorer's objects.
+- **The "Connected, select a database" hint appears under the database selector.**
+- **The dynamic SQL name scan leaves the comments out**: a name in a comment is no longer listed as a possible table. A name in a string still is.
+
+### Fixed
+
+- **A recovered query comes back with its database**, and a change of database reaches the recovery snapshot.
+- **Write footprint: a name in a comment or a string no longer hides that a trigger writes the table.**
+
 ## [0.99.9] - 2026-11-11
 
 ### Added
