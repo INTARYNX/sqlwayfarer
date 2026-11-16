@@ -364,6 +364,10 @@ class MessageHandler {
                 if (window.instanceTree) window.instanceTree.onObjectsError(message);
                 break;
 
+            case 'instanceSearched':
+                if (window.instanceTree) window.instanceTree.onSearched(message);
+                break;
+
             case 'instanceChanged':
                 if (window.instanceTree) window.instanceTree.onChanged(message);
                 break;

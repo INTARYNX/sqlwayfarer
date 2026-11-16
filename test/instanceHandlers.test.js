@@ -107,3 +107,62 @@ suite('InstanceHandlers', () => {
 		assert.deepStrictEqual([ran, confirmed, posts], [[], [], []]);
 	});
 });
+
+suite('InstanceHandlers.handleSearchInstanceObjects', () => {
+	function setupSearch(searchInstanceObjects) {
+		const posts = [];
+		const handlers = new InstanceHandlers(m => posts.push(m), { databaseService: { searchInstanceObjects } });
+		return { handlers, posts };
+	}
+
+	test('an empty query answers with no results and does not call the service', async () => {
+		let called = false;
+		const { handlers, posts } = setupSearch(async () => { called = true; return { results: [], truncated: false }; });
+		await handlers.handleSearchInstanceObjects('', false, false, 1);
+		assert.strictEqual(called, false);
+		assert.deepStrictEqual(posts, [{ command: 'instanceSearched', id: 1, results: [] }]);
+	});
+
+	test('the results and the truncated flag of the service are forwarded', async () => {
+		const hit = { database: 'A', object: { qualified_name: 'dbo.Orders' } };
+		const { handlers, posts } = setupSearch(async () => ({ results: [hit], truncated: true }));
+		await handlers.handleSearchInstanceObjects('order', false, false, 7);
+		assert.deepStrictEqual(posts, [{ command: 'instanceSearched', id: 7, results: [hit], truncated: true }]);
+	});
+
+	test('an invalid regular expression is reported, not thrown', async () => {
+		const { handlers, posts } = setupSearch(async () => ({ results: [], truncated: false }));
+		await handlers.handleSearchInstanceObjects('(', true, false, 1);
+		assert.strictEqual(posts.length, 1);
+		assert.strictEqual(posts[0].command, 'instanceSearched');
+		assert.ok(posts[0].error.includes('Invalid regular expression'));
+	});
+
+	test('a failure of the search service is reported, not thrown', async () => {
+		const { handlers, posts } = setupSearch(async () => { throw new Error('down'); });
+		await handlers.handleSearchInstanceObjects('order', false, false, 1);
+		assert.deepStrictEqual(posts, [{ command: 'instanceSearched', id: 1, results: [], error: 'down' }]);
+	});
+
+	test('a reply to a superseded search (an older id) is dropped', async () => {
+		const posts = [];
+		let resolveFirst;
+		const pendingFirst = new Promise(resolve => { resolveFirst = resolve; });
+		let calls = 0;
+		const handlers = new InstanceHandlers(m => posts.push(m), {
+			databaseService: {
+				searchInstanceObjects: async () => {
+					calls++;
+					return calls === 1 ? pendingFirst : { results: [{ database: 'B', object: {} }], truncated: false };
+				}
+			}
+		});
+
+		const first = handlers.handleSearchInstanceObjects('order', false, false, 1);
+		await handlers.handleSearchInstanceObjects('orders', false, false, 2);
+		resolveFirst({ results: [{ database: 'A', object: {} }], truncated: false });
+		await first;
+
+		assert.deepStrictEqual(posts.map(p => p.id), [2]);
+	});
+});

@@ -532,6 +532,7 @@ class SqlWayfarerPanel {
             case 'cancelApplyCompare':           this._compare.handleCancelApply(); break;
             case 'getInstanceDatabases':         await this._instance.handleGetInstanceDatabases(); break;
             case 'getInstanceObjects':           await this._instance.handleGetInstanceObjects(message.database); break;
+            case 'searchInstanceObjects':        await this._instance.handleSearchInstanceObjects(message.query, message.regex, message.inCode, message.id); break;
             case 'renameInstanceObject':         await this._instance.handleRename(message.database, message.schema, message.name, message.objectType); break;
             case 'dropInstanceObject':           await this._instance.handleDrop(message.database, message.schema, message.name, message.objectType); break;
             case 'generateInstanceScript':       await this._instanceScript.handleGenerateScript(message.database, message.objectName, message.objectType, message.scriptType, false, true); break;

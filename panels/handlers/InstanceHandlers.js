@@ -1,6 +1,7 @@
 'use strict';
 
 const { isActionableType, buildDrop, buildRename, validateNewName, getDependents } = require('../../database/instanceActions');
+const { searchPattern } = require('../../database/textSearch');
 
 const MAX_LISTED = 12;
 
@@ -35,6 +36,33 @@ class InstanceHandlers {
             this._post({ command: 'instanceObjects', database, objects });
         } catch (error) {
             this._post({ command: 'instanceObjectsError', database, message: error.message });
+        }
+    }
+
+    // The Instance tab's search, modeled on QueryFileHandlers.handleSearchSqlFiles:
+    // the id lets a newer keystroke's request supersede one still in flight,
+    // an invalid regex is reported rather than thrown, and a database that
+    // cannot be read just contributes nothing (see DatabaseService.searchInstanceObjects).
+    async handleSearchInstanceObjects(query, isRegex, inCode, id) {
+        this._latestInstanceSearch = id;
+        const answer = extra => this._post({ command: 'instanceSearched', id, ...extra });
+        if (!query) { answer({ results: [] }); return; }
+
+        let pattern;
+        try {
+            pattern = searchPattern(query, !!isRegex);
+        } catch (error) {
+            answer({ results: [], error: `Invalid regular expression: ${error.message}` });
+            return;
+        }
+
+        try {
+            const { results, truncated } = await this._databaseService.searchInstanceObjects(pattern, !!inCode);
+            if (this._latestInstanceSearch !== id) return; // a newer search already replaced this one
+            answer({ results, truncated });
+        } catch (error) {
+            if (this._latestInstanceSearch !== id) return;
+            answer({ results: [], error: error.message });
         }
     }
 
