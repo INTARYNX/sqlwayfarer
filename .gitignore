@@ -27,3 +27,6 @@ coverage/
 
 # Database backups used to try the extension on a real database
 bak/
+
+# Local-only agent instructions, kept out of version control from now on
+AGENTS.md
