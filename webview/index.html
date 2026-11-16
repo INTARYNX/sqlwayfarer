@@ -409,6 +409,8 @@
                         <div id="instanceView" class="panel-view" role="tabpanel" aria-labelledby="panelTabInstance" hidden>
                             <div class="sql-files-search">
                                 <input type="text" id="instanceFilterInput" class="sql-files-filter" placeholder="Filter databases and objects…" spellcheck="false">
+                                <button id="instanceContentBtn" class="icon-btn" aria-pressed="false" title="Search in the definitions of the objects (views, procedures, functions), instead of their names"><i class="codicon codicon-search"></i></button>
+                                <button id="instanceRegexBtn" class="icon-btn" aria-pressed="false" disabled title="Regular expression (searching in the definitions)"><i class="codicon codicon-regex"></i></button>
                             </div>
                             <div id="instanceTree" class="sql-files-tree" tabindex="0" role="tree" aria-label="Databases and objects of the instance">
                                 <p class="placeholder-text">Loading…</p>

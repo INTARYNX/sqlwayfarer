@@ -64,3 +64,41 @@ suite('InstanceTree.rows', () => {
 		assert.strictEqual(new Set(keys).size, keys.length);
 	});
 });
+
+suite('InstanceTree.searchRows', () => {
+	test('no hit: an empty list', () => {
+		assert.deepStrictEqual(InstanceTree.searchRows([]), []);
+		assert.deepStrictEqual(InstanceTree.searchRows(undefined), []);
+	});
+
+	test('grouped by database, in alphabetical order, each object one level under its database', () => {
+		const list = InstanceTree.searchRows([
+			{ database: 'B', object: obj('Table', 'dbo', 'Orders') },
+			{ database: 'A', object: obj('View', 'Sales', 'vOrders') },
+			{ database: 'A', object: obj('Table', 'dbo', 'Customers') }
+		]);
+		assert.deepStrictEqual(shape(list), ['db:db:A', 'object:obj:A:Sales.vOrders', 'object:obj:A:dbo.Customers', 'db:db:B', 'object:obj:B:dbo.Orders']);
+		assert.deepStrictEqual(list.filter(r => r.kind === 'object').map(r => r.depth), [1, 1, 1]);
+	});
+
+	test('a content hit carries its match count and the line of the first one', () => {
+		const list = InstanceTree.searchRows([{ database: 'A', object: obj('Procedure', 'dbo', 'usp_Load'), count: 3, line: 7 }]);
+		const hit = list.find(r => r.kind === 'object');
+		assert.strictEqual(hit.count, 3);
+		assert.strictEqual(hit.line, 7);
+	});
+
+	test('a name hit (no content search) carries no count', () => {
+		const list = InstanceTree.searchRows([{ database: 'A', object: obj('Table', 'dbo', 'Orders') }]);
+		assert.strictEqual(list.find(r => r.kind === 'object').count, undefined);
+	});
+
+	test('keys are unique even for the same object name in two databases', () => {
+		const list = InstanceTree.searchRows([
+			{ database: 'A', object: obj('Table', 'dbo', 'Orders') },
+			{ database: 'B', object: obj('Table', 'dbo', 'Orders') }
+		]);
+		const keys = list.map(r => r.key);
+		assert.strictEqual(new Set(keys).size, keys.length);
+	});
+});

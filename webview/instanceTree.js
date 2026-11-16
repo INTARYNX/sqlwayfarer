@@ -15,6 +15,8 @@ class InstanceTree {
         this.view = document.getElementById('instanceView');
         this.tree = document.getElementById('instanceTree');
         this.filterInput = document.getElementById('instanceFilterInput');
+        this.contentBtn = document.getElementById('instanceContentBtn');
+        this.regexBtn = document.getElementById('instanceRegexBtn');
         this.tabFiles = document.getElementById('panelTabFiles');
         this.tabInstance = document.getElementById('panelTabInstance');
         this.filesView = document.getElementById('sqlFilesView');
@@ -23,9 +25,20 @@ class InstanceTree {
 
         this.tabFiles.addEventListener('click', () => this.setActive(false));
         this.tabInstance.addEventListener('click', () => this.setActive(true));
-        this.filterInput.addEventListener('input', () => {
-            this.filter = this.filterInput.value.trim().toLowerCase();
-            this.render();
+        this.filterInput.addEventListener('input', () => this._onFilterChanged());
+        this.contentBtn.addEventListener('click', () => {
+            this.contentSearch = !this.contentSearch;
+            this.contentBtn.setAttribute('aria-pressed', String(this.contentSearch));
+            this.regexBtn.disabled = !this.contentSearch;
+            this.filterInput.placeholder = this.contentSearch
+                ? 'Search in the definitions…'
+                : 'Filter databases and objects…';
+            this._onFilterChanged();
+        });
+        this.regexBtn.addEventListener('click', () => {
+            this.regexSearch = !this.regexSearch;
+            this.regexBtn.setAttribute('aria-pressed', String(this.regexSearch));
+            this._onFilterChanged();
         });
         this.tree.addEventListener('click', (e) => {
             const row = e.target.closest('.instance-row');
@@ -54,12 +67,22 @@ class InstanceTree {
         this.expanded = new Set();
         this.selected = null;
         this.filter = '';
+        this.contentSearch = false;
+        this.regexSearch = false;
+        clearTimeout(this._searchTimer);
+        this._searchId = 0;
+        this._searchTimer = null;
+        this._search = null;        // null: none; { searching } | { error } | { results, truncated }
     }
 
     // A new connection: what was listed belongs to the previous one.
     reset() {
         this._reset();
         this.filterInput.value = '';
+        this.filterInput.placeholder = 'Filter databases and objects…';
+        this.contentBtn.setAttribute('aria-pressed', 'false');
+        this.regexBtn.setAttribute('aria-pressed', 'false');
+        this.regexBtn.disabled = true;
         if (this.active) this.load();
         else this.render();
     }
@@ -107,6 +130,30 @@ class InstanceTree {
                 }
             }
             if (rows[rows.length - 1].kind === 'db') rows.push({ key: `${dbKey}:note`, kind: 'note', depth: 1, text: 'No tables, views, procedures or functions.' });
+        }
+        return rows;
+    }
+
+    // The instance-wide search's own rows: a flat list grouped by database,
+    // one level deeper for the objects - the Tables/Views/.../ grouping of
+    // the browse tree is skipped, a search result list is usually short
+    // enough not to need it. Shares its row shape with rows() ('db' and
+    // 'object' kinds) so the same _rowNode renders both.
+    static searchRows(results) {
+        const byDb = new Map();
+        for (const hit of results || []) {
+            if (!byDb.has(hit.database)) byDb.set(hit.database, []);
+            byDb.get(hit.database).push(hit);
+        }
+        const rows = [];
+        for (const database of [...byDb.keys()].sort((a, b) => a.localeCompare(b))) {
+            rows.push({ key: InstanceTree.dbKey(database), kind: 'db', depth: 0, database, open: true });
+            for (const hit of byDb.get(database)) {
+                rows.push({
+                    key: InstanceTree.objectKey(database, hit.object), kind: 'object', depth: 1,
+                    database, object: hit.object, count: hit.count, line: hit.line
+                });
+            }
         }
         return rows;
     }
@@ -179,6 +226,35 @@ class InstanceTree {
         this.render();
     }
 
+    // The filter changed, or the way it searches: a non-empty query always
+    // reaches the whole instance (not just the databases already expanded)
+    // through the extension, after a short pause - modeled on
+    // QueryFileManager._onFilterChanged. An empty box goes back to the plain
+    // local filter of the browse tree, with no network call at all.
+    _onFilterChanged() {
+        this.filter = this.filterInput.value.trim().toLowerCase();
+        clearTimeout(this._searchTimer);
+        this._searchId++;
+        this._search = null;
+        const query = this.filterInput.value.trim();
+        if (query) {
+            this._search = { searching: true };
+            const id = this._searchId;
+            this._searchTimer = setTimeout(() => {
+                vscode.postMessage({ command: 'searchInstanceObjects', query, regex: this.regexSearch, inCode: this.contentSearch, id });
+            }, 300);
+        }
+        this.render();
+    }
+
+    onSearched(message) {
+        if (message.id !== this._searchId || !this._search) return;
+        this._search = message.error
+            ? { error: message.error }
+            : { results: message.results || [], truncated: !!message.truncated };
+        this.render();
+    }
+
     // Rename or Delete went through: what the database holds changed.
     onChanged(message) {
         this.refreshDatabase(message.database);
@@ -193,6 +269,7 @@ class InstanceTree {
     }
 
     toggle(key) {
+        if (this._search) return; // a search result list is flat, nothing to collapse
         if (this.expanded.has(key)) this.expanded.delete(key);
         else {
             this.expanded.add(key);
@@ -219,14 +296,28 @@ class InstanceTree {
     }
 
     render() {
+        if (this._search) { this._renderSearch(); return; }
         if (this.databases === null) return;
-        const focused = this.tree.contains(document.activeElement) ? document.activeElement.dataset && document.activeElement.dataset.key : null;
         const rows = InstanceTree.rows({ databases: this.databases, objects: this.objects, expanded: this.expanded, filter: this.filter });
+        this._renderRows(rows, this.filter ? 'Nothing matches the filter.' : 'No databases.');
+    }
+
+    _renderSearch() {
+        if (this._search.searching) {
+            this.tree.innerHTML = '<p class="placeholder-text"><span class="panel-spinner"></span>Searching…</p>';
+            return;
+        }
+        if (this._search.error) { this._renderRows([], this._search.error); return; }
+        this._renderRows(InstanceTree.searchRows(this._search.results), 'No object matches this search.');
+    }
+
+    _renderRows(rows, emptyText) {
+        const focused = this.tree.contains(document.activeElement) ? document.activeElement.dataset && document.activeElement.dataset.key : null;
         this.tree.textContent = '';
         if (rows.length === 0) {
             const p = document.createElement('p');
             p.className = 'placeholder-text';
-            p.textContent = this.filter ? 'Nothing matches the filter.' : 'No databases.';
+            p.textContent = emptyText;
             this.tree.appendChild(p);
             return;
         }
@@ -287,6 +378,13 @@ class InstanceTree {
             count.className = 'instance-count';
             count.textContent = `(${row.count})`;
             el.appendChild(count);
+        } else if (row.kind === 'object' && typeof row.count === 'number') {
+            // A content search's hit: how many times it matched, like the Files tab's own badge.
+            const count = document.createElement('span');
+            count.className = 'sql-file-count';
+            count.title = `${row.count} match${row.count === 1 ? '' : 'es'}`;
+            count.textContent = String(row.count);
+            el.appendChild(count);
         }
         return el;
     }
@@ -295,7 +393,13 @@ class InstanceTree {
 
     _objectOf(row) {
         const list = this.objects.get(row.dataset.database);
-        return Array.isArray(list) ? list.find(o => o.qualified_name === row.dataset.name) : null;
+        const fromTree = Array.isArray(list) ? list.find(o => o.qualified_name === row.dataset.name) : null;
+        if (fromTree) return fromTree;
+        // The row's database may never have been expanded in the browse tree -
+        // a search hit already carries its own object, fall back to it.
+        if (!this._search || !this._search.results) return null;
+        const hit = this._search.results.find(r => r.database === row.dataset.database && r.object.qualified_name === row.dataset.name);
+        return hit ? hit.object : null;
     }
 
     // An object that is picked brings the explorer to its database.
