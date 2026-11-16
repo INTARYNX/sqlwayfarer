@@ -195,4 +195,72 @@ suite('e2e: the instance tree', function () {
 		await p.close();
 		check.done();
 	});
+
+	test('the instance-wide search: names across every database, then definitions, modeled on the Files tab', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 700 });
+		const post = async m => { await p.evaluate(x => window.postMessage(x, '*'), m); await p.waitForTimeout(100); };
+		const sent = () => p.evaluate(() => window.__sent.slice());
+		const rows = () => p.$$eval('#instanceTree .instance-row', els => els.map(e => `${e.dataset.kind}:${e.dataset.database}:${e.querySelector('.instance-name').textContent}`));
+		await post({ command: 'connectionStatus', success: true, message: 'ok' });
+		await post({ command: 'databasesLoaded', databases: ['AppDb', 'Archive'], currentDatabase: 'AppDb' });
+		await p.click('#queryFilesBtn');
+		await p.click('#panelTabInstance');
+		await post({ command: 'instanceDatabases', databases: ['AppDb', 'Archive'] });
+
+		// Neither database is expanded: a name search still reaches both.
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.fill('#instanceFilterInput', 'order');
+		await p.waitForTimeout(400);
+		const nameSearch = (await sent()).find(m => m.command === 'searchInstanceObjects');
+		check(nameSearch && nameSearch.query === 'order' && nameSearch.inCode === false, 'a non-empty query asks the extension (' + JSON.stringify(nameSearch) + ')');
+		check((await p.textContent('#instanceTree')).includes('Searching'), 'shows a spinner while the search is in flight');
+
+		await post({
+			command: 'instanceSearched', id: nameSearch.id,
+			results: [
+				{ database: 'Archive', object: obj('Table', 'dbo', 'OldOrders') },
+				{ database: 'AppDb', object: obj('Table', 'dbo', 'Orders') }
+			]
+		});
+		check(JSON.stringify(await rows()) === '["db:AppDb:AppDb","object:AppDb:dbo.Orders","db:Archive:Archive","object:Archive:dbo.OldOrders"]',
+			'both databases show, grouped, with no Tables/Views/... level (' + JSON.stringify(await rows()) + ')');
+		check((await p.locator('#instanceTree .sql-file-count').count()) === 0, 'a name hit carries no match-count badge');
+
+		// Switch to the content search.
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.click('#instanceContentBtn');
+		check((await p.getAttribute('#instanceContentBtn', 'aria-pressed')) === 'true', 'the content button is now pressed');
+		check((await p.getAttribute('#instanceRegexBtn', 'disabled')) === null, 'the regex button unlocks with it');
+		await p.waitForTimeout(400);
+		const contentSearch = (await sent()).find(m => m.command === 'searchInstanceObjects');
+		check(contentSearch && contentSearch.inCode === true, 'the same query is now asked in content mode (' + JSON.stringify(contentSearch) + ')');
+
+		await post({
+			command: 'instanceSearched', id: contentSearch.id,
+			results: [{ database: 'Archive', object: obj('Procedure', 'dbo', 'usp_OldOrders'), count: 2, line: 5 }]
+		});
+		check((await p.textContent('.instance-row[data-name="dbo.usp_OldOrders"] .sql-file-count')) === '2', 'the match count of a content hit shows as a badge');
+
+		// Double-clicking a hit of a database never expanded still opens it.
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.dblclick('.instance-row[data-name="dbo.usp_OldOrders"]');
+		check((await p.inputValue('#databaseSelect')) === 'Archive', 'the Explorer switches to the hit\'s database, never expanded in the tree');
+		const detail = (await sent()).find(m => m.command === 'getObjectDetailsAuto');
+		check(detail && detail.database === 'Archive' && detail.objectName === 'dbo.usp_OldOrders', 'its details are asked for (' + JSON.stringify(detail) + ')');
+
+		// Clearing the box goes back to the plain browse tree, with no further request.
+		// Opening the object switched to the Explorer tab, which hides the Query
+		// tab's side panel (and its filter box): back to Query first.
+		await p.click('.tab-button[data-tab="query"]');
+		await p.evaluate(() => { window.__sent.length = 0; });
+		await p.fill('#instanceFilterInput', '');
+		await p.waitForTimeout(400);
+		check((await sent()).length === 0, 'an empty box makes no network call at all');
+		check(JSON.stringify(await rows()) === '["db:AppDb:AppDb","db:Archive:Archive"]', 'back to the closed browse tree (' + JSON.stringify(await rows()) + ')');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		await p.close();
+		check.done();
+	});
 });
