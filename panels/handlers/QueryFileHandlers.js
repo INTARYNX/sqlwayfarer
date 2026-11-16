@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const fs = require('fs').promises;
 const path = require('path');
 const { readMigrating } = require('../../storage/migrateState');
+const textSearch = require('../../database/textSearch');
 
 const DRAFTS_KEY = 'sqlwayfarer.queryDrafts';
 
@@ -85,23 +86,14 @@ class QueryFileHandlers {
     static get SEARCH_MAX_BYTES() { return 2 * 1024 * 1024; }
     static get SEARCH_MAX_FILES() { return 500; }
 
-    // The pattern of a search: the text as typed, or a regular expression.
-    // Never case sensitive, and ^ / $ are those of a line. Throws on an
-    // invalid regular expression.
+    // Delegates to database/textSearch.js, shared with the instance-wide
+    // object/definition search of the Instance tab.
     static searchPattern(query, isRegex) {
-        const source = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return new RegExp(source, 'gim');
+        return textSearch.searchPattern(query, isRegex);
     }
 
-    // How many times the pattern matches, and the line (from 1) of the first.
     static findMatches(text, pattern) {
-        let count = 0;
-        let line = 1;
-        for (const match of text.matchAll(pattern)) {
-            if (count === 0) line = text.slice(0, match.index).split('\n').length;
-            count++;
-        }
-        return { count, line };
+        return textSearch.findMatches(text, pattern);
     }
 
     // Looks for a text in the .sql files of the workspace. The answer carries
