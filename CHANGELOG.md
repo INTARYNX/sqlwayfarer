@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.11] - 2026-11-16
+
+### Added
+
+- **Instance tab: search across every database, by name or by definition.** The search box now reaches every online database of the instance, not just the ones already expanded in the tree - modeled on the Files tab's own search: a button switches it from object names to the definitions of views, procedures and functions (`sys.sql_modules`), with an optional regular expression and a match-count badge per hit. Opening a hit from a database never expanded still switches the Explorer to it.
+
 ## [0.99.10] - 2026-11-12
 
 ### Added
