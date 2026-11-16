@@ -2,6 +2,11 @@
 
 const parseObjectName = require('./parseObjectName');
 const { bracketIdentifier } = require('./sqlIdentifier');
+const { findMatches } = require('./textSearch');
+
+// The instance-wide search (Instance tab) stops collecting past this many
+// hits, the same way QueryFileHandlers' file search caps at SEARCH_MAX_FILES.
+const INSTANCE_SEARCH_MAX_RESULTS = 500;
 
 // "nvarchar" + max_length 100 -> "nvarchar(50)". max_length is in bytes (-1 = max).
 function formatSqlType(type, maxLength, precision, scale) {
@@ -107,6 +112,87 @@ class DatabaseService {
             qualified_name: row.qualified_name,
             object_type: row.object_type
         }));
+    }
+
+    // The Instance tab's search, across every online database of the
+    // connection: either by object name, or - when inCode - inside the
+    // definitions of its views, procedures and functions. `pattern` is a
+    // RegExp from textSearch.searchPattern (plain text or a user regex): a
+    // regex cannot be pushed into a SQL LIKE, so the matching itself always
+    // happens here in JS, exactly like the Files tab's content search reads
+    // whole files and matches them in JS rather than filtering at the OS level.
+    //
+    // Databases run concurrently (Promise.allSettled): the mssql pool hands
+    // each concurrent request its own pooled connection, so N concurrent
+    // "USE [db]; ..." batches do not collide - executeQueryInDatabase already
+    // relies on that elsewhere. A database that is offline or denies access
+    // simply contributes nothing, instead of failing the whole search.
+    async searchInstanceObjects(pattern, inCode) {
+        if (!this._connectionManager.isConnected()) throw new Error('No active connection');
+
+        const databases = await this.getDatabases();
+        const outcomes = await Promise.allSettled(
+            databases.map(database => inCode
+                ? this._searchDefinitionsOf(database, pattern)
+                : this._searchNamesOf(database, pattern))
+        );
+
+        const results = [];
+        for (const outcome of outcomes) {
+            if (outcome.status === 'fulfilled') results.push(...outcome.value);
+        }
+        return {
+            results: results.slice(0, INSTANCE_SEARCH_MAX_RESULTS),
+            truncated: results.length > INSTANCE_SEARCH_MAX_RESULTS
+        };
+    }
+
+    // Reuses the same object list the Explorer loads on opening a database -
+    // matching a RegExp with a global flag through findMatches (matchAll)
+    // rather than pattern.test(), which would carry a stale lastIndex across
+    // the names of a loop.
+    async _searchNamesOf(database, pattern) {
+        const objects = await this.getObjects(database);
+        return objects
+            .filter(o => findMatches(o.object_name, pattern).count > 0)
+            .map(o => ({ database, object: o }));
+    }
+
+    async _searchDefinitionsOf(database, pattern) {
+        const result = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT
+                o.name as object_name,
+                s.name as schema_name,
+                s.name + '.' + o.name as qualified_name,
+                CASE
+                    WHEN o.type = 'V' THEN 'View'
+                    WHEN o.type = 'P' THEN 'Procedure'
+                    WHEN o.type IN ('FN', 'IF', 'TF') THEN 'Function'
+                    ELSE o.type_desc
+                END as object_type,
+                m.definition
+            FROM sys.objects o
+            INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+            INNER JOIN sys.sql_modules m ON m.object_id = o.object_id
+        `);
+
+        const hits = [];
+        for (const row of result.recordset) {
+            const { count, line } = findMatches(row.definition || '', pattern);
+            if (count === 0) continue;
+            hits.push({
+                database,
+                object: {
+                    object_name: row.object_name,
+                    schema_name: row.schema_name,
+                    qualified_name: row.qualified_name,
+                    object_type: row.object_type
+                },
+                count,
+                line
+            });
+        }
+        return hits;
     }
 
     // Every FK edge in the database, one row per column (multi-column FKs span

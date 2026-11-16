@@ -81,6 +81,93 @@ suite('DatabaseService.getObjectTypes', () => {
 	});
 });
 
+// The Instance tab's search, across every database of the connection. A fake
+// connectionManager routes on the query text: getObjects() never joins
+// sys.sql_modules, _searchDefinitionsOf() always does.
+suite('DatabaseService.searchInstanceObjects', () => {
+	const { searchPattern } = require('../database/textSearch');
+
+	function makeInstanceService({ databases = ['A', 'B'], objectsByDb = {}, definitionsByDb = {}, failingDb = null } = {}) {
+		const connectionManager = {
+			isConnected: () => true,
+			executeQuery: async () => ({ recordset: databases.map(name => ({ name })) }),
+			executeQueryInDatabase: async (database, query) => {
+				if (database === failingDb) throw new Error(`${database} is offline`);
+				if (query.includes('sql_modules')) {
+					return { recordset: definitionsByDb[database] || [] };
+				}
+				return { recordset: objectsByDb[database] || [] };
+			}
+		};
+		return new DatabaseService(connectionManager);
+	}
+
+	const objectRow = (name, type = 'U') => ({
+		object_name: name, type_desc: type, object_type: type === 'U' ? 'Table' : type,
+		schema_name: 'dbo', display_name: name, qualified_name: `dbo.${name}`,
+		create_date: null, modify_date: null, is_encrypted: 0
+	});
+
+	test('name mode: matches are collected across every database, tagged with it', async () => {
+		const service = makeInstanceService({
+			objectsByDb: { A: [objectRow('Orders'), objectRow('Customers')], B: [objectRow('OrderLines')] }
+		});
+
+		const { results, truncated } = await service.searchInstanceObjects(searchPattern('order', false), false);
+
+		assert.strictEqual(truncated, false);
+		assert.deepStrictEqual(
+			results.map(r => `${r.database}:${r.object.object_name}`).sort(),
+			['A:Orders', 'B:OrderLines']
+		);
+	});
+
+	test('content mode: the match count and the line of the first hit come from the definition', async () => {
+		const definition = 'CREATE PROCEDURE dbo.usp_Load\nAS\nSELECT * FROM Orders WHERE Orders.Id > 0';
+		const service = makeInstanceService({
+			definitionsByDb: { A: [{ object_name: 'usp_Load', schema_name: 'dbo', qualified_name: 'dbo.usp_Load', object_type: 'Procedure', definition }] }
+		});
+
+		const { results } = await service.searchInstanceObjects(searchPattern('Orders', false), true);
+
+		assert.strictEqual(results.length, 1);
+		assert.strictEqual(results[0].database, 'A');
+		assert.strictEqual(results[0].object.qualified_name, 'dbo.usp_Load');
+		assert.strictEqual(results[0].count, 2);
+		assert.strictEqual(results[0].line, 3);
+	});
+
+	test('a database that cannot be read contributes nothing, and does not fail the search', async () => {
+		const service = makeInstanceService({
+			objectsByDb: { A: [objectRow('Orders')], B: [objectRow('OrderLines')] },
+			failingDb: 'B'
+		});
+
+		const { results } = await service.searchInstanceObjects(searchPattern('order', false), false);
+
+		assert.deepStrictEqual(results.map(r => r.database), ['A']);
+	});
+
+	test('more than 500 hits are capped, with truncated set', async () => {
+		const many = Array.from({ length: 501 }, (_, i) => objectRow(`Order${i}`));
+		const service = makeInstanceService({ databases: ['A'], objectsByDb: { A: many } });
+
+		const { results, truncated } = await service.searchInstanceObjects(searchPattern('order', false), false);
+
+		assert.strictEqual(results.length, 500);
+		assert.strictEqual(truncated, true);
+	});
+
+	test('without a connection it fails', async () => {
+		const service = new DatabaseService({ isConnected: () => false });
+
+		await assert.rejects(
+			() => service.searchInstanceObjects(searchPattern('x', false), false),
+			/No active connection/
+		);
+	});
+});
+
 // === Live: against a real SQL Server ===
 //
 // Opt-in through the SQLWAYFARER_TEST_SQL environment variable, which holds
