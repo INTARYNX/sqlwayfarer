@@ -103,11 +103,13 @@ class QueryManager {
             e.stopPropagation();
             this.runQuery();
         }, true);
-        // Ctrl+Click or double-click on an object name jumps to its definition in the Explorer
+        // Ctrl+Click on an object name still jumps straight to its definition in
+        // the Explorer; double-click opens a small menu instead (find it across
+        // the whole instance, or jump to the Explorer the same way Ctrl+Click does).
         this.input.addEventListener('click', (e) => {
             if (e.ctrlKey || e.metaKey) this.goToDefinition();
         });
-        this.input.addEventListener('dblclick', () => this.goToDefinition());
+        this.input.addEventListener('dblclick', (e) => this.openObjectActionsMenu(e));
         // Tabs and Copy / CSV buttons are re-rendered with every result set: one
         // delegated listener on the container instead of per-element bindings.
         // Dragging the edge of a column header resizes it (double-click: back to automatic widths).
@@ -171,14 +173,28 @@ class QueryManager {
         });
     }
 
-    // Resolve the identifier under the caret (alias-aware) and reveal it in the Explorer.
-    // Handles 1-part (bare/aliased), 2-part (schema.object) and 3-part
-    // (database.schema.object) identifiers - the last form points at another
-    // database on the same connection and can't be found in appState.allObjects,
-    // which only holds the currently selected database's objects.
-    goToDefinition() {
+    // Double-click on an object name: a menu instead of jumping straight to the
+    // Explorer, since there are now two places to look an object up. Closed by
+    // an outside click or Escape like every other popup menu - see
+    // ExplorerObjectListMethods._openPopupMenu, also reused as-is by InstanceTree.
+    openObjectActionsMenu(event) {
+        if (!this._resolveObjectUnderCaret() || !window.explorerManager) return;
+        const items = [
+            { label: 'Find in Instance', onClick: () => this.findInInstance() },
+            { label: 'View definition in Explorer', onClick: () => this.goToDefinition() },
+            { label: 'Close', separatorBefore: true, onClick: () => {} }
+        ];
+        window.explorerManager._openPopupMenu(this.input, items, { at: { x: event.clientX, y: event.clientY } });
+    }
+
+    // Resolve the identifier under the caret (alias-aware). Handles 1-part
+    // (bare/aliased), 2-part (schema.object) and 3-part (database.schema.object)
+    // identifiers - the last form points at another database on the same
+    // connection and can't be found in appState.allObjects, which only holds
+    // the currently selected database's objects.
+    _resolveObjectUnderCaret() {
         const word = SqlAutocomplete.wordAt(this.input.value, this.input.selectionStart);
-        if (!word) return;
+        if (!word) return null;
 
         const clean = word.replace(/[[\]]/g, '');
         const aliases = SqlAutocomplete.parseAliases(this.input.value);
@@ -188,6 +204,14 @@ class QueryManager {
         const name = parts[parts.length - 1];
         const schema = parts.length >= 2 ? parts[parts.length - 2] : null;
         const database = parts.length >= 3 ? parts[parts.length - 3] : null;
+        return { clean, name, schema, database };
+    }
+
+    // Reveal the identifier under the caret in the Explorer.
+    goToDefinition() {
+        const ref = this._resolveObjectUnderCaret();
+        if (!ref) return;
+        const { clean, name, schema, database } = ref;
 
         if (database && database.toLowerCase() !== (appState.currentDatabase || '').toLowerCase()) {
             if (window.explorerManager) {
@@ -210,6 +234,20 @@ class QueryManager {
         } else {
             this.setStatus(`No object named '${clean}' in this database.`, 'error');
         }
+    }
+
+    // Switches the Query tab's side panel to its Instance view and searches the
+    // whole connection by name for the identifier under the caret - unlike
+    // goToDefinition, not limited to the currently selected database.
+    findInInstance() {
+        const ref = this._resolveObjectUnderCaret();
+        if (!ref || !window.instanceTree) return;
+
+        if (window.queryFileManager) window.queryFileManager._setFilesPanel(true);
+        window.instanceTree.setActive(true);
+        window.instanceTree.filterInput.value = ref.name;
+        window.instanceTree._onFilterChanged();
+        window.instanceTree.filterInput.focus();
     }
 
     // Drag the bar between editor and results to resize the SQL input;
