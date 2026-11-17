@@ -86,6 +86,26 @@ suite('e2e: the query panel (frames, error links, explorer, toolbar, tabs)', fun
 		await p.evaluate(() => window.codeViewManager.loadCodeForObject('Sales', 'Sales.vBad', 'View', 'select from from ((('));
 		await press('formatCode');
 		check((await codeText()) === 'select from from (((' && await p.evaluate(() => window.codeViewManager._isFormatted) === false, 'code that cannot be parsed is left as it is');
+
+		// ---- a table has no sys.sql_modules definition: Code asks for a
+		// generated CREATE TABLE script instead (same as the Script button),
+		// as a "preview" so it renders here rather than landing in the editor.
+		await clear();
+		await p.evaluate(() => window.codeViewManager.loadCodeForObject('Sales', 'Sales.Customers', 'Table'));
+		check((await p.textContent('#codeContainer')).includes('Loading'), 'a table shows a loading state while its CREATE script is generated');
+		const createReq = (await sent()).find(m => m.command === 'generateScript' && m.objectType === 'Table');
+		check(createReq && createReq.scriptType === 'create' && createReq.preview === true && createReq.objectName === 'Sales.Customers',
+			'it asks for a CREATE script as a preview (' + JSON.stringify(createReq) + ')');
+		await post({ command: 'scriptGenerated', objectName: 'Sales.Customers', script: 'CREATE TABLE [Sales].[Customers] (\n    [Id] INT NOT NULL\n);', preview: true });
+		check((await codeText()).includes('CREATE TABLE'), 'and shows it as read-only code: ' + JSON.stringify(await codeText()));
+
+		// A CREATE script that arrives for a table left behind does not clobber what replaced it.
+		await clear();
+		await p.evaluate(() => window.codeViewManager.loadCodeForObject('Sales', 'Sales.Orders', 'Table'));
+		await p.evaluate(() => window.codeViewManager.loadCodeForObject('Sales', 'Sales.vTotals', 'View', 'create view dbo.v as select 1'));
+		await post({ command: 'scriptGenerated', objectName: 'Sales.Orders', script: 'CREATE TABLE [Sales].[Orders] (...);', preview: true });
+		check((await codeText()).includes('create view'), 'a late answer for a table no longer selected is dropped: ' + JSON.stringify(await codeText()));
+
 		await p.evaluate(() => window.codeViewManager.showPlaceholder());
 
 		// ---- the dot of the query state

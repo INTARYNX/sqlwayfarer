@@ -199,25 +199,6 @@
 .view-indicator { --badge-hue: var(--vscode-charts-orange, #d18616); }
 .trigger-indicator { --badge-hue: var(--vscode-charts-red, #f14c4c); }
 
-/* === TABLE CODE MESSAGE === */
-.table-code-message {
-   background: var(--vscode-input-background);
-   border: 1px solid var(--vscode-input-border);
-   border-radius: 4px;
-   padding: 20px;
-   margin: 15px 0;
-   text-align: center;
-   color: var(--vscode-descriptionForeground);
-}
-
-.table-code-message::before {
-   font-family: "codicon";
-   content: "\ebb7 "; /* codicon-table */
-   font-size: 18px;
-   vertical-align: middle;
-   margin-right: 8px;
-}
-
 /* === RESPONSIVE DESIGN === */
 @media (max-width: 768px) {
    .code-header {

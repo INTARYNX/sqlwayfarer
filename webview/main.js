@@ -141,6 +141,7 @@ class MessageHandler {
             case 'scriptGenerated':
                 if (message.preview) {
                     this.explorerManager.onScriptGenerated(message.objectName, message.script);
+                    if (this.codeViewManager) this.codeViewManager.onScriptGenerated(message.objectName, message.script);
                 } else if (this.queryManager) {
                     this.tabManager.switchTab('query');
                     // From the instance tree, on a database that is not the one the editor runs on.

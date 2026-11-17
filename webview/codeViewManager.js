@@ -19,6 +19,8 @@ class CodeViewManager {
         this.showLineNumbers = false;
         // The read-only CodeMirror view of the definition on screen, if any.
         this._view = null;
+        // Set while a table's CREATE script is being generated - see loadCodeForObject.
+        this._pendingTableScriptFor = null;
         this._attachActionDelegation();
     }
 
@@ -45,10 +47,18 @@ class CodeViewManager {
         this.currentObject = objectName;
         this.currentObjectType = objectType;
         this.currentDefinition = definition;
+        // Whatever was pending belonged to the object left behind.
+        this._pendingTableScriptFor = null;
 
-        // Handle tables differently (they don't have code definitions)
+        // Tables have no sys.sql_modules definition, but a CREATE TABLE script
+        // is easy to rebuild from their metadata - the same one the Explorer's
+        // "Script" button offers (ScriptGeneratorService.buildCreateTable),
+        // asked for here as a "preview" so it renders as code instead of
+        // landing in the query editor. See onScriptGenerated below.
         if (objectType === 'Table') {
-            this.displayTableMessage();
+            this.showLoadingState();
+            this._pendingTableScriptFor = objectName;
+            vscode.postMessage({ command: 'generateScript', database, objectName, objectType: 'Table', scriptType: 'create', preview: true });
             return;
         }
 
@@ -135,19 +145,14 @@ class CodeViewManager {
         }
     }
 
-        // Display message for tables (no code to show)
-        displayTableMessage() {
-            const container = document.getElementById('codeContainer');
-            if (!container) return;
-
-            container.innerHTML = `
-                <div class="table-code-message">
-                    <p><strong>Table Structure</strong></p>
-                    <p>Tables don't have code definitions to display.</p>
-                    <p>Switch to the <strong>Structure</strong> tab to view table columns, indexes, and constraints.</p>
-                </div>
-            `;
-        }
+    // A table's CREATE script, requested as a "preview" generateScript (see
+    // loadCodeForObject above). Guards against a stale response landing after
+    // the user has since selected a different object.
+    onScriptGenerated(objectName, script) {
+        if (objectName !== this._pendingTableScriptFor) return;
+        this._pendingTableScriptFor = null;
+        this.displayCode(script);
+    }
 
     // Display message when no code is available
     displayNoCodeMessage() {
@@ -324,6 +329,7 @@ class CodeViewManager {
         this.currentObjectType = null;
         this.currentDefinition = null;
         this.showLineNumbers = false;
+        this._pendingTableScriptFor = null;
         this.showPlaceholder();
     }
 
