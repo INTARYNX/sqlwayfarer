@@ -101,6 +101,10 @@ class ExplorerObjectListMethods {
                 this.closePopupMenu();
                 onClick();
             });
+            // The mouse moving over an item takes focus along with it - otherwise
+            // the item auto-focused on open (below) and the one under the mouse
+            // can be two different ones, both highlighted at once.
+            item.addEventListener('mouseenter', () => item.focus());
             menu.appendChild(item);
         });
         menu.addEventListener('keydown', (e) => this._onPopupMenuKey(e, menu, returnFocus));
