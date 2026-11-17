@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.12] - 2026-11-17
+
+### Changed
+
+- **Query: double-click on an object name opens a small menu** - find it across every database of the instance, or jump to its definition in the Explorer - instead of jumping to the Explorer right away. Closed by picking an action, Escape, or a click outside it. Ctrl+Click still jumps straight to the Explorer.
+
 ## [0.99.11] - 2026-11-16
 
 ### Added
