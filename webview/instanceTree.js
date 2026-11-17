@@ -411,6 +411,15 @@ class InstanceTree {
         const object = this._objectOf(row);
         if (!object || !window.explorerManager) return;
         this.followDatabase(row.dataset.database);
+
+        // A content-search hit: the match lives inside the code, so land on
+        // the Code tab with it highlighted and the find panel open on it,
+        // instead of leaving the user to go looking for it by eye.
+        if (this.contentSearch && this._search && this._search.results && window.codeViewManager) {
+            if (window.detailsTabManager) window.detailsTabManager.switchDetailsTab('code');
+            window.codeViewManager.setPendingHighlight(object.qualified_name, this.filterInput.value.trim());
+        }
+
         window.explorerManager.revealExternalObject(row.dataset.database, object.schema_name || 'dbo', object.object_name);
     }
 

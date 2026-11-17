@@ -21,6 +21,10 @@ class CodeViewManager {
         this._view = null;
         // Set while a table's CREATE script is being generated - see loadCodeForObject.
         this._pendingTableScriptFor = null;
+        // { objectName, term } set by setPendingHighlight (an Instance tab
+        // content-search hit) - consumed by the next displayCode() of that
+        // same object, see loadCodeForObject.
+        this._pendingHighlight = null;
         this._attachActionDelegation();
     }
 
@@ -41,6 +45,15 @@ class CodeViewManager {
         });
     }
 
+    // Called from the Instance tab: the next time `objectName`'s code is
+    // shown, highlight every occurrence of `term` in it and open the find
+    // panel on it. Set before the object is actually revealed (the code
+    // itself usually arrives later, asynchronously), so it must survive the
+    // intermediate loadCodeForObject() call that flow makes on its way there.
+    setPendingHighlight(objectName, term) {
+        this._pendingHighlight = term ? { objectName, term } : null;
+    }
+
     // Called when an object is selected in the Explorer
     loadCodeForObject(database, objectName, objectType, definition = null) {
         this.currentDatabase = database;
@@ -49,6 +62,10 @@ class CodeViewManager {
         this.currentDefinition = definition;
         // Whatever was pending belonged to the object left behind.
         this._pendingTableScriptFor = null;
+        // A highlight pending for THIS object survives (loadCodeForObject can
+        // run more than once on the way to displaying it, see
+        // setPendingHighlight) - one for anything else is now stale.
+        if (this._pendingHighlight && this._pendingHighlight.objectName !== objectName) this._pendingHighlight = null;
 
         // Tables have no sys.sql_modules definition, but a CREATE TABLE script
         // is easy to rebuild from their metadata - the same one the Explorer's
@@ -139,6 +156,10 @@ class CodeViewManager {
         const host = container.querySelector('.code-cm');
         if (window.SqlCodeMirror && window.SqlCodeMirror.readOnlyView) {
             this._view = window.SqlCodeMirror.readOnlyView(host, definition, { lineNumbers: this.showLineNumbers });
+            if (this._pendingHighlight && this._pendingHighlight.objectName === this.currentObject) {
+                this._view.highlightTerm(this._pendingHighlight.term);
+                this._pendingHighlight = null;
+            }
         } else {
             host.textContent = definition;
             host.classList.add('code-plain');
@@ -330,6 +351,7 @@ class CodeViewManager {
         this.currentDefinition = null;
         this.showLineNumbers = false;
         this._pendingTableScriptFor = null;
+        this._pendingHighlight = null;
         this.showPlaceholder();
     }
 

@@ -26,7 +26,7 @@ import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
 import { sql, MSSQL } from '@codemirror/lang-sql';
-import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
+import { search, searchKeymap, openSearchPanel, SearchQuery, setSearchQuery, findNext } from '@codemirror/search';
 import { setDiagnostics } from '@codemirror/lint';
 import { snippet } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
@@ -451,7 +451,8 @@ function attach(container, options = {}) {
 
 // A read-only view of some SQL - the definition shown by the Code tab of the
 // Explorer - with the same colours as the query editor. setLineNumbers() shows
-// or hides the gutter without rebuilding the view.
+// or hides the gutter without rebuilding the view. Ctrl+F opens the same find
+// panel as the query editor (read-only: no replace, so no Ctrl+H binding).
 function readOnlyView(container, doc, options = {}) {
     const gutter = new Compartment();
     const view = new EditorView({
@@ -466,11 +467,25 @@ function readOnlyView(container, doc, options = {}) {
             goHighlighter,
             vsCodeTheme,
             EditorView.theme({ '.cm-content': { padding: '10px 0' } }),
-            EditorView.lineWrapping
+            EditorView.lineWrapping,
+            search({ top: true }),
+            keymap.of([
+                { key: 'Mod-f', run: openSearchPanel, preventDefault: true },
+                ...searchKeymap.filter(binding => binding.key !== 'Mod-f')
+            ])
         ]
     });
     return {
         setLineNumbers(on) { view.dispatch({ effects: gutter.reconfigure(on ? lineNumbers() : []) }); },
+        // Highlights every occurrence of `term` and opens the find panel on
+        // it, scrolled to the first match - used when this code is opened
+        // from an Instance tab content-search hit (see CodeViewManager).
+        highlightTerm(term) {
+            if (!term) return;
+            view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: term })) });
+            openSearchPanel(view);
+            findNext(view);
+        },
         destroy() { view.destroy(); }
     };
 }

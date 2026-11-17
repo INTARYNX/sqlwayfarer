@@ -249,6 +249,18 @@ suite('e2e: the instance tree', function () {
 		const detail = (await sent()).find(m => m.command === 'getObjectDetailsAuto');
 		check(detail && detail.database === 'Archive' && detail.objectName === 'dbo.usp_OldOrders', 'its details are asked for (' + JSON.stringify(detail) + ')');
 
+		// A content-search hit: the match lives in the code, so it lands on the
+		// Code tab, and once the definition arrives, the find panel opens on
+		// the searched term with every occurrence highlighted.
+		check(await p.evaluate(() => appState.activeDetailsTab) === 'code', 'a content-search hit switches straight to the Code tab');
+		check(await p.locator('.details-tab-button[data-details-tab="code"]').evaluate(el => el.classList.contains('active')), 'whose button shows active');
+		await post({
+			command: 'objectDetailsLoaded', objectName: 'dbo.usp_OldOrders', objectType: 'Procedure', dependencies: [], database: 'Archive',
+			definition: 'CREATE PROCEDURE dbo.usp_OldOrders AS\n    DELETE FROM dbo.Orders WHERE 1 = 0;'
+		});
+		check((await p.locator('#codeContainer input[name=search]').inputValue()) === 'order', 'the find panel opens pre-filled with the searched term');
+		check((await p.locator('#codeContainer .cm-searchMatch').count()) > 0, 'and every occurrence in the code is highlighted');
+
 		// Clearing the box goes back to the plain browse tree, with no further request.
 		// Opening the object switched to the Explorer tab, which hides the Query
 		// tab's side panel (and its filter box): back to Query first.
