@@ -4,6 +4,17 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.14] - 2026-11-17
+
+### Added
+
+- **Instance tab: a content-search hit now opens on the Code tab, with the searched term highlighted and the find panel open on it.** The read-only code view (the Code tab's definition, and the query editor) gets a working Find (Ctrl+F) from now on, not just that one hit.
+
+### Fixed
+
+- **The generated CREATE TABLE script now includes CHECK constraints** (Script button and the Explorer's Code tab) - they were silently left out, unlike the primary key, indexes, unique constraints and foreign keys already there.
+- **Query editor: a real editor background, not a code-span one.** The CodeMirror theme used a token meant for an inline code span sitting on ordinary text, noticeably lighter than a real editor in most dark themes - hard to read. It now matches the rest of the UI (also fixes the Code tab's definition view, which shares the same theme).
+
 ## [0.99.13] - 2026-11-17
 
 ### Fixed
