@@ -355,11 +355,19 @@ class DatabaseService {
             ORDER BY fk.name, fkc.constraint_column_id
         `, { schema, objectName });
 
+        const checksResult = await this._connectionManager.executeQueryInDatabase(database, `
+            SELECT cc.name as check_name, cc.definition
+            FROM sys.check_constraints cc
+            WHERE cc.parent_object_id = ${objectIdExpr}
+            ORDER BY cc.name
+        `, { schema, objectName });
+
         return {
             tableName, qualifiedName: qualifiedTableName, schema, objectName,
             columns: columnsResult.recordset,
             indexes: indexesResult.recordset,
-            foreignKeys: fkResult.recordset
+            foreignKeys: fkResult.recordset,
+            checkConstraints: checksResult.recordset
         };
     }
 

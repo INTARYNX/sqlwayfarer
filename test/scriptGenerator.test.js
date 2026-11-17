@@ -104,6 +104,21 @@ suite('ScriptGeneratorService builders', () => {
 		assert.ok(!sql.includes('([HireDate], [Name])'), 'the included column must never be sorted into the key list');
 	});
 
+	test('CREATE TABLE emits CHECK constraints as-is (sys.check_constraints.definition is already parenthesized)', () => {
+		const details = {
+			columns: employeeColumns, indexes: [pkIndex], foreignKeys: [],
+			checkConstraints: [{ check_name: 'CK_Employee_HireDate', definition: '([HireDate]>=\'2000-01-01\')' }]
+		};
+		const sql = ScriptGeneratorService.buildCreateTable('[dbo].[Employee]', details);
+		assert.ok(sql.includes("ALTER TABLE [dbo].[Employee] ADD CONSTRAINT [CK_Employee_HireDate] CHECK ([HireDate]>='2000-01-01');"));
+	});
+
+	test('CREATE TABLE with no checkConstraints at all (older callers) adds none', () => {
+		const details = { columns: employeeColumns, indexes: [pkIndex], foreignKeys: [] };
+		const sql = ScriptGeneratorService.buildCreateTable('[dbo].[Employee]', details);
+		assert.ok(!sql.includes('CHECK'));
+	});
+
 	test('EXEC declares OUTPUT parameters and selects them back', () => {
 		const sql = ScriptGeneratorService.buildExec('[dbo].[uspHire]', [
 			{ name: '@Name', data_type: 'nvarchar', max_length: 100, precision: 0, scale: 0, is_output: false },

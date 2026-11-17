@@ -229,6 +229,12 @@ class ScriptGeneratorService {
             }
         }
 
+        // sys.check_constraints.definition already comes parenthesized
+        // (e.g. "([Price]>(0))"), so it is used as-is after CHECK.
+        for (const ck of details.checkConstraints || []) {
+            statements.push(`ALTER TABLE ${bracketed} ADD CONSTRAINT ${ScriptGeneratorService.bracket(ck.check_name)} CHECK ${ck.definition};`);
+        }
+
         // FK rows are per-column: group them to emit one constraint each
         const fks = new Map();
         for (const fk of details.foreignKeys || []) {
