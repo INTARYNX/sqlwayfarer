@@ -88,7 +88,12 @@ const vsCodeTheme = EditorView.theme({
         // an inline style - the editor root is always a relative box.
         height: '100%',
         width: '100%',
-        backgroundColor: 'var(--vscode-textCodeBlock-background)',
+        // Not --vscode-textCodeBlock-background: that token is meant for a
+        // code span sitting on top of ordinary text (Markdown preview, a
+        // hover), and is noticeably lighter than a real editor surface in
+        // most dark themes - too light to read comfortably as the whole
+        // background of an actual editor.
+        backgroundColor: 'var(--vscode-editor-background)',
         color: 'var(--vscode-editor-foreground)',
         fontSize: 'var(--vscode-editor-font-size, 13px)',
         // No outline of its own: the browser's default focus ring would draw
@@ -110,7 +115,7 @@ const vsCodeTheme = EditorView.theme({
         fontFamily: 'var(--vscode-editor-font-family)'
     },
     '.cm-gutters': {
-        backgroundColor: 'var(--vscode-textCodeBlock-background)',
+        backgroundColor: 'var(--vscode-editor-background)',
         color: 'var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground))',
         border: 'none'
     },
