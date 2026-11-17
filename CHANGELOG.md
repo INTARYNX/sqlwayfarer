@@ -4,6 +4,13 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.13] - 2026-11-17
+
+### Fixed
+
+- **Popup menus: hovering an item no longer leaves another one highlighted too.** The item auto-focused on open (for keyboard use) and the one the mouse was over could be two different ones, both shown as highlighted at once. Hovering now takes focus along, in every menu (Explorer, Instance tree, the new query editor one).
+- **Explorer: the Code tab of a table now shows its CREATE TABLE script**, generated the same way the Script button already does, instead of a dead end pointing to the Structure tab.
+
 ## [0.99.12] - 2026-11-17
 
 ### Changed
