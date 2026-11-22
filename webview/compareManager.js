@@ -63,10 +63,13 @@ class CompareManager {
         this.mode = 'ref';
         this.modeRef = document.getElementById('compareModeRef');
         this.modeRecent = document.getElementById('compareModeRecent');
+        this.modeData = document.getElementById('compareModeData');
         this.refView = document.getElementById('compareRefView');
         this.recentView = document.getElementById('compareRecentView');
+        this.dataView = document.getElementById('compareDataView');
         this.modeRef.addEventListener('click', () => this.setMode('ref'));
         this.modeRecent.addEventListener('click', () => this.setMode('recent'));
+        this.modeData.addEventListener('click', () => this.setMode('data'));
         this.database = null;     // the database the sources were listed for
         this.sources = null;
         this.result = null;       // { database, reference, diff, ... }
@@ -141,16 +144,21 @@ class CompareManager {
         this.el.applyStop.addEventListener('click', () => vscode.postMessage({ command: 'cancelApplyCompare' }));
     }
 
-    // The tab shows one of two views: the comparison with a reference, or what was modified lately.
+    // The tab shows one of three views: the comparison with a reference, what was
+    // modified lately, or the data (rows) of chosen tables compared with a reference.
     setMode(mode) {
         this.mode = mode;
         this.modeRef.classList.toggle('active', mode === 'ref');
         this.modeRef.setAttribute('aria-selected', String(mode === 'ref'));
         this.modeRecent.classList.toggle('active', mode === 'recent');
         this.modeRecent.setAttribute('aria-selected', String(mode === 'recent'));
+        this.modeData.classList.toggle('active', mode === 'data');
+        this.modeData.setAttribute('aria-selected', String(mode === 'data'));
         this.refView.hidden = mode !== 'ref';
         this.recentView.hidden = mode !== 'recent';
+        this.dataView.hidden = mode !== 'data';
         if (mode === 'recent' && window.recentChanges) window.recentChanges.onActivated(this.database);
+        if (mode === 'data' && window.dataCompareManager) window.dataCompareManager.onActivated(this.database);
     }
 
     // === Pure helpers (also used by the tests) ==============================
@@ -271,9 +279,11 @@ class CompareManager {
             this.setNote('');
             // The snapshots of the other database are not periods of this one.
             if (window.recentChanges) window.recentChanges.setSnapshots([]);
+            if (window.dataCompareManager) window.dataCompareManager.setSources(null);
         }
         vscode.postMessage({ command: 'getCompareSources', database: database || null });
         if (this.mode === 'recent' && window.recentChanges) window.recentChanges.onActivated(database);
+        if (this.mode === 'data' && window.dataCompareManager) window.dataCompareManager.onActivated(database);
     }
 
     // The database of the tab changed while the Compare tab is showing: what it lists is for the other one.
@@ -291,6 +301,7 @@ class CompareManager {
         this.renderResult();
         this.setNote('');
         if (window.recentChanges) window.recentChanges.setSnapshots([]);
+        if (window.dataCompareManager) window.dataCompareManager.setSources(null);
     }
 
     onSources(message) {
@@ -298,6 +309,7 @@ class CompareManager {
         this.sources = message;
         this.renderSources();
         if (window.recentChanges) window.recentChanges.setSnapshots(message.snapshots);
+        if (window.dataCompareManager) window.dataCompareManager.setSources(message);
     }
 
     renderSources() {

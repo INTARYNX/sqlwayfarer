@@ -675,6 +675,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{LINE_DIFF_URI}}',            u('webview', 'lineDiff.js'));
         html = html.replace('{{COMPARE_MANAGER_URI}}',      u('webview', 'compareManager.js'));
         html = html.replace('{{RECENT_CHANGES_URI}}',       u('webview', 'recentChanges.js'));
+        html = html.replace('{{DATA_COMPARE_MANAGER_URI}}',  u('webview', 'dataCompareManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));

@@ -314,6 +314,7 @@
                     <div class="compare-modes panel-tabs" role="tablist" aria-label="What to look at">
                         <button id="compareModeRef" class="panel-tab active" role="tab" aria-selected="true" aria-controls="compareRefView" title="What changed since a snapshot, or another database, and the script that repeats it"><i class="codicon codicon-git-compare"></i> Compared with a reference</button>
                         <button id="compareModeRecent" class="panel-tab" role="tab" aria-selected="false" aria-controls="compareRecentView" title="What was created or altered lately, from the dates of the server: no snapshot needed"><i class="codicon codicon-history"></i> Modified since…</button>
+                        <button id="compareModeData" class="panel-tab" role="tab" aria-selected="false" aria-controls="compareDataView" title="Compare the rows of chosen tables with a reference, and the script that repeats the difference"><i class="codicon codicon-table"></i> Data</button>
                     </div>
                     <div id="compareRefView" class="compare-view" role="tabpanel">
                         <div class="compare-toolbar">
@@ -375,6 +376,46 @@
                                 <div id="recentList" class="compare-list" tabindex="0" role="listbox" aria-label="Objects modified lately"></div>
                             </div>
                             <div id="recentDetail" class="compare-detail-pane"></div>
+                        </div>
+                    </div>
+                    <div id="compareDataView" class="compare-view" role="tabpanel" hidden>
+                        <div class="compare-toolbar">
+                            <label class="compare-field"><span class="compare-label">Compare with</span>
+                                <select id="dataCompareReference" aria-label="Reference: a snapshot of this database, or another database"><option value="">Select a database first</option></select>
+                            </label>
+                            <button id="dataListTablesBtn" class="primary" disabled title="List the tables that can have their data compared with the reference"><i class="codicon codicon-list-flat"></i> List tables</button>
+                            <span id="dataCompareNote" class="compare-note" role="status"></span>
+                        </div>
+                        <div id="dataPickerEmpty" class="compare-empty">
+                            <p>See which rows differ in chosen tables, between this database and a reference (a snapshot, or another database), and get the script that repeats the difference - the data equivalent of "Compared with a reference".</p>
+                            <p>Pick a reference above and list the tables: nothing is read before you choose which ones to compare.</p>
+                        </div>
+                        <div id="dataTablePicker" class="compare-result" hidden>
+                            <div class="compare-list-pane">
+                                <div id="dataTableSummary" class="compare-summary"></div>
+                                <input type="text" id="dataTableFilter" class="sql-files-filter" placeholder="Filter the tables…" spellcheck="false">
+                                <div id="dataTableList" class="compare-list" tabindex="0" role="tree" aria-label="Tables"></div>
+                            </div>
+                        </div>
+                        <div id="dataPickerFooter" class="compare-footer" hidden>
+                            <span id="dataTableSelected" class="compare-selected"></span>
+                            <button id="dataRunCompareBtn" class="primary" disabled title="Read the rows of the tables picked, on both sides"><i class="codicon codicon-git-compare"></i> Compare data</button>
+                        </div>
+                        <div id="dataCompareResult" class="compare-result" hidden>
+                            <div class="compare-list-pane">
+                                <div id="dataResultSummary" class="compare-summary"></div>
+                                <div id="dataResultStatusFilter" class="compare-status-filter" role="group" aria-label="Filter by status" hidden></div>
+                                <input type="text" id="dataResultFilter" class="sql-files-filter" placeholder="Filter the rows…" spellcheck="false">
+                                <div id="dataResultList" class="compare-list" tabindex="0" role="tree" aria-label="Rows that differ"></div>
+                            </div>
+                            <div id="dataResultDetail" class="compare-detail-pane"></div>
+                        </div>
+                        <div id="dataCompareFooter" class="compare-footer" hidden>
+                            <span id="dataSelected" class="compare-selected"></span>
+                            <label class="compare-option" title="Rows removed since the reference are left out of the script and the export, and named instead, unless this is on."><input type="checkbox" id="dataIncludeDeletes"> Include deletions</label>
+                            <button id="dataApplyBtn" disabled title="Apply the script to another database, after a confirmation"><i class="codicon codicon-play"></i> Apply…</button>
+                            <button id="dataExportBtn" disabled title="Save the picked tables in a zip: the counts and the script"><i class="codicon codicon-file-zip"></i> Export zip…</button>
+                            <button id="dataScriptBtn" class="primary" disabled title="Write the script in a new query, to read before it is run"><i class="codicon codicon-file-code"></i> Script to editor</button>
                         </div>
                     </div>
                 </div>
@@ -523,6 +564,32 @@
         </div>
     </div>
 
+    <!-- Data compare: apply the script to a database, on this connection or another saved one -->
+    <div id="dataApplyOverlay" class="modal-overlay compare-apply-overlay">
+        <div class="modal-dialog modal-dialog-compare-apply" role="dialog" aria-modal="true" aria-labelledby="dataApplyTitle">
+            <div class="modal-header">
+                <h3 id="dataApplyTitle">Apply the script</h3>
+                <button id="dataApplyCloseBtn" class="modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="compare-apply-fields">
+                    <label class="compare-apply-field"><span>Connection</span><select id="dataApplyConnection"></select></label>
+                    <label class="compare-apply-field"><span>Database</span><select id="dataApplyDatabase"><option value="">Pick a database</option></select></label>
+                </div>
+                <div id="dataApplyStatus" class="compare-apply-status" role="status"></div>
+                <div id="dataApplyProgress" class="compare-apply-progress" hidden>
+                    <progress id="dataApplyBar" max="1" value="0"></progress>
+                    <span id="dataApplyProgressText"></span>
+                </div>
+                <div id="dataApplyResult" class="compare-apply-result" hidden></div>
+                <div class="compare-apply-actions">
+                    <button id="dataApplyStopBtn" hidden title="Stop after the batch that is running">Stop</button>
+                    <button id="dataApplyRunBtn" class="primary" disabled><i class="codicon codicon-play"></i> Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Result columns: the names of a result set's columns, one per line, to copy (all or a part) -->
     <div id="resultColumnsModalOverlay" class="modal-overlay result-columns-modal-overlay">
         <div class="modal-dialog modal-dialog-result-columns">
@@ -647,6 +714,7 @@
     <script src="{{LINE_DIFF_URI}}"></script>
     <script src="{{COMPARE_MANAGER_URI}}"></script>
     <script src="{{RECENT_CHANGES_URI}}"></script>
+    <script src="{{DATA_COMPARE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
     <script src="{{INDEX_STATS_VIEW_URI}}"></script>
     <script src="{{SCHEMA_SOURCE_MANAGER_URI}}"></script>

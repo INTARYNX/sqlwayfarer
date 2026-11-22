@@ -66,6 +66,7 @@ export default [{
             InstanceTree: "readonly",
             CompareManager: "readonly",
             RecentChanges: "readonly",
+            DataCompareManager: "readonly",
             LineDiff: "readonly",
             FootprintManager: "readonly",
             IndexStatsView: "readonly",

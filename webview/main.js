@@ -33,6 +33,7 @@ class MessageHandler {
                 if (message.success && window.instanceTree) window.instanceTree.reset();
                 if (message.success && window.compareManager) window.compareManager.reset();
                 if (message.success && window.recentChanges) window.recentChanges.reset();
+                if (message.success && window.dataCompareManager) window.dataCompareManager.reset();
                 if (this.connectionStatus.onConnectionStatus(message)) {
                     // Land directly on Query after every successful connection -
                     // Explorer (and its indexing) is opt-in, see TabManager.
@@ -327,10 +328,12 @@ class MessageHandler {
 
             case 'compareTargets':
                 if (window.compareManager) window.compareManager.onTargets(message);
+                if (window.dataCompareManager) window.dataCompareManager.onTargets(message);
                 break;
 
             case 'compareTargetDatabases':
                 if (window.compareManager) window.compareManager.onTargetDatabases(message);
+                if (window.dataCompareManager) window.dataCompareManager.onTargetDatabases(message);
                 break;
 
             case 'compareTargetStatus':
@@ -351,6 +354,42 @@ class MessageHandler {
 
             case 'compareSnapshotDone':
                 if (window.compareManager) window.compareManager.onSnapshotDone(message);
+                break;
+
+            case 'dataCompareTables':
+                if (window.dataCompareManager) window.dataCompareManager.onTables(message);
+                break;
+
+            case 'dataCompareProgress':
+                if (window.dataCompareManager) window.dataCompareManager.onProgress(message);
+                break;
+
+            case 'dataCompareResult':
+                if (window.dataCompareManager) window.dataCompareManager.onResult(message);
+                break;
+
+            case 'dataCompareFailed':
+                if (window.dataCompareManager) window.dataCompareManager.onFailed(message);
+                break;
+
+            case 'dataScript':
+                if (window.dataCompareManager) window.dataCompareManager.onScript(message);
+                break;
+
+            case 'dataExported':
+                if (window.dataCompareManager) window.dataCompareManager.onExported(message);
+                break;
+
+            case 'dataApplyProgress':
+                if (window.dataCompareManager) window.dataCompareManager.onApplyProgress(message);
+                break;
+
+            case 'dataApplied':
+                if (window.dataCompareManager) window.dataCompareManager.onApplied(message);
+                break;
+
+            case 'dataApplyDeclined':
+                if (window.dataCompareManager) window.dataCompareManager.onApplyDeclined();
                 break;
 
             case 'instanceDatabases':
@@ -495,6 +534,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const instanceTree = new InstanceTree();
     const compareManager = new CompareManager();
     const recentChanges = new RecentChanges();
+    const dataCompareManager = new DataCompareManager();
 
     const messageHandler = new MessageHandler(
         connectionStatus,
@@ -521,6 +561,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.instanceTree = instanceTree;
     window.compareManager = compareManager;
     window.recentChanges = recentChanges;
+    window.dataCompareManager = dataCompareManager;
     window.tabManager = tabManager;
     window.connectionStatus = connectionStatus;
     window.footprintManager = footprintManager;
