@@ -40,6 +40,7 @@ const ConnectionRouter = require('../database/ConnectionRouter');
 const QueryHandlers = require('./handlers/QueryHandlers');
 const InstanceHandlers = require('./handlers/InstanceHandlers');
 const CompareHandlers = require('./handlers/CompareHandlers');
+const DataCompareHandlers = require('./handlers/DataCompareHandlers');
 const RecentHandlers = require('./handlers/RecentHandlers');
 const QueryFileHandlers = require('./handlers/QueryFileHandlers');
 const ExportHandlers = require('./handlers/ExportHandlers');
@@ -159,6 +160,19 @@ class SqlWayfarerPanel {
                 createVsCodeTokenFetcher(vscode),
                 path.join(this._extensionUri.fsPath, 'helper', 'SqlWayfarerSspi.exe')
             ),
+            confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action,
+            saveFile: async (defaultName) => {
+                const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+                const uri = await vscode.window.showSaveDialog({
+                    defaultUri: vscode.Uri.file(path.join(folder ? folder.uri.fsPath : os.homedir(), defaultName)),
+                    filters: { Zip: ['zip'] }
+                });
+                return uri ? uri.fsPath : null;
+            }
+        });
+        this._dataCompare = new DataCompareHandlers(post, {
+            connectionManager: this._connectionManager,
+            schemaCompare: this._compare,
             confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action,
             saveFile: async (defaultName) => {
                 const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
@@ -419,6 +433,7 @@ class SqlWayfarerPanel {
             await this._syntax.reset();
             await this._query.resetSession();
             await this._compare.reset();
+            this._dataCompare.reset();
             await this._connectNow();
         } finally {
             this._connecting = false;
@@ -530,6 +545,12 @@ class SqlWayfarerPanel {
             case 'getCompareTargetStatus':       await this._compare.handleTargetStatus(message.ids, message.allowDestructive, message.legacy, message.connection, message.database); break;
             case 'applyCompare':                 await this._compare.handleApply(message.ids, message.allowDestructive, message.legacy, message.connection, message.database); break;
             case 'cancelApplyCompare':           this._compare.handleCancelApply(); break;
+            case 'getDataCompareTables':         await this._dataCompare.handleGetDataTables(message.database, message.reference); break;
+            case 'runDataCompare':               await this._dataCompare.handleCompareData(message.database, message.reference, message.tables); break;
+            case 'buildDataScript':              this._dataCompare.handleBuildScript(message.ids, message.includeDeletes); break;
+            case 'exportDataZip':                await this._dataCompare.handleExportZip(message.ids, message.includeDeletes); break;
+            case 'applyDataCompare':             await this._dataCompare.handleApply(message.ids, message.includeDeletes, message.connection, message.database); break;
+            case 'cancelApplyDataCompare':        this._dataCompare.handleCancelApply(); break;
             case 'getInstanceDatabases':         await this._instance.handleGetInstanceDatabases(); break;
             case 'getInstanceObjects':           await this._instance.handleGetInstanceObjects(message.database); break;
             case 'searchInstanceObjects':        await this._instance.handleSearchInstanceObjects(message.query, message.regex, message.inCode, message.id); break;
@@ -707,6 +728,7 @@ class SqlWayfarerPanel {
         this._schemaSource.dispose().catch(() => {});
         this._syntax.reset().catch(() => {});
         this._compare.dispose().catch(() => {});
+        this._dataCompare.dispose().catch(() => {});
         // NB: do NOT clear the index here. It is a persistent, checksum-validated
         // on-disk cache keyed by server+database — deleting it when the panel
         // closes forces a full rebuild on every reopen (crippling on large
