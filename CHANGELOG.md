@@ -4,6 +4,16 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.16] - 2026-11-22
+
+### Added
+
+- **Execution Plan: a "Top Operations" tabular view, next to the graphical plan.** A sortable, filterable list of every operator - sorted by cost % by default, the same number the diagram already shows under each node - with its object, estimated rows (and, for an actual plan, actual rows and executions), and any warnings (missing statistics, implicit conversions...) as a badge. Clicking a row jumps to and highlights the matching node in the diagram.
+
+### Fixed
+
+- **A node's tooltip in the graphical execution plan no longer runs off the bottom of the pane.** A scan or seek with a sizeable Output List could produce a tooltip taller than the visible area, with the rest of it simply cut off and no way to scroll it into view.
+
 ## [0.99.15] - 2026-11-22
 
 ### Added
