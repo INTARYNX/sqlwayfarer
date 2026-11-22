@@ -7,6 +7,42 @@
  */
 'use strict';
 
+// The "Top Operations" tabular view of an execution plan, next to the
+// graphical one: one row per RelOp (see QueryPlanAnalyzer), sortable and
+// filterable, with the metric that matters most - each operator's own cost %,
+// the same number the diagram already shows under its node - as the default
+// sort. `when` hides a column the current plan has no data for (Act. Rows/
+// Executions need an actual, not estimated, plan; Statement only earns its
+// place with more than one statement in the run).
+const PLAN_OPS_COLUMNS = [
+    { key: 'statement', label: 'Statement', numeric: false, when: a => a.multiStatement },
+    { key: 'operation', label: 'Operation', numeric: false },
+    { key: 'object', label: 'Object', numeric: false },
+    { key: 'estimatedRows', label: 'Est. Rows', numeric: true },
+    { key: 'actualRows', label: 'Act. Rows', numeric: true, when: a => a.hasActual },
+    { key: 'actualExecutions', label: 'Act. Executions', numeric: true, when: a => a.hasActual },
+    { key: 'costPercent', label: 'Cost %', numeric: true },
+    { key: 'subtreeCost', label: 'Subtree Cost', numeric: true },
+    { key: 'avgRowSize', label: 'Avg Row Size', numeric: true }
+];
+
+function planSortValue(row, key) {
+    if (key === 'statement') return row.statementText || '';
+    if (key === 'operation') return row.physicalOp + row.logicalOp;
+    return row[key];
+}
+
+function planCellText(row, key) {
+    switch (key) {
+        case 'statement': return QueryManager.truncate(row.statementText, 60) || `Statement ${row.statementId}`;
+        case 'operation': return row.physicalOp + (row.logicalOp ? ` (${row.logicalOp})` : '');
+        case 'object': return row.object || '';
+        case 'costPercent': return `${row.costPercent.toFixed(1)}%`;
+        case 'subtreeCost': return Number(row.subtreeCost.toFixed(6)).toString();
+        default: return row[key] === null ? '–' : Math.round(row[key]).toLocaleString();
+    }
+}
+
 // The part of the Query tool that shows what a run returned: the result sets, the
 // grid (sort, filter, resize, more rows), the messages, the plans and the
 // errors. It is mixed into QueryManager (see queryManager.js), so `this` is the
@@ -77,6 +113,14 @@ class QueryResultsMethods {
             lastResultSets: this.lastResultSets,
             gridState: this._gridState,
             activeResultIndex: this.activeResultIndex,
+            planAnalysis: this._planAnalysis,
+            planOpsState: this._planOpsState,
+            planSubtab: this._planSubtab,
+            // Only set between a plan being drawn and the Diagram sub-tab
+            // (hidden by default - see displayResultSets) actually being shown;
+            // otherwise another tab's run would overwrite it before this one
+            // ever reads it back (renderPendingPlanIfVisible, showPlanSubtab).
+            pendingPlanXmls: this._pendingPlanXmls,
             statusText: this.status.textContent,
             statusClass: this.status.className,
             nodes
@@ -92,6 +136,10 @@ class QueryResultsMethods {
             this.lastResultSets = [];
             this._gridState = [];
             this.activeResultIndex = 0;
+            this._planAnalysis = null;
+            this._planOpsState = null;
+            this._planSubtab = 'topops';
+            this._pendingPlanXmls = null;
             this.setResultsHtml('<p class="placeholder-text">Run a query to see results here.</p>');
             this.setStatus(this.targetDatabase() ? '' : 'Select a database above to run queries.', '');
             return;
@@ -99,6 +147,10 @@ class QueryResultsMethods {
         this.lastResultSets = view.lastResultSets;
         this._gridState = view.gridState;
         this.activeResultIndex = view.activeResultIndex;
+        this._planAnalysis = view.planAnalysis;
+        this._planOpsState = view.planOpsState;
+        this._planSubtab = view.planSubtab;
+        this._pendingPlanXmls = view.pendingPlanXmls;
         this.resultsContainer.appendChild(view.nodes);
         this.status.textContent = view.statusText;
         this.status.className = view.statusClass;
@@ -232,6 +284,13 @@ class QueryResultsMethods {
         const hasMessages = !!(timeline && timeline.some(entry => entry.type === 'message'));
         const hasPlan = planXmls && planXmls.length > 0;
 
+        // Top Operations starts as the active sub-tab (not the diagram): it's
+        // the view that actually answers "what's slow here", filterable and
+        // sorted by cost - the diagram stays one click away for the layout itself.
+        this._planAnalysis = hasPlan ? QueryPlanAnalyzer.analyze(planXmls) : null;
+        this._planOpsState = { sortCol: 'costPercent', sortDir: -1, filterText: '' };
+        this._planSubtab = 'topops';
+
         // Tabs appear whenever there's more than one grid, or when prints/plan
         // need their own tab instead of being glued under whichever grid (if
         // any) is active.
@@ -256,8 +315,8 @@ class QueryResultsMethods {
             nextIndex++;
         }
         if (hasPlan) {
-            html += `<div class="result-set-pane" data-rs-pane="${nextIndex}"${nextIndex === 0 ? '' : ' style="display:none;"'}>`
-                + '<div class="query-plan-container" id="queryPlanContainer"></div>'
+            html += `<div class="result-set-pane plan-pane" data-rs-pane="${nextIndex}"${nextIndex === 0 ? '' : ' style="display:none;"'}>`
+                + this.buildPlanPaneHtml()
                 + '</div>';
         }
 
@@ -331,6 +390,151 @@ class QueryResultsMethods {
                     + `<pre class="query-plan-raw-xml">${this.escapeHtml(xml.slice(0, 500))}${xml.length > 500 ? '…' : ''}</pre>`;
             }
         });
+    }
+
+    // The Execution Plan pane: a small sub-tab bar (Top Operations / Diagram)
+    // above the two views, both built up front - same lazy-render dance as the
+    // diagram alone used to need (see renderPendingPlanIfVisible), now driven
+    // by showPlanSubtab instead of the outer result-tab switch alone.
+    buildPlanPaneHtml() {
+        const analysis = this._planAnalysis;
+        const topopsVisible = this._planSubtab === 'topops';
+        return '<div class="plan-subtabs" role="tablist">'
+            + `<button type="button" class="plan-subtab${topopsVisible ? ' active' : ''}" data-plan-subtab="topops" role="tab">Top Operations</button>`
+            + `<button type="button" class="plan-subtab${topopsVisible ? '' : ' active'}" data-plan-subtab="diagram" role="tab">Diagram</button>`
+            + '</div>'
+            + `<div class="plan-subpane" data-plan-subpane="topops"${topopsVisible ? '' : ' style="display:none;"'}>`
+            + (analysis && analysis.rows.length > 0
+                ? this.buildTopOperationsActionsHtml() + '<div class="result-set-table-wrap plan-ops-table-wrap">' + this.buildTopOperationsHtml() + '</div>'
+                : '<p class="placeholder-text">No operator to list for this plan.</p>')
+            + '</div>'
+            + `<div class="plan-subpane" data-plan-subpane="diagram"${topopsVisible ? ' style="display:none;"' : ''}>`
+            + '<div class="query-plan-container" id="queryPlanContainer"></div>'
+            + '</div>';
+    }
+
+    buildTopOperationsActionsHtml() {
+        return `<div class="result-set-actions">`
+            + `<span class="rs-label">${this._planAnalysis.rows.length} operator(s)</span>`
+            + `<input type="text" class="rs-filter" data-plan-filter="1" placeholder="Filter operations…" spellcheck="false" value="${this.escapeHtml(this._planOpsState.filterText)}">`
+            + `<span class="rs-spacer"></span>`
+            + `</div>`;
+    }
+
+    // Rows already filtered/sorted by visiblePlanRows - this only renders.
+    buildTopOperationsHtml() {
+        const analysis = this._planAnalysis;
+        const state = this._planOpsState;
+        const columns = PLAN_OPS_COLUMNS.filter(col => !col.when || col.when(analysis));
+        const rows = this.visiblePlanRows();
+
+        if (rows.length === 0) {
+            return state.filterText
+                ? '<p class="placeholder-text">No operator matches this filter.</p>'
+                : '<p class="placeholder-text">No operator to list for this plan.</p>';
+        }
+
+        let html = '<table><thead><tr>';
+        columns.forEach(col => {
+            const sorted = state.sortCol === col.key;
+            const arrow = sorted ? ` <i class="codicon codicon-arrow-${state.sortDir === 1 ? 'up' : 'down'}"></i>` : '';
+            html += `<th data-plan-sort-col="${col.key}" class="rs-sortable${sorted ? ' sorted' : ''}${col.numeric ? ' rs-num' : ''}" title="Click to sort">${this.escapeHtml(col.label)}${arrow}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        rows.forEach(row => {
+            html += `<tr class="plan-op-row" data-plan-row-plan="${row.planIndex}" data-plan-row-statement="${this.escapeHtml(row.statementId)}" `
+                + `data-plan-row-node="${this.escapeHtml(row.nodeId)}" title="Click to locate in the diagram">`;
+            columns.forEach(col => {
+                const warning = col.key === 'operation' && row.warnings.length
+                    ? ` <i class="codicon codicon-warning plan-op-warning" title="${this.escapeHtml(row.warnings.join(', '))}"></i>`
+                    : '';
+                html += `<td${col.numeric ? ' class="rs-num"' : ''}>${this.escapeHtml(planCellText(row, col.key))}${warning}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+
+    // Client-side view only, like visibleRows for the result-set grids.
+    visiblePlanRows() {
+        const analysis = this._planAnalysis;
+        if (!analysis) return [];
+        const state = this._planOpsState;
+
+        let rows = analysis.rows;
+        if (state.filterText) {
+            const needle = state.filterText.toLowerCase();
+            rows = rows.filter(row => [row.physicalOp, row.logicalOp, row.object, row.statementText, ...row.warnings]
+                .some(text => text && text.toLowerCase().includes(needle)));
+        }
+        if (state.sortCol) {
+            const col = state.sortCol;
+            const dir = state.sortDir;
+            rows = [...rows].sort((a, b) => {
+                const av = planSortValue(a, col);
+                const bv = planSortValue(b, col);
+                if (av === bv) return 0;
+                if (av === null || av === undefined) return 1;
+                if (bv === null || bv === undefined) return -1;
+                return (av < bv ? -1 : 1) * dir;
+            });
+        }
+        return rows;
+    }
+
+    sortPlanOperations(column) {
+        const state = this._planOpsState;
+        if (!state) return;
+        if (state.sortCol === column) state.sortDir *= -1;
+        // A text column starts ascending (A-Z reads naturally first); a
+        // number starts descending (the biggest value is the interesting one).
+        else { state.sortCol = column; state.sortDir = PLAN_OPS_COLUMNS.find(c => c.key === column).numeric ? -1 : 1; }
+        this.rerenderTopOperations();
+    }
+
+    filterPlanOperations(text) {
+        if (!this._planOpsState) return;
+        this._planOpsState.filterText = text;
+        this.rerenderTopOperations();
+    }
+
+    // Replaces only the table (not the actions bar, which holds the filter
+    // <input> itself) so typing/sorting never steals its focus - same
+    // reasoning as rerenderResultTable.
+    rerenderTopOperations() {
+        const wrap = this.resultsContainer.querySelector('.plan-ops-table-wrap');
+        if (!wrap) return;
+        wrap.innerHTML = this.buildTopOperationsHtml();
+    }
+
+    // Switches which of the Execution Plan pane's two views is shown; unlike
+    // showResultSet this is nested one level inside the "Execution Plan"
+    // result-tab, so it has its own small subtabs bar instead of reusing data-rs-tab.
+    showPlanSubtab(name) {
+        this._planSubtab = name;
+        const pane = this.resultsContainer.querySelector('.plan-pane');
+        if (!pane) return;
+        pane.querySelectorAll('.plan-subtab').forEach(btn => btn.classList.toggle('active', btn.dataset.planSubtab === name));
+        pane.querySelectorAll('.plan-subpane').forEach(sub => { sub.style.display = sub.dataset.planSubpane === name ? '' : 'none'; });
+        if (name === 'diagram') this.renderPendingPlanIfVisible();
+    }
+
+    // A Top Operations row was clicked: show the diagram and point at the
+    // matching node - html-query-plan tags every node with the same
+    // data-statement-id/data-node-id pair the row carries (see node.js in
+    // that library), scoped to this row's own plan (planXmls can hold more
+    // than one batch, each its own .query-plan-item).
+    syncPlanDiagramNode(planIndex, statementId, nodeId) {
+        this.showPlanSubtab('diagram');
+        const container = document.getElementById('queryPlanContainer');
+        const wrapper = container && container.children[planIndex];
+        const target = wrapper && wrapper.querySelector(`[data-statement-id="${statementId}"] [data-node-id="${nodeId}"]`);
+        if (!target) return;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('qp-node-highlight');
+        setTimeout(() => target.classList.remove('qp-node-highlight'), 1500);
     }
 
     buildResultSetActionsHtml(set, index) {

@@ -71,6 +71,7 @@ export default [{
             FootprintManager: "readonly",
             IndexStatsView: "readonly",
             TempTableScript: "readonly",
+            QueryPlanAnalyzer: "readonly",
             SchemaSourceManager: "readonly",
             ConnectionStatus: "readonly",
             swIcon: "readonly",

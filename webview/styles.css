@@ -1327,11 +1327,85 @@ td.rs-null {
     background: var(--vscode-button-hoverBackground);
 }
 
+/* === Execution Plan: Top Operations / Diagram sub-tabs === */
+/* Same shape as .rs-grid-pane further down: a non-scrolling bar (here the
+   sub-tabs) above a pane that scrolls on its own, so the sub-tabs - and,
+   inside Top Operations, its filter box - stay put. */
+.result-set-pane.plan-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.plan-subtabs {
+    flex: 0 0 auto;
+    display: flex;
+    background: var(--vscode-textCodeBlock-background);
+    border-bottom: 1px solid var(--vscode-input-border);
+}
+
+.plan-subtab {
+    width: auto;
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    background: transparent;
+    color: var(--vscode-foreground);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.plan-subtab:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.plan-subtab.active {
+    border-bottom-color: var(--vscode-button-background);
+    background: var(--vscode-list-activeSelectionBackground);
+}
+
+.plan-subpane {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.plan-subpane[data-plan-subpane="topops"] > .result-set-actions {
+    flex: 0 0 auto;
+}
+
+.plan-subpane[data-plan-subpane="topops"] > .plan-ops-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+
+.plan-op-row {
+    cursor: pointer;
+}
+
+.plan-op-warning {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+/* A brief highlight on the graphical node a Top Operations row points at.
+   outline/box-shadow rather than background/border-color: .qp-node already
+   sets those with !important (further down) and this would lose to it. */
+.qp-node-highlight {
+    outline: 3px solid var(--vscode-focusBorder) !important;
+    outline-offset: 1px;
+}
+
 /* Light-mode backdrop; overridden for dark mode further down. min-height:
    100% fills the whole pane even when the plan itself is short, so the
    backdrop doesn't float in a patch of the app's own background below it -
-   fine since .result-scroll (the single scrolling element for the whole
-   results pane) still grows past 100% and scrolls for a taller plan. */
+   fine since .plan-subpane (the scrolling element for this sub-tab) still
+   grows past 100% and scrolls for a taller plan. */
 .query-plan-container {
     min-height: 100%;
     box-sizing: border-box;

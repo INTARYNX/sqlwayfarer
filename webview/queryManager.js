@@ -139,6 +139,24 @@ class QueryManager {
                 return;
             }
 
+            const planSubtab = e.target.closest('button[data-plan-subtab]');
+            if (planSubtab) {
+                this.showPlanSubtab(planSubtab.dataset.planSubtab);
+                return;
+            }
+
+            const planSortTh = e.target.closest('th[data-plan-sort-col]');
+            if (planSortTh) {
+                this.sortPlanOperations(planSortTh.dataset.planSortCol);
+                return;
+            }
+
+            const planRow = e.target.closest('tr.plan-op-row');
+            if (planRow) {
+                this.syncPlanDiagramNode(Number(planRow.dataset.planRowPlan), planRow.dataset.planRowStatement, planRow.dataset.planRowNode);
+                return;
+            }
+
             const button = e.target.closest('button[data-rs-action]');
             if (!button) return;
             const index = Number(button.dataset.rsIndex);
@@ -167,6 +185,9 @@ class QueryManager {
         // typing in a filter box never re-creates the box itself - only the
         // table wrap it sits next to gets rebuilt, see rerenderResultTable.
         this.resultsContainer.addEventListener('input', (e) => {
+            const planFilter = e.target.closest('input[data-plan-filter]');
+            if (planFilter) { this.filterPlanOperations(planFilter.value); return; }
+
             const input = e.target.closest('input[data-rs-filter]');
             if (!input) return;
             this.filterResultSet(Number(input.dataset.rsFilter), input.value);
