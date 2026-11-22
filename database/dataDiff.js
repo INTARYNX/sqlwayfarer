@@ -247,4 +247,4 @@ async function compareTableData(connectionManager, { reference, database, table 
     }
 }
 
-module.exports = { planDataTables, supportsDataCompare, compareTableData, keyOf, baseTypeName };
+module.exports = { planDataTables, supportsDataCompare, compareTableData, keyOf, baseTypeName, keyPredicate };
