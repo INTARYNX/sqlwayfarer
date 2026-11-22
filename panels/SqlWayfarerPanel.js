@@ -16,6 +16,7 @@ const DataDictionaryService = require('../database/DataDictionaryService');
 const ScriptGeneratorService = require('../database/ScriptGeneratorService');
 const WriteFootprintService = require('../database/WriteFootprintService');
 const QueryGraphService = require('../database/QueryGraphService');
+const RelatedTablesService = require('../database/RelatedTablesService');
 const BabelfishSqlParser = require('../database/BabelfishSqlParser');
 const QueryRiskAnalyzer = require('../database/QueryRiskAnalyzer');
 const { SyntaxChecker } = require('../database/SyntaxChecker');
@@ -119,6 +120,7 @@ class SqlWayfarerPanel {
         this._dataDictionaryService = new DataDictionaryService(this._schemaRouter, this._indexService);
         this._writeFootprintService = new WriteFootprintService(this._schemaRouter, this._indexService, this._databaseService);
         this._queryGraphService = new QueryGraphService(this._schemaRouter, this._indexService, this._databaseService);
+        this._relatedTablesService = new RelatedTablesService(this._indexService, this._databaseService);
 
         const post = msg => this.post(msg);
         const getDb = () => this._currentSelectedDatabase;
@@ -190,7 +192,7 @@ class SqlWayfarerPanel {
             ask: async (prompt, value, validateInput) => vscode.window.showInputBox({ prompt, value, validateInput }),
             confirm: async (message, detail, action) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action
         });
-        this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb);
+        this._footprint = new FootprintHandlers(post, this._writeFootprintService, this._dataDictionaryService, getDb, this._relatedTablesService);
         this._queryGraph = new QueryGraphHandlers(post, this._queryGraphService, getDb);
         this._snippets = new SnippetHandlers(post, context.globalState, broadcast);
         this._schemaSource = new SchemaSourceHandlers(post, {
@@ -615,6 +617,8 @@ class SqlWayfarerPanel {
             // Write footprint (tables read/written by an object, trigger cascades included)
             case 'getWriteFootprint':           await this._footprint.handleGetWriteFootprint(message.database, message.objectName); break;
             case 'getFootprintDoc':             await this._footprint.handleGetFootprintDoc(message.database, message.tableNames); break;
+            case 'getRelatedTables':             await this._footprint.handleGetRelatedTables(message.database, message.tableNames); break;
+            case 'getRelationshipsAmong':        await this._footprint.handleGetRelationshipsAmong(message.database, message.tableNames); break;
 
             // Query graph (tables read by the editor's SQL, and how they join)
             case 'getQueryGraph':                await this._queryGraph.handleGetQueryGraph(message.database, message.sql); break;
