@@ -4,6 +4,21 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.17] - 2026-11-22
+
+### Added
+
+- **Schema tab: "Expand related tables"**, mining the dependency index for tables commonly used alongside the current ones by other stored procedures, views or functions, even with no foreign key between them - built for legacy, FK-less, stored-procedure-heavy databases, where this signal isn't available any other way. FK neighbors are still found too, shown distinctly from usage-only ones.
+- **Schema tab: "Add table"**, to bring in any table of the database by hand - every foreign key among the whole set shown is recomputed once it grows, not just the ones touching the original tables.
+- **Schema and Graph tabs: a right-click menu** (zoom to a table, reveal it in the Explorer, remove a table Expand or Add table brought in), **zoom in/out/fit buttons**, and a **fullscreen toggle** - full window by default, without covering the app's own tab bar.
+- **Schema tab: an "All columns" toggle**, to list every column of a table instead of just its keys.
+
+### Fixed
+
+- The write-footprint/query-graph popup used to float on top of whichever app tab you switched to, and could fail to reappear after leaving the one that opened it. It now belongs to the tab that opened it and is hidden/shown along with the rest of that tab's own content.
+- Reveal in Explorer, and a stray click outside the popup, no longer close it.
+- A small graph's auto-fit zoom no longer renders its tables oversized, and the mouse wheel zooms at a normal speed instead of a slowed one.
+
 ## [0.99.16] - 2026-11-22
 
 ### Added
