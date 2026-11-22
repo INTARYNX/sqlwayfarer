@@ -53,6 +53,28 @@ const PLAN_XML_B = `<?xml version="1.0"?>
   </Statements></Batch></BatchSequence>
 </ShowPlanXML>`;
 
+// A table scan with a long Output List - the kind of node whose tooltip
+// (html-query-plan's own hover tooltip, not our Top Operations table) is
+// taller than most viewports.
+function wideOutputListXml(columnCount) {
+	const cols = Array.from({ length: columnCount }, (_, i) => i)
+		.map(i => `<ColumnReference Database="[AdventureWorks]" Schema="[dbo]" Table="[DatabaseLog]" Column="Column${i}" />`)
+		.join('');
+	return `<?xml version="1.0"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5" Build="16.0">
+  <BatchSequence><Batch><Statements>
+    <StmtSimple StatementId="1" StatementText="select * from dbo.DatabaseLog">
+      <QueryPlan>
+        <RelOp NodeId="0" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="1597" AvgRowSize="8593" EstimatedTotalSubtreeCost="0.583557" EstimateIO="0.581644" EstimateCPU="0.0019137">
+          <OutputList>${cols}</OutputList>
+          <TableScan><Object Database="[AdventureWorks]" Schema="[dbo]" Table="[DatabaseLog]" /></TableScan>
+        </RelOp>
+      </QueryPlan>
+    </StmtSimple>
+  </Statements></Batch></BatchSequence>
+</ShowPlanXML>`;
+}
+
 suite('e2e: the execution plan\'s Top Operations tabular view', function () {
 	this.timeout(120000);
 	let browser;
@@ -130,6 +152,37 @@ suite('e2e: the execution plan\'s Top Operations tabular view', function () {
 		await p.click('.plan-op-row:has-text("Index Scan")');
 		check(await p.$('.qp-node[data-node-id="2"].qp-node-highlight') !== null, 'tab 1\'s own diagram renders and highlights its own node');
 		check(await p.$('.qp-node-outer:has-text("T9")') === null, 'tab 2\'s plan never leaked into tab 1\'s diagram');
+
+		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
+		check.done();
+		await p.close();
+	});
+
+	test('a node tooltip with a long Output List stays on screen instead of running off the bottom', async () => {
+		const check = checker();
+		const p = await openPage(browser, 'index.html', 'panels/SqlWayfarerPanel.js', 'dark', { width: 1100, height: 760 });
+		await post(p, { command: 'connectionStatus', success: true, message: 'ok' });
+		await post(p, { command: 'databasesLoaded', databases: ['master'], currentDatabase: 'master' });
+		await post(p, { command: 'planResult', planXmls: [wideOutputListXml(30)] });
+		await p.click('.plan-subtab[data-plan-subtab="diagram"]');
+		await p.waitForTimeout(100);
+
+		// Hover near the bottom of the pane - exactly where html-query-plan's
+		// own tooltip (tooltip.ts) fails to nudge itself back on screen,
+		// since it measures its own size before it's even in the document.
+		const node = (await p.$$('.qp-node')).at(-1);
+		const box = await node.boundingBox();
+		await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		// html-query-plan's own hover delay is 500ms (tooltip.ts, TOOLTIP_TIMEOUT).
+		await p.waitForTimeout(650);
+
+		const rect = await p.evaluate(() => {
+			const tt = [...document.querySelectorAll('.qp-tt')].find(e => getComputedStyle(e).visibility === 'visible');
+			return tt && tt.getBoundingClientRect();
+		});
+		check(!!rect, 'the tooltip is shown');
+		check(rect && rect.top >= 0, `the tooltip does not start above the viewport (top=${rect && rect.top})`);
+		check(rect && rect.bottom <= 760, `the tooltip's bottom stays within the viewport (bottom=${rect && rect.bottom})`);
 
 		check(p.errors.length === 0, 'no page error: ' + p.errors.join(' | '));
 		check.done();

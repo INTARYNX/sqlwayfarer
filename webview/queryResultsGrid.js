@@ -371,11 +371,49 @@ class QueryResultsMethods {
         this.renderQueryPlans(planXmls);
     }
 
+    // html-query-plan's own tooltip positioning (tooltip.ts: showTooltip)
+    // reads the tooltip's offsetHeight/offsetWidth to nudge it back onto the
+    // page - but it measures them *before* appending the tooltip to the
+    // document, where a detached element always measures 0, so that nudge
+    // never actually fires. A node with a sizeable Output List commonly gets
+    // a tooltip that runs off the bottom (or, in a narrow pane, the right
+    // edge) with nothing to scroll it back into view. Can't fix the vendored
+    // library itself, so once it has actually appended the tooltip - now that
+    // its real size exists - this pulls it back on screen. Set up once, the
+    // first time a plan is drawn; it then lasts for the life of the page.
+    initPlanTooltipFix() {
+        if (this._planTooltipObserver) return;
+        const MARGIN = 10;
+        this._planTooltipObserver = new MutationObserver(mutations => {
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (!(node instanceof HTMLElement) || !node.classList.contains('qp-tt')) continue;
+                    // qp.css gives .qp-tt a transition-delay (no duration, no
+                    // transition-property of its own, so it does nothing
+                    // visually by itself) - but it still means a *second*
+                    // change to the same property, on the same element, is
+                    // held back until that delay elapses. The library's own
+                    // positioning is the first change; without clearing the
+                    // delay first, this correction would only become visible
+                    // half a second later instead of replacing it outright.
+                    node.style.transitionDelay = '0s';
+                    const rect = node.getBoundingClientRect();
+                    const overflowBottom = rect.bottom - (window.innerHeight - MARGIN);
+                    if (overflowBottom > 0) node.style.top = `${Math.max(MARGIN, rect.top - overflowBottom)}px`;
+                    const overflowRight = rect.right - (window.innerWidth - MARGIN);
+                    if (overflowRight > 0) node.style.left = `${Math.max(MARGIN, rect.left - overflowRight)}px`;
+                }
+            }
+        });
+        this._planTooltipObserver.observe(document.body, { childList: true });
+    }
+
     // QP.showPlan needs a live DOM node per plan - it injects markup and
     // draws connecting lines - so it can't be part of the innerHTML string
     // built in displayResultSets; run it once that HTML is actually mounted
     // and visible (see renderPendingPlanIfVisible).
     renderQueryPlans(planXmls) {
+        this.initPlanTooltipFix();
         const container = document.getElementById('queryPlanContainer');
         if (!container) return;
         planXmls.forEach((xml, index) => {

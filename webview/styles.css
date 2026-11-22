@@ -1462,6 +1462,15 @@ td.rs-null {
     border: 1.5px solid #3b5f8a !important;
     color: #1a1a1a !important;
     font-size: 13px !important;
+    /* A node with a long Output List (many columns) makes a tooltip taller
+       than the viewport; the library (tooltip.ts) only nudges it up when
+       there's room below on the full *document*, not the visible viewport,
+       and never shrinks it - past that point the rest is simply cut off
+       with nothing to scroll it into view. box-sizing so the border/padding
+       above don't push the scrollable content past this cap. */
+    max-height: calc(100vh - 20px) !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
 }
 
 .qp-tt td,
