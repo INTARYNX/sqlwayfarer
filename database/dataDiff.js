@@ -104,6 +104,7 @@ function planTable(refTable, curTable) {
             schema: curTable.schema, name: curTable.name,
             key: tableKey.columns.map(c => c.name),
             columns, excludedColumns,
+            columnTypes: Object.fromEntries(columns.map(name => [name, curTable.columns.find(c => c.name === name).type])),
             identityColumn: (curTable.columns.find(c => c.identity && columns.includes(c.name)) || {}).name || null
         }
     };
@@ -135,4 +136,115 @@ function supportsDataCompare(version) {
     return major > 13 || (major === 13 && (build || 0) >= 1601);
 }
 
-module.exports = { planDataTables, supportsDataCompare, keyOf, baseTypeName };
+// === Reading the rows of one table, on both sides ===
+//
+// compareTableData() does the hashing pass (one row per table on each side:
+// its key and a hash of its other columns, from FOR JSON so no type needs
+// its own handling) then, only for the keys that differ, a second pass that
+// reads the full row. A table with a huge number of differences is capped
+// (MAX_DIFF_ROWS_PER_TABLE): the counts stay exact, the rows fetched do not.
+
+const { bracketIdentifier } = require('./sqlIdentifier');
+const { sqlLiteral } = require('./sqlLiteral');
+
+const FETCH_CHUNK = 500;
+const MAX_DIFF_ROWS_PER_TABLE = 5000;
+const q = bracketIdentifier;
+const keyString = values => JSON.stringify(values);
+
+function isEqualValue(a, b) {
+    if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+    if (Buffer.isBuffer(a) && Buffer.isBuffer(b)) return a.equals(b);
+    return a === b;
+}
+
+async function hashRows(conn, database, table) {
+    const nonKey = table.columns.filter(c => !table.key.includes(c));
+    const sql = `USE ${q(database)};\n`
+        + `SELECT ${table.key.map(c => q(c)).join(', ')}, `
+        + `HASHBYTES('SHA2_256', CAST((SELECT ${nonKey.map(c => `t.${q(c)}`).join(', ')} FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES) AS NVARCHAR(MAX))) AS [__hash]\n`
+        + `FROM ${q(table.schema)}.${q(table.name)} AS t;`;
+    const { recordsets } = await conn.createRequest().batch(sql);
+    const hashes = new Map();
+    for (const row of recordsets[0]) {
+        const key = table.key.map(c => row[c]);
+        hashes.set(keyString(key), { key, hash: row.__hash ? row.__hash.toString('hex') : '' });
+    }
+    return hashes;
+}
+
+// The predicate that finds exactly the given keys - IN(...) for a single
+// column, OR'd tuples for a composite one. keys: an array of key-value
+// arrays, in table.key order.
+function keyPredicate(table, keys) {
+    if (table.key.length === 1) {
+        const [col] = table.key;
+        return `${q(col)} IN (${keys.map(k => sqlLiteral(k[0], table.columnTypes[col])).join(', ')})`;
+    }
+    return keys.map(k => `(${table.key.map((col, i) => `${q(col)} = ${sqlLiteral(k[i], table.columnTypes[col])}`).join(' AND ')})`).join(' OR ');
+}
+
+async function fetchRows(conn, database, table, keys) {
+    const rows = new Map();
+    const selectList = table.columns.map(q).join(', ');
+    for (let i = 0; i < keys.length; i += FETCH_CHUNK) {
+        const chunk = keys.slice(i, i + FETCH_CHUNK);
+        const sql = `USE ${q(database)};\nSELECT ${selectList} FROM ${q(table.schema)}.${q(table.name)} WHERE ${keyPredicate(table, chunk)};`;
+        const { recordsets } = await conn.createRequest().batch(sql);
+        for (const row of recordsets[0]) rows.set(keyString(table.key.map(c => row[c])), row);
+    }
+    return rows;
+}
+
+// Keeps only the first `max` keys overall, counting added before modified
+// before removed - what gets left out when a table has too many differences.
+function capAt(buckets, max) {
+    let remaining = max;
+    const capped = {};
+    for (const [name, keys] of Object.entries(buckets)) {
+        capped[name] = keys.slice(0, remaining);
+        remaining = Math.max(0, remaining - keys.length);
+    }
+    return capped;
+}
+
+async function compareTableData(connectionManager, { reference, database, table }) {
+    const conn = await connectionManager.acquireConnection();
+    try {
+        const refHashes = await hashRows(conn, reference, table);
+        const curHashes = await hashRows(conn, database, table);
+
+        const added = [];
+        const modified = [];
+        for (const [key, cur] of curHashes) {
+            const ref = refHashes.get(key);
+            if (!ref) added.push(cur.key);
+            else if (ref.hash !== cur.hash) modified.push(cur.key);
+        }
+        const removed = [...refHashes.keys()].filter(key => !curHashes.has(key)).map(key => refHashes.get(key).key);
+
+        const counts = { added: added.length, modified: modified.length, removed: removed.length, same: curHashes.size - added.length - modified.length };
+        const truncated = (added.length + modified.length + removed.length) > MAX_DIFF_ROWS_PER_TABLE;
+        const capped = capAt({ added, modified, removed }, MAX_DIFF_ROWS_PER_TABLE);
+
+        const afterRows = await fetchRows(conn, database, table, [...capped.added, ...capped.modified]);
+        const beforeRows = await fetchRows(conn, reference, table, [...capped.removed, ...capped.modified]);
+
+        return {
+            schema: table.schema, name: table.name, counts, truncated,
+            added: capped.added.map(key => afterRows.get(keyString(key))).filter(Boolean),
+            removed: capped.removed.map(key => beforeRows.get(keyString(key))).filter(Boolean),
+            modified: capped.modified.map(key => {
+                const before = beforeRows.get(keyString(key));
+                const after = afterRows.get(keyString(key));
+                if (!before || !after) return null;
+                return { key, before, after, changedColumns: table.columns.filter(c => !isEqualValue(before[c], after[c])) };
+            }).filter(Boolean)
+        };
+    } finally {
+        try { await conn.createRequest().batch('USE [master];'); } catch { /* the connection is gone */ }
+        conn.release();
+    }
+}
+
+module.exports = { planDataTables, supportsDataCompare, compareTableData, keyOf, baseTypeName };
