@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.15] - 2026-11-22
+
+### Added
+
+- **Compare tab: a "Data" mode, to compare the rows of tables, not just the schema.** Pick a reference (a snapshot, or another database), pick which tables to compare, and see the rows added, modified or removed row by row, with a Reference/Current detail for each. Produces the same re-entrant script, zip export and Apply-to-another-database actions the schema comparison already has, written as MERGE/DELETE statements that can be run again without duplicating or failing on what is already done. Needs SQL Server 2016 or later (it uses `FOR JSON` to tell rows apart without reading every column by hand); a table with no primary key and no `NOT NULL` unique key cannot be matched row by row, and is listed as such.
+
 ## [0.99.14] - 2026-11-17
 
 ### Added
