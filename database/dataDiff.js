@@ -80,7 +80,6 @@ function excludeReason(column, { onOtherSide, isKey }) {
 }
 
 function planTable(refTable, curTable) {
-    const name = fullName(curTable);
     const tableKey = keyOf(curTable);
     if (!tableKey) return { notComparable: { schema: curTable.schema, name: curTable.name, reason: 'No primary key, and no unique key whose columns are all NOT NULL.' } };
 
@@ -247,4 +246,25 @@ async function compareTableData(connectionManager, { reference, database, table 
     }
 }
 
-module.exports = { planDataTables, supportsDataCompare, compareTableData, keyOf, baseTypeName, keyPredicate };
+// A best-effort row count per table, from allocation metadata (same formulas
+// as sp_spaceused - instant even on huge tables), the same spirit as
+// DataDictionaryService.js. Needs VIEW DATABASE STATE; without it, the
+// table picker still works, just without a size to show.
+async function rowCountEstimates(connectionManager, database) {
+    try {
+        const { recordset } = await connectionManager.executeQueryInDatabase(database, `
+            SELECT s.name AS schema_name, o.name AS object_name,
+                   SUM(CASE WHEN ps.index_id IN (0, 1) THEN ps.row_count ELSE 0 END) AS row_count
+            FROM sys.dm_db_partition_stats ps
+            JOIN sys.objects o ON o.object_id = ps.object_id
+            JOIN sys.schemas s ON s.schema_id = o.schema_id
+            WHERE o.type = 'U' AND o.is_ms_shipped = 0
+            GROUP BY s.name, o.name
+        `);
+        return new Map(recordset.map(r => [`${r.schema_name}.${r.object_name}`, Number(r.row_count) || 0]));
+    } catch {
+        return new Map();
+    }
+}
+
+module.exports = { planDataTables, supportsDataCompare, compareTableData, rowCountEstimates, keyOf, baseTypeName, keyPredicate };
