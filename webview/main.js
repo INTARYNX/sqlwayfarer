@@ -182,6 +182,14 @@ class MessageHandler {
                 if (window.footprintManager) window.footprintManager.onDocResult(message);
                 break;
 
+            case 'relatedTablesResult':
+                if (window.footprintManager) window.footprintManager.onRelatedTablesResult(message);
+                break;
+
+            case 'relationshipsAmongResult':
+                if (window.footprintManager) window.footprintManager.onRelationshipsAmongResult(message);
+                break;
+
             case 'objectDetailsLoaded':
                 this.explorerManager.onObjectDetailsLoaded(
                     message.objectName,

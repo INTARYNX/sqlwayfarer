@@ -13,6 +13,10 @@ class FootprintManager {
         this.graphEl = document.getElementById('writeFootprintGraph');
         this.metaEl = document.getElementById('writeFootprintMeta');
         this.schemaEl = document.getElementById('footprintSchemaGraph');
+        this.schemaMetaEl = document.getElementById('footprintSchemaMeta');
+        this.expandBtn = document.getElementById('footprintExpandBtn');
+        this.addTableBtn = document.getElementById('footprintAddTableBtn');
+        this.maximizeBtn = document.getElementById('footprintMaximizeBtn');
         this.docEl = document.getElementById('footprintTablesDoc');
         this.legendEl = document.getElementById('footprintLegend');
         this.queryLegendEl = document.getElementById('queryGraphLegend');
@@ -27,6 +31,24 @@ class FootprintManager {
         this._doc = null;
         this._docByName = {};
         this._docRequested = false;
+        // The Schema tab's Expand: null until asked for, then the ranked list
+        // RelatedTablesService returned (FK neighbors and/or usage neighbors).
+        this._related = null;
+        this._expandRequested = false;
+        // Tables the user picked by hand through "Add table" (Schema tab only),
+        // and the FK edges among the whole set once that happened (see
+        // relationshipsAmong - recomputed fresh, so it also catches an FK to
+        // a table Expand had already brought in).
+        this._manual = [];
+        this._manualRelationships = [];
+        // Schema tab node labels: keys only (default, compact) or every column.
+        this._schemaAllColumns = false;
+        // True from open()/openQueryGraph() to close(). The overlay itself
+        // keeps the 'visible' class the whole time - it belongs to whichever
+        // app tab opened it (see _attachToTab) and is hidden/shown by that
+        // tab's own display:none, same as everything else in it, not by
+        // toggling 'visible' on tab switches.
+        this._open = false;
 
         this.showReadsChk = document.getElementById('footprintShowReads');
         if (this.showReadsChk) this.showReadsChk.addEventListener('change', () => {
@@ -34,15 +56,51 @@ class FootprintManager {
             this._applyReadsVisibility();
         });
 
+        this.schemaAllColumnsChk = document.getElementById('footprintSchemaAllColumns');
+        if (this.schemaAllColumnsChk) this.schemaAllColumnsChk.addEventListener('change', () => {
+            this._schemaAllColumns = this.schemaAllColumnsChk.checked;
+            this._renderSchema();
+        });
+
+        if (this.expandBtn) this.expandBtn.addEventListener('click', () => this._expandRelated());
+        if (this.addTableBtn) this.addTableBtn.addEventListener('click', () => this._openAddTablePopover());
+        if (this.maximizeBtn) this.maximizeBtn.addEventListener('click', () => this._toggleMaximize());
+
         this.overlay.querySelectorAll('.fp-tab').forEach(btn => {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.fptab));
         });
 
-        document.getElementById('writeFootprintCloseBtn').addEventListener('click', () => this.close());
-        this.overlay.addEventListener('click', (e) => { if (e.target === this.overlay) this.close(); });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.overlay.classList.contains('visible')) this.close();
+        // One delegated listener covers both panes' zoom toolbars.
+        this.overlay.addEventListener('click', (e) => {
+            const btn = e.target.closest('.graph-zoom-btn');
+            if (btn) this._graphZoomAction(btn.closest('.graph-zoom-controls').dataset.for, btn.dataset.zoomAction);
         });
+
+        document.getElementById('writeFootprintCloseBtn').addEventListener('click', () => this.close());
+        // Stays open until explicitly closed (the × button or Escape) - a
+        // stray click outside it (easy to do on a full-window graph) must
+        // not lose the analysis. Escape only applies while it is actually on
+        // screen (its tab is the active one), not just conceptually open.
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this._isShown()) this.close();
+        });
+    }
+
+    // True once open()/openQueryGraph() moved the overlay into its owning
+    // tab (see _attachToTab) and that tab is the one actually on screen -
+    // 'visible' alone isn't enough, since the class stays on while another
+    // app tab hides the overlay along with the rest of its owning tab.
+    _isShown() {
+        return this.overlay.classList.contains('visible') && this.overlay.getClientRects().length > 0;
+    }
+
+    // The modal belongs to whichever app tab opened it (Explorer for the
+    // write footprint, Query for the query graph) - moving it there lets the
+    // app's own per-tab display:none hide/show it along with the rest of
+    // that tab, instead of a one-off tab-aware show/hide of its own.
+    _attachToTab(tabId) {
+        const container = document.getElementById(tabId);
+        if (container && this.overlay.parentElement !== container) container.appendChild(this.overlay);
     }
 
     _ensureRegistered() {
@@ -55,12 +113,16 @@ class FootprintManager {
 
     open(objectName) {
         if (!appState.currentDatabase) return;
+        this._attachToTab('explorerTab');
         this._showReads = true;
         if (this.showReadsChk) this.showReadsChk.checked = true;
+        this._schemaAllColumns = false;
+        if (this.schemaAllColumnsChk) this.schemaAllColumnsChk.checked = false;
         this._fp = null;
         this._doc = null;
         this._docByName = {};
         this._docRequested = false;
+        this._resetRelated();
         this._destroyGraphs();
         this.schemaEl.innerHTML = '';
         this.docEl.innerHTML = '';
@@ -73,7 +135,9 @@ class FootprintManager {
         this.titleEl.textContent = `Table footprint — ${objectName}`;
         this.metaEl.textContent = 'Analyzing…';
         this.graphEl.innerHTML = '';
+        this._open = true;
         this.overlay.classList.add('visible');
+        this._setMaximized(true);
         vscode.postMessage({ command: 'getWriteFootprint', database: appState.currentDatabase, objectName });
     }
 
@@ -81,10 +145,14 @@ class FootprintManager {
 
     openQueryGraph(sql, options = {}) {
         if (!appState.currentDatabase) return;
+        this._attachToTab('queryTab');
+        this._schemaAllColumns = false;
+        if (this.schemaAllColumnsChk) this.schemaAllColumnsChk.checked = false;
         this._fp = null;
         this._doc = null;
         this._docByName = {};
         this._docRequested = false;
+        this._resetRelated();
         this._destroyGraphs();
         this.schemaEl.innerHTML = '';
         this.docEl.innerHTML = '';
@@ -102,12 +170,14 @@ class FootprintManager {
             : 'Query graph — whole query';
         this.metaEl.textContent = 'Analyzing…';
         this.graphEl.innerHTML = '';
+        this._open = true;
         this.overlay.classList.add('visible');
+        this._setMaximized(true);
         vscode.postMessage({ command: 'getQueryGraph', database: appState.currentDatabase, sql });
     }
 
     onQueryGraphResult(message) {
-        if (!this.overlay.classList.contains('visible')) return;
+        if (!this._open) return;
         if (!message.success) {
             this.metaEl.textContent = message.message || 'Analysis failed.';
             return;
@@ -143,7 +213,7 @@ class FootprintManager {
             const via = (t.via && t.via.length) ? t.via.join(' > ') : '';
             elements.push({
                 data: {
-                    id, name: t.qualifiedName, kind: t.access === 'via-code' ? 'via-code' : 'direct',
+                    id, name: t.qualifiedName, qname: t.qualifiedName, kind: t.access === 'via-code' ? 'via-code' : 'direct',
                     label: via ? `${t.qualifiedName}\nvia ${via}` : t.qualifiedName
                 }
             });
@@ -163,12 +233,14 @@ class FootprintManager {
 
         if (this._cy) { this._cy.destroy(); this._cy = null; }
         this._cy = window.cytoscape({
-            container: this.graphEl, elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 1.3,
+            container: this.graphEl, elements, wheelSensitivity: 1, minZoom: 0.2, maxZoom: 3,
+            boxSelectionEnabled: true,
             style: FootprintManager._queryGraphStyle(),
             // The tables are far enough apart for the condition written on the
             // line between them: a gap that is too short hides it behind the nodes.
             layout: { name: 'dagre', rankDir: 'LR', nodeSep: 40, rankSep: Math.max(90, FootprintManager._joinLabelWidth(graph.joins || []) + 40), animate: false }
         });
+        this._cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(this._cy, evt));
         // A double click opens the table in the Explorer (a single click only
         // selects it, to move or read it): cytoscape has no double click event,
         // two taps on the same node in a row are one.
@@ -183,7 +255,7 @@ class FootprintManager {
                 lastTap = { id, at: now };
             }
         });
-        this._cy.fit(this._cy.elements(), 30);
+        this._fitCapped(this._cy, this._cy.elements(), 30);
         this._renderQueryMeta(graph);
     }
 
@@ -228,8 +300,21 @@ class FootprintManager {
     }
 
     close() {
+        this._open = false;
         this.overlay.classList.remove('visible');
         this._destroyGraphs();
+    }
+
+    // Hooked from TabManager.switchTab on every app tab change. Showing and
+    // hiding the modal along with the rest of its owning tab is automatic
+    // (see _attachToTab) - the only thing left to do here is fix up the
+    // cytoscape instances once that tab is the one actually on screen again,
+    // since their container had zero size while hidden behind another tab.
+    onAppTabChanged(tabName) {
+        if (!this._open) return;
+        const owner = this._mode === 'footprint' ? 'explorer' : 'query';
+        if (tabName !== owner) return;
+        [this._cy, this._schemaCy].forEach(cy => { if (cy) { cy.resize(); this._fitCapped(cy, undefined, 30); } });
     }
 
     _destroyGraphs() {
@@ -242,7 +327,7 @@ class FootprintManager {
         this.overlay.querySelectorAll('.fp-tab').forEach(b => b.classList.toggle('active', b.dataset.fptab === name));
         this.overlay.querySelectorAll('.fp-panel').forEach(p => p.classList.toggle('active', p.dataset.fppanel === name));
         if (silent) return;
-        if (name === 'graph') { if (this._cy) { this._cy.resize(); this._cy.fit(this._cy.elements(':visible'), 30); } }
+        if (name === 'graph') { if (this._cy) { this._cy.resize(); this._fitCapped(this._cy, this._cy.elements(':visible'), 30); } }
         else if (name === 'schema') { this._showSchema(); }
         else if (name === 'tables') { this._showTables(); }
     }
@@ -250,7 +335,7 @@ class FootprintManager {
     // === Graph tab (footprint) ===
 
     onResult(message) {
-        if (!this.overlay.classList.contains('visible')) return;
+        if (!this._open) return;
         if (!message.success) { this.metaEl.textContent = message.message || 'Analysis failed.'; return; }
         this._fp = message.footprint;
         this.renderGraph(this._fp);
@@ -264,7 +349,7 @@ class FootprintManager {
         if (!this._ensureRegistered()) { this.metaEl.textContent = 'Graph library failed to load.'; return; }
 
         const targetId = `obj::${fp.target.qualifiedName}`;
-        const elements = [{ data: { id: targetId, label: fp.target.qualifiedName, kind: 'target' } }];
+        const elements = [{ data: { id: targetId, label: fp.target.qualifiedName, qname: fp.target.qualifiedName, kind: 'target' } }];
 
         const counts = { write: 0, read: 0, trigger: 0, possible: 0, conditional: 0 };
         for (const t of fp.tables) {
@@ -274,7 +359,7 @@ class FootprintManager {
             else if (t.access === 'write') { kind = 'write'; counts.write++; }
             else { kind = 'read'; counts.read++; }
             if (t.conditional) counts.conditional++;
-            elements.push({ data: { id: `tbl::${t.qualifiedName}`, label: t.qualifiedName, kind, conditional: !!t.conditional } });
+            elements.push({ data: { id: `tbl::${t.qualifiedName}`, label: t.qualifiedName, qname: t.qualifiedName, kind, conditional: !!t.conditional } });
 
             if (kind === 'possible') {
                 elements.push({ data: { id: `acc::${t.qualifiedName}`, source: targetId, target: `tbl::${t.qualifiedName}`, edge: 'access-possible' } });
@@ -298,11 +383,13 @@ class FootprintManager {
 
         if (this._cy) { this._cy.destroy(); this._cy = null; }
         this._cy = window.cytoscape({
-            container: this.graphEl, elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 1.3,
+            container: this.graphEl, elements, wheelSensitivity: 1, minZoom: 0.2, maxZoom: 3,
+            boxSelectionEnabled: true,
             style: FootprintManager._graphStyle(),
             layout: { name: 'dagre', rankDir: 'LR', nodeSep: 30, rankSep: 70, animate: false }
         });
         this._cy.on('tap', 'node[kind != "target"]', (evt) => this._revealTable(evt.target.data('label')));
+        this._cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(this._cy, evt));
 
         this._applyReadsVisibility();
         this._renderMeta(fp, counts);
@@ -315,7 +402,7 @@ class FootprintManager {
         const visible = this._cy.elements(':visible');
         if (visible.length) {
             visible.layout({ name: 'dagre', rankDir: 'LR', nodeSep: 30, rankSep: 70, animate: false }).run();
-            this._cy.fit(visible, 30);
+            this._fitCapped(this._cy, visible, 30);
         }
     }
 
@@ -356,20 +443,32 @@ class FootprintManager {
     _ensureDoc() {
         if (this._docRequested || !this._fp) return;
         this._docRequested = true;
-        const tableNames = this._fp.tables.map(t => t.qualifiedName);
-        vscode.postMessage({ command: 'getFootprintDoc', database: appState.currentDatabase, tableNames });
+        this._fetchDoc(this._fp.tables.map(t => t.qualifiedName));
+    }
+
+    // Asks for the doc of whichever of `tableNames` isn't already known - the
+    // initial fetch and a later Expand share this, both merged in onDocResult.
+    _fetchDoc(tableNames) {
+        const missing = (tableNames || []).filter(n => !this._docByName[n.toLowerCase()]);
+        if (missing.length === 0) return;
+        vscode.postMessage({ command: 'getFootprintDoc', database: appState.currentDatabase, tableNames: missing });
     }
 
     onDocResult(message) {
-        if (!this.overlay.classList.contains('visible')) return;
+        if (!this._open) return;
         if (!message.success) {
             const msg = `<p class="fp-doc-msg">${FootprintManager._esc(message.message || 'Failed to load table documentation.')}</p>`;
             this.schemaEl.innerHTML = ''; this.docEl.innerHTML = msg;
             return;
         }
-        this._doc = message.doc || { tables: [] };
-        this._docByName = {};
-        for (const t of this._doc.tables) this._docByName[t.qualifiedName.toLowerCase()] = t;
+        // Merged, not replaced: a later fetch (Expand related tables) only
+        // ever adds tables the first one didn't already have.
+        if (!this._doc) this._doc = { tables: [] };
+        for (const t of (message.doc && message.doc.tables) || []) {
+            const key = t.qualifiedName.toLowerCase();
+            if (!this._docByName[key]) this._doc.tables.push(t);
+            this._docByName[key] = t;
+        }
         if (this._activeTab === 'schema') this._renderSchema();
         else if (this._activeTab === 'tables') this._renderTablesDoc();
     }
@@ -378,31 +477,164 @@ class FootprintManager {
 
     _showSchema() {
         if (!this._fp) return;
-        if (this._schemaCy) { this._schemaCy.resize(); this._schemaCy.fit(undefined, 30); return; }
+        if (this._schemaCy) { this._schemaCy.resize(); this._fitCapped(this._schemaCy, undefined, 30); return; }
         if (this._doc) this._renderSchema();
         else { this._ensureDoc(); this.schemaEl.innerHTML = '<p class="fp-doc-msg">Loading…</p>'; }
+    }
+
+    _resetRelated() {
+        this._related = null;
+        this._expandRequested = false;
+        this._manual = [];
+        this._manualRelationships = [];
+        if (this.schemaMetaEl) this.schemaMetaEl.textContent = '';
+        this._setExpandButtonState('idle');
+    }
+
+    _setExpandButtonState(state) {
+        if (!this.expandBtn) return;
+        this.expandBtn.disabled = state === 'loading';
+        this.expandBtn.innerHTML = state === 'loading'
+            ? '<i class="codicon codicon-loading codicon-modifier-spin"></i> Expanding…'
+            : state === 'done'
+                ? '<i class="codicon codicon-refresh"></i> Refresh related tables'
+                : '<i class="codicon codicon-type-hierarchy"></i> Expand related tables';
+    }
+
+    // Asks for tables linked to the current set by an FK, or commonly used
+    // alongside it by other procedures/views/functions (RelatedTablesService,
+    // mined from the already-cached index) - only on request, never by default.
+    _expandRelated() {
+        if (!this._fp || !this._fp.tables.length || this._expandRequested) return;
+        this._expandRequested = true;
+        this._setExpandButtonState('loading');
+        const tableNames = this._fp.tables.map(t => t.qualifiedName);
+        vscode.postMessage({ command: 'getRelatedTables', database: appState.currentDatabase, tableNames });
+    }
+
+    onRelatedTablesResult(message) {
+        if (!this._open) return;
+        this._expandRequested = false;
+        this._setExpandButtonState('done');
+        if (!message.success) {
+            if (this.schemaMetaEl) this.schemaMetaEl.textContent = message.message || 'Could not look up related tables.';
+            return;
+        }
+        this._related = message.related || [];
+        if (this.schemaMetaEl) {
+            this.schemaMetaEl.textContent = this._related.length
+                ? `${this._related.length} related table${this._related.length === 1 ? '' : 's'} found.`
+                : 'No related tables found - no FK neighbor, and no shared usage in other procedures/views.';
+        }
+        // The doc of the newly found tables is fetched before re-rendering,
+        // so their PK/FK columns show the first time they appear, not a
+        // bare name that re-renders a moment later once the doc arrives.
+        this._fetchDoc(this._related.map(r => r.qualifiedName));
+        this._renderSchema();
+    }
+
+    // Every table currently drawn in the Schema tab, whatever brought it
+    // there - the query/footprint itself, Expand, or Add table.
+    _shownTableNames() {
+        const seed = this._fp ? this._fp.tables.map(t => t.qualifiedName) : [];
+        const related = (this._related || []).map(r => r.qualifiedName);
+        return [...seed, ...related, ...this._manual];
+    }
+
+    // "Add table": any table of the database, not just one an FK or a shared
+    // usage already pointed at. Once added, every FK among the whole set now
+    // on screen is recomputed fresh (see relationshipsAmong) - an FK between
+    // the new table and *any* table already shown, not just a seed one.
+    _addTable(qualifiedName) {
+        const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
+        const already = new Set(this._shownTableNames().map(clean));
+        if (already.has(clean(qualifiedName))) return;
+        this._manual.push(qualifiedName);
+        this._fetchDoc([qualifiedName]);
+        vscode.postMessage({ command: 'getRelationshipsAmong', database: appState.currentDatabase, tableNames: this._shownTableNames() });
+        this._renderSchema();
+    }
+
+    // "Remove from view": only ever a table Expand or Add table brought in -
+    // a seed table is part of the query/footprint itself and stays.
+    _removeFromSchema(qualifiedName) {
+        const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
+        const target = clean(qualifiedName);
+        this._manual = this._manual.filter(n => clean(n) !== target);
+        if (this._related) this._related = this._related.filter(r => clean(r.qualifiedName) !== target);
+        this._renderSchema();
+    }
+
+    onRelationshipsAmongResult(message) {
+        if (!this._open || !message.success) return;
+        this._manualRelationships = message.relationships || [];
+        this._renderSchema();
     }
 
     _renderSchema() {
         if (!this._ensureRegistered() || !this._fp) return;
         this.schemaEl.innerHTML = '';
         const elements = [];
-        for (const t of this._fp.tables) {
-            const d = this._docByName[t.qualifiedName.toLowerCase()];
-            elements.push({ data: { id: `s::${t.qualifiedName}`, label: FootprintManager._schemaLabel(t.qualifiedName, d) } });
+        const seedNames = new Set(this._fp.tables.map(t => t.qualifiedName.toLowerCase()));
+        const nodeId = (name) => `s::${name}`;
+        const addTableNode = (name, kind) => {
+            const d = this._docByName[name.toLowerCase()];
+            elements.push({ data: { id: nodeId(name), qname: name, kind, label: FootprintManager._schemaLabel(name, d, this._schemaAllColumns) } });
+        };
+
+        for (const t of this._fp.tables) addTableNode(t.qualifiedName, 'seed');
+        const drawnNames = new Set(seedNames);
+        for (const r of this._related || []) {
+            if (drawnNames.has(r.qualifiedName.toLowerCase())) continue; // already drawn as a seed table
+            addTableNode(r.qualifiedName, r.via);
+            drawnNames.add(r.qualifiedName.toLowerCase());
         }
-        for (const rel of this._fp.relationships || []) {
-            // child (holds FK) → referenced parent
-            elements.push({ data: { id: `sfk::${rel.fkName}`, source: `s::${rel.fromTable}`, target: `s::${rel.toTable}`, label: rel.fkName } });
+        for (const name of this._manual) {
+            if (drawnNames.has(name.toLowerCase())) continue; // already drawn as a seed/related table
+            addTableNode(name, 'added');
+            drawnNames.add(name.toLowerCase());
+        }
+
+        if (this._manual.length > 0) {
+            // Added tables can reveal an FK to *any* table on screen, not just
+            // a seed one - once that has happened, every FK among the whole
+            // set now shown is recomputed fresh (relationshipsAmong) instead
+            // of the narrower seed/anchor-based edges below.
+            for (const rel of this._manualRelationships || []) {
+                elements.push({ data: { id: `mfk::${rel.fkName}::${rel.fromTable}::${rel.toTable}`, source: nodeId(rel.fromTable), target: nodeId(rel.toTable), kind: 'fk', label: rel.fkName } });
+            }
+        } else {
+            for (const rel of this._fp.relationships || []) {
+                // child (holds FK) → referenced parent
+                elements.push({ data: { id: `sfk::${rel.fkName}`, source: nodeId(rel.fromTable), target: nodeId(rel.toTable), kind: 'fk', label: rel.fkName } });
+            }
+            for (const r of this._related || []) {
+                if (!r.anchorTable || r.via !== 'fk') continue;
+                // direction is which role the NEIGHBOR plays: 'parent' (it is
+                // referenced by our anchor, which holds the FK) or 'child'
+                // (it holds its own FK pointing at our anchor).
+                const [source, target] = r.direction === 'parent' ? [r.anchorTable, r.qualifiedName] : [r.qualifiedName, r.anchorTable];
+                elements.push({ data: { id: `rfk::${r.fkName}`, source: nodeId(source), target: nodeId(target), kind: 'fk', label: r.fkName } });
+            }
+        }
+        // Usage edges are never FK-based, so they are drawn the same way regardless.
+        for (const r of this._related || []) {
+            if (r.via !== 'usage' || !r.anchorTable) continue;
+            elements.push({ data: {
+                id: `ru::${r.qualifiedName}`, source: nodeId(r.anchorTable), target: nodeId(r.qualifiedName),
+                kind: 'usage', label: `${r.procCount}`
+            } });
         }
 
         this._schemaCy = window.cytoscape({
-            container: this.schemaEl, elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 1.3,
+            container: this.schemaEl, elements, wheelSensitivity: 1, minZoom: 0.2, maxZoom: 3,
+            boxSelectionEnabled: true,
             style: FootprintManager._schemaStyle(),
             layout: { name: 'dagre', rankDir: 'LR', nodeSep: 35, rankSep: 80, animate: false }
         });
-        this._schemaCy.on('tap', 'node', (evt) => this._revealTable(evt.target.id().replace(/^s::/, '')));
-        this._schemaCy.fit(undefined, 30);
+        this._schemaCy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('qname')));
+        this._schemaCy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(this._schemaCy, evt, { removable: evt.target.data('kind') !== 'seed' }));
+        this._fitCapped(this._schemaCy, undefined, 30);
     }
 
     // === Tables tab (HTML doc) ===
@@ -442,34 +674,191 @@ class FootprintManager {
         this.docEl.innerHTML = html;
     }
 
+    // Never closes the modal - the whole point is to check a table while
+    // keeping the graph open, from a single click, a context menu, or either.
     _revealTable(qualifiedName) {
         if (window.explorerManager && typeof window.explorerManager.revealByName === 'function') {
             window.explorerManager.revealByName(qualifiedName);
-            this.close();
         }
     }
 
-    // One line per key column with its roles, e.g. "BusinessEntityID (PK, FK)".
-    // A column that is both PK and FK is listed once instead of on two lines.
-    static _schemaLabel(qualifiedName, doc) {
+    // === Graph controls: context menu, zoom, fullscreen (Graph and Schema tabs) ===
+
+    // Right-click a node: zoom to it, reveal it in the Explorer, and - a
+    // table Expand or Add table brought in - remove it from view. Reuses the
+    // app's one popup-menu widget instead of a second menu implementation.
+    _openGraphContextMenu(cy, evt, { removable = false } = {}) {
+        if (!window.explorerManager || !window.explorerManager._openPopupMenu) return;
+        const node = evt.target;
+        const qname = node.data('qname') || node.data('name') || node.data('label');
+        const items = [
+            { label: 'Zoom to this table', onClick: () => cy.animate({ fit: { eles: node, padding: 80 } }, { duration: 250 }) },
+            { label: 'Reveal in Explorer', onClick: () => this._revealTable(qname) }
+        ];
+        if (removable) items.push({ label: 'Remove from view', separatorBefore: true, onClick: () => this._removeFromSchema(qname) });
+        const point = evt.originalEvent;
+        window.explorerManager._openPopupMenu(this.overlay, items, { at: { x: point.clientX, y: point.clientY } });
+    }
+
+    // + / - / fit buttons, shared by the Graph and Schema panes (data-for on
+    // their .graph-zoom-controls says which). Fit zooms to the selection
+    // (a box-drag selects several nodes) when there is one, the whole graph otherwise.
+    _graphZoomAction(forWhich, action) {
+        const cy = forWhich === 'schema' ? this._schemaCy : this._cy;
+        if (!cy) return;
+        const center = { x: cy.width() / 2, y: cy.height() / 2 };
+        if (action === 'in') cy.zoom({ level: cy.zoom() * 1.25, renderedPosition: center });
+        else if (action === 'out') cy.zoom({ level: cy.zoom() / 1.25, renderedPosition: center });
+        else if (action === 'fit') {
+            const selected = cy.$(':selected');
+            this._fitCapped(cy, selected.length ? selected : undefined, 30);
+        }
+    }
+
+    // cy.fit() alone zooms in as far as it takes to fill the pane - fine with
+    // a dozen tables, but a lone node or two then renders oversized. Capped
+    // so a small graph still reads at a normal size; the zoom-in button can
+    // still go well past this (see maxZoom on the cytoscape instances).
+    _fitCapped(cy, eles, padding) {
+        cy.fit(eles, padding);
+        if (cy.zoom() > FootprintManager.FIT_ZOOM_CAP) {
+            cy.zoom({ level: FootprintManager.FIT_ZOOM_CAP, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+        }
+    }
+
+    // Full window by default (the modal is only worth opening to look at a
+    // graph), but never over the app's own tab bar above it, and without
+    // graying it out either - the overlay itself (backdrop + dialog) is
+    // narrowed to start below the tab bar, not just the dialog inside it.
+    // Measured fresh each time since a banner can change the tab bar's
+    // height while the modal is open. cy.resize()+fit() so a graph created
+    // before maximizing (or minimizing back) isn't stuck measuring the old
+    // container size.
+    _setMaximized(maximized) {
+        const dialog = this.overlay.querySelector('.modal-dialog-footprint');
+        if (!dialog) return;
+        dialog.classList.toggle('fp-maximized', maximized);
+        this.overlay.classList.toggle('fp-maximized', maximized);
+        if (maximized) {
+            const toolbar = document.querySelector('.app-toolbar');
+            this.overlay.style.setProperty('--fp-top-offset', `${toolbar ? Math.max(0, toolbar.getBoundingClientRect().bottom) : 0}px`);
+        }
+        if (this.maximizeBtn) {
+            this.maximizeBtn.title = maximized ? 'Restore' : 'Maximize';
+            this.maximizeBtn.innerHTML = `<i class="codicon codicon-screen-${maximized ? 'normal' : 'full'}"></i>`;
+        }
+        [this._cy, this._schemaCy].forEach(cy => { if (cy) { cy.resize(); this._fitCapped(cy, undefined, 30); } });
+    }
+
+    _toggleMaximize() {
+        const dialog = this.overlay.querySelector('.modal-dialog-footprint');
+        this._setMaximized(!(dialog && dialog.classList.contains('fp-maximized')));
+    }
+
+    // === Add table (Schema tab): any table of the database, not just one Expand already found ===
+
+    // A small searchable popover (the plain popup menu has no filter box) of
+    // every table not already on screen.
+    _openAddTablePopover() {
+        if (!this.addTableBtn || !this._fp) return;
+        this._closeAddTablePopover();
+        const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
+        const shown = new Set(this._shownTableNames().map(clean));
+        const allTables = (appState.allObjects || [])
+            .filter(o => o.object_type === 'Table')
+            .map(o => o.qualified_name || o.object_name || o.name)
+            .filter(name => name && !shown.has(clean(name)))
+            .sort((a, b) => a.localeCompare(b));
+
+        const menu = document.createElement('div');
+        menu.className = 'script-menu';
+        menu.setAttribute('role', 'menu');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'script-menu-search';
+        input.placeholder = 'Filter tables…';
+        input.spellcheck = false;
+        menu.appendChild(input);
+        const list = document.createElement('div');
+        menu.appendChild(list);
+
+        const render = () => {
+            const needle = input.value.trim().toLowerCase();
+            const matches = (needle ? allTables.filter(n => n.toLowerCase().includes(needle)) : allTables).slice(0, 50);
+            list.innerHTML = '';
+            if (matches.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'script-menu-empty';
+                empty.textContent = allTables.length === 0 ? 'Every table is already shown.' : 'No match.';
+                list.appendChild(empty);
+                return;
+            }
+            matches.forEach(name => {
+                const item = document.createElement('button');
+                item.className = 'script-menu-item';
+                item.setAttribute('role', 'menuitem');
+                item.textContent = name;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this._closeAddTablePopover();
+                    this._addTable(name);
+                });
+                list.appendChild(item);
+            });
+        };
+        input.addEventListener('input', render);
+        // Closes just this popover, not (via the overlay's own Escape handler,
+        // document-level) the whole modal behind it.
+        input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); this._closeAddTablePopover(); } });
+
+        document.body.appendChild(menu);
+        const rect = this.addTableBtn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.width = '240px';
+        menu.style.top = `${Math.min(rect.bottom + 2, window.innerHeight - 300)}px`;
+        menu.style.left = `${Math.min(Math.max(8, rect.right - 240), window.innerWidth - 248)}px`;
+        render();
+        input.focus();
+
+        this._addTableMenu = menu;
+        this._addTableMenuCloser = (e) => { if (!menu.contains(e.target) && e.target !== this.addTableBtn) this._closeAddTablePopover(); };
+        setTimeout(() => document.addEventListener('click', this._addTableMenuCloser), 0);
+    }
+
+    _closeAddTablePopover() {
+        if (!this._addTableMenu) return;
+        this._addTableMenu.remove();
+        document.removeEventListener('click', this._addTableMenuCloser);
+        this._addTableMenu = null;
+        this._addTableMenuCloser = null;
+    }
+
+    // One line per column with a small icon for its role (🔑 PK, 🔗 FK - a
+    // column that is both gets both), under a separator so the table name
+    // reads as a header instead of just the first line of a plain list.
+    // Keys only by default (compact); allColumns lists every column of the
+    // table instead, for when a key-only view isn't enough to work from.
+    static _schemaLabel(qualifiedName, doc, allColumns) {
         if (!doc) return qualifiedName;
         const pk = doc.primaryKey || [];
         const pkSet = new Set(pk);
         const fkByCol = {};
         for (const f of doc.foreignKeys || []) { if (!fkByCol[f.column]) fkByCol[f.column] = f.refTable; }
-        // PK columns first (in key order), then FK-only columns.
-        const ordered = [...pk, ...Object.keys(fkByCol).filter(c => !pkSet.has(c))];
+        const allNames = (doc.columns || []).map(c => c.name);
+        // PK columns first (in key order), then either every other column
+        // (allColumns) or just the FK-only ones (the compact default).
+        const ordered = allColumns && allNames.length
+            ? [...pk, ...allNames.filter(c => !pkSet.has(c))]
+            : [...pk, ...Object.keys(fkByCol).filter(c => !pkSet.has(c))];
         const seen = new Set();
         const lines = [];
         for (const col of ordered) {
             if (seen.has(col)) continue;
             seen.add(col);
-            const roles = [];
-            if (pkSet.has(col)) roles.push('PK');
-            if (fkByCol[col]) roles.push('FK');
-            lines.push(`${col} (${roles.join(', ')})`);
+            const icon = `${pkSet.has(col) ? '🔑' : ''}${fkByCol[col] ? '🔗' : ''}`;
+            lines.push(`${icon} ${col}`.trim());
         }
-        return lines.length ? `${qualifiedName}\n${lines.join('\n')}` : qualifiedName;
+        return lines.length ? `${qualifiedName}\n${FootprintManager.SCHEMA_SEPARATOR}\n${lines.join('\n')}` : qualifiedName;
     }
 
     static _esc(s) {
@@ -497,6 +886,8 @@ class FootprintManager {
             { selector: 'node[kind = "trigger"]', style: { ...node('#c77d0a'), 'border-width': 2, 'border-style': 'dashed', 'border-color': '#e8a33d' } },
             { selector: 'node[kind = "possible"]', style: { ...node('#4a5160'), 'background-opacity': 0.55, 'border-width': 2, 'border-style': 'dashed', 'border-color': '#8892a0', 'color': '#cfd6de' } },
             { selector: 'node[?conditional]', style: { 'border-width': 2, 'border-style': 'dotted', 'border-color': '#fff' } },
+            // Box-select feedback (the zoom toolbar's Fit button zooms to this).
+            { selector: 'node:selected', style: { 'overlay-color': '#ffffff', 'overlay-opacity': 0.18, 'overlay-padding': 6 } },
             { selector: 'edge', style: { 'curve-style': 'bezier', 'width': 1.5, 'target-arrow-shape': 'triangle', 'arrow-scale': 0.9 } },
             { selector: 'edge[edge = "fk"]', style: { 'line-color': '#8892a0', 'target-arrow-color': '#8892a0' } },
             { selector: 'edge[edge = "access-write"]', style: { 'line-color': '#c0392b', 'target-arrow-color': '#c0392b', 'width': 2 } },
@@ -520,6 +911,7 @@ class FootprintManager {
         return [
             { selector: 'node[kind = "direct"]', style: { ...node('#0e639c'), 'border-width': 2, 'border-color': '#3794ff' } },
             { selector: 'node[kind = "via-code"]', style: { ...node('#7d3c98'), 'border-width': 2, 'border-style': 'dashed', 'border-color': '#c39bd3' } },
+            { selector: 'node:selected', style: { 'overlay-color': '#ffffff', 'overlay-opacity': 0.18, 'overlay-padding': 6 } },
             { selector: 'edge', style: {
                 'curve-style': 'bezier', 'width': 1.8, 'line-color': '#4a9eda', 'target-arrow-color': '#4a9eda',
                 'target-arrow-shape': 'triangle', 'arrow-scale': 0.9,
@@ -536,21 +928,37 @@ class FootprintManager {
     }
 
     static _schemaStyle() {
+        const node = (bg, borderColor) => ({
+            'background-color': bg, 'border-color': borderColor, 'border-width': 2,
+            'label': 'data(label)', 'color': '#e0e6ee', 'font-size': 11, 'line-height': 1.5,
+            // Left-justified multi-line label → reads like an entity/table box
+            // (name on top, one key column per line) instead of a centred blob.
+            'text-valign': 'center', 'text-halign': 'center', 'text-justification': 'left',
+            'text-wrap': 'wrap', 'text-max-width': 260,
+            'width': 'label', 'height': 'label', 'padding': '10px', 'shape': 'round-rectangle'
+        });
         return [
-            { selector: 'node', style: {
-                'background-color': '#2d3340', 'border-color': '#4a5160', 'border-width': 1,
-                'label': 'data(label)', 'color': '#e0e6ee', 'font-size': 11,
-                // Left-justified multi-line label → reads like an entity/table box
-                // (name on top, one key column per line) instead of a centred blob.
-                'text-valign': 'center', 'text-halign': 'center', 'text-justification': 'left',
-                'text-wrap': 'wrap', 'text-max-width': 260,
-                'width': 'label', 'height': 'label', 'padding': '10px', 'shape': 'round-rectangle'
-            } },
+            // Seed: a table actually in the query/footprint. FK/usage neighbors
+            // (added by Expand) get their own colors so it stays obvious which
+            // is which - solid border for an FK-confirmed relationship, dashed
+            // for one only seen in how other code uses these tables together.
+            { selector: 'node[kind = "seed"]', style: node('#1f3a52', '#3794ff') },
+            { selector: 'node[kind = "fk"]', style: node('#2d3340', '#8892a0') },
+            { selector: 'node[kind = "usage"]', style: { ...node('#2d3340', '#c39bd3'), 'border-style': 'dashed' } },
+            // Added by hand (Add table), not found by Expand.
+            { selector: 'node[kind = "added"]', style: node('#2d3340', '#e8a33d') },
+            // Box-select feedback (the zoom toolbar's Fit button zooms to this).
+            { selector: 'node:selected', style: { 'overlay-color': '#ffffff', 'overlay-opacity': 0.18, 'overlay-padding': 6 } },
             { selector: 'edge', style: {
                 'curve-style': 'bezier', 'width': 1.5, 'line-color': '#8892a0',
                 'target-arrow-shape': 'triangle', 'target-arrow-color': '#8892a0', 'arrow-scale': 0.9,
                 'label': 'data(label)', 'font-size': 9, 'color': '#9aa4b2',
                 'text-background-color': '#1e1e1e', 'text-background-opacity': 0.7, 'text-background-padding': 2
+            } },
+            // A usage edge carries no FK name, just how many other objects
+            // touch both ends - shown as its label, e.g. "12".
+            { selector: 'edge[kind = "usage"]', style: {
+                'line-style': 'dashed', 'line-color': '#c39bd3', 'target-arrow-color': '#c39bd3', 'target-arrow-shape': 'none'
             } }
         ];
     }
@@ -558,6 +966,13 @@ class FootprintManager {
 
 // The widest a join condition gets on a line before it wraps.
 FootprintManager.JOIN_LABEL_MAX_WIDTH = 200;
+
+// Separates a schema node's table-name header from its PK/FK column list.
+FootprintManager.SCHEMA_SEPARATOR = '─'.repeat(18);
+
+// cy.fit()'s own zoom level, past which a node reads as oversized rather
+// than simply "fit to the pane" - see _fitCapped.
+FootprintManager.FIT_ZOOM_CAP = 1.4;
 
 // Allow unit tests to require() this file; in the webview `module` is undefined.
 if (typeof module !== 'undefined' && module.exports) {

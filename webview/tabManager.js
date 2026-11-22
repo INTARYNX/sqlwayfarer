@@ -52,6 +52,12 @@ class TabManager {
 
         this.updateToolbarActions(tabName);
 
+        // The write-footprint / query-graph modal lives inside whichever tab
+        // opened it and is hidden/shown by that tab's own display:none, same
+        // as its other content - this only fixes up its graphs once shown
+        // again (their container had zero size while hidden).
+        if (window.footprintManager) window.footprintManager.onAppTabChanged(tabName);
+
         // Specific actions when changing tabs
         if (tabName === 'explorer') {
             this.onExplorerTabActivated();

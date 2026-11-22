@@ -2690,6 +2690,7 @@ th.rs-sortable.sorted {
 
 /* Write footprint: large dialog laid out as a column so the graph fills it. */
 .modal-dialog.modal-dialog-footprint {
+    box-sizing: border-box;
     width: 92vw;
     max-width: 1200px;
     height: 88vh;
@@ -2697,6 +2698,46 @@ th.rs-sortable.sorted {
     display: flex;
     flex-direction: column;
 }
+
+/* Maximize toggle (the default on open): the overlay itself (backdrop +
+   dialog) is narrowed to start below the app's own tab bar (--fp-top-offset,
+   set from FootprintManager._setMaximized) instead of covering/graying it -
+   the dialog then just fills that already-correct box. cy.resize()+fit()
+   still has to run after this (a CSS size change alone doesn't tell an
+   already-created cytoscape instance its container got bigger). */
+.modal-overlay.footprint-modal-overlay.fp-maximized {
+    top: var(--fp-top-offset, 0px);
+    height: calc(100vh - var(--fp-top-offset, 0px));
+}
+
+.modal-dialog.modal-dialog-footprint.fp-maximized {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+}
+
+.modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.modal-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    padding: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+}
+.modal-icon-btn:hover { background: var(--vscode-list-hoverBackground); }
 
 .footprint-tabs {
     display: flex;
@@ -2729,7 +2770,37 @@ th.rs-sortable.sorted {
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    /* Anchors .graph-zoom-controls, an overlay on top of the graph rather
+       than a child of it - cytoscape owns its container's children itself. */
+    position: relative;
 }
+
+/* Floating over the bottom-right corner of whichever pane it sits in. */
+.graph-zoom-controls {
+    position: absolute;
+    right: 20px;
+    bottom: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 2;
+}
+
+.graph-zoom-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vscode-foreground);
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    opacity: 0.85;
+}
+.graph-zoom-btn:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
 
 .footprint-graph {
     flex: 1;
@@ -2814,6 +2885,43 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-chip.fp-trigger { background: #a85f00; border: 1px dashed #e8a33d; }
 .fp-chip.fp-possible { background: #4a5160; border: 1px dashed #8892a0; color: #cfd6de; }
 .fp-chip.fp-via-code  { background: #7d3c98; border: 1px dashed #c39bd3; }
+.fp-chip.fp-schema-seed  { background: #1f3a52; border: 1px solid #3794ff; }
+.fp-chip.fp-schema-fk    { background: #2d3340; border: 1px solid #8892a0; }
+.fp-chip.fp-schema-usage { background: #2d3340; border: 1px dashed #c39bd3; color: #cfd6de; }
+.fp-chip.fp-schema-added { background: #2d3340; border: 1px solid #e8a33d; color: #ffd866; }
+
+/* The "Add table" popover reuses .script-menu, with a search box on top. */
+.script-menu-search {
+    box-sizing: border-box;
+    width: calc(100% - 16px);
+    margin: 2px 8px 6px;
+    padding: 4px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    font-size: 12px;
+}
+.script-menu-empty {
+    padding: 6px 14px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.fp-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 0 auto;
+    width: auto;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: var(--vscode-button-secondaryForeground);
+    background: var(--vscode-button-secondaryBackground);
+    border: none;
+    white-space: nowrap;
+}
+.fp-expand-btn:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
 
 .fp-legend-sep {
     opacity: 0.55;

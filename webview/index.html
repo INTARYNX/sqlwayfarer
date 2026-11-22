@@ -613,7 +613,10 @@
         <div class="modal-dialog modal-dialog-footprint">
             <div class="modal-header">
                 <h3 id="writeFootprintTitle">Table footprint</h3>
-                <button id="writeFootprintCloseBtn" class="modal-close">×</button>
+                <div class="modal-header-actions">
+                    <button id="footprintMaximizeBtn" class="modal-icon-btn" title="Maximize"><i class="codicon codicon-screen-full"></i></button>
+                    <button id="writeFootprintCloseBtn" class="modal-close">×</button>
+                </div>
             </div>
             <div class="footprint-tabs">
                 <button class="fp-tab active" data-fptab="graph">Graph</button>
@@ -651,12 +654,42 @@
                     <span class="fp-legend-edge"><i class="fp-line fp-line-join-unconfident"></i> inferred join</span>
                 </div>
                 <div id="writeFootprintGraph" class="footprint-graph"></div>
+                <div class="graph-zoom-controls" data-for="graph">
+                    <button class="graph-zoom-btn" data-zoom-action="in" title="Zoom in"><i class="codicon codicon-zoom-in"></i></button>
+                    <button class="graph-zoom-btn" data-zoom-action="out" title="Zoom out"><i class="codicon codicon-zoom-out"></i></button>
+                    <button class="graph-zoom-btn" data-zoom-action="fit" title="Fit all (or the selection, if any)"><i class="codicon codicon-expand-all"></i></button>
+                </div>
                 <div id="writeFootprintMeta" class="footprint-meta"></div>
             </div>
 
-            <!-- Schema tab: pure relational ER of the footprint tables (PK/FK) -->
+            <!-- Schema tab: pure relational ER of the footprint tables (PK/FK), with
+                 an opt-in Expand to pull in tables linked by FK, or commonly used
+                 alongside these by other procedures/views (mined from the index). -->
             <div class="fp-panel" data-fppanel="schema">
+                <div class="footprint-legend" id="schemaLegend">
+                    <span class="fp-legend-sep">Tables</span>
+                    <span class="fp-chip fp-schema-seed">In your query</span>
+                    <span class="fp-chip fp-schema-fk">FK neighbor</span>
+                    <span class="fp-chip fp-schema-usage">Used together</span>
+                    <span class="fp-chip fp-schema-added">Added manually</span>
+                    <button id="footprintExpandBtn" class="fp-expand-btn"
+                        title="Show tables linked by a foreign key, or commonly used alongside these by other procedures/views">
+                        <i class="codicon codicon-type-hierarchy"></i> Expand related tables
+                    </button>
+                    <button id="footprintAddTableBtn" class="fp-expand-btn" title="Add any table of this database to the view">
+                        <i class="codicon codicon-add"></i> Add table
+                    </button>
+                    <label class="fp-toggle" title="List every column of each table instead of only its keys">
+                        <input type="checkbox" id="footprintSchemaAllColumns"> All columns
+                    </label>
+                </div>
                 <div id="footprintSchemaGraph" class="footprint-graph"></div>
+                <div class="graph-zoom-controls" data-for="schema">
+                    <button class="graph-zoom-btn" data-zoom-action="in" title="Zoom in"><i class="codicon codicon-zoom-in"></i></button>
+                    <button class="graph-zoom-btn" data-zoom-action="out" title="Zoom out"><i class="codicon codicon-zoom-out"></i></button>
+                    <button class="graph-zoom-btn" data-zoom-action="fit" title="Fit all (or the selection, if any)"><i class="codicon codicon-expand-all"></i></button>
+                </div>
+                <div id="footprintSchemaMeta" class="footprint-meta"></div>
             </div>
 
             <!-- Tables tab: lean per-table documentation (columns, PK/FK, descriptions) -->
