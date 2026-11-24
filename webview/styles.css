@@ -2810,6 +2810,13 @@ th.rs-sortable.sorted {
     border-radius: 4px;
     margin: 8px 12px;
 }
+/* The Schema tab waits for ELK to place the tables: until then the pane stays
+   empty rather than showing the tables piled up at the same spot. Opacity,
+   not visibility: a hidden pane would keep Cytoscape from measuring the
+   labels of the tables (they would have no size, and would not even be
+   clickable), and the pane has to keep its size for the graph to be fitted
+   into it. */
+.footprint-graph.fp-layout-pending { opacity: 0; }
 
 .footprint-doc {
     flex: 1;

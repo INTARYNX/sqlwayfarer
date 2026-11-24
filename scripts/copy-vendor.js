@@ -3,11 +3,12 @@
 
 // === The libraries the webview loads as they are ===
 //
-// Viz.js (the Graphviz engine behind the dependency graph) and html-query-plan
-// (the execution plans) are plain scripts the page loads with a <script> tag:
-// they are not bundled. They come from node_modules - their version is the one
-// of package.json - and are copied next to the other scripts of the page, in
-// dist/webview/vendor/, at the end of the build.
+// Viz.js (the Graphviz engine behind the dependency graph), html-query-plan
+// (the execution plans) and elk.bundled.js (the ELK engine that places the
+// tables of the Schema tab) are plain scripts the page loads with a <script>
+// tag: they are not bundled. They come from node_modules - their version is
+// the one of package.json - and are copied next to the other scripts of the
+// page, in dist/webview/vendor/, at the end of the build.
 
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +19,7 @@ const root = path.join(__dirname, '..');
 const FILES = [
     ['viz.js/viz.js', 'viz.js'],
     ['viz.js/full.render.js', 'viz.full.render.js'],
+    ['elkjs/lib/elk.bundled.js', 'elk.bundled.js'],
     ['html-query-plan/dist/qp.min.js', 'html-query-plan/qp.min.js'],
     ['html-query-plan/css/qp.css', 'html-query-plan/qp.css'],
     ['html-query-plan/css/qp_icons.png', 'html-query-plan/qp_icons.png']

@@ -49,6 +49,14 @@ async function nodeScreenPos(p, id) {
 	}, id);
 }
 
+// The tables of the Schema tab are placed by ELK, asynchronously: the graph
+// has to be laid out before its zoom level and its node positions mean
+// anything. The pane stays pending until the layout is applied.
+const waitForLayout = (p) => p.waitForFunction(
+	() => !document.getElementById('footprintSchemaGraph').classList.contains('fp-layout-pending'),
+	null, { timeout: 60000 }
+);
+
 suite('e2e: Schema tab graph controls (zoom, context menu, add table, fullscreen)', function () {
 	this.timeout(120000);
 	let browser;
@@ -68,6 +76,7 @@ suite('e2e: Schema tab graph controls (zoom, context menu, add table, fullscreen
 		await post(p, QUERY_GRAPH);
 		await p.click('.fp-tab[data-fptab="schema"]');
 		await post(p, DOC_SEEDS);
+		await waitForLayout(p);
 
 		// --- Zoom in / out / fit ---
 		const zoomOf = () => p.evaluate(() => window.footprintManager._schemaCy.zoom());
@@ -104,6 +113,7 @@ suite('e2e: Schema tab graph controls (zoom, context menu, add table, fullscreen
 			'getRelationshipsAmong is asked for the whole set now shown: ' + JSON.stringify(relReq && relReq.tableNames));
 		await post(p, REL_AMONG);
 		await post(p, DOC_SUPPLIERS);
+		await waitForLayout(p);
 
 		const kinds = await p.evaluate(() => {
 			const cy = window.footprintManager._schemaCy;

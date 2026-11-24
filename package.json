@@ -298,6 +298,7 @@
     "codemirror": "^6.0.2",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
+    "elkjs": "0.12.1",
     "eslint": "^9.25.1",
     "html-query-plan": "2.6.1",
     "playwright": "^1.63.0",

@@ -69,6 +69,7 @@ export default [{
             DataCompareManager: "readonly",
             LineDiff: "readonly",
             FootprintManager: "readonly",
+            SchemaLayout: "readonly",
             IndexStatsView: "readonly",
             TempTableScript: "readonly",
             QueryPlanAnalyzer: "readonly",

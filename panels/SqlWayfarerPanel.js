@@ -682,6 +682,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{RECENT_CHANGES_URI}}',       u('webview', 'recentChanges.js'));
         html = html.replace('{{DATA_COMPARE_MANAGER_URI}}',  u('webview', 'dataCompareManager.js'));
         html = html.replace('{{FOOTPRINT_MANAGER_URI}}',    u('webview', 'footprintManager.js'));
+        html = html.replace('{{SCHEMA_LAYOUT_URI}}',        u('webview', 'schemaLayout.js'));
         html = html.replace('{{INDEX_STATS_VIEW_URI}}',     u('webview', 'indexStatsView.js'));
         html = html.replace('{{SCHEMA_SOURCE_MANAGER_URI}}', u('webview', 'schemaSourceManager.js'));
         html = html.replace('{{EXPLORER_OBJECT_LIST_URI}}', u('webview', 'explorerObjectList.js'));
@@ -695,6 +696,7 @@ class SqlWayfarerPanel {
         html = html.replace('{{FILTER_MANAGER_URI}}', u('webview', 'filterManager.js'));
         html = html.replace('{{VIZ_URI}}',                   u('dist', 'webview', 'vendor', 'viz.js'));
         html = html.replace('{{VIZ_RENDER_URI}}',            u('dist', 'webview', 'vendor', 'viz.full.render.js'));
+        html = html.replace('{{ELK_URI}}',                   u('dist', 'webview', 'vendor', 'elk.bundled.js'));
         html = html.replace('{{GRAPH_LIBS_URI}}',           u('dist', 'webview', 'graphLibs.js'));
         html = html.replace('{{QUERY_PLAN_URI}}',           u('dist', 'webview', 'vendor', 'html-query-plan', 'qp.min.js'));
         html = html.replace('{{MAIN_SCRIPT_URI}}',          u('webview', 'main.js'));

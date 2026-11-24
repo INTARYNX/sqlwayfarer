@@ -24,6 +24,9 @@ class FootprintManager {
 
         this._cy = null;
         this._schemaCy = null;
+        // Which layout placed the tables of the Schema tab: 'elk', or 'dagre'
+        // when the ELK engine could not be loaded.
+        this._schemaLayoutEngine = null;
         this._registered = false;
         this._showReads = true;
         this._activeTab = 'graph';
@@ -320,6 +323,7 @@ class FootprintManager {
     _destroyGraphs() {
         if (this._cy) { this._cy.destroy(); this._cy = null; }
         if (this._schemaCy) { this._schemaCy.destroy(); this._schemaCy = null; }
+        this._setSchemaPending(false);
     }
 
     switchTab(name, silent) {
@@ -573,6 +577,10 @@ class FootprintManager {
 
     _renderSchema() {
         if (!this._ensureRegistered() || !this._fp) return;
+        // The graph of the previous render is destroyed before its container is
+        // emptied, not after: the canvas of a live instance has to be removed
+        // by the instance itself.
+        if (this._schemaCy) { this._schemaCy.destroy(); this._schemaCy = null; }
         this.schemaEl.innerHTML = '';
         const elements = [];
         const seedNames = new Set(this._fp.tables.map(t => t.qualifiedName.toLowerCase()));
@@ -626,15 +634,80 @@ class FootprintManager {
             } });
         }
 
-        this._schemaCy = window.cytoscape({
+        // The tables are placed by ELK, not by a layout of Cytoscape (see
+        // _layoutSchema): the preset layout only keeps them together until
+        // the real positions come. It must not fit the viewport either: the
+        // tables are still piled up at that point, and fitting them would
+        // zoom the pane to its maximum.
+        this._setSchemaPending(true);
+        this._schemaLayoutEngine = null;
+        const cy = window.cytoscape({
             container: this.schemaEl, elements, wheelSensitivity: 1, minZoom: 0.2, maxZoom: 3,
             boxSelectionEnabled: true,
             style: FootprintManager._schemaStyle(),
-            layout: { name: 'dagre', rankDir: 'LR', nodeSep: 35, rankSep: 80, animate: false }
+            layout: { name: 'preset', fit: false }
         });
-        this._schemaCy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('qname')));
-        this._schemaCy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(this._schemaCy, evt, { removable: evt.target.data('kind') !== 'seed' }));
-        this._fitCapped(this._schemaCy, undefined, 30);
+        this._schemaCy = cy;
+        cy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('qname')));
+        cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(cy, evt, { removable: evt.target.data('kind') !== 'seed' }));
+        this._layoutSchema(cy);
+    }
+
+    // Places the tables with ELK: the sizes are the ones Cytoscape gave them
+    // (the labels decide them), the positions go back into Cytoscape. The
+    // layout is asynchronous - the pane can be redrawn or closed while it
+    // runs, hence the check that this graph is still the one on screen.
+    async _layoutSchema(cy) {
+        const elk = await FootprintManager._elkEngine();
+        if (this._schemaCy !== cy) return;
+        // The size of a table is only known once it has been drawn: its
+        // label is measured while it is drawn. A table measured at zero
+        // would be laid out on top of the others.
+        await FootprintManager._waitForSizes(cy, () => this._schemaCy === cy);
+        if (this._schemaCy !== cy) return;
+        // A table whose size was still zero when the graph was created leaves
+        // a stale style cache behind: Cytoscape keeps it out of the hit
+        // test, and the table would not even be clickable. Both caches are
+        // dropped here, and the renderer rebuilds them at the next frame.
+        FootprintManager._refreshHitTest(cy);
+        await FootprintManager._nextFrame();
+        if (this._schemaCy !== cy) return;
+        if (elk) {
+            const nodes = [];
+            cy.nodes().forEach(n => nodes.push({ id: n.id(), width: n.outerWidth(), height: n.outerHeight() }));
+            const edges = [];
+            // Only the foreign keys shape the layout: a usage edge (two
+            // tables seen together in other code) says nothing about the
+            // hierarchy of the schema.
+            cy.edges('[kind = "fk"]').forEach(e => edges.push({ id: e.id(), source: e.source().id(), target: e.target().id() }));
+            let layout = null;
+            try {
+                layout = await elk.layout(SchemaLayout.buildGraph(nodes, edges));
+            } catch (err) {
+                console.error('The ELK layout failed:', err);
+            }
+            if (this._schemaCy !== cy) return;
+            if (layout) {
+                SchemaLayout.apply(cy, layout);
+                this._schemaLayoutEngine = 'elk';
+                this._setSchemaPending(false);
+                this._fitCapped(cy, undefined, 30);
+                return;
+            }
+        }
+        // No ELK (the engine could not be loaded, or it failed): the dagre
+        // layout the Schema tab used before still draws the tables.
+        cy.layout({ name: 'dagre', rankDir: 'LR', nodeSep: 35, rankSep: 80, animate: false }).run();
+        this._schemaLayoutEngine = 'dagre';
+        this._setSchemaPending(false);
+        this._fitCapped(cy, undefined, 30);
+    }
+
+    // While ELK places the tables, the pane stays empty: the tables piled up
+    // where the preset layout leaves them look worse than a pane that is
+    // briefly blank.
+    _setSchemaPending(pending) {
+        this.schemaEl.classList.toggle('fp-layout-pending', pending);
     }
 
     // === Tables tab (HTML doc) ===
@@ -865,6 +938,67 @@ class FootprintManager {
         return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     }
 
+    // The ELK engine (1.6 MB) is loaded the first time a schema is laid out,
+    // not with the page - the way Viz.js is loaded for the dependency graph.
+    static _loadElk() {
+        if (FootprintManager._elkLoading) return FootprintManager._elkLoading;
+        const uri = (document.querySelector('meta[name="elk-script"]') || {}).content;
+        if (!uri) return Promise.resolve(null);
+        FootprintManager._elkLoading = new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = uri;
+            script.onload = () => resolve(window.ELK || null);
+            // A failure is not final: the file may be missing from an older
+            // build, and the next schema asks again - so the failed tag is
+            // removed instead of being left behind in <head> on every retry.
+            script.onerror = () => { script.remove(); FootprintManager._elkLoading = null; resolve(null); };
+            document.head.appendChild(script);
+        });
+        return FootprintManager._elkLoading;
+    }
+
+    // The ELK engine itself, once: null when the script could not be loaded
+    // (the Schema tab then falls back on the dagre layout).
+    static async _elkEngine() {
+        if (FootprintManager._elk) return FootprintManager._elk;
+        const Engine = await FootprintManager._loadElk();
+        if (!Engine) return null;
+        FootprintManager._elk = new Engine();
+        return FootprintManager._elk;
+    }
+
+    // The next frame of the page: Cytoscape draws its graph in one, and
+    // measures the labels of the tables in it.
+    static _nextFrame() {
+        return new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+
+    // Waits for the tables to have a size: their label is measured while
+    // they are drawn, and a table measured at zero would be laid out on top
+    // of the others. isCurrent lets the wait give up as soon as this graph
+    // is no longer the one on screen, instead of polling a destroyed cy for
+    // the rest of the 10 frames.
+    static async _waitForSizes(cy, isCurrent) {
+        for (let i = 0; i < 10; i++) {
+            await FootprintManager._nextFrame();
+            if (!isCurrent()) return false;
+            if (cy.nodes().every(n => n.outerWidth() > 0 && n.outerHeight() > 0)) return true;
+        }
+        return false;
+    }
+
+    // Drops the caches Cytoscape keeps on the style of the tables: one whose
+    // size was still zero when the graph was created is left out of the hit
+    // test, and would not even be clickable. The renderer rebuilds them at
+    // the next frame.
+    static _refreshHitTest(cy) {
+        cy.nodes().dirtyStyleCache();
+        const renderer = cy.renderer();
+        if (renderer && typeof renderer.invalidateCachedZSortedEles === 'function') {
+            renderer.invalidateCachedZSortedEles();
+        }
+    }
+
     // 'dbo.trg_Inventory_LowStock' -> 'trg_Inventory_LowStock', for a trigger-cascade
     // edge label that doesn't repeat the schema already shown on both endpoints.
     static _shortName(qualifiedName) {
@@ -969,6 +1103,11 @@ FootprintManager.JOIN_LABEL_MAX_WIDTH = 200;
 
 // Separates a schema node's table-name header from its PK/FK column list.
 FootprintManager.SCHEMA_SEPARATOR = '─'.repeat(18);
+
+// The ELK engine that places the tables of the Schema tab, and the load of
+// its script (once per page) - see _loadElk.
+FootprintManager._elk = null;
+FootprintManager._elkLoading = null;
 
 // cy.fit()'s own zoom level, past which a node reads as oversized rather
 // than simply "fit to the pane" - see _fitCapped.

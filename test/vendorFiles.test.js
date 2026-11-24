@@ -24,7 +24,7 @@ suite('vendor files', () => {
 
 	test('the libraries are declared in package.json, with an exact version', () => {
 		const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-		for (const name of ['viz.js', 'html-query-plan']) {
+		for (const name of ['viz.js', 'html-query-plan', 'elkjs']) {
 			assert.ok(/^\d+\.\d+\.\d+$/.test(pkg.devDependencies[name] || ''), `${name} has an exact version`);
 		}
 	});

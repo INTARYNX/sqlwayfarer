@@ -116,6 +116,7 @@ jobs:
             dist/webview/graphLibs.js \
             dist/webview/vendor/viz.js \
             dist/webview/vendor/viz.full.render.js \
+            dist/webview/vendor/elk.bundled.js \
             dist/webview/vendor/html-query-plan/qp.min.js \
             dist/webview/vendor/html-query-plan/qp.css \
             webview/index.html \

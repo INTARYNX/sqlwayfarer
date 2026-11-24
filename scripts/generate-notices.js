@@ -29,7 +29,8 @@ const EXTENSION_ROOTS = ['antlr4', 'mssql', 'piscina', 'yazl'];
 const PAGE_ROOTS = [
     '@codemirror/autocomplete', '@codemirror/commands', '@codemirror/lang-sql', '@codemirror/language',
     '@codemirror/lint', '@codemirror/search', '@codemirror/state', '@codemirror/view', '@lezer/highlight',
-    'sql-formatter', 'cytoscape', 'cytoscape-dagre', 'viz.js', 'html-query-plan', '@vscode/codicons'
+    'sql-formatter', 'cytoscape', 'cytoscape-dagre', 'viz.js', 'html-query-plan', '@vscode/codicons',
+    'elkjs'
 ];
 // Their own code is in the bundles (a few helper functions of the runtime), their dependencies are not.
 const ALONE = ['webpack'];

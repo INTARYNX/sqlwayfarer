@@ -719,9 +719,11 @@
     </div>
 
     <!-- Local, no CDN: the interactive footprint graph (built from npm). Viz.js (the dependency
-         graph, 2 MB with Graphviz) is not loaded here: main.js loads it the first time a graph is drawn. -->
+         graph, 2 MB with Graphviz) is not loaded here: main.js loads it the first time a graph is drawn.
+         ELK (1.6 MB), which places the tables of the Schema tab, is loaded the same way. -->
     <meta name="viz-script" content="{{VIZ_URI}}">
     <meta name="viz-render-script" content="{{VIZ_RENDER_URI}}">
+    <meta name="elk-script" content="{{ELK_URI}}">
     <script src="{{GRAPH_LIBS_URI}}"></script>
     <script src="{{QUERY_PLAN_URI}}"></script>
     <script src="{{APP_STATE_URI}}"></script>
@@ -750,6 +752,7 @@
     <script src="{{RECENT_CHANGES_URI}}"></script>
     <script src="{{DATA_COMPARE_MANAGER_URI}}"></script>
     <script src="{{FOOTPRINT_MANAGER_URI}}"></script>
+    <script src="{{SCHEMA_LAYOUT_URI}}"></script>
     <script src="{{INDEX_STATS_VIEW_URI}}"></script>
     <script src="{{SCHEMA_SOURCE_MANAGER_URI}}"></script>
     <script src="{{EXPLORER_OBJECT_LIST_URI}}"></script>
