@@ -4,6 +4,12 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.18] - 2026-11-24
+
+### Changed
+
+- **Schema tab: tables are now laid out by ELK's layered algorithm** instead of dagre - placed in layers along the foreign keys, from child to parent, with the cycles a relational schema is full of (self-references, mutual FKs) broken before the layers are computed. Fewer crossing lines on schemas with those. Falls back to the previous dagre layout if the engine can't be loaded.
+
 ## [0.99.17] - 2026-11-22
 
 ### Added
