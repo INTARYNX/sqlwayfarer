@@ -44,16 +44,20 @@ class FootprintHandlers {
     }
 
     // The Schema tab's "Expand" action: tables linked to the given set by an
-    // FK, or commonly used alongside it by other procedures/views (mined from
-    // the cached index) - never fetched until asked for.
-    async handleGetRelatedTables(database, tableNames) {
+    // FK (chased up to `depth` hops - real adjacency), plus tables commonly
+    // used alongside it by other procedures/views (mined from the cached
+    // index, found once, never chased hop by hop) - never fetched until
+    // asked for. Used both by the panel's own Expand (depth from the panel)
+    // and by a single table's "Add adjacent tables" context-menu action
+    // (depth 1).
+    async handleGetRelatedTables(database, tableNames, depth) {
         const db = database || this._getCurrentDatabase();
         if (!db) {
             this._post({ command: 'relatedTablesResult', success: false, message: 'No database selected.' });
             return;
         }
         try {
-            const related = await this._relatedTablesService.relatedTables(db, tableNames || []);
+            const related = await this._relatedTablesService.relatedTables(db, tableNames || [], depth);
             this._post({ command: 'relatedTablesResult', success: true, related });
         } catch (error) {
             console.error('Related tables failed:', error);

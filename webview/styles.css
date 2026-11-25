@@ -2770,10 +2770,124 @@ th.rs-sortable.sorted {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    /* Anchors .graph-zoom-controls, an overlay on top of the graph rather
-       than a child of it - cytoscape owns its container's children itself. */
+    /* Anchors .graph-zoom-controls directly for the Graph/Tables tabs; the
+       Schema tab nests its own graph column in .fp-schema-main instead (its
+       zoom controls anchor to that, the closer positioned ancestor). */
     position: relative;
 }
+
+/* Schema tab only: the tables panel sits to the left of the graph column. */
+.fp-schema-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.fp-schema-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.fp-tables-panel {
+    width: 220px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--vscode-input-border);
+    margin: 8px 0 8px 12px;
+}
+
+.fp-tables-panel-head {
+    flex: none;
+    padding-right: 10px;
+}
+
+.fp-tables-panel-head .script-menu-search {
+    width: 100%;
+    margin: 0 0 6px;
+    box-sizing: border-box;
+}
+
+.fp-depth-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+.fp-depth-row label { opacity: 0.75; }
+.fp-depth-row input[type="number"] {
+    width: 36px;
+    padding: 2px 4px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    font-size: 12px;
+}
+.fp-depth-row .fp-expand-btn { margin: 0 0 0 auto; }
+
+.fp-tables-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.fp-tables-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 3px 4px 3px 8px;
+    margin: 0;
+    background: transparent;
+    border-radius: 3px;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.fp-tables-row span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fp-tables-row:hover { background: var(--vscode-list-hoverBackground); }
+.fp-tables-row:focus-visible {
+    outline: none;
+    background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+}
+.fp-tables-row.fp-tables-row-shown { opacity: 0.85; }
+.fp-tables-row .codicon-add { color: var(--vscode-gitDecoration-addedResourceForeground, #3794ff); }
+.fp-tables-row .codicon-target { color: var(--vscode-focusBorder, #3794ff); }
+.fp-tables-row .codicon-pinned { opacity: 0.6; }
+
+/* The ✕ that removes a shown (non-seed) table - a separate click target from
+   the row itself, which jumps to the table instead of removing it. */
+.fp-tables-row-remove {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--vscode-foreground);
+    opacity: 0.6;
+}
+.fp-tables-row-remove:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1)); }
 
 /* Floating over the bottom-right corner of whichever pane it sits in. */
 .graph-zoom-controls {
@@ -2845,16 +2959,28 @@ th.rs-sortable.sorted {
     opacity: 0.85;
     font-size: 12px;
 }
+/* table-layout: fixed + explicit column widths (below) so every table card's
+   columns line up at the same width, whatever that table's own column names,
+   types or defaults happen to be - a table-layout: auto table sizes its
+   columns from its own content alone, so two cards next to each other would
+   otherwise never agree on where "Type" or "Description" start. */
 table.fp-cols {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12px;
 }
+table.fp-cols col.fp-col-name    { width: 22%; }
+table.fp-cols col.fp-col-type    { width: 14%; }
+table.fp-cols col.fp-col-null    { width: 8%; }
+table.fp-cols col.fp-col-default { width: 16%; }
+table.fp-cols col.fp-col-desc    { width: 40%; }
 table.fp-cols th, table.fp-cols td {
     text-align: left;
     padding: 4px 10px;
     border-top: 1px solid var(--vscode-input-border);
     vertical-align: top;
+    overflow-wrap: break-word;
 }
 table.fp-cols th { opacity: 0.7; font-weight: 600; }
 table.fp-cols .fp-center { text-align: center; }
@@ -2897,7 +3023,8 @@ table.fp-cols .fp-center { text-align: center; }
 .fp-chip.fp-schema-usage { background: #2d3340; border: 1px dashed #c39bd3; color: #cfd6de; }
 .fp-chip.fp-schema-added { background: #2d3340; border: 1px solid #e8a33d; color: #ffd866; }
 
-/* The "Add table" popover reuses .script-menu, with a search box on top. */
+/* Shared with the right-click context menu (.script-menu); the tables panel's
+   own search box (#footprintTablesSearch) reuses this input style too. */
 .script-menu-search {
     box-sizing: border-box;
     width: calc(100% - 16px);

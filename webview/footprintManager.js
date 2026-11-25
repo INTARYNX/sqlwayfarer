@@ -15,7 +15,9 @@ class FootprintManager {
         this.schemaEl = document.getElementById('footprintSchemaGraph');
         this.schemaMetaEl = document.getElementById('footprintSchemaMeta');
         this.expandBtn = document.getElementById('footprintExpandBtn');
-        this.addTableBtn = document.getElementById('footprintAddTableBtn');
+        this.expandDepthInput = document.getElementById('footprintExpandDepth');
+        this.tablesSearchInput = document.getElementById('footprintTablesSearch');
+        this.tablesListEl = document.getElementById('footprintTablesList');
         this.maximizeBtn = document.getElementById('footprintMaximizeBtn');
         this.docEl = document.getElementById('footprintTablesDoc');
         this.legendEl = document.getElementById('footprintLegend');
@@ -34,16 +36,19 @@ class FootprintManager {
         this._doc = null;
         this._docByName = {};
         this._docRequested = false;
-        // The Schema tab's Expand: null until asked for, then the ranked list
-        // RelatedTablesService returned (FK neighbors and/or usage neighbors).
-        this._related = null;
+        // Tables Expand (global or per-table "+1 level") has brought in so
+        // far - accumulates across calls, never replaced wholesale (see
+        // _mergeRelated), so an earlier find survives a later Expand.
+        this._related = [];
         this._expandRequested = false;
-        // Tables the user picked by hand through "Add table" (Schema tab only),
-        // and the FK edges among the whole set once that happened (see
-        // relationshipsAmong - recomputed fresh, so it also catches an FK to
-        // a table Expand had already brought in).
+        // Tables the user picked by hand through the tables panel.
         this._manual = [];
-        this._manualRelationships = [];
+        // The authoritative FK graph among the whole set currently shown
+        // (seed + related + manual) - null until the first Expand/Add/
+        // per-table expand asks for it; _fp.relationships (seed-only, already
+        // correct and free of a round trip) is used until then. See
+        // _refreshRelationships / onRelationshipsAmongResult / _renderSchema.
+        this._relationships = null;
         // Schema tab node labels: keys only (default, compact) or every column.
         this._schemaAllColumns = false;
         // True from open()/openQueryGraph() to close(). The overlay itself
@@ -66,7 +71,7 @@ class FootprintManager {
         });
 
         if (this.expandBtn) this.expandBtn.addEventListener('click', () => this._expandRelated());
-        if (this.addTableBtn) this.addTableBtn.addEventListener('click', () => this._openAddTablePopover());
+        if (this.tablesSearchInput) this.tablesSearchInput.addEventListener('input', () => this._renderTablesPanel());
         if (this.maximizeBtn) this.maximizeBtn.addEventListener('click', () => this._toggleMaximize());
 
         this.overlay.querySelectorAll('.fp-tab').forEach(btn => {
@@ -392,7 +397,10 @@ class FootprintManager {
             style: FootprintManager._graphStyle(),
             layout: { name: 'dagre', rankDir: 'LR', nodeSep: 30, rankSep: 70, animate: false }
         });
-        this._cy.on('tap', 'node[kind != "target"]', (evt) => this._revealTable(evt.target.data('label')));
+        // Reveal in Explorer is a context-menu action only (see
+        // _openGraphContextMenu) - a plain click never jumps away on its
+        // own; it just selects the node (native Cytoscape behavior), same
+        // as the Schema tab's own nodes.
         this._cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(this._cy, evt));
 
         this._applyReadsVisibility();
@@ -481,18 +489,26 @@ class FootprintManager {
 
     _showSchema() {
         if (!this._fp) return;
-        if (this._schemaCy) { this._schemaCy.resize(); this._fitCapped(this._schemaCy, undefined, 30); return; }
+        if (this._schemaCy) { this._schemaCy.resize(); this._fitCapped(this._schemaCy, undefined, 30); this._renderTablesPanel(); return; }
         if (this._doc) this._renderSchema();
         else { this._ensureDoc(); this.schemaEl.innerHTML = '<p class="fp-doc-msg">Loading…</p>'; }
     }
 
     _resetRelated() {
-        this._related = null;
+        this._related = [];
         this._expandRequested = false;
         this._manual = [];
-        this._manualRelationships = [];
+        this._relationships = null;
         if (this.schemaMetaEl) this.schemaMetaEl.textContent = '';
+        if (this.tablesSearchInput) this.tablesSearchInput.value = '';
+        if (this.expandDepthInput) this.expandDepthInput.value = '1';
         this._setExpandButtonState('idle');
+    }
+
+    // Reads the panel's depth input (1-5, default 1 on anything invalid).
+    _expandDepth() {
+        const n = this.expandDepthInput ? parseInt(this.expandDepthInput.value, 10) : 1;
+        return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 1;
     }
 
     _setExpandButtonState(state) {
@@ -501,19 +517,55 @@ class FootprintManager {
         this.expandBtn.innerHTML = state === 'loading'
             ? '<i class="codicon codicon-loading codicon-modifier-spin"></i> Expanding…'
             : state === 'done'
-                ? '<i class="codicon codicon-refresh"></i> Refresh related tables'
-                : '<i class="codicon codicon-type-hierarchy"></i> Expand related tables';
+                ? '<i class="codicon codicon-refresh"></i> Refresh'
+                : '<i class="codicon codicon-type-hierarchy"></i> Expand';
     }
 
-    // Asks for tables linked to the current set by an FK, or commonly used
-    // alongside it by other procedures/views/functions (RelatedTablesService,
-    // mined from the already-cached index) - only on request, never by default.
+    // Asks for tables linked to the query/footprint's own seed tables by a
+    // foreign key (chased up to the panel's depth setting) or commonly used
+    // alongside them - only on request, never by default. Always rooted at
+    // the fixed seed, not at whatever is currently shown: rooting it at the
+    // ever-growing shown set instead would make every click of this same
+    // button (even at the same depth) reach one hop further than the last,
+    // so "Refresh" would never actually settle - it would just keep adding
+    // tables forever.
     _expandRelated() {
         if (!this._fp || !this._fp.tables.length || this._expandRequested) return;
         this._expandRequested = true;
         this._setExpandButtonState('loading');
-        const tableNames = this._fp.tables.map(t => t.qualifiedName);
-        vscode.postMessage({ command: 'getRelatedTables', database: appState.currentDatabase, tableNames });
+        vscode.postMessage({
+            command: 'getRelatedTables', database: appState.currentDatabase,
+            tableNames: this._fp.tables.map(t => t.qualifiedName), depth: this._expandDepth()
+        });
+    }
+
+    // Context menu: "Add adjacent tables (+1 level)" on a single table,
+    // regardless of the panel's own depth setting.
+    _expandOneTable(qualifiedName) {
+        if (this._expandRequested) return;
+        this._expandRequested = true;
+        this._setExpandButtonState('loading');
+        vscode.postMessage({
+            command: 'getRelatedTables', database: appState.currentDatabase,
+            tableNames: [qualifiedName], depth: 1
+        });
+    }
+
+    // Adds only the genuinely new tables of `newOnes` to _related (never
+    // replaces it wholesale - an earlier Expand's finds must survive a later
+    // one, whatever triggered it). Returns what was actually added.
+    _mergeRelated(newOnes) {
+        const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
+        const shown = new Set(this._shownTableNames().map(clean));
+        const added = [];
+        for (const r of newOnes || []) {
+            const key = clean(r.qualifiedName);
+            if (shown.has(key)) continue;
+            shown.add(key);
+            this._related.push(r);
+            added.push(r);
+        }
+        return added;
     }
 
     onRelatedTablesResult(message) {
@@ -524,17 +576,28 @@ class FootprintManager {
             if (this.schemaMetaEl) this.schemaMetaEl.textContent = message.message || 'Could not look up related tables.';
             return;
         }
-        this._related = message.related || [];
+        const added = this._mergeRelated(message.related || []);
         if (this.schemaMetaEl) {
-            this.schemaMetaEl.textContent = this._related.length
-                ? `${this._related.length} related table${this._related.length === 1 ? '' : 's'} found.`
-                : 'No related tables found - no FK neighbor, and no shared usage in other procedures/views.';
+            this.schemaMetaEl.textContent = added.length
+                ? `${added.length} related table${added.length === 1 ? '' : 's'} added.`
+                : 'No new related tables found - no FK neighbor at this depth, and no shared usage in other procedures/views.';
         }
+        if (added.length === 0) return;
         // The doc of the newly found tables is fetched before re-rendering,
         // so their PK/FK columns show the first time they appear, not a
         // bare name that re-renders a moment later once the doc arrives.
-        this._fetchDoc(this._related.map(r => r.qualifiedName));
+        this._fetchDoc(added.map(r => r.qualifiedName));
+        this._refreshRelationships();
         this._renderSchema();
+    }
+
+    // The authoritative FK graph among the whole set now shown - asked for
+    // again on every change to that set (Expand, per-table expand, Add,
+    // Remove), so an FK between two neighbor tables (not just seed<->neighbor)
+    // is never missed. See _renderSchema for how this supersedes the anchor-
+    // based FK edges once it has been fetched at least once.
+    _refreshRelationships() {
+        vscode.postMessage({ command: 'getRelationshipsAmong', database: appState.currentDatabase, tableNames: this._shownTableNames() });
     }
 
     // Every table currently drawn in the Schema tab, whatever brought it
@@ -545,38 +608,45 @@ class FootprintManager {
         return [...seed, ...related, ...this._manual];
     }
 
-    // "Add table": any table of the database, not just one an FK or a shared
-    // usage already pointed at. Once added, every FK among the whole set now
-    // on screen is recomputed fresh (see relationshipsAmong) - an FK between
-    // the new table and *any* table already shown, not just a seed one.
+    // Picked by hand from the tables panel: any table of the database, not
+    // just one an FK already pointed at. Once added, every FK among the
+    // whole set now on screen is recomputed fresh (see
+    // relationshipsAmong) - an FK between the new table and *any* table
+    // already shown, not just a seed one.
     _addTable(qualifiedName) {
         const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
         const already = new Set(this._shownTableNames().map(clean));
         if (already.has(clean(qualifiedName))) return;
         this._manual.push(qualifiedName);
         this._fetchDoc([qualifiedName]);
-        vscode.postMessage({ command: 'getRelationshipsAmong', database: appState.currentDatabase, tableNames: this._shownTableNames() });
+        this._refreshRelationships();
         this._renderSchema();
     }
 
     // "Remove from view": only ever a table Expand or Add table brought in -
-    // a seed table is part of the query/footprint itself and stays.
+    // a seed table is part of the query/footprint itself and stays. Removing
+    // a table can only shrink the valid set of FK edges, never add to it, so
+    // _relationships is filtered in place rather than asked for again.
     _removeFromSchema(qualifiedName) {
         const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
         const target = clean(qualifiedName);
         this._manual = this._manual.filter(n => clean(n) !== target);
-        if (this._related) this._related = this._related.filter(r => clean(r.qualifiedName) !== target);
+        this._related = this._related.filter(r => clean(r.qualifiedName) !== target);
+        if (this._relationships) {
+            this._relationships = this._relationships.filter(r => clean(r.fromTable) !== target && clean(r.toTable) !== target);
+        }
         this._renderSchema();
     }
 
     onRelationshipsAmongResult(message) {
         if (!this._open || !message.success) return;
-        this._manualRelationships = message.relationships || [];
+        this._relationships = message.relationships || [];
         this._renderSchema();
     }
 
     _renderSchema() {
         if (!this._ensureRegistered() || !this._fp) return;
+        this._renderTablesPanel();
         // The graph of the previous render is destroyed before its container is
         // emptied, not after: the canvas of a live instance has to be removed
         // by the instance itself.
@@ -603,37 +673,35 @@ class FootprintManager {
             drawnNames.add(name.toLowerCase());
         }
 
-        if (this._manual.length > 0) {
-            // Added tables can reveal an FK to *any* table on screen, not just
-            // a seed one - once that has happened, every FK among the whole
-            // set now shown is recomputed fresh (relationshipsAmong) instead
-            // of the narrower seed/anchor-based edges below.
-            for (const rel of this._manualRelationships || []) {
-                elements.push({ data: { id: `mfk::${rel.fkName}::${rel.fromTable}::${rel.toTable}`, source: nodeId(rel.fromTable), target: nodeId(rel.toTable), kind: 'fk', label: rel.fkName } });
-            }
+        // FK edges. _relationships is the authoritative graph among the whole
+        // set now shown (asked for again on every Expand/Add/per-table
+        // expand/Remove - see _refreshRelationships) - it alone can show an
+        // FK between two non-seed tables, which the anchor-based neighbor
+        // data below never can, so once it has landed at least once it
+        // supersedes the fallback entirely. Until then (no round trip yet),
+        // the footprint's own seed-only relationships plus the anchor-based
+        // edges of FK neighbors are already exact for that smaller set.
+        let fkRelationships;
+        if (this._relationships !== null) {
+            fkRelationships = this._relationships;
         } else {
-            for (const rel of this._fp.relationships || []) {
-                // child (holds FK) → referenced parent
-                elements.push({ data: { id: `sfk::${rel.fkName}`, source: nodeId(rel.fromTable), target: nodeId(rel.toTable), kind: 'fk', label: rel.fkName } });
-            }
+            fkRelationships = [...(this._fp.relationships || [])];
             for (const r of this._related || []) {
                 if (!r.anchorTable || r.via !== 'fk') continue;
                 // direction is which role the NEIGHBOR plays: 'parent' (it is
                 // referenced by our anchor, which holds the FK) or 'child'
                 // (it holds its own FK pointing at our anchor).
                 const [source, target] = r.direction === 'parent' ? [r.anchorTable, r.qualifiedName] : [r.qualifiedName, r.anchorTable];
-                elements.push({ data: { id: `rfk::${r.fkName}`, source: nodeId(source), target: nodeId(target), kind: 'fk', label: r.fkName } });
+                fkRelationships.push({ fkName: r.fkName, fromTable: source, toTable: target });
             }
         }
-        // Usage edges are never FK-based, so they are drawn the same way regardless.
-        for (const r of this._related || []) {
-            if (r.via !== 'usage' || !r.anchorTable) continue;
-            elements.push({ data: {
-                id: `ru::${r.qualifiedName}`, source: nodeId(r.anchorTable), target: nodeId(r.qualifiedName),
-                kind: 'usage', label: `${r.procCount}`
-            } });
+        for (const rel of fkRelationships) {
+            // Defensive: a response for a table set that has since shrunk
+            // (Remove from view, while a request was still in flight) must
+            // not reference a node that is no longer drawn.
+            if (!drawnNames.has(rel.fromTable.toLowerCase()) || !drawnNames.has(rel.toTable.toLowerCase())) continue;
+            elements.push({ data: { id: `fk::${rel.fkName}::${rel.fromTable}::${rel.toTable}`, source: nodeId(rel.fromTable), target: nodeId(rel.toTable), kind: 'fk', label: rel.fkName } });
         }
-
         // The tables are placed by ELK, not by a layout of Cytoscape (see
         // _layoutSchema): the preset layout only keeps them together until
         // the real positions come. It must not fit the viewport either: the
@@ -648,7 +716,9 @@ class FootprintManager {
             layout: { name: 'preset', fit: false }
         });
         this._schemaCy = cy;
-        cy.on('tap', 'node', (evt) => this._revealTable(evt.target.data('qname')));
+        // Reveal in Explorer is a context-menu action only (see
+        // _openGraphContextMenu) - a plain click never jumps away on its
+        // own; it just selects the node (native Cytoscape behavior).
         cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(cy, evt, { removable: evt.target.data('kind') !== 'seed' }));
         this._layoutSchema(cy);
     }
@@ -676,10 +746,7 @@ class FootprintManager {
             const nodes = [];
             cy.nodes().forEach(n => nodes.push({ id: n.id(), width: n.outerWidth(), height: n.outerHeight() }));
             const edges = [];
-            // Only the foreign keys shape the layout: a usage edge (two
-            // tables seen together in other code) says nothing about the
-            // hierarchy of the schema.
-            cy.edges('[kind = "fk"]').forEach(e => edges.push({ id: e.id(), source: e.source().id(), target: e.target().id() }));
+            cy.edges().forEach(e => edges.push({ id: e.id(), source: e.source().id(), target: e.target().id() }));
             let layout = null;
             try {
                 layout = await elk.layout(SchemaLayout.buildGraph(nodes, edges));
@@ -739,6 +806,10 @@ class FootprintManager {
                 <h4>${esc(t.qualifiedName)}</h4>
                 ${desc}
                 <table class="fp-cols">
+                    <colgroup>
+                        <col class="fp-col-name"><col class="fp-col-type"><col class="fp-col-null">
+                        <col class="fp-col-default"><col class="fp-col-desc">
+                    </colgroup>
                     <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Description</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -757,9 +828,11 @@ class FootprintManager {
 
     // === Graph controls: context menu, zoom, fullscreen (Graph and Schema tabs) ===
 
-    // Right-click a node: zoom to it, reveal it in the Explorer, and - a
-    // table Expand or Add table brought in - remove it from view. Reuses the
-    // app's one popup-menu widget instead of a second menu implementation.
+    // Right-click a node: zoom to it, reveal it in the Explorer, and - on the
+    // Schema tab only - pull in that one table's own neighbors by one level,
+    // or - a table Expand or Add table brought in - remove it from view.
+    // Reuses the app's one popup-menu widget instead of a second menu
+    // implementation.
     _openGraphContextMenu(cy, evt, { removable = false } = {}) {
         if (!window.explorerManager || !window.explorerManager._openPopupMenu) return;
         const node = evt.target;
@@ -768,7 +841,10 @@ class FootprintManager {
             { label: 'Zoom to this table', onClick: () => cy.animate({ fit: { eles: node, padding: 80 } }, { duration: 250 }) },
             { label: 'Reveal in Explorer', onClick: () => this._revealTable(qname) }
         ];
-        if (removable) items.push({ label: 'Remove from view', separatorBefore: true, onClick: () => this._removeFromSchema(qname) });
+        if (cy === this._schemaCy) {
+            items.push({ label: 'Add adjacent tables (+1 level)', separatorBefore: true, onClick: () => this._expandOneTable(qname) });
+        }
+        if (removable) items.push({ label: 'Remove from view', onClick: () => this._removeFromSchema(qname) });
         const point = evt.originalEvent;
         window.explorerManager._openPopupMenu(this.overlay, items, { at: { x: point.clientX, y: point.clientY } });
     }
@@ -828,82 +904,86 @@ class FootprintManager {
         this._setMaximized(!(dialog && dialog.classList.contains('fp-maximized')));
     }
 
-    // === Add table (Schema tab): any table of the database, not just one Expand already found ===
+    // === Tables panel (Schema tab): browse/search every table of the database,
+    // add it, jump to it if it's already on screen, or remove it ===
 
-    // A small searchable popover (the plain popup menu has no filter box) of
-    // every table not already on screen.
-    _openAddTablePopover() {
-        if (!this.addTableBtn || !this._fp) return;
-        this._closeAddTablePopover();
+    // Every table of the database, searched live by the panel's own input,
+    // each row showing whether it is on screen already. Re-rendered on every
+    // state change that affects "what is shown" (see _renderSchema).
+    //   - Not shown: click adds it (_addTable).
+    //   - Already shown (seed or not): click jumps to it on the canvas
+    //     (_centerOnTable) - this is also how a table is found on the
+    //     schema once it's there, since typing its name narrows the list to
+    //     it. Removing it is a separate, explicit action (the small ✕), not
+    //     the same click as locating it - the two are easy to confuse
+    //     otherwise, and a search should never risk removing what it finds.
+    //   - Seed tables can't be removed (they are the query/footprint itself),
+    //     so they get no ✕.
+    _renderTablesPanel() {
+        if (!this.tablesListEl || !this._fp) return;
         const clean = (s) => (s || '').replace(/\[|\]/g, '').toLowerCase();
+        const seed = new Set(this._fp.tables.map(t => clean(t.qualifiedName)));
         const shown = new Set(this._shownTableNames().map(clean));
         const allTables = (appState.allObjects || [])
             .filter(o => o.object_type === 'Table')
             .map(o => o.qualified_name || o.object_name || o.name)
-            .filter(name => name && !shown.has(clean(name)))
+            .filter(Boolean)
             .sort((a, b) => a.localeCompare(b));
 
-        const menu = document.createElement('div');
-        menu.className = 'script-menu';
-        menu.setAttribute('role', 'menu');
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'script-menu-search';
-        input.placeholder = 'Filter tables…';
-        input.spellcheck = false;
-        menu.appendChild(input);
-        const list = document.createElement('div');
-        menu.appendChild(list);
+        const needle = this.tablesSearchInput ? this.tablesSearchInput.value.trim().toLowerCase() : '';
+        const matches = needle ? allTables.filter(n => n.toLowerCase().includes(needle)) : allTables;
 
-        const render = () => {
-            const needle = input.value.trim().toLowerCase();
-            const matches = (needle ? allTables.filter(n => n.toLowerCase().includes(needle)) : allTables).slice(0, 50);
-            list.innerHTML = '';
-            if (matches.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'script-menu-empty';
-                empty.textContent = allTables.length === 0 ? 'Every table is already shown.' : 'No match.';
-                list.appendChild(empty);
-                return;
+        this.tablesListEl.innerHTML = '';
+        if (matches.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'script-menu-empty';
+            empty.textContent = 'No match.';
+            this.tablesListEl.appendChild(empty);
+            return;
+        }
+        for (const name of matches) {
+            const key = clean(name);
+            const isSeed = seed.has(key);
+            const isShown = shown.has(key);
+            const row = document.createElement('div');
+            row.className = 'fp-tables-row' + (isShown ? ' fp-tables-row-shown' : '');
+            row.setAttribute('role', 'menuitem');
+            row.tabIndex = 0;
+            row.title = isSeed ? `${name} - in your query/footprint, click to locate it`
+                : isShown ? `${name} - click to locate it, or remove it with ✕`
+                    : `${name} - click to add it to the view`;
+            const icon = document.createElement('i');
+            icon.className = 'codicon ' + (isSeed ? 'codicon-pinned' : isShown ? 'codicon-target' : 'codicon-add');
+            row.appendChild(icon);
+            const label = document.createElement('span');
+            label.textContent = name;
+            row.appendChild(label);
+            const activate = () => { if (isShown) this._centerOnTable(name); else this._addTable(name); };
+            row.addEventListener('click', activate);
+            row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+            if (isShown && !isSeed) {
+                const remove = document.createElement('button');
+                remove.className = 'fp-tables-row-remove';
+                remove.title = `Remove ${name} from view`;
+                remove.setAttribute('aria-label', `Remove ${name} from view`);
+                remove.innerHTML = '<i class="codicon codicon-close"></i>';
+                remove.addEventListener('click', (e) => { e.stopPropagation(); this._removeFromSchema(name); });
+                row.appendChild(remove);
             }
-            matches.forEach(name => {
-                const item = document.createElement('button');
-                item.className = 'script-menu-item';
-                item.setAttribute('role', 'menuitem');
-                item.textContent = name;
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this._closeAddTablePopover();
-                    this._addTable(name);
-                });
-                list.appendChild(item);
-            });
-        };
-        input.addEventListener('input', render);
-        // Closes just this popover, not (via the overlay's own Escape handler,
-        // document-level) the whole modal behind it.
-        input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); this._closeAddTablePopover(); } });
-
-        document.body.appendChild(menu);
-        const rect = this.addTableBtn.getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.width = '240px';
-        menu.style.top = `${Math.min(rect.bottom + 2, window.innerHeight - 300)}px`;
-        menu.style.left = `${Math.min(Math.max(8, rect.right - 240), window.innerWidth - 248)}px`;
-        render();
-        input.focus();
-
-        this._addTableMenu = menu;
-        this._addTableMenuCloser = (e) => { if (!menu.contains(e.target) && e.target !== this.addTableBtn) this._closeAddTablePopover(); };
-        setTimeout(() => document.addEventListener('click', this._addTableMenuCloser), 0);
+            this.tablesListEl.appendChild(row);
+        }
     }
 
-    _closeAddTablePopover() {
-        if (!this._addTableMenu) return;
-        this._addTableMenu.remove();
-        document.removeEventListener('click', this._addTableMenuCloser);
-        this._addTableMenu = null;
-        this._addTableMenuCloser = null;
+    // Jumps the schema graph to an already-shown table, by name - the tables
+    // panel's own way to search a table and center it. The context menu's
+    // "Zoom to this table" does the same animation from a node it already
+    // has in hand (see _openGraphContextMenu); this one looks the node up by
+    // name instead, for the panel.
+    _centerOnTable(qualifiedName) {
+        if (!this._schemaCy) return;
+        const node = this._schemaCy.getElementById(`s::${qualifiedName}`);
+        if (!node || node.empty()) return;
+        this._schemaCy.animate({ fit: { eles: node, padding: 80 } }, { duration: 250 });
     }
 
     // One line per column with a small icon for its role (🔑 PK, 🔗 FK - a
@@ -1075,7 +1155,8 @@ class FootprintManager {
             // Seed: a table actually in the query/footprint. FK/usage neighbors
             // (added by Expand) get their own colors so it stays obvious which
             // is which - solid border for an FK-confirmed relationship, dashed
-            // for one only seen in how other code uses these tables together.
+            // for one only seen in how other code uses these tables together
+            // (never drawn with an edge - see _renderSchema).
             { selector: 'node[kind = "seed"]', style: node('#1f3a52', '#3794ff') },
             { selector: 'node[kind = "fk"]', style: node('#2d3340', '#8892a0') },
             { selector: 'node[kind = "usage"]', style: { ...node('#2d3340', '#c39bd3'), 'border-style': 'dashed' } },
@@ -1088,11 +1169,6 @@ class FootprintManager {
                 'target-arrow-shape': 'triangle', 'target-arrow-color': '#8892a0', 'arrow-scale': 0.9,
                 'label': 'data(label)', 'font-size': 9, 'color': '#9aa4b2',
                 'text-background-color': '#1e1e1e', 'text-background-opacity': 0.7, 'text-background-padding': 2
-            } },
-            // A usage edge carries no FK name, just how many other objects
-            // touch both ends - shown as its label, e.g. "12".
-            { selector: 'edge[kind = "usage"]', style: {
-                'line-style': 'dashed', 'line-color': '#c39bd3', 'target-arrow-color': '#c39bd3', 'target-arrow-shape': 'none'
             } }
         ];
     }

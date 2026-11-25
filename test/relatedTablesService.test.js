@@ -61,6 +61,22 @@ suite('RelatedTablesService.usageNeighbors', () => {
 		assert.strictEqual(neighbors[1].procCount, 1);
 	});
 
+	test('a neighbor anchors on whichever seed table it actually co-occurs with most, not the first table of the input set', () => {
+		const index = {
+			objects: {
+				A: table('dbo.A'), Z: table('dbo.Z'), B: table('dbo.B'),
+				P1: proc('dbo.P1', ['dbo.A', 'dbo.B']),
+				P2: proc('dbo.P2', ['dbo.Z', 'dbo.B']),
+				P3: proc('dbo.P3', ['dbo.Z', 'dbo.B']),
+				P4: proc('dbo.P4', ['dbo.Z', 'dbo.B'])
+			}
+		};
+		const neighbors = RelatedTablesService.usageNeighbors(index, ['dbo.A', 'dbo.Z']);
+		const b = neighbors.find(n => n.qualifiedName === 'dbo.B');
+		assert.strictEqual(b.procCount, 4);
+		assert.strictEqual(b.anchorTable, 'dbo.Z', 'anchors on Z (3 co-occurrences) rather than A (tableNames[0], only 1): ' + JSON.stringify(b));
+	});
+
 	test('only tables are reported as neighbors, not a referenced view or function', () => {
 		const index = {
 			objects: {
@@ -98,5 +114,38 @@ suite('RelatedTablesService.merge', () => {
 		const merged = RelatedTablesService.merge(fkNeighbors, usageNeighbors);
 		assert.deepStrictEqual(merged.map(m => m.qualifiedName), ['dbo.B', 'dbo.C']);
 		assert.strictEqual(merged[1].via, 'usage');
+	});
+});
+
+suite('RelatedTablesService.expand (depth)', () => {
+	const CHAIN = [
+		{ fkName: 'FK_A_B', fromTable: 'dbo.A', toTable: 'dbo.B' },
+		{ fkName: 'FK_B_C', fromTable: 'dbo.B', toTable: 'dbo.C' }
+	];
+
+	test('depth 1 finds only the direct neighbor', () => {
+		const found = RelatedTablesService.expand(CHAIN, ['dbo.A'], 1);
+		assert.deepStrictEqual(found.map(f => f.qualifiedName), ['dbo.B']);
+	});
+
+	test('depth 2 also follows the first hop\'s own neighbor', () => {
+		const found = RelatedTablesService.expand(CHAIN, ['dbo.A'], 2);
+		assert.deepStrictEqual(found.map(f => f.qualifiedName), ['dbo.B', 'dbo.C']);
+	});
+
+	test('stops early once a hop finds nothing new, even if depth allows more', () => {
+		const fks = [{ fkName: 'FK_A_B', fromTable: 'dbo.A', toTable: 'dbo.B' }];
+		const found = RelatedTablesService.expand(fks, ['dbo.A'], 5);
+		assert.deepStrictEqual(found.map(f => f.qualifiedName), ['dbo.B']);
+	});
+
+	test('a table already in the set is never rediscovered at a later hop', () => {
+		// A -> B and B -> A would cycle back onto A without the seen-set guard.
+		const fks = [
+			{ fkName: 'FK_A_B', fromTable: 'dbo.A', toTable: 'dbo.B' },
+			{ fkName: 'FK_B_A', fromTable: 'dbo.B', toTable: 'dbo.A' }
+		];
+		const found = RelatedTablesService.expand(fks, ['dbo.A'], 3);
+		assert.deepStrictEqual(found.map(f => f.qualifiedName), ['dbo.B']);
 	});
 });

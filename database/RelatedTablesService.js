@@ -3,16 +3,23 @@
 const WriteFootprintService = require('./WriteFootprintService');
 
 // Finds tables related to a given set (a query's or a footprint's tables),
-// for the Schema tab's "Expand" action - never shown by default, only on
-// request. Two signals, merged:
-//   - FK neighbors: a one-hop foreign key to/from a table not yet in the set.
-//   - Usage neighbors: tables other stored procedures/views/functions commonly
-//     touch alongside the set's tables, mined from the already-cached
-//     dependency index (sys.sql_expression_dependencies) - the same data
-//     DependencyService's own referencedBy already reads, so no new parsing
-//     and no new round trip. This is the signal that matters most in a legacy,
-//     FK-less database: the real relationships only exist in how the code
-//     actually uses the tables together.
+// for the Schema tab's "Expand" action and the per-table "Add adjacent
+// tables" context-menu item - never shown by default, only on request. Two
+// signals:
+//   - FK neighbors: an actual foreign key to/from a table not yet in the
+//     set. This is real adjacency, so it alone is followed hop by hop, up
+//     to a chosen depth (see expand).
+//   - Usage neighbors: tables other stored procedures/views/functions
+//     commonly touch alongside the set's tables, mined from the already-
+//     cached dependency index (sys.sql_expression_dependencies) - the same
+//     data DependencyService's own referencedBy already reads, so no new
+//     parsing and no new round trip. This is the signal that matters most
+//     in a legacy, FK-less database: the real relationship only exists in
+//     how the code actually uses the tables together. It is not a
+//     relationship between exactly two tables the way an FK is, so it is
+//     found once, relative to the tables asked about, never chased hop by
+//     hop, and never drawn as an edge on the Schema tab - only the table
+//     itself shows, with its own "used together" style.
 //
 // Both are best-effort: a dependency behind dynamic SQL is invisible to
 // sys.sql_expression_dependencies, same limit the rest of the dependency
@@ -25,12 +32,33 @@ class RelatedTablesService {
 
     // Live entry point: pulls the cached index (no reindex) and the
     // whole-database FK list, then delegates to the pure analysis.
-    async relatedTables(database, tableNames) {
+    async relatedTables(database, tableNames, depth = 1) {
         const index = await this._indexService.peekIndex(database);
         const allFks = await this._databaseService.getForeignKeys(database);
-        const fkNeighbors = RelatedTablesService.foreignKeyNeighbors(allFks, tableNames);
+        const fkNeighbors = RelatedTablesService.expand(allFks, tableNames, depth);
         const usageNeighbors = index ? RelatedTablesService.usageNeighbors(index, tableNames) : [];
         return RelatedTablesService.merge(fkNeighbors, usageNeighbors);
+    }
+
+    // BFS over foreignKeyNeighbors only - real adjacency, so it alone makes
+    // sense to chase hop by hop: hop 1 is the direct FK neighbors of
+    // `tableNames`, hop 2 the FK neighbors of whatever hop 1 found that
+    // isn't already in the set, and so on up to `depth` hops. Stops early
+    // once a hop finds nothing new.
+    static expand(foreignKeys, tableNames, depth) {
+        const clean = RelatedTablesService._clean;
+        const seen = new Set((tableNames || []).map(clean));
+        let frontier = tableNames || [];
+        const found = [];
+        for (let hop = 0; hop < Math.max(1, depth || 1) && frontier.length; hop++) {
+            const neighbors = RelatedTablesService.foreignKeyNeighbors(foreignKeys, frontier)
+                .filter(n => !seen.has(clean(n.qualifiedName)));
+            if (neighbors.length === 0) break;
+            for (const n of neighbors) seen.add(clean(n.qualifiedName));
+            found.push(...neighbors);
+            frontier = neighbors.map(n => n.qualifiedName);
+        }
+        return found;
     }
 
     // Every FK edge whose both ends are in `tableNames`, whatever the roles
@@ -81,11 +109,13 @@ class RelatedTablesService {
     static usageNeighbors(index, tableNames) {
         if (!index || !index.objects) return [];
         const clean = RelatedTablesService._clean;
-        const inSet = new Set((tableNames || []).map(clean));
-        const bareInSet = new Set([...inSet].map(n => n.split('.').pop()));
-        const matchesSet = (dep) => {
+        // Resolves a dependency string back to one of our own `tableNames`
+        // (qualified, then bare-name fallback), or null if it isn't one.
+        const seedByClean = new Map((tableNames || []).map(n => [clean(n), n]));
+        const seedByBare = new Map((tableNames || []).map(n => [clean(n).split('.').pop(), n]));
+        const matchSeed = (dep) => {
             const c = clean(dep);
-            return inSet.has(c) || bareInSet.has(c.split('.').pop());
+            return seedByClean.get(c) || seedByBare.get(c.split('.').pop()) || null;
         };
 
         // A dependency is just a name string (see IndexService's index entry
@@ -95,25 +125,38 @@ class RelatedTablesService {
         for (const obj of Object.values(index.objects)) byClean.set(clean(obj.qualifiedName), obj);
         const resolve = (dep) => byClean.get(clean(dep)) || byClean.get(clean(dep).split('.').pop());
 
-        const counts = new Map(); // qualifiedName(lower) -> { qualifiedName, objects: Set }
+        // qualifiedName(lower) -> { qualifiedName, objects: Set, anchorCounts: Map(seedTable -> count) }
+        const counts = new Map();
         for (const obj of Object.values(index.objects)) {
             const deps = obj.dependencies || [];
-            if (!deps.some(matchesSet)) continue;
+            // Which of our own tables does this object actually touch? A
+            // neighbor found here is "used together" with one of these, not
+            // with an arbitrary table of the whole input set.
+            const touchedSeeds = new Set();
+            for (const dep of deps) { const seed = matchSeed(dep); if (seed) touchedSeeds.add(seed); }
+            if (touchedSeeds.size === 0) continue;
             for (const dep of deps) {
-                if (matchesSet(dep)) continue; // the set's own tables, not a neighbor
+                if (matchSeed(dep)) continue; // the set's own tables, not a neighbor
                 const target = resolve(dep);
                 if (!target || target.type !== 'U') continue; // tables only
                 const key = clean(target.qualifiedName);
-                if (!counts.has(key)) counts.set(key, { qualifiedName: target.qualifiedName, objects: new Set() });
-                counts.get(key).objects.add(obj.qualifiedName || obj.name);
+                if (!counts.has(key)) counts.set(key, { qualifiedName: target.qualifiedName, objects: new Set(), anchorCounts: new Map() });
+                const entry = counts.get(key);
+                entry.objects.add(obj.qualifiedName || obj.name);
+                for (const seed of touchedSeeds) entry.anchorCounts.set(seed, (entry.anchorCounts.get(seed) || 0) + 1);
             }
         }
-        // The edge drawn for a usage neighbor has to anchor on one specific
-        // table of the set; the first one given is as good a pick as any -
-        // the ranking itself (procCount) does not depend on it.
-        const anchorTable = (tableNames || [])[0] || null;
         return [...counts.values()]
-            .map(e => ({ qualifiedName: e.qualifiedName, via: 'usage', procCount: e.objects.size, procedures: [...e.objects].sort(), anchorTable }))
+            .map(e => {
+                // Anchor on whichever of our tables co-occurs with this
+                // neighbor the most often - the one the "used together"
+                // relationship is actually about. Informational only: no
+                // edge is ever drawn for a usage neighbor (see
+                // footprintManager.js's _renderSchema).
+                let anchorTable = null, best = -1;
+                for (const [seed, n] of e.anchorCounts) { if (n > best) { best = n; anchorTable = seed; } }
+                return { qualifiedName: e.qualifiedName, via: 'usage', procCount: e.objects.size, procedures: [...e.objects].sort(), anchorTable };
+            })
             .sort((a, b) => b.procCount - a.procCount);
     }
 
