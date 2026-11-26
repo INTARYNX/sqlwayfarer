@@ -4,6 +4,23 @@ All notable changes to the SQL Wayfarer extension are documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [0.99.19] - 2026-11-26
+
+### Added
+
+- **Schema tab: Back/Forward buttons** to navigate the history of table sets built up by Expand, per-table expand, Add table, and Remove - jumping to a previously-seen set is instant (no ELK layout, no relationships round trip), and restores that set's own camera position too.
+
+### Changed
+
+- **Schema tab's Expand and per-table expand now only follow real foreign keys.** The "used together" usage-neighbor signal (mined from the dependency index) is no longer mixed in - it has no hop limit by nature, so for a heavily-referenced table it could flood a precise, bounded action like Expand instead of showing what is actually adjacent.
+- The write-footprint/query-graph popup now closes along with the specific Query or Explorer tab it was opened from, instead of staying open on top of whatever replaced that tab.
+- The Schema/Graph tabs' zoom controls are now one solid card instead of three separate squares with gaps the diagram's lines showed through.
+
+### Fixed
+
+- The write-footprint/query-graph popup, maximized, no longer overlaps the Query tab's own left panel (Files/Instance) when that panel is open.
+- **Query tab: a new draft now reuses the lowest available "Query N" number** - closing "Query 2" out of Query 1/2/3 frees it for the next new draft, instead of always counting up (Query 4, 5, ...).
+
 ## [0.99.18] - 2026-11-24
 
 ### Changed
