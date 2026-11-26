@@ -28,5 +28,8 @@ coverage/
 # Database backups used to try the extension on a real database
 bak/
 
+# Scratch SQL workspace used to exercise the extension against AdventureWorks
+sqldemo/
+
 # Local-only agent instructions, kept out of version control from now on
 AGENTS.md
