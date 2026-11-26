@@ -57,7 +57,6 @@ class QueryFileManager {
         this._search = null;        // null: none; { searching } | { error } | { results: Map, truncated }
 
         this.nextId = 1;
-        this.draftCounter = 0;
         this.tabs = [this._makeDraftTab()];
         this.activeTabId = this.tabs[0].id;
         this._pendingCloseTabId = null;
@@ -184,13 +183,12 @@ class QueryFileManager {
         });
     }
 
-    _makeDraftTab(content = '') {
-        this.draftCounter++;
+    _makeDraftTab(content = '', existingTabs) {
         return {
             id: this.nextId++,
             filePath: null,
             fileName: null,
-            draftLabel: `Query ${this.draftCounter}`,
+            draftLabel: `Query ${this._nextDraftNumber(existingTabs)}`,
             content,
             savedContent: null,
             encoding: 'utf8',
@@ -199,6 +197,20 @@ class QueryFileManager {
             eol: 'lf',
             database: null
         };
+    }
+
+    // The lowest "Query N" not already carried by an open draft tab - so
+    // closing "Query 2" out of 1/2/3 frees 2 for the next new draft instead
+    // of always counting up (4, 5, ...).
+    _nextDraftNumber(existingTabs) {
+        const tabs = existingTabs || this.tabs || [];
+        const used = new Set(tabs
+            .map(t => /^Query (\d+)$/.exec(t.draftLabel || ''))
+            .filter(Boolean)
+            .map(m => Number(m[1])));
+        let n = 1;
+        while (used.has(n)) n++;
+        return n;
     }
 
     // A file is modified when its text or its encoding differs from the disk;
@@ -347,6 +359,9 @@ class QueryFileManager {
     _removeTab(id) {
         const index = this.tabs.findIndex(t => t.id === id);
         if (index === -1) return;
+        // A Query graph opened from this tab belongs to it, not to the Query
+        // app tab in general - it closes along with it.
+        if (window.footprintManager) window.footprintManager.onQueryTabClosed(id);
 
         this.tabs.splice(index, 1);
         if (this.tabs.length === 0) this.tabs.push(this._makeDraftTab());
@@ -780,10 +795,14 @@ class QueryFileManager {
         const drafts = message.drafts || [];
         if (drafts.length === 0 || !this._isPristine()) return;
 
-        this.tabs = drafts.map(d => {
+        // A plain loop (not .map) so each new draft's number is picked against
+        // the tabs already recovered in this same batch, not against the
+        // single pristine tab this.tabs still holds until the batch is done.
+        const recovered = [];
+        for (const d of drafts) {
             const content = typeof d === 'string' ? d : (d.content || '');
             if (typeof d === 'object' && d.filePath) {
-                return {
+                recovered.push({
                     id: this.nextId++,
                     filePath: d.filePath,
                     fileName: d.fileName,
@@ -796,13 +815,15 @@ class QueryFileManager {
                     savedEncoding: d.savedEncoding || 'utf8',
                     eol: d.eol || 'lf',
                     database: d.database || null
-                };
+                });
+                continue;
             }
-            const tab = this._makeDraftTab(content);
+            const tab = this._makeDraftTab(content, recovered);
             if (typeof d === 'object' && d.encoding) tab.encoding = tab.savedEncoding = d.encoding;
             tab.database = typeof d === 'object' && d.database ? d.database : null;
-            return tab;
-        });
+            recovered.push(tab);
+        }
+        this.tabs = recovered;
         this.activeTabId = this.tabs[0].id;
         this.queryManager.loadEditorContent(this.tabs[0].content);
         // The query comes back with its database: now if the list is there, else
