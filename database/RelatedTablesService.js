@@ -4,40 +4,32 @@ const WriteFootprintService = require('./WriteFootprintService');
 
 // Finds tables related to a given set (a query's or a footprint's tables),
 // for the Schema tab's "Expand" action and the per-table "Add adjacent
-// tables" context-menu item - never shown by default, only on request. Two
-// signals:
-//   - FK neighbors: an actual foreign key to/from a table not yet in the
-//     set. This is real adjacency, so it alone is followed hop by hop, up
-//     to a chosen depth (see expand).
-//   - Usage neighbors: tables other stored procedures/views/functions
-//     commonly touch alongside the set's tables, mined from the already-
-//     cached dependency index (sys.sql_expression_dependencies) - the same
-//     data DependencyService's own referencedBy already reads, so no new
-//     parsing and no new round trip. This is the signal that matters most
-//     in a legacy, FK-less database: the real relationship only exists in
-//     how the code actually uses the tables together. It is not a
-//     relationship between exactly two tables the way an FK is, so it is
-//     found once, relative to the tables asked about, never chased hop by
-//     hop, and never drawn as an edge on the Schema tab - only the table
-//     itself shows, with its own "used together" style.
-//
-// Both are best-effort: a dependency behind dynamic SQL is invisible to
-// sys.sql_expression_dependencies, same limit the rest of the dependency
-// analysis already has.
+// tables" context-menu item - never shown by default, only on request.
+// relatedTables() itself is FK-only: an actual foreign key to/from a table
+// not yet in the set is real adjacency, so it is followed hop by hop, up to
+// a chosen depth (see expand). usageNeighbors/merge (tables other code
+// commonly touches alongside the set, mined from the cached dependency
+// index) stay below, available but unused here - that signal has no hop
+// limit by nature, so for a heavily-referenced table it can match a large
+// fraction of the schema, flooding a precise, bounded action like Expand or
+// a single table's "+1 level" instead of showing what is actually adjacent.
 class RelatedTablesService {
     constructor(indexService, databaseService) {
         this._indexService = indexService;
         this._databaseService = databaseService;
     }
 
-    // Live entry point: pulls the cached index (no reindex) and the
-    // whole-database FK list, then delegates to the pure analysis.
+    // Live entry point: the whole-database FK list, then delegates to the
+    // pure analysis. FK-only: usageNeighbors has no hop limit by nature (it
+    // is not graph adjacency), so for a heavily-referenced table it can
+    // match a large fraction of the schema - mixed into a precise, bounded
+    // action like Expand or a single table's "+1 level", that floods the
+    // view instead of showing what is actually adjacent. usageNeighbors and
+    // merge stay available (not deleted) for whatever surfaces "used
+    // together" tables next.
     async relatedTables(database, tableNames, depth = 1) {
-        const index = await this._indexService.peekIndex(database);
         const allFks = await this._databaseService.getForeignKeys(database);
-        const fkNeighbors = RelatedTablesService.expand(allFks, tableNames, depth);
-        const usageNeighbors = index ? RelatedTablesService.usageNeighbors(index, tableNames) : [];
-        return RelatedTablesService.merge(fkNeighbors, usageNeighbors);
+        return RelatedTablesService.expand(allFks, tableNames, depth);
     }
 
     // BFS over foreignKeyNeighbors only - real adjacency, so it alone makes
