@@ -92,7 +92,7 @@ suite('e2e: the Schema tab\'s Expand related tables', function () {
 			const cy = window.footprintManager._schemaCy;
 			return cy.edges().map(e => ({ kind: e.data('kind'), label: e.data('label') }));
 		});
-		check(edgeKinds.some(e => e.kind === 'usage' && e.label === '7'), 'the usage edge carries the proc count: ' + JSON.stringify(edgeKinds));
+		check(!edgeKinds.some(e => e.kind === 'usage'), 'a usage neighbor is a node only, never an edge: ' + JSON.stringify(edgeKinds));
 		check(edgeKinds.filter(e => e.kind === 'fk').length === 2, 'two FK edges (the original one plus the new neighbor): ' + JSON.stringify(edgeKinds));
 
 		// A PK/FK icon line shows for a table whose doc has since arrived.

@@ -95,17 +95,16 @@ suite('e2e: Schema tab graph controls (zoom, context menu, add table, fullscreen
 		const ordersPos = await nodeScreenPos(p, 's::dbo.Orders');
 		await p.mouse.click(ordersPos.x, ordersPos.y, { button: 'right' });
 		const seedMenu = await p.$$eval('.script-menu-item', els => els.map(e => e.textContent));
-		check(JSON.stringify(seedMenu) === JSON.stringify(['Zoom to this table', 'Reveal in Explorer']),
+		check(JSON.stringify(seedMenu) === JSON.stringify(['Zoom to this table', 'Reveal in Explorer', 'Add adjacent tables (+1 level)']),
 			'a seed table\'s context menu has no Remove from view: ' + JSON.stringify(seedMenu));
 		// Dismiss by clicking empty graph space.
 		await p.mouse.click(ordersPos.x + 150, ordersPos.y + 150);
 
-		// --- Add table: only tables, and only ones not already shown ---
-		await p.click('#footprintAddTableBtn');
-		const candidates = await p.$$eval('.script-menu-item', els => els.map(e => e.textContent));
+		// --- Add table (tables panel): only tables, and only ones not already shown ---
+		const candidates = await p.$$eval('.fp-tables-row:not(.fp-tables-row-shown) span', els => els.map(e => e.textContent));
 		check(JSON.stringify(candidates) === JSON.stringify(['dbo.Suppliers']),
-			'Add table offers only tables not already on screen: ' + JSON.stringify(candidates));
-		await p.click('.script-menu-item:has-text("Suppliers")');
+			'the panel offers to add only tables not already on screen: ' + JSON.stringify(candidates));
+		await p.click('.fp-tables-row:not(.fp-tables-row-shown)');
 
 		const sent = await p.evaluate(() => window.__sent);
 		const relReq = sent.find(m => m.command === 'getRelationshipsAmong');
@@ -128,7 +127,7 @@ suite('e2e: Schema tab graph controls (zoom, context menu, add table, fullscreen
 		const supPos = await nodeScreenPos(p, 's::dbo.Suppliers');
 		await p.mouse.click(supPos.x, supPos.y, { button: 'right' });
 		const addedMenu = await p.$$eval('.script-menu-item', els => els.map(e => e.textContent));
-		check(JSON.stringify(addedMenu) === JSON.stringify(['Zoom to this table', 'Reveal in Explorer', 'Remove from view']),
+		check(JSON.stringify(addedMenu) === JSON.stringify(['Zoom to this table', 'Reveal in Explorer', 'Add adjacent tables (+1 level)', 'Remove from view']),
 			'an added table\'s context menu offers Remove from view: ' + JSON.stringify(addedMenu));
 		await p.click('.script-menu-item:has-text("Remove from view")');
 		const stillThere = await p.evaluate(() => !!window.footprintManager._schemaCy.getElementById('s::dbo.Suppliers').length);
