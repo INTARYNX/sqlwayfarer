@@ -191,6 +191,9 @@ class ExplorerManager {
     closeObjectTab(id) {
         const index = this._objectTabs.findIndex(t => t.id === id);
         if (index === -1) return;
+        // A Table footprint opened from this tab belongs to it, not to the
+        // Explorer app tab in general - it closes along with it.
+        if (window.footprintManager) window.footprintManager.onObjectTabClosed(id);
         this._objectTabs.splice(index, 1);
         if (id !== this._activeObjectTabId) { this.renderObjectTabs(); return; }
         const next = this._objectTabs[Math.min(index, this._objectTabs.length - 1)];

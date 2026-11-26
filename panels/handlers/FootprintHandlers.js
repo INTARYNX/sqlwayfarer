@@ -68,18 +68,24 @@ class FootprintHandlers {
     // "Add table": once a table is added by hand, every FK among the whole
     // set now on screen (seed, FK/usage neighbors, previously added tables)
     // is recomputed fresh, so an FK to or from the new table is never missed.
-    async handleGetRelationshipsAmong(database, tableNames) {
+    // requestId is echoed back as-is: onDidReceiveMessage does not serialize
+    // overlapping calls (it never awaits one handler before starting the
+    // next), so two of these in flight at once - Expand then Add table
+    // before the first's round trip returns - can resolve out of order. The
+    // webview matches each response back to the table set it actually asked
+    // about by this id, not by assuming arrival order.
+    async handleGetRelationshipsAmong(database, tableNames, requestId) {
         const db = database || this._getCurrentDatabase();
         if (!db) {
-            this._post({ command: 'relationshipsAmongResult', success: false, message: 'No database selected.' });
+            this._post({ command: 'relationshipsAmongResult', success: false, message: 'No database selected.', requestId });
             return;
         }
         try {
             const relationships = await this._relatedTablesService.relationshipsAmong(db, tableNames || []);
-            this._post({ command: 'relationshipsAmongResult', success: true, relationships });
+            this._post({ command: 'relationshipsAmongResult', success: true, relationships, requestId });
         } catch (error) {
             console.error('Relationships among failed:', error);
-            this._post({ command: 'relationshipsAmongResult', success: false, message: error.message });
+            this._post({ command: 'relationshipsAmongResult', success: false, message: error.message, requestId });
         }
     }
 }

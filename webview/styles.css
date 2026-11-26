@@ -2699,15 +2699,34 @@ th.rs-sortable.sorted {
     flex-direction: column;
 }
 
+/* This dialog is a full-window overlay (maximized by default), not a small
+   popup - the generic .modal-header (comments.css) is sized for a 500px
+   confirm-style dialog and reads as too thick here. */
+.modal-dialog-footprint .modal-header {
+    padding: 2px 8px;
+}
+.modal-dialog-footprint .modal-header h3 {
+    font-size: 12px;
+}
+.modal-dialog-footprint .modal-icon-btn,
+.modal-dialog-footprint .modal-close {
+    width: 18px;
+    height: 18px;
+}
+
 /* Maximize toggle (the default on open): the overlay itself (backdrop +
-   dialog) is narrowed to start below the app's own tab bar (--fp-top-offset,
-   set from FootprintManager._setMaximized) instead of covering/graying it -
-   the dialog then just fills that already-correct box. cy.resize()+fit()
-   still has to run after this (a CSS size change alone doesn't tell an
-   already-created cytoscape instance its container got bigger). */
+   dialog) is narrowed to start below the app's own tab bar (--fp-top-offset)
+   and to the right of the Query tab's own left panel, when open
+   (--fp-left-offset, both set from FootprintManager._setMaximized) instead
+   of covering/graying either - the dialog then just fills that already-
+   correct box. cy.resize()+fit() still has to run after this (a CSS size
+   change alone doesn't tell an already-created cytoscape instance its
+   container got bigger). */
 .modal-overlay.footprint-modal-overlay.fp-maximized {
     top: var(--fp-top-offset, 0px);
+    left: var(--fp-left-offset, 0px);
     height: calc(100vh - var(--fp-top-offset, 0px));
+    width: calc(100% - var(--fp-left-offset, 0px));
 }
 
 .modal-dialog.modal-dialog-footprint.fp-maximized {
@@ -2787,6 +2806,7 @@ th.rs-sortable.sorted {
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     position: relative;
 }
@@ -2889,15 +2909,20 @@ th.rs-sortable.sorted {
 }
 .fp-tables-row-remove:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1)); }
 
-/* Floating over the bottom-right corner of whichever pane it sits in. */
+/* Floating over the bottom-right corner of whichever pane it sits in - one
+   solid card, not three loose squares with gaps the diagram's own lines
+   showed through. */
 .graph-zoom-controls {
     position: absolute;
     right: 20px;
     bottom: 36px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
     z-index: 2;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .graph-zoom-btn {
@@ -2909,15 +2934,17 @@ th.rs-sortable.sorted {
     align-items: center;
     justify-content: center;
     color: var(--vscode-foreground);
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 3px;
+    background: transparent;
+    border: none;
     opacity: 0.85;
 }
-.graph-zoom-btn:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
+.graph-zoom-btn + .graph-zoom-btn { border-top: 1px solid var(--vscode-input-border); }
+.graph-zoom-btn:hover:not(:disabled) { opacity: 1; background: var(--vscode-list-hoverBackground); }
+.graph-zoom-btn:disabled { opacity: 0.3; cursor: default; }
 
 .footprint-graph {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     background: var(--vscode-editor-background);
     border: 1px solid var(--vscode-input-border);

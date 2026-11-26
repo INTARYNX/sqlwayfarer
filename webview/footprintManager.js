@@ -19,6 +19,8 @@ class FootprintManager {
         this.tablesSearchInput = document.getElementById('footprintTablesSearch');
         this.tablesListEl = document.getElementById('footprintTablesList');
         this.maximizeBtn = document.getElementById('footprintMaximizeBtn');
+        this.schemaHistoryBackBtn = document.getElementById('footprintSchemaHistoryBack');
+        this.schemaHistoryForwardBtn = document.getElementById('footprintSchemaHistoryForward');
         this.docEl = document.getElementById('footprintTablesDoc');
         this.legendEl = document.getElementById('footprintLegend');
         this.queryLegendEl = document.getElementById('queryGraphLegend');
@@ -43,6 +45,37 @@ class FootprintManager {
         this._expandRequested = false;
         // Tables the user picked by hand through the tables panel.
         this._manual = [];
+        // Schema tab undo/redo: each entry snapshots what was shown (related +
+        // manual tables, their resolved FK relationships) and, once its layout
+        // has settled, the Cytoscape node positions + pan/zoom - so going back
+        // or forward (see _goToSchemaHistory) is instant, with no ELK pass and
+        // no relationships round trip. Pushed only on an actual change (Expand,
+        // per-table expand, Add table, Remove) - see _pushSchemaHistory. Like a
+        // browser's history: a new action past the current position discards
+        // whatever was ahead of it.
+        this._schemaHistory = [];
+        this._schemaHistoryIndex = -1;
+        // The history entry a layout run in flight should land its result
+        // into, if it's still the current one once it resolves (the user
+        // may have navigated history meanwhile) - see _layoutSchema /
+        // _captureLayoutSnapshot. Safe as a single field: there is only ever
+        // one live Cytoscape instance, and any new one invalidates whatever
+        // was running before it (the _schemaCy !== cy checks in
+        // _layoutSchema), so requests can never actually overlap here.
+        this._pendingLayoutEntry = null;
+        // getRelationshipsAmong requests in flight, keyed by the id each was
+        // sent with - see _refreshRelationships / onRelationshipsAmongResult.
+        // A map, not a single field: onDidReceiveMessage never awaits one
+        // handler before starting the next, so two of these (Expand, then
+        // Add table, before the first round trip returns) can resolve out
+        // of order. A single "pending entry" pointer would have the second
+        // request's response steal the first's slot, and the first entry's
+        // own result - landing later - would then be silently dropped: it
+        // would stay cached with no relationships at all, or get applied to
+        // the wrong entry. Keying by request id lets each response find the
+        // entry it actually belongs to, whatever order they come back in.
+        this._relationshipsRequestSeq = 0;
+        this._relationshipsRequests = new Map();
         // The authoritative FK graph among the whole set currently shown
         // (seed + related + manual) - null until the first Expand/Add/
         // per-table expand asks for it; _fp.relationships (seed-only, already
@@ -57,6 +90,21 @@ class FootprintManager {
         // tab's own display:none, same as everything else in it, not by
         // toggling 'visible' on tab switches.
         this._open = false;
+        // Which query tab / Explorer object tab the open analysis came from,
+        // if any - see open()/openQueryGraph() and onQueryTabClosed/
+        // onObjectTabClosed: closing that specific tab closes this popup too,
+        // instead of leaving it open on top of whatever replaced it.
+        this._ownerQueryTabId = null;
+        this._ownerObjectTabId = null;
+
+        // The Query tab's own left panel (Files/Instance) can be resized (its
+        // splitter) or toggled while the popup is open - keeps --fp-left-offset
+        // (see _updateLeftOffset) live instead of frozen at whatever it was
+        // when the popup opened.
+        const filesPanel = document.querySelector('.sql-files-panel');
+        if (filesPanel && window.ResizeObserver) {
+            new ResizeObserver(() => { if (this._open) this._updateLeftOffset(); }).observe(filesPanel);
+        }
 
         this.showReadsChk = document.getElementById('footprintShowReads');
         if (this.showReadsChk) this.showReadsChk.addEventListener('change', () => {
@@ -67,6 +115,10 @@ class FootprintManager {
         this.schemaAllColumnsChk = document.getElementById('footprintSchemaAllColumns');
         if (this.schemaAllColumnsChk) this.schemaAllColumnsChk.addEventListener('change', () => {
             this._schemaAllColumns = this.schemaAllColumnsChk.checked;
+            // Every cached layout was sized for the old label text - stale for
+            // every entry, not just the current one (see _captureLayoutSnapshot);
+            // each is relaid out lazily, the next time it's visited.
+            for (const entry of this._schemaHistory) entry.positions = null;
             this._renderSchema();
         });
 
@@ -122,6 +174,8 @@ class FootprintManager {
     open(objectName) {
         if (!appState.currentDatabase) return;
         this._attachToTab('explorerTab');
+        // Tied to the Explorer object tab it came from - see onObjectTabClosed.
+        this._ownerObjectTabId = window.explorerManager ? window.explorerManager._activeObjectTabId : null;
         this._showReads = true;
         if (this.showReadsChk) this.showReadsChk.checked = true;
         this._schemaAllColumns = false;
@@ -154,6 +208,8 @@ class FootprintManager {
     openQueryGraph(sql, options = {}) {
         if (!appState.currentDatabase) return;
         this._attachToTab('queryTab');
+        // Tied to the query tab it came from - see onQueryTabClosed.
+        this._ownerQueryTabId = window.queryFileManager ? window.queryFileManager.activeTabId : null;
         this._schemaAllColumns = false;
         if (this.schemaAllColumnsChk) this.schemaAllColumnsChk.checked = false;
         this._fp = null;
@@ -311,6 +367,19 @@ class FootprintManager {
         this._open = false;
         this.overlay.classList.remove('visible');
         this._destroyGraphs();
+    }
+
+    // Hooked from QueryFileManager._removeTab: a Query graph belongs to the
+    // query tab it was opened from, not to the Query app tab in general -
+    // closing that specific tab closes the popup along with it.
+    onQueryTabClosed(id) {
+        if (this._open && this._mode === 'query' && this._ownerQueryTabId === id) this.close();
+    }
+
+    // Hooked from ExplorerManager.closeObjectTab: same as onQueryTabClosed,
+    // for a Table footprint and the Explorer object tab it came from.
+    onObjectTabClosed(id) {
+        if (this._open && this._mode === 'footprint' && this._ownerObjectTabId === id) this.close();
     }
 
     // Hooked from TabManager.switchTab on every app tab change. Showing and
@@ -499,10 +568,15 @@ class FootprintManager {
         this._expandRequested = false;
         this._manual = [];
         this._relationships = null;
+        this._schemaHistory = [];
+        this._schemaHistoryIndex = -1;
+        this._pendingLayoutEntry = null;
+        this._relationshipsRequests = new Map();
         if (this.schemaMetaEl) this.schemaMetaEl.textContent = '';
         if (this.tablesSearchInput) this.tablesSearchInput.value = '';
         if (this.expandDepthInput) this.expandDepthInput.value = '1';
         this._setExpandButtonState('idle');
+        this._updateHistoryButtons();
     }
 
     // Reads the panel's depth input (1-5, default 1 on anything invalid).
@@ -512,6 +586,10 @@ class FootprintManager {
     }
 
     _setExpandButtonState(state) {
+        // History nav is locked out while a fetch that will push a new entry
+        // is in flight - navigating away mid-request would land that
+        // request's result on the wrong entry once it resolves.
+        this._updateHistoryButtons();
         if (!this.expandBtn) return;
         this.expandBtn.disabled = state === 'loading';
         this.expandBtn.innerHTML = state === 'loading'
@@ -587,7 +665,7 @@ class FootprintManager {
         // so their PK/FK columns show the first time they appear, not a
         // bare name that re-renders a moment later once the doc arrives.
         this._fetchDoc(added.map(r => r.qualifiedName));
-        this._refreshRelationships();
+        this._refreshRelationships(this._pushSchemaHistory());
         this._renderSchema();
     }
 
@@ -595,9 +673,14 @@ class FootprintManager {
     // again on every change to that set (Expand, per-table expand, Add,
     // Remove), so an FK between two neighbor tables (not just seed<->neighbor)
     // is never missed. See _renderSchema for how this supersedes the anchor-
-    // based FK edges once it has been fetched at least once.
-    _refreshRelationships() {
-        vscode.postMessage({ command: 'getRelationshipsAmong', database: appState.currentDatabase, tableNames: this._shownTableNames() });
+    // based FK edges once it has been fetched at least once. `entry` is the
+    // history entry this fetch's result belongs to (see
+    // onRelationshipsAmongResult) - tagged with a request id since this can
+    // overlap with another one of these in flight (see _relationshipsRequests).
+    _refreshRelationships(entry) {
+        const requestId = ++this._relationshipsRequestSeq;
+        this._relationshipsRequests.set(requestId, entry);
+        vscode.postMessage({ command: 'getRelationshipsAmong', database: appState.currentDatabase, tableNames: this._shownTableNames(), requestId });
     }
 
     // Every table currently drawn in the Schema tab, whatever brought it
@@ -619,7 +702,7 @@ class FootprintManager {
         if (already.has(clean(qualifiedName))) return;
         this._manual.push(qualifiedName);
         this._fetchDoc([qualifiedName]);
-        this._refreshRelationships();
+        this._refreshRelationships(this._pushSchemaHistory());
         this._renderSchema();
     }
 
@@ -635,23 +718,160 @@ class FootprintManager {
         if (this._relationships) {
             this._relationships = this._relationships.filter(r => clean(r.fromTable) !== target && clean(r.toTable) !== target);
         }
+        this._pushSchemaHistory();
         this._renderSchema();
     }
 
     onRelationshipsAmongResult(message) {
-        if (!this._open || !message.success) return;
-        this._relationships = message.relationships || [];
+        if (!this._open) return;
+        // The entry this fetch was for, found by the id it was sent with, not
+        // by assuming it's the only one in flight (see _relationshipsRequests).
+        const entry = this._relationshipsRequests.get(message.requestId);
+        this._relationshipsRequests.delete(message.requestId);
+        if (!message.success) return;
+        const relationships = (message.relationships || []).map(r => ({ ...r }));
+        // Cached on its entry either way, for if it's ever revisited, but
+        // only applied to the live view (and repainted) when the user
+        // hasn't navigated elsewhere meanwhile.
+        if (entry) {
+            entry.relationships = relationships;
+            if (entry !== this._schemaHistory[this._schemaHistoryIndex]) return;
+        }
+        this._relationships = relationships;
         this._renderSchema();
     }
 
-    _renderSchema() {
-        if (!this._ensureRegistered() || !this._fp) return;
+    // === Schema tab history (undo/redo) ===
+
+    // Deep-clones the bits of _pushSchemaHistory's snapshot that are mutated
+    // in place elsewhere (_related.push, _relationships.filter's source...),
+    // so a later mutation of the live arrays never reaches back into an
+    // older entry.
+    static _cloneRelated(list) { return (list || []).map(r => ({ ...r })); }
+    static _cloneRelationships(list) { return list === null ? null : list.map(r => ({ ...r })); }
+
+    // Snapshots the table set just settled on (after Expand/per-table expand/
+    // Add/Remove) as a new history step. Any step beyond the current position
+    // is discarded first - exactly like a browser's history once a new link
+    // is followed after going back. Positions/pan/zoom are filled in once
+    // this entry's layout actually settles (see _captureLayoutSnapshot).
+    // Returns the new entry, so a caller that still owes it a relationships
+    // fetch (Expand, Add) can remember which one to land it into.
+    _pushSchemaHistory() {
+        this._schemaHistory = this._schemaHistory.slice(0, this._schemaHistoryIndex + 1);
+        const entry = {
+            related: FootprintManager._cloneRelated(this._related),
+            manual: [...this._manual],
+            relationships: FootprintManager._cloneRelationships(this._relationships),
+            positions: null, pan: null, zoom: null
+        };
+        this._schemaHistory.push(entry);
+        this._schemaHistoryIndex = this._schemaHistory.length - 1;
+        this._updateHistoryButtons();
+        return entry;
+    }
+
+    _updateHistoryButtons() {
+        // Locked out mid-fetch too (see _setExpandButtonState): navigating
+        // away before an Expand/Add's own result lands would misdirect it.
+        const loading = this._expandRequested;
+        if (this.schemaHistoryBackBtn) this.schemaHistoryBackBtn.disabled = loading || this._schemaHistoryIndex <= 0;
+        if (this.schemaHistoryForwardBtn) this.schemaHistoryForwardBtn.disabled = loading || this._schemaHistoryIndex >= this._schemaHistory.length - 1;
+    }
+
+    // Jumps to a previously-seen table set, instantly: no ELK pass, no
+    // relationships round trip - everything was already cached when that
+    // state was first reached (see _pushSchemaHistory / _captureLayoutSnapshot).
+    // Only the camera (pan/zoom) and the live table set move; manual pan/zoom
+    // tweaks done *within* a state aren't tracked, so going back restores the
+    // view as it was right after that state's own layout, not mid-tweak.
+    _goToSchemaHistory(index) {
+        if (!this._fp || index < 0 || index >= this._schemaHistory.length) return;
+        const entry = this._schemaHistory[index];
+        this._schemaHistoryIndex = index;
+        this._related = FootprintManager._cloneRelated(entry.related);
+        this._manual = [...entry.manual];
+        this._relationships = FootprintManager._cloneRelationships(entry.relationships);
         this._renderTablesPanel();
-        // The graph of the previous render is destroyed before its container is
-        // emptied, not after: the canvas of a live instance has to be removed
-        // by the instance itself.
         if (this._schemaCy) { this._schemaCy.destroy(); this._schemaCy = null; }
         this.schemaEl.innerHTML = '';
+        const elements = this._schemaElements(this._related, this._manual, this._relationships);
+        // Positions are never given to the preset layout itself here, even
+        // when they're already known - see _restoreViewport for why.
+        const cy = window.cytoscape({
+            container: this.schemaEl, elements, wheelSensitivity: 1, minZoom: 0.2, maxZoom: 3,
+            boxSelectionEnabled: true,
+            style: FootprintManager._schemaStyle(),
+            layout: { name: 'preset', fit: false }
+        });
+        this._schemaCy = cy;
+        cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(cy, evt, { removable: evt.target.data('kind') !== 'seed' }));
+        if (entry.positions) {
+            this._restoreViewport(cy, entry);
+        } else {
+            // Left before its own layout ever settled (rare) - lay it out now,
+            // same as a live render, and cache it for next time.
+            this._setSchemaPending(true);
+            this._schemaLayoutEngine = null;
+            this._pendingLayoutEntry = entry;
+            this._layoutSchema(cy);
+        }
+        this._updateHistoryButtons();
+    }
+
+    // The position of every node is already known, but giving them to the
+    // preset layout straight away - at construction, before Cytoscape has
+    // measured any label - was wrong, the same way a fresh layout never sets
+    // positions until sizes are known (see _layoutSchema's own
+    // _waitForSizes/_refreshHitTest, and SchemaLayout.apply, which places
+    // the tables only after that same wait). A node whose size was still
+    // zero when its position was set leaves more than a stale style cache
+    // behind (see _refreshHitTest): an edge connected to it caches its own
+    // curve against that zero-size moment, and never recomputes it - no
+    // amount of panning, resizing or dirtying the *node's* style cache
+    // fixes an edge drawn this way, since none of those touch the edge's
+    // own cached geometry. Waiting for sizes, same as a fresh layout, then
+    // setting positions only now (not a moment earlier) avoids the whole
+    // problem instead of working around its symptom.
+    async _restoreViewport(cy, entry) {
+        this._setSchemaPending(true);
+        await FootprintManager._waitForSizes(cy, () => this._schemaCy === cy);
+        if (this._schemaCy !== cy) return;
+        cy.nodes().forEach(n => {
+            const position = entry.positions[n.id()];
+            if (position) n.position(position);
+        });
+        FootprintManager._refreshHitTest(cy);
+        await FootprintManager._nextFrame();
+        if (this._schemaCy !== cy) return;
+        this._setSchemaPending(false);
+        cy.viewport({ zoom: entry.zoom || 1, pan: entry.pan || { x: 0, y: 0 } });
+    }
+
+    // Caches the Cytoscape layout (node positions + pan/zoom) that just
+    // settled for the Schema tab onto whichever history entry it was for -
+    // null if the user navigated elsewhere before it finished (see the
+    // _schemaCy !== cy checks in _layoutSchema, which skip this call then).
+    _captureLayoutSnapshot(cy) {
+        const entry = this._pendingLayoutEntry;
+        this._pendingLayoutEntry = null;
+        if (!entry) return;
+        const positions = {};
+        cy.nodes().forEach(n => { positions[n.id()] = { x: n.position('x'), y: n.position('y') }; });
+        entry.positions = positions;
+        entry.pan = { ...cy.pan() };
+        entry.zoom = cy.zoom();
+    }
+
+    // Builds the Schema tab's node/edge list for a given table set - shared
+    // by the live render (_renderSchema) and history navigation
+    // (_goToSchemaHistory), so both draw the exact same way for the same
+    // inputs. `relationships` is the authoritative FK graph among the whole
+    // set (see _refreshRelationships) once it has landed at least once;
+    // null falls back to the footprint's own seed-only relationships plus
+    // the anchor-based edges of FK neighbors, already exact for that
+    // smaller set but unable to show an FK between two non-seed tables.
+    _schemaElements(related, manual, relationships) {
         const elements = [];
         const seedNames = new Set(this._fp.tables.map(t => t.qualifiedName.toLowerCase()));
         const nodeId = (name) => `s::${name}`;
@@ -662,31 +882,23 @@ class FootprintManager {
 
         for (const t of this._fp.tables) addTableNode(t.qualifiedName, 'seed');
         const drawnNames = new Set(seedNames);
-        for (const r of this._related || []) {
+        for (const r of related || []) {
             if (drawnNames.has(r.qualifiedName.toLowerCase())) continue; // already drawn as a seed table
             addTableNode(r.qualifiedName, r.via);
             drawnNames.add(r.qualifiedName.toLowerCase());
         }
-        for (const name of this._manual) {
+        for (const name of manual || []) {
             if (drawnNames.has(name.toLowerCase())) continue; // already drawn as a seed/related table
             addTableNode(name, 'added');
             drawnNames.add(name.toLowerCase());
         }
 
-        // FK edges. _relationships is the authoritative graph among the whole
-        // set now shown (asked for again on every Expand/Add/per-table
-        // expand/Remove - see _refreshRelationships) - it alone can show an
-        // FK between two non-seed tables, which the anchor-based neighbor
-        // data below never can, so once it has landed at least once it
-        // supersedes the fallback entirely. Until then (no round trip yet),
-        // the footprint's own seed-only relationships plus the anchor-based
-        // edges of FK neighbors are already exact for that smaller set.
         let fkRelationships;
-        if (this._relationships !== null) {
-            fkRelationships = this._relationships;
+        if (relationships !== null) {
+            fkRelationships = relationships;
         } else {
             fkRelationships = [...(this._fp.relationships || [])];
-            for (const r of this._related || []) {
+            for (const r of related || []) {
                 if (!r.anchorTable || r.via !== 'fk') continue;
                 // direction is which role the NEIGHBOR plays: 'parent' (it is
                 // referenced by our anchor, which holds the FK) or 'child'
@@ -702,6 +914,22 @@ class FootprintManager {
             if (!drawnNames.has(rel.fromTable.toLowerCase()) || !drawnNames.has(rel.toTable.toLowerCase())) continue;
             elements.push({ data: { id: `fk::${rel.fkName}::${rel.fromTable}::${rel.toTable}`, source: nodeId(rel.fromTable), target: nodeId(rel.toTable), kind: 'fk', label: rel.fkName } });
         }
+        return elements;
+    }
+
+    _renderSchema() {
+        if (!this._ensureRegistered() || !this._fp) return;
+        // The very first render of a freshly opened footprint/query: the
+        // seed-only table set becomes history entry 0, so "Back" from the
+        // first Expand/Add returns to it.
+        if (this._schemaHistory.length === 0) this._pushSchemaHistory();
+        this._renderTablesPanel();
+        // The graph of the previous render is destroyed before its container is
+        // emptied, not after: the canvas of a live instance has to be removed
+        // by the instance itself.
+        if (this._schemaCy) { this._schemaCy.destroy(); this._schemaCy = null; }
+        this.schemaEl.innerHTML = '';
+        const elements = this._schemaElements(this._related, this._manual, this._relationships);
         // The tables are placed by ELK, not by a layout of Cytoscape (see
         // _layoutSchema): the preset layout only keeps them together until
         // the real positions come. It must not fit the viewport either: the
@@ -720,6 +948,7 @@ class FootprintManager {
         // _openGraphContextMenu) - a plain click never jumps away on its
         // own; it just selects the node (native Cytoscape behavior).
         cy.on('cxttap', 'node', (evt) => this._openGraphContextMenu(cy, evt, { removable: evt.target.data('kind') !== 'seed' }));
+        this._pendingLayoutEntry = this._schemaHistory[this._schemaHistoryIndex];
         this._layoutSchema(cy);
     }
 
@@ -759,6 +988,7 @@ class FootprintManager {
                 this._schemaLayoutEngine = 'elk';
                 this._setSchemaPending(false);
                 this._fitCapped(cy, undefined, 30);
+                this._captureLayoutSnapshot(cy);
                 return;
             }
         }
@@ -768,6 +998,7 @@ class FootprintManager {
         this._schemaLayoutEngine = 'dagre';
         this._setSchemaPending(false);
         this._fitCapped(cy, undefined, 30);
+        this._captureLayoutSnapshot(cy);
     }
 
     // While ELK places the tables, the pane stays empty: the tables piled up
@@ -853,6 +1084,10 @@ class FootprintManager {
     // their .graph-zoom-controls says which). Fit zooms to the selection
     // (a box-drag selects several nodes) when there is one, the whole graph otherwise.
     _graphZoomAction(forWhich, action) {
+        if (forWhich === 'schema' && (action === 'history-back' || action === 'history-forward')) {
+            this._goToSchemaHistory(this._schemaHistoryIndex + (action === 'history-back' ? -1 : 1));
+            return;
+        }
         const cy = forWhich === 'schema' ? this._schemaCy : this._cy;
         if (!cy) return;
         const center = { x: cy.width() / 2, y: cy.height() / 2 };
@@ -876,12 +1111,14 @@ class FootprintManager {
     }
 
     // Full window by default (the modal is only worth opening to look at a
-    // graph), but never over the app's own tab bar above it, and without
-    // graying it out either - the overlay itself (backdrop + dialog) is
-    // narrowed to start below the tab bar, not just the dialog inside it.
-    // Measured fresh each time since a banner can change the tab bar's
-    // height while the modal is open. cy.resize()+fit() so a graph created
-    // before maximizing (or minimizing back) isn't stuck measuring the old
+    // graph), but never over the app's own tab bar above it, or the Query
+    // tab's own left panel (Files/Instance) when that is open, and without
+    // graying either out - the overlay itself (backdrop + dialog) is
+    // narrowed to start below the tab bar and to the right of that panel,
+    // not just the dialog inside it. Measured fresh each time since a
+    // banner can change the tab bar's height, or the panel can be toggled,
+    // while the modal is open. cy.resize()+fit() so a graph created before
+    // maximizing (or minimizing back) isn't stuck measuring the old
     // container size.
     _setMaximized(maximized) {
         const dialog = this.overlay.querySelector('.modal-dialog-footprint');
@@ -891,11 +1128,24 @@ class FootprintManager {
         if (maximized) {
             const toolbar = document.querySelector('.app-toolbar');
             this.overlay.style.setProperty('--fp-top-offset', `${toolbar ? Math.max(0, toolbar.getBoundingClientRect().bottom) : 0}px`);
+            this._updateLeftOffset();
         }
         if (this.maximizeBtn) {
             this.maximizeBtn.title = maximized ? 'Restore' : 'Maximize';
             this.maximizeBtn.innerHTML = `<i class="codicon codicon-screen-${maximized ? 'normal' : 'full'}"></i>`;
         }
+        [this._cy, this._schemaCy].forEach(cy => { if (cy) { cy.resize(); this._fitCapped(cy, undefined, 30); } });
+    }
+
+    // Re-measures the Query tab's left panel (Files/Instance) and updates
+    // --fp-left-offset to match - called once when maximizing, then again
+    // on every resize of that panel (see the ResizeObserver in the
+    // constructor) so dragging its splitter, or toggling it, while the
+    // popup is open keeps the popup lined up with it instead of freezing at
+    // whatever the width was when the popup opened.
+    _updateLeftOffset() {
+        const filesPanel = document.querySelector('.sql-files-panel.visible');
+        this.overlay.style.setProperty('--fp-left-offset', `${filesPanel ? Math.max(0, filesPanel.getBoundingClientRect().right) : 0}px`);
         [this._cy, this._schemaCy].forEach(cy => { if (cy) { cy.resize(); this._fitCapped(cy, undefined, 30); } });
     }
 

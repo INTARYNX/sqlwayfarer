@@ -618,7 +618,7 @@ class SqlWayfarerPanel {
             case 'getWriteFootprint':           await this._footprint.handleGetWriteFootprint(message.database, message.objectName); break;
             case 'getFootprintDoc':             await this._footprint.handleGetFootprintDoc(message.database, message.tableNames); break;
             case 'getRelatedTables':             await this._footprint.handleGetRelatedTables(message.database, message.tableNames, message.depth); break;
-            case 'getRelationshipsAmong':        await this._footprint.handleGetRelationshipsAmong(message.database, message.tableNames); break;
+            case 'getRelationshipsAmong':        await this._footprint.handleGetRelationshipsAmong(message.database, message.tableNames, message.requestId); break;
 
             // Query graph (tables read by the editor's SQL, and how they join)
             case 'getQueryGraph':                await this._queryGraph.handleGetQueryGraph(message.database, message.sql); break;
