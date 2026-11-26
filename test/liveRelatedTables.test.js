@@ -60,7 +60,7 @@ suite('live SQL Server: related tables (FK neighbors, usage neighbors)', functio
 		await manager.dispose();
 	});
 
-	test('a real FK neighbor and a usage-only neighbor (no FK at all) are both found', async function () {
+	test('relatedTables is FK-only: the real FK neighbor is found, the usage-only table is not', async function () {
 		if (!LIVE_CONFIG) return this.skip();
 		const result = await related.relatedTables(DB, ['dbo.Orders']);
 		const byName = Object.fromEntries(result.map(r => [r.qualifiedName.replace(/^dbo\./i, 'dbo.'), r]));
@@ -69,10 +69,19 @@ suite('live SQL Server: related tables (FK neighbors, usage neighbors)', functio
 		assert.strictEqual(byName['dbo.Customers'].via, 'fk');
 		assert.strictEqual(byName['dbo.Customers'].direction, 'parent');
 
+		assert.ok(!byName['dbo.Shipments'], 'Shipments (no FK at all) is not suggested by Expand: ' + JSON.stringify(result));
+		assert.ok(!byName['dbo.Unrelated'], 'an unrelated table is not suggested');
+	});
+
+	test('usageNeighbors still finds the usage-only table from the real index', async function () {
+		if (!LIVE_CONFIG) return this.skip();
+		const index = await indexService.peekIndex(DB);
+		const result = RelatedTablesService.usageNeighbors(index, ['dbo.Orders']);
+		const byName = Object.fromEntries(result.map(r => [r.qualifiedName.replace(/^dbo\./i, 'dbo.'), r]));
+
 		assert.ok(byName['dbo.Shipments'], 'Shipments is found (usage only, no FK at all): ' + JSON.stringify(result));
 		assert.strictEqual(byName['dbo.Shipments'].via, 'usage');
 		assert.strictEqual(byName['dbo.Shipments'].procCount, 2);
-
 		assert.ok(!byName['dbo.Unrelated'], 'a table no procedure touches alongside Orders is not suggested');
 	});
 });
